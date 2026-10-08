@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết giao hàng — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07; --do:#b91c1c;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --la-bg:#dcfce7; --la-fg:#15803d; --la-dot:#22c55e;
+  --vang-bg:#fef3c7; --vang-fg:#b45309; --vang-dot:#f59e0b;
+  --xam-bg:#f1f5f9; --xam-fg:#475569; --xam-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1480px;margin:0 auto;padding:24px 16px 96px}
+h1{font-size:20px;font-weight:600;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:1040px;font-size:14px}
+.notes{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:18px}
+@media (max-width:1000px){.notes{grid-template-columns:1fr}}
+.note{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 16px;color:var(--ash)}
+.note h4{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--ink)}
+.note ul{margin:0;padding-left:18px}
+.note li{margin:3px 0}
+
+.switch{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:10px 14px;margin:0 0 16px;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--rule)}
+.switch .lbl{font-size:12px;color:var(--ash)}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:1px solid transparent;background:none;font:inherit;font-weight:500;color:var(--ash);padding:5px 12px;border-radius:6px;cursor:pointer;white-space:nowrap}
+.seg button:hover{background:var(--rule-hair)}
+.seg button.on{border-color:var(--ink);color:var(--ink)}
+.why{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 16px;margin:0 0 14px;color:var(--ash)}
+.why b{color:var(--ink);font-weight:600}
+.v{display:none}
+
+/* Khung app + ngăn 1180px */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:14px;overflow:hidden;position:relative;height:860px}
+.ghost{padding:18px 20px;filter:blur(1.5px);opacity:.55}
+.ghost .gl{height:30px;border-radius:8px;background:var(--rule-soft);margin:8px 0;width:60%}
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28)}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:min(1180px,100%);background:var(--canvas);border-left:1px solid var(--rule);box-shadow:-12px 0 32px rgba(15,23,42,.12);display:flex;flex-direction:column}
+.dh{padding:16px 24px 0}
+.dh .duong{font-size:12px;color:var(--ash-2);display:flex;align-items:center;gap:8px}
+.dh .duong .ic{margin-left:auto;display:flex;gap:4px}
+.dh .duong .ic span{width:28px;height:28px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:var(--ash);font-size:16px;cursor:pointer}
+.dh .duong .ic span:hover{background:var(--rule-hair)}
+.dh .tieu{display:flex;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap}
+.dh .tieu h2{margin:0;font-size:20px;font-weight:500;letter-spacing:.01em}
+.dh .tieu .nut{margin-left:auto;display:flex;gap:8px}
+.than{flex:1;overflow:auto;padding:18px 24px 32px}
+
+.btn{height:32px;border:1px solid var(--rule);border-radius:7px;background:var(--canvas);padding:0 12px;font:inherit;font-weight:500;color:var(--ink);display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.pri:hover{background:var(--rust-deep)}
+.btn.do{color:var(--do)}
+.btn.do-dac{border-color:var(--do);color:var(--do)}
+.sub{color:var(--ash-2);font-size:12px}
+.mut{color:var(--ash-3)}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.tag{display:inline-block;padding:0 6px;border:1px solid var(--rule-soft);border-radius:5px;font-size:11.5px;color:var(--ash);background:var(--canvas);white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:500;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%}
+.p-la{background:var(--la-bg);color:var(--la-fg)} .p-la i{background:var(--la-dot)}
+.p-vang{background:var(--vang-bg);color:var(--vang-fg)} .p-vang i{background:var(--vang-dot)}
+.p-xam{background:var(--xam-bg);color:var(--xam-fg)} .p-xam i{background:var(--xam-dot)}
+/* Liên kết: chữ thường màu mực, gạch chân mảnh — không cam đậm */
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+.lk:hover{text-decoration-color:var(--ink)}
+.lk.nho{font-size:12px;color:var(--ash)}
+
+/* Tab: chọn = gạch dưới, không tô đen */
+.tabs{display:flex;gap:22px;border-bottom:1px solid var(--rule-soft);margin-top:14px}
+.tabs button{border:0;background:none;font:inherit;color:var(--ash-2);padding:8px 0 10px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+
+/* Dải tóm tắt */
+.kv4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px 24px;margin-top:14px}
+.kv4 dt{font-size:12px;color:var(--ash-2)}
+.kv4 dd{margin:1px 0 0;display:grid;gap:1px}
+.kv4 dd small{font-size:12px;color:var(--ash-2)}
+
+/* Bảng hàng */
+.hang{width:100%;border-collapse:collapse}
+.hang th{font-size:12px;font-weight:400;color:var(--ash-2);text-align:left;padding:6px 0;border-bottom:1px solid var(--rule-soft)}
+.hang td{padding:9px 0;border-bottom:1px solid var(--rule-hair)}
+.hang tr:last-child td{border-bottom:0}
+.hang .r{text-align:right;padding-left:24px;white-space:nowrap}
+
+/* Hộp huỷ — mở ra khi bấm "Huỷ yêu cầu", không đứng sẵn một khối đỏ */
+.huy{display:none;margin:12px 0 0;padding:12px 14px;border:1px solid var(--rule);border-radius:10px;background:var(--canvas)}
+.huy.mo{display:block}
+.huy label{display:block;font-size:12px;color:var(--ash-2);margin-bottom:4px}
+.huy .dong{display:flex;gap:8px}
+.huy input{flex:1;height:32px;border:1px solid var(--rule);border-radius:7px;padding:0 10px;font:inherit}
+.huy .goi{margin:6px 0 0;font-size:12px;color:var(--ash-2)}
+
+/* ===== A — Stripe: một cột, nhãn trái giá trị phải, vạch mảnh ngăn nhóm ===== */
+.a-nhom{padding:16px 0;border-top:1px solid var(--rule-soft);max-width:860px}
+.a-nhom:first-child{border-top:0;padding-top:4px}
+.a-nhom h3{margin:0 0 10px;font-size:14px;font-weight:500}
+.a-rows{display:grid;grid-template-columns:170px minmax(0,1fr);gap:9px 16px;margin:0}
+.a-rows dt{color:var(--ash-2)}
+.a-rows dd{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.a-ls{list-style:none;margin:0;padding:0}
+.a-ls li{display:grid;grid-template-columns:110px minmax(0,1fr);gap:16px;padding:7px 0}
+.a-ls .l{color:var(--ash-2)}
+
+/* ===== B — Shopify Polaris: hai cột, cột chính + cột thông tin bên phải ===== */
+.b-luoi{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.b-the{border:1px solid var(--rule-soft);border-radius:12px;padding:14px 16px;background:var(--canvas)}
+.b-the + .b-the{margin-top:14px}
+.b-the h3{margin:0 0 10px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px}
+.b-the h3 .sp{flex:1}
+.b-the .muc + .muc{margin-top:12px;padding-top:12px;border-top:1px solid var(--rule-hair)}
+.b-the .nhan{font-size:12px;color:var(--ash-2);margin-bottom:2px}
+.b-the p{margin:0}
+.b-tl{list-style:none;margin:0;padding:0;position:relative}
+.b-tl::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:1px;background:var(--rule)}
+.b-tl li{position:relative;padding:0 0 12px 22px}
+.b-tl li::before{content:"";position:absolute;left:1px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--canvas);border:1.5px solid var(--ash-3)}
+.b-tl li.xong::before{background:var(--la-dot);border-color:var(--la-dot)}
+.b-tl .gio{font-size:12px;color:var(--ash-2)}
+
+/* ===== C — Linear: nội dung trái, bảng thuộc tính phải, không hộp ===== */
+.c-luoi{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:100%}
+.c-chinh{padding-right:28px}
+.c-phai{border-left:1px solid var(--rule-soft);padding-left:22px}
+.c-phai h4{margin:0 0 8px;font-size:12px;font-weight:400;color:var(--ash-2)}
+.c-thuoc{display:grid;grid-template-columns:104px minmax(0,1fr);gap:10px 12px;margin:0 0 18px}
+.c-thuoc dt{color:var(--ash-2)}
+.c-thuoc dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.c-khach{font-size:15px;margin:0 0 4px}
+.c-the{display:flex;gap:6px;margin-bottom:16px}
+.c-h{margin:22px 0 8px;font-size:13px;font-weight:500}
+.c-feed{list-style:none;margin:0;padding:0}
+.c-feed li{display:flex;gap:10px;padding:7px 0;align-items:baseline}
+.c-feed .av{width:20px;height:20px;border-radius:50%;background:var(--rule-hair);color:var(--ash-2);font-size:9.5px;display:inline-flex;align-items:center;justify-content:center;flex:none;transform:translateY(4px)}
+.c-feed .gio{margin-left:auto;font-size:12px;color:var(--ash-3);white-space:nowrap}
+.c-ghi{border:1px solid var(--rule-soft);border-radius:8px;padding:8px 10px;color:var(--ash-3);margin-top:8px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Chi tiết giao hàng — 3 phương án</h1>
+  <p class="lead">Hai màn trong ảnh: <b>ngăn yêu cầu giao</b> (bấm mã ở tab Yêu cầu giao, hiện là hộp cũ xếp chồng thẻ)
+    và <b>ngăn đơn giao</b> (dòng tab Đơn giao hàng, ví dụ nhà gia công giao thẳng). Cả ba phương án dùng đúng dữ liệu
+    thật trong ảnh, và cả hai màn đều chuyển về một vỏ ngăn 1180px như mọi ngăn khác.</p>
+
+  <div class="notes">
+    <div class="note">
+      <h4>Chỗ chê trong ảnh và cách cả ba phương án sửa</h4>
+      <ul>
+        <li>Lưu ý "ok" nằm trong <b>dải nền vàng</b> ⇒ thành một dòng chữ thường có nhãn "Lưu ý khi giao", không tô nền.</li>
+        <li>Số điện thoại và "Mở bản đồ" <b>cam đậm</b> ⇒ chữ màu mực, gạch chân mảnh.</li>
+        <li>Ngăn yêu cầu là <b>hộp cũ</b>: thẻ chồng thẻ, tiêu đề đậm, thẻ rỗng "Chưa lên kế hoạch" / "Chưa có lịch sử", khối đỏ "Huỷ yêu cầu" đứng sẵn ⇒ vỏ ngăn chung, bỏ thẻ rỗng, "Lên đơn giao" là nút chính đầu ngăn, "Huỷ yêu cầu" là nút phụ — bấm mới mở ô lý do.</li>
+        <li>Tab đang chọn <b>tô đen</b> ⇒ gạch dưới (Polaris/Stripe).</li>
+      </ul>
+    </div>
+    <div class="note">
+      <h4>Giữ nguyên các luật đã chốt</h4>
+      <ul>
+        <li>Không chữ đậm; không nối mẩu bằng dấu "·" hay dấu phẩy (người nhận và số điện thoại tách bằng khoảng trống).</li>
+        <li>Mỗi thông tin nói một lần: ngày khách nhận + "sớm 24 ngày" ở đầu ngăn thì thẻ khách không nhắc lại hẹn giao.</li>
+        <li>Không đóng hộp ô dữ liệu; hover nền xám nhạt; chọn = viền.</li>
+        <li>Tab chọn gạch dưới là đổi ở <b>vỏ ngăn chung</b> — mọi ngăn khác (Kế toán, Kho…) đổi theo.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="switch">
+    <span class="lbl">Phương án</span>
+    <div class="seg" id="pa">
+      <button data-v="a" class="on">A — Stripe, một cột</button>
+      <button data-v="b">B — Shopify, hai cột thẻ</button>
+      <button data-v="c">C — Linear, thuộc tính bên phải</button>
+    </div>
+    <span class="lbl">Màn</span>
+    <div class="seg" id="man">
+      <button data-v="yc" class="on">Yêu cầu chờ lên đơn</button>
+      <button data-v="gt">Đơn giao thẳng đã xong</button>
+    </div>
+  </div>
+
+  <!-- ===================================================== A ===================================================== -->
+  <div class="why v" data-pa="a"><b>A — khuôn trang chi tiết thanh toán của Stripe.</b> Một cột đọc từ trên xuống: dải bốn ô tóm tắt dưới tiêu đề,
+    rồi từng nhóm có tiêu đề nhỏ, nhãn trái giá trị phải, vạch mảnh ngăn nhóm, không hộp nào. Hợp vì thông tin của một
+    đơn giao ít và đọc tuần tự; giống hẳn khuôn tóm tắt ngăn đang dùng nên ít đổi nhất.</div>
+
+  <div class="app v" data-pa="a" data-man="yc">
+    <div class="ghost"><div class="gl"></div><div class="gl" style="width:40%"></div><div class="gl"></div></div>
+    <div class="scrim"></div>
+    <aside class="drawer">
+      <div class="dh">
+        <div class="duong">Yêu cầu giao<span class="ic"><span>⤢</span><span>✕</span></span></div>
+        <div class="tieu">
+          <h2>YCGH-261006-UHN8</h2><span class="pill p-vang"><i></i>Chờ lên đơn</span>
+          <div class="nut"><button class="btn do" data-huy>Huỷ yêu cầu</button><button class="btn pri">Lên đơn giao</button></div>
+        </div>
+        <div class="huy">
+          <label>Lý do huỷ</label>
+          <div class="dong"><input placeholder="Ví dụ: khách lùi ngày nhận, Bán hàng sẽ gửi yêu cầu mới"><button class="btn do-dac">Xác nhận huỷ</button><button class="btn" data-huy>Thôi</button></div>
+          <p class="goi">Bán hàng thấy lý do này ở đơn DH004.</p>
+        </div>
+        <dl class="kv4">
+          <div><dt>Khách hàng</dt><dd>CÔNG TY CỔ PHẦN CAFÉ KATINAT<small>DH004</small></dd></div>
+          <div><dt>Cần giao</dt><dd><span><span class="pill p-vang"><i></i>Hôm nay</span></span><small>07/10/2026</small></dd></div>
+          <div><dt>Người yêu cầu</dt><dd>Admin<small>06/10/2026</small></dd></div>
+          <div><dt>Hàng</dt><dd>1 mặt hàng<small>4.000 tờ</small></dd></div>
+        </dl>
+        <div class="tabs"><button class="on">Chi tiết</button><button>Lịch sử</button></div>
+      </div>
+      <div class="than">
+        <section class="a-nhom">
+          <h3>Giao tới</h3>
+          <dl class="a-rows">
+            <dt>Địa chỉ</dt><dd><span>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh</span><a class="lk nho">Mở bản đồ</a></dd>
+            <dt>Người nhận</dt><dd><span>Lý Đức Trung</span><a class="lk num">0368 650 894</a></dd>
+          </dl>
+        </section>
+        <section class="a-nhom">
+          <h3>Hàng cần giao</h3>
+          <table class="hang"><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+            <tbody><tr><td>Tờ rơi A4 4/4</td><td class="r num">4.000 <span class="sub">tờ</span></td><td class="r num mut">0</td><td class="r num">4.000 <span class="sub">tờ</span></td></tr></tbody></table>
+        </section>
+        <p class="sub" style="max-width:860px;border-top:1px solid var(--rule-soft);padding-top:14px;margin:0">Chưa lên đơn giao nên chưa có chuyến, phiếu kho hay tệp — các nhóm đó hiện ra sau khi lên đơn.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="app v" data-pa="a" data-man="gt">
+    <div class="ghost"><div class="gl"></div><div class="gl" style="width:40%"></div><div class="gl"></div></div>
+    <div class="scrim"></div>
+    <aside class="drawer">
+      <div class="dh">
+        <div class="duong">Nhà gia công giao thẳng<span class="ic"><span>⤢</span><span>✕</span></span></div>
+        <div class="tieu"><h2>YCGH-261006-SICU</h2><span class="pill p-la"><i></i>Giao thành công</span></div>
+        <dl class="kv4">
+          <div><dt>Nhà gia công</dt><dd>Cơ sở Gia công Cán màng Thành Công<small>0910 726 420</small></dd></div>
+          <div><dt>Từ lệnh</dt><dd>LSX26-0002</dd></div>
+          <div><dt>Khách nhận</dt><dd>06/10/2026<small>sớm 24 ngày so với hẹn</small></dd></div>
+          <div><dt>Ghi nhận</dt><dd>Nguyễn Thị Minh Phương<small>12:46 06/10</small></dd></div>
+        </dl>
+        <div class="tabs"><button class="on">Chi tiết</button><button>Chứng từ</button><button>Lịch sử</button></div>
+      </div>
+      <div class="than">
+        <section class="a-nhom">
+          <h3>Khách hàng</h3>
+          <dl class="a-rows">
+            <dt>Tên</dt><dd><span>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</span><span class="tag">DH001</span><span class="tag">PO PO999</span></dd>
+            <dt>Nơi giao</dt><dd><span>Số 18 Đại lộ Độc Lập, KCN VSIP 1, Phường Thuận An, TP Hồ Chí Minh</span><a class="lk nho">Mở bản đồ</a></dd>
+            <dt>Người nhận</dt><dd><span>Nguyễn Thanh Vy</span><a class="lk num">0797 235 637</a></dd>
+            <dt>Lưu ý khi giao</dt><dd>ok</dd>
+          </dl>
+        </section>
+        <section class="a-nhom">
+          <h3>Hàng giao</h3>
+          <table class="hang"><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+            <tbody><tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r num mut">0</td></tr></tbody></table>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===================================================== B ===================================================== -->
+  <div class="why v" data-pa="b"><b>B — khuôn trang đơn hàng của Shopify (Polaris).</b> Cột chính bên trái là việc của đơn (hàng, chuyến, dòng thời gian),
+    cột hẹp bên phải là thông tin để tra (khách, giao tới, nhà gia công). Mỗi nhóm một thẻ viền mảnh, không tô nền. Lịch sử thành
+    dòng thời gian cuối cột chính nên bỏ được tab. Hợp khi người dùng hay liếc số điện thoại / địa chỉ trong lúc làm việc khác của đơn.</div>
+
+  <div class="app v" data-pa="b" data-man="yc">
+    <div class="ghost"><div class="gl"></div><div class="gl" style="width:40%"></div><div class="gl"></div></div>
+    <div class="scrim"></div>
+    <aside class="drawer" style="background:var(--paper)">
+      <div class="dh" style="background:var(--canvas);border-bottom:1px solid var(--rule-soft);padding-bottom:14px">
+        <div class="duong">Yêu cầu giao<span class="ic"><span>⤢</span><span>✕</span></span></div>
+        <div class="tieu">
+          <h2>YCGH-261006-UHN8</h2><span class="pill p-vang"><i></i>Chờ lên đơn</span>
+          <span class="sub">Admin gửi 06/10/2026</span>
+          <div class="nut"><button class="btn do" data-huy>Huỷ yêu cầu</button><button class="btn pri">Lên đơn giao</button></div>
+        </div>
+        <div class="huy">
+          <label>Lý do huỷ</label>
+          <div class="dong"><input placeholder="Ví dụ: khách lùi ngày nhận, Bán hàng sẽ gửi yêu cầu mới"><button class="btn do-dac">Xác nhận huỷ</button><button class="btn" data-huy>Thôi</button></div>
+        </div>
+      </div>
+      <div class="than">
+        <div class="b-luoi">
+          <div>
+            <section class="b-the">
+              <h3><span class="pill p-vang"><i></i>Chưa giao</span><span class="sp"></span><span class="sub">Cần giao hôm nay 07/10/2026</span></h3>
+              <table class="hang"><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+                <tbody><tr><td>Tờ rơi A4 4/4</td><td class="r num">4.000 <span class="sub">tờ</span></td><td class="r num mut">0</td><td class="r num">4.000 <span class="sub">tờ</span></td></tr></tbody></table>
+            </section>
+            <section class="b-the">
+              <h3>Dòng thời gian</h3>
+              <ul class="b-tl"><li class="xong">Bán hàng gửi yêu cầu giao từ đơn DH004<div class="gio">Admin 09:12 06/10/2026</div></li></ul>
+            </section>
+          </div>
+          <div>
+            <section class="b-the">
+              <h3>Khách hàng</h3>
+              <p>CÔNG TY CỔ PHẦN CAFÉ KATINAT</p>
+              <p style="margin-top:4px"><span class="tag">DH004</span></p>
+            </section>
+            <section class="b-the">
+              <h3>Giao tới</h3>
+              <div class="muc"><p>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh</p><a class="lk nho">Mở bản đồ</a></div>
+              <div class="muc"><div class="nhan">Người nhận</div><p>Lý Đức Trung</p><a class="lk num">0368 650 894</a></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="app v" data-pa="b" data-man="gt">
+    <div class="ghost"><div class="gl"></div><div class="gl" style="width:40%"></div><div class="gl"></div></div>
+    <div class="scrim"></div>
+    <aside class="drawer" style="background:var(--paper)">
+      <div class="dh" style="background:var(--canvas);border-bottom:1px solid var(--rule-soft);padding-bottom:14px">
+        <div class="duong">Nhà gia công giao thẳng<span class="ic"><span>⤢</span><span>✕</span></span></div>
+        <div class="tieu"><h2>YCGH-261006-SICU</h2><span class="pill p-la"><i></i>Giao thành công</span><span class="sub">từ lệnh LSX26-0002</span></div>
+      </div>
+      <div class="than">
+        <div class="b-luoi">
+          <div>
+            <section class="b-the">
+              <h3><span class="pill p-la"><i></i>Đã giao đủ</span><span class="sp"></span><span class="sub">Khách nhận 06/10/2026, sớm 24 ngày so với hẹn</span></h3>
+              <table class="hang"><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+                <tbody><tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r num mut">0</td></tr></tbody></table>
+            </section>
+            <section class="b-the">
+              <h3>Giấy tờ và tệp</h3>
+              <table class="hang"><tbody>
+                <tr><td>Phiếu giao hàng</td><td class="r"><span class="pill p-la"><i></i>Đã giao</span></td></tr>
+                <tr><td>Phiếu xuất kho</td><td class="r sub">Không qua kho, nhà gia công giao thẳng</td></tr>
+                <tr><td>Tệp đính kèm</td><td class="r"><a class="lk nho">Thêm tệp</a></td></tr>
+              </tbody></table>
+            </section>
+            <section class="b-the">
+              <h3>Dòng thời gian</h3>
+              <ul class="b-tl">
+                <li class="xong">Giao thành công, khách nhận 06/10/2026<div class="gio">Nguyễn Thị Minh Phương 12:46 06/10/2026</div></li>
+                <li class="xong">Bán hàng gửi yêu cầu giao từ đơn DH001<div class="gio">Admin 08:30 06/10/2026</div></li>
+              </ul>
+            </section>
+          </div>
+          <div>
+            <section class="b-the">
+              <h3>Khách hàng</h3>
+              <p>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</p>
+              <p style="margin-top:4px;display:flex;gap:6px"><span class="tag">DH001</span><span class="tag">PO PO999</span></p>
+            </section>
+            <section class="b-the">
+              <h3>Giao tới</h3>
+              <div class="muc"><p>Số 18 Đại lộ Độc Lập, KCN VSIP 1, Phường Thuận An, TP Hồ Chí Minh</p><a class="lk nho">Mở bản đồ</a></div>
+              <div class="muc"><div class="nhan">Người nhận</div><p>Nguyễn Thanh Vy</p><a class="lk num">0797 235 637</a></div>
+              <div class="muc"><div class="nhan">Lưu ý khi giao</div><p>ok</p></div>
+            </section>
+            <section class="b-the">
+              <h3>Nhà gia công</h3>
+              <p>Cơ sở Gia công Cán màng Thành Công</p><a class="lk num">0910 726 420</a>
+            </section>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===================================================== C ===================================================== -->
+  <div class="why v" data-pa="c"><b>C — khuôn trang việc của Linear.</b> Bên trái là nội dung (khách, hàng, rồi "Hoạt động" gộp lịch sử);
+    bên phải là cột thuộc tính nhãn–giá trị, gọn như một tờ phiếu, không thẻ không hộp, chỉ một vạch dọc. Hợp khi muốn nhìn
+    mọi thông tin tra cứu một chỗ cố định ở mọi đơn, và lịch sử luôn ngay dưới mắt không phải bấm tab.</div>
+
+  <div class="app v" data-pa="c" data-man="yc">
+    <div class="ghost"><div class="gl"></div><div class="gl" style="width:40%"></div><div class="gl"></div></div>
+    <div class="scrim"></div>
+    <aside class="drawer">
+      <div class="dh" style="border-bottom:1px solid var(--rule-soft);padding-bottom:14px">
+        <div class="duong">Yêu cầu giao<span class="ic"><span>⤢</span><span>✕</span></span></div>
+        <div class="tieu">
+          <h2>YCGH-261006-UHN8</h2>
+          <div class="nut"><button class="btn do" data-huy>Huỷ yêu cầu</button><button class="btn pri">Lên đơn giao</button></div>
+        </div>
+        <div class="huy">
+          <label>Lý do huỷ</label>
+          <div class="dong"><input placeholder="Ví dụ: khách lùi ngày nhận, Bán hàng sẽ gửi yêu cầu mới"><button class="btn do-dac">Xác nhận huỷ</button><button class="btn" data-huy>Thôi</button></div>
+        </div>
+      </div>
+      <div class="than">
+        <div class="c-luoi">
+          <div class="c-chinh">
+            <p class="c-khach">CÔNG TY CỔ PHẦN CAFÉ KATINAT</p>
+            <div class="c-the"><span class="tag">DH004</span></div>
+            <div class="c-h">Hàng cần giao</div>
+            <table class="hang"><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+              <tbody><tr><td>Tờ rơi A4 4/4</td><td class="r num">4.000 <span class="sub">tờ</span></td><td class="r num mut">0</td><td class="r num">4.000 <span class="sub">tờ</span></td></tr></tbody></table>
+            <div class="c-h">Hoạt động</div>
+            <ul class="c-feed">
+              <li><span class="av">AD</span><span>Admin gửi yêu cầu giao từ đơn DH004</span><span class="gio">09:12 06/10</span></li>
+            </ul>
+          </div>
+          <div class="c-phai">
+            <h4>Thuộc tính</h4>
+            <dl class="c-thuoc">
+              <dt>Trạng thái</dt><dd><span class="pill p-vang"><i></i>Chờ lên đơn</span></dd>
+              <dt>Cần giao</dt><dd><span class="pill p-vang"><i></i>Hôm nay</span> <span class="sub">07/10/2026</span></dd>
+              <dt>Người yêu cầu</dt><dd>Admin</dd>
+            </dl>
+            <h4>Giao tới</h4>
+            <dl class="c-thuoc">
+              <dt>Địa chỉ</dt><dd>Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh<br><a class="lk nho">Mở bản đồ</a></dd>
+              <dt>Người nhận</dt><dd>Lý Đức Trung</dd>
+              <dt>Điện thoại</dt><dd><a class="lk num">0368 650 894</a></dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="app v" data-pa="c" data-man="gt">
+    <div class="ghost"><div class="gl"></div><div class="gl" style="width:40%"></div><div class="gl"></div></div>
+    <div class="scrim"></div>
+    <aside class="drawer">
+      <div class="dh" style="border-bottom:1px solid var(--rule-soft);padding-bottom:14px">
+        <div class="duong">Nhà gia công giao thẳng<span class="ic"><span>⤢</span><span>✕</span></span></div>
+        <div class="tieu"><h2>YCGH-261006-SICU</h2></div>
+      </div>
+      <div class="than">
+        <div class="c-luoi">
+          <div class="c-chinh">
+            <p class="c-khach">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</p>
+            <div class="c-the"><span class="tag">DH001</span><span class="tag">PO PO999</span></div>
+            <div class="c-h">Hàng giao</div>
+            <table class="hang"><thead><tr><th>Mặt hàng</th><th class="r">Yêu cầu</th><th class="r">Đã giao</th><th class="r">Còn</th></tr></thead>
+              <tbody><tr><td>Hộp kem 50ml (5×5×12 cm)</td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r num">5.000 <span class="sub">cái</span></td><td class="r num mut">0</td></tr></tbody></table>
+            <div class="c-h">Giấy tờ</div>
+            <table class="hang"><tbody>
+              <tr><td>Phiếu giao hàng</td><td class="r"><span class="pill p-la"><i></i>Đã giao</span></td></tr>
+              <tr><td>Phiếu xuất kho</td><td class="r sub">Không qua kho</td></tr>
+            </tbody></table>
+            <div class="c-h">Hoạt động</div>
+            <ul class="c-feed">
+              <li><span class="av">MP</span><span>Nguyễn Thị Minh Phương ghi nhận giao thành công, khách nhận 06/10/2026</span><span class="gio">12:46 06/10</span></li>
+              <li><span class="av">AD</span><span>Admin gửi yêu cầu giao từ đơn DH001</span><span class="gio">08:30 06/10</span></li>
+            </ul>
+            <div class="c-ghi">Thêm tệp đính kèm (biên bản giao nhận, ảnh chụp)…</div>
+          </div>
+          <div class="c-phai">
+            <h4>Thuộc tính</h4>
+            <dl class="c-thuoc">
+              <dt>Trạng thái</dt><dd><span class="pill p-la"><i></i>Giao thành công</span></dd>
+              <dt>Khách nhận</dt><dd>06/10/2026 <span class="sub">sớm 24 ngày</span></dd>
+              <dt>Từ lệnh</dt><dd>LSX26-0002</dd>
+            </dl>
+            <h4>Nhà gia công</h4>
+            <dl class="c-thuoc">
+              <dt>Tên</dt><dd>Cơ sở Gia công Cán màng Thành Công</dd>
+              <dt>Điện thoại</dt><dd><a class="lk num">0910 726 420</a></dd>
+            </dl>
+            <h4>Giao tới</h4>
+            <dl class="c-thuoc">
+              <dt>Địa chỉ</dt><dd>Số 18 Đại lộ Độc Lập, KCN VSIP 1, Phường Thuận An, TP Hồ Chí Minh<br><a class="lk nho">Mở bản đồ</a></dd>
+              <dt>Người nhận</dt><dd>Nguyễn Thanh Vy</dd>
+              <dt>Điện thoại</dt><dd><a class="lk num">0797 235 637</a></dd>
+              <dt>Lưu ý</dt><dd>ok</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const st = { pa: "a", man: "yc" };
+function ve() {
+  document.querySelectorAll(".v").forEach((el) => {
+    const hop = el.dataset.pa === st.pa && (!el.dataset.man || el.dataset.man === st.man);
+    el.style.display = hop ? "block" : "none";
+  });
+  document.querySelectorAll("#pa button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.pa));
+  document.querySelectorAll("#man button").forEach((b) => b.classList.toggle("on", b.dataset.v === st.man));
+}
+document.getElementById("pa").addEventListener("click", (e) => { if (e.target.dataset.v) { st.pa = e.target.dataset.v; ve(); } });
+document.getElementById("man").addEventListener("click", (e) => { if (e.target.dataset.v) { st.man = e.target.dataset.v; ve(); } });
+document.querySelectorAll("[data-huy]").forEach((b) => b.addEventListener("click", () => {
+  b.closest(".dh").querySelector(".huy").classList.toggle("mo");
+}));
+ve();
+</script>
+</body>
+</html>

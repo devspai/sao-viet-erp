@@ -35,205 +35,47 @@
   letter-spacing: 0.04em;
 }
 
-/* --- Header & Live Sync --------------------------------------------------- */
-.khsx-page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--rule-soft);
-  margin-bottom: 16px;
-}
-.khsx-page-header__left {
-  display: flex;
-  flex-direction: column;
+/* --- Đầu trang + dải tab (khuôn lưới chung `lds`) -------------------------- */
+/* Hai tab thật cạnh tên màn: nền xám nhạt, tab đang mở nền trắng viền đủ cạnh, chữ thường (không đậm). */
+.khsx-tabman {
+  display: inline-flex;
   gap: 4px;
+  padding: 3px;
+  background: var(--rule-hair);
+  border: 1px solid var(--rule-soft);
+  border-radius: 8px;
+  flex-wrap: wrap;
 }
-.khsx-page-header__eyebrow-row {
-  display: flex;
+.khsx-tabman__btn {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-.khsx-eyebrow-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--rust-deep);
-  background: var(--rule-hair);
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-}
-.khsx-sync-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--moss-deep);
-  background: var(--moss-soft);
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-}
-.khsx-sync-badge__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--moss);
-}
-.khsx-page-header__title {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--ink);
-  margin: 4px 0 2px;
-  letter-spacing: -0.01em;
-}
-.khsx-page-header__sub {
-  font-size: 13px;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--ash);
-  margin: 0;
-  line-height: 1.45;
-}
-
-/* --- Table Cells trong LenhTable ------------------------------------------ */
-.khsx-code-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-.khsx-code-badge .khsx__code {
-  font-family: var(--ff-sans) !important;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-.khsx-cell-prod {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.khsx-prod__title {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-  line-height: 1.35;
-}
-.khsx-prod__group {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--rust-deep);
-  background: var(--rule-hair);
-  padding: 1px 6px;
-  border-radius: var(--r-2);
-  width: fit-content;
-}
-
-.khsx-cell-order {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.khsx-order-chip {
-  display: inline-flex;
-  align-items: center;
-  font-family: var(--ff-sans) !important;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--rule-soft);
-  padding: 1px 6px;
-  border-radius: var(--r-2);
-  width: fit-content;
-}
-.khsx-order__cust {
-  font-size: 11.5px;
-  color: var(--ash);
-}
-
-.khsx-qty-cell {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 4px;
-}
-.khsx-qty-cell b {
-  font-family: var(--ff-sans) !important;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.khsx-qty-cell small {
-  font-family: var(--ff-sans);
-  font-size: 11px;
   font-weight: 400;
-  color: var(--ash);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
 }
-
-.khsx-step-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.khsx-step-pill {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--steel);
-  background: var(--steel-soft);
-  border: 1px solid var(--rule-soft);
-  padding: 2px 7px;
-  border-radius: var(--r-pill);
-  width: fit-content;
-}
-.khsx-step-pill.is-bad {
-  color: var(--signal);
-  background: var(--signal-soft);
-  border-color: var(--signal-soft);
-}
-.khsx-step-org {
-  font-size: 11.5px;
-  color: var(--ash);
-}
-
-.khsx-cell-date {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.khsx-date-line {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 12px;
+.khsx-tabman__btn:hover { color: var(--ink); }
+.khsx-tabman__btn.is-active {
+  background: var(--canvas, #fff);
+  border-color: var(--rule);
   color: var(--ink);
 }
-.khsx-date-line.is-sub {
-  color: var(--ash);
-  font-size: 11.5px;
+/* Chấm "còn việc" cạnh tên tab — tab không mang số đếm. */
+.khsx-tabman__cham {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tt-do-dot);
 }
-.khsx-date-lbl {
-  font-size: 10.5px;
-  font-weight: 600;
-  color: var(--ash);
-}
-.khsx-date-line b {
-  font-family: var(--ff-sans) !important;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
+/* Chip nhỏ đứng cạnh chữ trong ô lưới (Gấp, chip gia công). */
+.khsx-cach { margin-left: 6px; }
 
 .khsx__head {
   border-bottom: 1px solid var(--rule);
@@ -275,93 +117,6 @@
   margin-bottom: var(--sp-4);
 }
 
-/* --- toolbar tab Lệnh ------------------------------------------------------ */
-/* Underline Tabs Navigation (Vercel / Stripe Standard) */
-.khsx-underline-tabs {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  border-bottom: 1px solid var(--rule-soft, #e2e8f0);
-  margin-bottom: 16px;
-  padding-bottom: 0;
-}
-
-.khsx-underline-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 4px 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ash, var(--ash-2));
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-.khsx-underline-tab:hover {
-  color: var(--ink, #0f172a);
-}
-.khsx-underline-tab.is-active {
-  color: var(--rust-deep, #c5400a);
-  font-weight: 600;
-  border-bottom-color: var(--rust, #c5400a);
-}
-
-.khsx-tab-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: 600;
-  border-radius: var(--r-pill);
-  background: #f1f5f9;
-  color: #475569;
-}
-.khsx-underline-tab.is-active .khsx-tab-count {
-  background: var(--rule-hair);
-  color: var(--rust-deep, #8a2d07);
-}
-.khsx-tab-count--alert {
-  background: #ffedd5;
-  color: #c2410c;
-}
-
-.khsx__toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.khsx__spacer { flex: 1 1 auto; }
-
-.khsx__search {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-3);
-  height: 34px;
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: 6px;
-  color: var(--ash);
-}
-.khsx__search input {
-  border: 0;
-  outline: none;
-  background: transparent;
-  font-size: var(--fs-md);
-  color: var(--ink);
-  min-width: 220px;
-}
-
 /* --- bảng ----------------------------------------------------------------- */
 .khsx__tablewrap {
   overflow-x: auto;
@@ -384,8 +139,6 @@
   width: 100%;
   border-collapse: collapse;
 }
-.khsx__table--queue { min-width: 880px; }
-.khsx__table--lenh { min-width: 1000px; }
 
 /* Nhãn tiếng Việt CÓ DẤU: dùng sans thường, KHÔNG uppercase/letter-spacing — chữ hoa có
    dấu bị bóp. */
@@ -419,10 +172,6 @@
 }
 .khsx__row:hover { background: #f8fafc; }
 .khsx__row:focus-visible { outline: 2px solid var(--rust); outline-offset: -2px; }
-.khsx__row--rush {
-  border-left: 3px solid var(--rust);
-  box-shadow: none;
-}
 
 .khsx__code {
   font-family: var(--ff-sans);
@@ -447,118 +196,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.khsx__note {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ash);
-}
-.khsx__rowcta {
-  font-size: var(--fs-xs);
-  color: var(--rust);
-  white-space: nowrap;
-}
 .khsx-th--center { text-align: center !important; }
 .khsx-th--right { text-align: right !important; }
-.khsx-td--center { text-align: center !important; }
-.khsx-td--right { text-align: right !important; }
-
-.khsx-code-cell {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.khsx-cust-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-}
-.khsx-cust-name {
-  font-weight: 600;
-  color: var(--ink);
-}
-.khsx-sale-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #475569;
-  background: #f1f5f9;
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-  font-weight: 500;
-  border: 1px solid #e2e8f0;
-}
-.khsx-prod-tags-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  max-width: 360px;
-}
-.khsx-prod-tag {
-  font-size: 12px;
-  font-weight: 500;
-  color: #1e293b;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  padding: 2px 8px;
-  border-radius: 4px;
-  white-space: nowrap;
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.khsx-prog-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-  white-space: nowrap;
-}
-.khsx-prog-pill.is-pending {
-  background: #fff7ed;
-  color: #c2410c;
-  border: 1px solid #fed7aa;
-}
-.khsx-prog-pill.is-done {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-}
-.khsx-time-val {
-  font-size: 12px;
-  color: var(--ash-2);
-  font-variant-numeric: tabular-nums;
-}
-.khsx-date-val {
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.khsx-cta-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--rust);
-  background: var(--rule-hair);
-  padding: 5px 12px;
-  border-radius: 6px;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-.khsx__row:hover .khsx-cta-btn {
-  background: var(--rust);
-  color: #ffffff;
-}
 
 .khsx-num {
   font-family: var(--ff-sans);
@@ -610,12 +249,14 @@ td.khsx-num > .khsx-unit {
   white-space: nowrap;
 }
 .khsx-pill--lg { font-size: var(--fs-md); padding: 5px 15px; }
-.khsx-pill__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.khsx-pill--nhap { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-.khsx-pill--sansang { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-.khsx-pill--dakethoach { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-.khsx-pill--dadong { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-.khsx-pill--phathanh { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+.khsx-pill__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pill-dot, currentColor); }
+/* Trạng thái LỆNH — cùng màu ở Kế hoạch SX và Xếp lịch (`xl-tt--*`), lấy từ bộ --tt-* (tokens.css):
+   Nháp slate · Sẵn sàng cyan · Đã lập kế hoạch xanh dương · Đã phát hành lá · Đã đóng xám. */
+.khsx-pill--nhap { background: var(--tt-slate-bg); color: var(--tt-slate-fg); --pill-dot: var(--tt-slate-dot); }
+.khsx-pill--sansang { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); --pill-dot: var(--tt-cyan-dot); }
+.khsx-pill--dakethoach { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); --pill-dot: var(--tt-xanh-dot); }
+.khsx-pill--phathanh { background: var(--tt-la-bg); color: var(--tt-la-fg); --pill-dot: var(--tt-la-dot); }
+.khsx-pill--dadong { background: var(--tt-xam-bg); color: var(--tt-xam-fg); --pill-dot: var(--tt-xam-dot); }
 
 /* --- chip cờ (bo nhẹ) ----------------------------------------------------- */
 .khsx-chip {
@@ -1175,53 +816,47 @@ td.khsx-num > .khsx-unit {
   background: #fffbeb;
   color: #b45309;
   border: 1px solid #fde68a;
-  cursor: pointer;
 }
 
-.khsx-topbar__pop-trigger {
-  position: relative;
-}
-
-.khsx-topbar__pop-trigger:hover .khsx-topbar__popover {
-  display: block;
-}
-
-.khsx-topbar__popover {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 6px;
-  width: 280px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  z-index: 50;
-  font-size: 12px;
-}
-
-.khsx-topbar__pop-title {
-  font-weight: bold;
-  color: #1e293b;
-  margin: 0 0 6px;
-}
-
-.khsx-topbar__popover ul {
+/* Lý do nút Sẵn sàng bị khoá — hiện sẵn dưới nhãn "Còn thiếu N mục" (07/10/2026). Thay bảng
+   nổi mở bằng rê chuột: người dùng không biết phải rê vào, điện thoại thì không rê được. */
+.khsx-thieu {
   list-style: none;
+  margin: 10px 0 12px;
   padding: 0;
-  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  font-size: 13px;
+  color: #92400e;
 }
 
-.khsx-topbar__popover li {
+.khsx-thieu__dong {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  color: #d97706;
+  gap: 6px 8px;
+}
+
+.khsx-thieu__buoc {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #92400e;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+button.khsx-thieu__buoc {
+  cursor: pointer;
+}
+
+button.khsx-thieu__buoc:hover {
+  background: #fffbeb;
 }
 
 /* Bottom Grid Row for KPI Tiles */
@@ -2572,11 +2207,9 @@ td.khsx-num > .khsx-unit {
 @media (max-width: 1023px) {
   .khsx { padding: var(--sp-4); }
   .khsx-form { grid-template-columns: minmax(0, 1fr); }
-  .khsx__search input { min-width: 140px; }
 }
 @media (max-width: 767px) {
   .khsx-drawer { width: 100vw; border-radius: 0; }
-  .khsx__col--opt { display: none; }
   .khsx__segrow .seg { flex: 1 1 0; justify-content: center; }
 }
 
@@ -4497,7 +4130,7 @@ td.khsx-num > .khsx-unit {
 .khsx-tgb__so-lon {
   font-size: 26px;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--tt-la-fg);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
 }
@@ -4507,8 +4140,8 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-tgb__thanh {
   display: flex;
-  gap: 2px;
-  height: 6px;
+  gap: 3px;
+  height: 10px;
   border-radius: 999px;
   overflow: hidden;
   background: var(--rule-hair);
@@ -4518,16 +4151,23 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-tgb__doan.is-chuan-bi,
 .khsx-tgb__cham.is-chuan-bi {
-  background: var(--amber);
+  background: var(--tt-vang-dot);
 }
 .khsx-tgb__doan.is-chay,
 .khsx-tgb__cham.is-chay {
-  background: var(--moss);
+  background: var(--tt-la-dot);
 }
 .khsx-tgb__doan.is-phat-sinh,
 .khsx-tgb__cham.is-phat-sinh {
-  background: var(--plum);
+  background: var(--tt-tim-dot);
 }
+.khsx-tgb__doan {
+  border-radius: 999px;
+}
+/* Số giờ từng dòng mang màu của đoạn nó chiếm trên thanh. */
+.khsx-tgb__dong:has(.is-chuan-bi) .khsx-tgb__gio { color: var(--tt-vang-fg); }
+.khsx-tgb__dong:has(.is-chay) .khsx-tgb__gio { color: var(--tt-la-fg); }
+.khsx-tgb__dong:has(.is-phat-sinh) .khsx-tgb__gio { color: var(--tt-tim-fg); }
 .khsx-tgb__ds {
   list-style: none;
   margin: 0;
@@ -4546,11 +4186,11 @@ td.khsx-num > .khsx-unit {
   border-top: 1px solid var(--rule-hair);
 }
 .khsx-tgb__cham {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   align-self: start;
-  margin-top: 6px;
+  margin-top: 5px;
 }
 .khsx-tgb__giua {
   display: flex;
@@ -4582,15 +4222,16 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-tgb__khoan-o {
   font-size: 12px;
-  color: var(--ash);
-  border: 1px solid var(--rule-soft);
+  color: var(--tt-vang-fg);
+  background: var(--tt-vang-bg);
+  border: 1px solid color-mix(in srgb, var(--tt-vang-dot) 35%, transparent);
   border-radius: 6px;
   padding: 1px 8px;
   white-space: nowrap;
 }
 .khsx-tgb__khoan-o b {
   font-weight: 600;
-  color: var(--ink);
+  color: var(--tt-vang-fg);
   font-variant-numeric: tabular-nums;
 }
 .khsx-tgb__dai {
@@ -4623,18 +4264,19 @@ td.khsx-num > .khsx-unit {
 .khsx-tgb__dai-ray {
   position: relative;
   flex: 1 1 120px;
-  height: 4px;
+  height: 6px;
   border-radius: 999px;
-  background: var(--rule-soft);
+  background: linear-gradient(90deg, var(--tt-la-dot), var(--tt-vang-dot), var(--tt-cam-dot));
 }
 .khsx-tgb__dai-moc {
   position: absolute;
   top: 50%;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--canvas);
-  border: 2px solid var(--ink);
+  border: 3px solid var(--tt-la-fg);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
   transform: translate(-50%, -50%);
 }
 .khsx-tgb__dai-trong {
@@ -7127,7 +6769,7 @@ td.khsx-num > .khsx-unit {
 .khsx-vtke__strip-val b {
   font-family: var(--ff-sans) !important;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -7165,7 +6807,8 @@ td.khsx-num > .khsx-unit {
   background: var(--canvas);
 }
 
-/* 2. Chuỗi công đoạn thu gọn — chip đậm là bước có ăn vật tư, số trong chip là số món. */
+/* 2. Chuỗi công đoạn thu gọn — chip chữ mực + viền rõ là bước có ăn vật tư, số trong chip là số
+   món. Không chữ đậm, không số thứ tự: mũi tên đã nói thứ tự. */
 .khsx-vtke__chuoi {
   list-style: none;
   margin: 0;
@@ -7197,8 +6840,7 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-vtke__chip.is-co {
   color: var(--ink);
-  font-weight: 600;
-  border-color: var(--ink);
+  border-color: var(--rule);
 }
 .khsx-vtke__chip.is-thieu {
   color: var(--signal-deep);
@@ -7208,10 +6850,10 @@ td.khsx-num > .khsx-unit {
   min-width: 18px;
   padding: 0 5px;
   border-radius: var(--r-pill, 999px);
-  background: var(--charcoal);
-  color: var(--on-charcoal);
+  background: var(--rule-hair);
+  color: var(--ash);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -7252,7 +6894,7 @@ td.khsx-num > .khsx-unit {
 .khsx-vtbang__nhom-r td {
   padding-top: 12px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ash);
   border-bottom: 1px solid var(--rule-soft);
 }
@@ -7261,7 +6903,7 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-vtbang__nhom-dem {
   margin-left: 6px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ash-2);
   font-variant-numeric: tabular-nums;
 }
@@ -7273,8 +6915,8 @@ th.khsx-vtbang__ma {
 td.khsx-vtbang__ma {
   font-family: var(--ff-sans) !important;
   font-size: 11px;
-  font-weight: 700;
-  color: var(--ash);
+  font-weight: 400;
+  color: var(--ash-2);
 }
 /* Cột tên có bề rộng định sẵn để cột "Dùng ở bước" ăn phần thừa — không thì bảng trải hết màn
    rộng và số lượng trôi xa tên cả nghìn pixel. */
@@ -7282,7 +6924,7 @@ th.khsx-vtbang__ten {
   width: 32%;
 }
 .khsx-vtbang__ten-txt {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink);
 }
 .khsx-vtbang__sub {
@@ -7299,7 +6941,7 @@ th.khsx-vtbang__sl {
 td.khsx-vtbang__sl {
   font-family: var(--ff-sans) !important;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
@@ -7327,7 +6969,7 @@ td.khsx-vtbang__buoc {
   gap: 2px 10px;
 }
 .khsx-vtbang__lan-ten {
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink);
 }
 .khsx-vtbang__lan-ten.is-rieng {
@@ -7335,9 +6977,9 @@ td.khsx-vtbang__buoc {
   color: var(--ash);
 }
 .khsx-vtbang__lan-sl {
-  font-weight: 600;
+  font-weight: 400;
+  color: var(--ash);
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
 }
 .khsx-vtbang__lan-co-so {
   flex-basis: 100%;

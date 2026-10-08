@@ -69,12 +69,16 @@ export function PhanTrangDayDu({
   return (
     <footer className="ptdd">
       <div className="ptdd__info">
-        Trang <strong>{trang}</strong>/{tongSoTrang} · {soDong} dòng
-        {tong != null && (
-          <>
-            {" "}/ tổng <strong>{tong}</strong> {donVi}{hauTo ? ` ${hauTo}` : ""}
-          </>
-        )}
+        {/* Hai mẩu thông tin tách bằng khoảng trống, không nối bằng dấu "·". */}
+        <span>Trang <strong>{trang}</strong>/{tongSoTrang}</span>
+        <span className="ptdd__phan">
+          {soDong} dòng
+          {tong != null && (
+            <>
+              {" "}/ tổng <strong>{tong}</strong> {donVi}{hauTo ? ` ${hauTo}` : ""}
+            </>
+          )}
+        </span>
         {ghiChu && <span className="ptdd__ghichu">{ghiChu}</span>}
       </div>
 

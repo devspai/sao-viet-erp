@@ -14,9 +14,6 @@
 }
 .pmh__head .md-page__title { margin-bottom: var(--sp-1); }
 
-/* Trạng thái "Nháp" chưa có tone trong accounting.css (màn Kế toán không thấy phiếu nháp):
-   chấm xám để pill không mất chấm. */
-.pmh .acct-dmh__state--draft .acct-dmh__dot { background: var(--ash); }
 
 /* Dòng không bấm được (yêu cầu đã có phiếu / không có quyền lập) — bỏ bàn tay và nền hover. */
 .pmh table tbody tr.pmh__row--khoa { cursor: default; }

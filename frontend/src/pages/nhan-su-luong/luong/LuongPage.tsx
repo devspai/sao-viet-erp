@@ -110,9 +110,6 @@ export function LuongPage({
               `ns__eyebrow` KHÔNG có CSS ở đâu cả, dùng nhầm là ra chữ thường 15px. */}
           <p className="eyebrow">Nhân sự &amp; Lương</p>
           <h1 className="ns__title">Lương</h1>
-          <p className="ns__sub">
-            Bảng lương thời gian hàng tháng · tự kéo công từ Chấm công
-          </p>
         </div>
       </header>
 

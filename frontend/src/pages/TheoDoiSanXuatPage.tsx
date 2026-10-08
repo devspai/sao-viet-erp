@@ -3,8 +3,9 @@
 // sơ lệnh sản xuất. Đặc tả: `docs/superpowers/specs/2026-10-05-lam-gon-ho-so-lenh-theo-doi-sx-design.md`
 // mục 3.
 //
-// Từ trên xuống: tiêu đề + nút đổi góc Theo máy / Theo lệnh (nhớ trong `localStorage`), dải bất
-// thường, hàng lọc, bảng. MỖI lượt tải chỉ gọi ĐÚNG góc đang xem.
+// Từ trên xuống (lưới chung 08/10/2026): đầu trang, thẻ lọc bất thường + hàng công cụ (ô tìm, Lọc,
+// nút đổi góc Theo máy / Theo lệnh nhớ trong `localStorage`, Cột), tấm lưới. MỖI lượt tải chỉ gọi
+// ĐÚNG góc đang xem.
 //
 // ⚠️ MÀN NÀY KHÔNG GHI GÌ CẢ, KHÔNG MỘT SỐ TIỀN NÀO. Lọc ở MÁY CHỦ — không `rows.filter` ở đây.
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -19,13 +20,12 @@ import type {
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
-import { Button } from "../components/Button";
-import { Icon } from "../components/Icons";
+import { ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, type MauTT } from "../components/LuoiDs";
 import { useTre } from "../lib/useTre";
 import { LenhSxHoSoView } from "./LenhSxHoSoView";
-import { TdsxTheoLenh } from "./TdsxTheoLenh";
-import { TdsxTheoMay } from "./TdsxTheoMay";
-import { BangLoi, EmptyState } from "./keHoachSxShared";
+import { COT_LENH, TdsxTheoLenh } from "./TdsxTheoLenh";
+import { COT_MAY, TdsxTheoMay } from "./TdsxTheoMay";
+import { BangLoi } from "./keHoachSxShared";
 import {
   BAT_THUONG,
   LOC_TDSX_TRONG,
@@ -37,8 +37,8 @@ import {
 import { useNapTenDonVi } from "./tenDonVi";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { useLocMan } from "./thanh-loc/useLocMan";
-// `ke-hoach-sx.css` cho `EmptyState`/`Skeleton` (lớp `.khsx-*`), rồi CSS chung của hai màn, rồi CSS
-// riêng màn này (nạp CUỐI để `.tdsx-*` thắng khi trùng độ ưu tiên).
+// `ke-hoach-sx.css` (lớp `.khsx-*` mà hồ sơ lệnh mở đè lên có thể dùng), rồi CSS chung `lsc-` (thẻ, chip,
+// dải chặng của hồ sơ lệnh và của ô Đang ở), rồi CSS riêng màn này (nạp CUỐI để `.tdsx-*` thắng).
 import "./ke-hoach-sx.css";
 import "./lenh-sx-chung.css";
 import "./theo-doi-san-xuat.css";
@@ -81,7 +81,8 @@ export function TheoDoiSanXuatPage({
   }, [goc]);
 
   // --- bộ lọc (chạy ở máy chủ) ------------------------------------------------------------------
-  const searchRef = useRef<HTMLInputElement | null>(null);
+  const khungRef = useRef<HTMLElement | null>(null);
+  const timRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState("");
   const qTre = useTre(q);
   // Khách / Máy / Bất thường — thanh lọc chung, ghi lên URL, nhớ theo màn.
@@ -92,7 +93,7 @@ export function TheoDoiSanXuatPage({
     function phim(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        searchRef.current?.focus();
+        timRef.current?.focus();
       }
     }
     window.addEventListener("keydown", phim);
@@ -176,16 +177,21 @@ export function TheoDoiSanXuatPage({
 
   // --- hồ sơ một lệnh: vẽ ĐÈ lên bảng ----------------------------------------------------------
   const [hoSoId, setHoSoId] = useState<number | null>(null);
-  const khungRef = useRef<HTMLElement | null>(null);
   const dongHoSo = useCallback(() => {
     const id = hoSoId;
     setHoSoId(null);
     requestAnimationFrame(() => {
       const nut = khungRef.current?.querySelector<HTMLButtonElement>(`[data-lsx="${id}"]`);
       if (nut) nut.focus();
-      else khungRef.current?.querySelector<HTMLElement>(".lsc-khung")?.focus();
+      else khungRef.current?.focus();
     });
   }, [hoSoId]);
+
+  // Cột hiện / thứ tự cột nhớ theo từng góc (mỗi góc một lưới riêng).
+  const [cotAnLenh, setCotAnLenh] = useCotAn("tdsx-lenh");
+  const [thuTuLenh, setThuTuLenh] = useThuTuCot("tdsx-lenh");
+  const [cotAnMay, setCotAnMay] = useCotAn("tdsx-may");
+  const [thuTuMay, setThuTuMay] = useThuTuCot("tdsx-may");
 
   const dangLoc =
     qTre.trim() !== "" || loc.khach != null || batThuong !== null
@@ -199,105 +205,105 @@ export function TheoDoiSanXuatPage({
   const dem: TdsxDemBatThuong | null = data?.bat_thuong ?? null;
   const dieuKien = dieuKienTdsx(boLoc, dem, goc === "theo_lenh");
 
-  // Ô báo khi bảng rỗng — gom MỘT chỗ cho cả hai góc.
+  // Ô báo khi bảng rỗng — gom MỘT chỗ cho cả hai góc (chữ trong ô `lds-trong` của lưới).
   const rong = loi ? (
-    <EmptyState
-      icon="alert"
-      title={loi.cam ? loi.text : "Không tải được bảng theo dõi."}
-      sub={loi.cam ? undefined : loi.text}
-      action={
-        loi.cam ? undefined : (
-          <Button variant="ghost" onClick={load}>
-            Thử lại
-          </Button>
-        )
-      }
-    />
+    <>
+      <span className="lds-do">{loi.cam ? loi.text : "Không tải được bảng theo dõi."}</span>
+      {!loi.cam && <span className="lds-mu"> {loi.text} </span>}
+      {!loi.cam && (
+        <button type="button" className="lds-lk" onClick={load}>
+          Thử lại
+        </button>
+      )}
+    </>
   ) : dangLoc ? (
-    <EmptyState
-      icon="search"
-      title="Bộ lọc không ra kết quả nào."
-      action={
-        <Button variant="ghost" onClick={xoaLoc}>
-          Bỏ lọc
-        </Button>
-      }
-    />
+    <>
+      {goc === "theo_may" ? "Không có việc nào khớp điều kiện đang lọc." : "Không có lệnh nào khớp điều kiện đang lọc."}{" "}
+      <button type="button" className="lds-lk" onClick={xoaLoc}>
+        Xoá bộ lọc
+      </button>
+    </>
   ) : goc === "theo_may" ? (
-    <EmptyState icon="clipboard" title="Chưa có việc nào trên máy." sub="Lệnh phát hành xuống xưởng sẽ hiện ở đây." />
+    "Chưa có việc nào trên máy. Lệnh phát hành xuống xưởng sẽ hiện ở đây."
   ) : (
-    <EmptyState icon="clipboard" title="Chưa có lệnh nào đang sản xuất trong phạm vi của bạn." />
+    "Chưa có lệnh nào đang sản xuất trong phạm vi của bạn."
   );
 
-  // Lỗi lúc CHƯA có dữ liệu ⇒ thay khung xám bằng ô báo lỗi (không để xám mãi).
+  // Lỗi lúc CHƯA có dữ liệu ⇒ thay hàng xương bằng ô báo lỗi (không để xương mãi).
   const dataHien = data ?? (loi ? (goc === "theo_may" ? MAY_RONG : LENH_RONG) : null);
 
+  // Thẻ lọc nhanh bất thường: "Tất cả" + sáu mục, số do MÁY CHỦ đếm (`data.bat_thuong`) trên cả tập
+  // đã lọc. Một mục một lúc; bấm lại mục đang chọn thì bỏ.
+  const muc = [
+    { key: "", label: "Tất cả" },
+    ...BAT_THUONG.map((b) => ({
+      key: b.key as string,
+      label: b.ten,
+      count: dem ? dem[b.key] : undefined,
+      mau: MAU_BAT_THUONG[b.key],
+    })),
+  ];
+  const chonBatThuong = (key: string) =>
+    setLoc({
+      ...loc,
+      bat_thuong: key === "" || key === batThuong ? undefined : BAT_THUONG.find((b) => b.key === key)?.key,
+    });
+
+  const cot = goc === "theo_may" ? COT_MAY : COT_LENH;
+  const cotAn = goc === "theo_may" ? cotAnMay : cotAnLenh;
+  const setCotAn = goc === "theo_may" ? setCotAnMay : setCotAnLenh;
+  const thuTu = goc === "theo_may" ? thuTuMay : thuTuLenh;
+  const setThuTu = goc === "theo_may" ? setThuTuMay : setThuTuLenh;
+
   return (
-    <main className="lsc tdsx" ref={khungRef}>
-      <header className="lsc-head">
-        <h1 className="lsc-title">Theo dõi sản xuất</h1>
-        <span className="lsc-spacer" />
-        <div className="lsc-seg" role="group" aria-label="Góc nhìn">
-          <button type="button" aria-pressed={goc === "theo_may"} onClick={() => setGoc("theo_may")}>
-            Theo máy
-          </button>
-          <button type="button" aria-pressed={goc === "theo_lenh"} onClick={() => setGoc("theo_lenh")}>
-            Theo lệnh
-          </button>
-        </div>
+    <main className="tdsx lds" ref={khungRef} tabIndex={-1}>
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Theo dõi sản xuất</h1>
       </header>
-
-      <div
-        className={`lsc-bt${dem ? "" : " lsc-bt--dang-tai"}`}
-        role="group"
-        aria-label="Bất thường, bấm để lọc bảng"
-        aria-busy={dem ? undefined : true}
-      >
-        {BAT_THUONG.map((b) => {
-          const n = dem?.[b.key] ?? 0;
-          const dangChon = batThuong === b.key;
-          return (
-            <button
-              key={b.key}
-              type="button"
-              className="lsc-bt__muc"
-              aria-pressed={dangChon}
-              // Đang chọn thì vẫn bấm được để BỎ, kể cả khi số đã về 0.
-              disabled={!dem || (n === 0 && !dangChon)}
-              onClick={() => setLoc({ ...loc, bat_thuong: dangChon ? undefined : b.key })}
-            >
-              <b>{dem ? n : "0"}</b> {b.nhan}
-            </button>
-          );
-        })}
-      </div>
-
-      <section className="lsc-loc tl-thanh" aria-label="Lọc bảng theo dõi">
-        <div className="lsc-search">
-          <Icon name="search" size={15} />
-          <input
-            ref={searchRef}
-            type="search"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            maxLength={120}
-            placeholder="Tìm mã lệnh, sản phẩm, số đơn, khách"
-            aria-label="Tìm mã lệnh, sản phẩm, số đơn, khách"
-          />
-          {q === "" ? (
-            <kbd className="lsc-kbd">Ctrl K</kbd>
-          ) : (
-            <button type="button" className="lsc-xoa" onClick={() => setQ("")} aria-label="Xoá ô tìm">
-              <Icon name="x" size={14} />
-            </button>
-          )}
-        </div>
-
-        <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
-      </section>
 
       {/* Lỗi khi ĐÃ có bảng: giữ bảng cũ, báo một dòng phía trên. */}
       {loi && data && <BangLoi text="Không làm mới được bảng theo dõi." onRetry={load} />}
+
+      <section className="lds-loc" aria-label="Lọc bảng theo dõi">
+        <LocNhanhTrangThai
+          muc={muc}
+          dang={batThuong ?? ""}
+          onChon={chonBatThuong}
+          ariaLabel="Bất thường, bấm để lọc bảng"
+        />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim
+            value={q}
+            onChange={setQ}
+            inputRef={timRef}
+            maxLength={120}
+            placeholder="Tìm mã lệnh, sản phẩm, số đơn, khách"
+            ariaLabel="Tìm mã lệnh, sản phẩm, số đơn, khách"
+          />
+          <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
+          <div className="lds-loc__phai">
+            <div className="tdsx-goc" role="group" aria-label="Góc nhìn">
+              <button
+                type="button"
+                className={`lds-btn${goc === "theo_may" ? " is-on" : ""}`}
+                aria-pressed={goc === "theo_may"}
+                onClick={() => setGoc("theo_may")}
+              >
+                Theo máy
+              </button>
+              <button
+                type="button"
+                className={`lds-btn${goc === "theo_lenh" ? " is-on" : ""}`}
+                aria-pressed={goc === "theo_lenh"}
+                onClick={() => setGoc("theo_lenh")}
+              >
+                Theo lệnh
+              </button>
+            </div>
+            <ChonCot cot={cot} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          </div>
+        </div>
+      </section>
 
       {goc === "theo_may" ? (
         <TdsxTheoMay
@@ -305,6 +311,8 @@ export function TheoDoiSanXuatPage({
           dangTai={loading}
           rong={rong}
           onMo={setHoSoId}
+          cotAn={cotAnMay}
+          thuTu={thuTuMay}
         />
       ) : (
         <TdsxTheoLenh
@@ -312,6 +320,9 @@ export function TheoDoiSanXuatPage({
           dangTai={loading}
           rong={rong}
           onMo={setHoSoId}
+          dangMo={hoSoId}
+          cotAn={cotAnLenh}
+          thuTu={thuTuLenh}
         />
       )}
 
@@ -326,6 +337,17 @@ export function TheoDoiSanXuatPage({
     </main>
   );
 }
+
+/** Chấm màu thẻ lọc — mỗi mục một sắc nhận diện của thẻ, không nhất thiết trùng chip của dòng (chip cờ ở
+ *  Theo lệnh trùng ở Trễ hạn, Sự cố, Tạm dừng, KCS không đạt; chip tình trạng máy ở Theo máy có bảng màu riêng). */
+const MAU_BAT_THUONG: Record<string, MauTT> = {
+  tre_han: "do",
+  su_co: "cam",
+  tam_dung: "vang",
+  kcs_khong_dat: "cham",
+  may_hong: "xam",
+  chua_may: "cyan",
+};
 
 const DEM_RONG: TdsxDemBatThuong = {
   tre_han: 0, su_co: 0, tam_dung: 0, kcs_khong_dat: 0, may_hong: 0, chua_may: 0,

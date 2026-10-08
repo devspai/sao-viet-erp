@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
 import type { StockRequestKind, StockRequestStatus, StockVoucherStatus } from "../api/client";
 import { useCan } from "../auth/permissions";
+import { ChipTT, type MauTT } from "../components/LuoiDs";
 import { tenDonVi } from "./tenDonVi";
 import "./kho-request.css";
 
@@ -108,12 +109,12 @@ export const REQUEST_STATUS: Record<StockRequestStatus, Tone> = {
   // Đã BỎ bước duyệt yêu cầu kho → tạo là "approved" ngay. Nhãn "Chờ xử lý" (chờ kho tiếp nhận/cấp),
   // KHÔNG dùng "Đã duyệt" nữa vì không còn ai duyệt.
   approved: { label: "Chờ xử lý", tone: "steel" },
-  received: { label: "Kho tiếp nhận", tone: "steel" },
-  preparing: { label: "Đang chuẩn bị", tone: "steel" },
+  received: { label: "Kho tiếp nhận", tone: "sky" },
+  preparing: { label: "Đang chuẩn bị", tone: "plum" },
   partial: { label: "Đã cấp một phần", tone: "rust" },
   done: { label: "Hoàn tất", tone: "moss" },
   rejected: { label: "Từ chối", tone: "signal" },
-  cancelled: { label: "Đã hủy", tone: "muted" },
+  cancelled: { label: "Đã hủy", tone: "gray" },
 };
 
 export const VOUCHER_STATUS: Record<StockVoucherStatus, Tone> = {
@@ -121,15 +122,17 @@ export const VOUCHER_STATUS: Record<StockVoucherStatus, Tone> = {
   // gửi luôn, người lập không sửa được; chỉ người có quyền Ghi sổ mới chốt sổ hoặc hủy.
   draft: { label: "Chờ ghi sổ", tone: "amber" },
   posted: { label: "Đã ghi sổ", tone: "moss" },
-  cancelled: { label: "Đã hủy", tone: "muted" },
+  cancelled: { label: "Đã hủy", tone: "gray" },
 };
 
-export function RequestStatusBadge({ status }: { status: StockRequestStatus }) {
+export function RequestStatusBadge({ status, loai }: { status: StockRequestStatus; loai?: StockRequestKind }) {
   const s = REQUEST_STATUS[status] ?? { label: status, tone: "muted" };
+  // Yêu cầu NHẬP thì kho "nhập" chứ không "cấp" — cùng trạng thái, khác chữ.
+  const label = status === "partial" && loai === "NHAP" ? "Đã nhập một phần" : s.label;
   return (
     <span className={`badge-sem badge-sem--${s.tone}`}>
       <span className={`status-dot status-dot--${s.tone}`} />
-      {s.label}
+      {label}
     </span>
   );
 }
@@ -144,6 +147,38 @@ export function VoucherStatusBadge({ status }: { status: StockVoucherStatus }) {
   );
 }
 
+// ── Chip trạng thái cho LƯỚI danh sách (khuôn lds, 08/10/2026) ────────────────────
+// Cùng nhãn với `REQUEST_STATUS` / `VOUCHER_STATUS`; màu theo bộ `--tt-*`, mỗi trạng thái MỘT sắc.
+const MAU_TT_YEU_CAU: Record<StockRequestStatus, MauTT> = {
+  draft: "slate",
+  pending: "vang",
+  approved: "xanh",
+  received: "cyan",
+  preparing: "tim",
+  partial: "cam",
+  done: "la",
+  rejected: "do",
+  cancelled: "xam",
+};
+
+export function ChipTrangThaiYeuCau({ status, loai }: { status: StockRequestStatus; loai?: StockRequestKind }) {
+  // Yêu cầu NHẬP thì kho "nhập" chứ không "cấp" — cùng trạng thái, khác chữ.
+  const nhan = status === "partial" && loai === "NHAP" ? "Đã nhập một phần" : (REQUEST_STATUS[status]?.label ?? status);
+  return <ChipTT mau={MAU_TT_YEU_CAU[status] ?? "slate"}>{nhan}</ChipTT>;
+}
+
+/** Chip loại yêu cầu (chip khâu, góc vuông): Nhập · Xuất · Điều chuyển. */
+export function ChipLoaiYeuCau({ loai, dieuChuyen }: { loai: StockRequestKind; dieuChuyen?: boolean }) {
+  if (dieuChuyen) return <ChipTT mau="slate" vuong>Điều chuyển</ChipTT>;
+  return loai === "NHAP" ? <ChipTT mau="ngoc" vuong>Nhập</ChipTT> : <ChipTT mau="cham" vuong>Xuất</ChipTT>;
+}
+
+const MAU_TT_PHIEU: Record<StockVoucherStatus, MauTT> = { draft: "vang", posted: "la", cancelled: "xam" };
+
+export function ChipTrangThaiPhieu({ status }: { status: StockVoucherStatus }) {
+  return <ChipTT mau={MAU_TT_PHIEU[status] ?? "slate"}>{VOUCHER_STATUS[status]?.label ?? status}</ChipTT>;
+}
+
 /** Trạng thái PHIẾU ĐIỀU CHUYỂN (mặt tiền là vế NHẬP đích): chờ kho đích ghi sổ · đã ghi sổ (hoàn
  *  tất cả tuyến) · đã hủy. Nhãn RIÊNG so với phiếu thường ("Hoàn tất" thay "Đã ghi sổ"). */
 export type TransferStatus = "cho-ghi-so" | "hoan-tat" | "da-huy";
@@ -151,7 +186,7 @@ export type TransferStatus = "cho-ghi-so" | "hoan-tat" | "da-huy";
 const TRANSFER_STATUS: Record<TransferStatus, Tone> = {
   "cho-ghi-so": { label: "Chờ ghi sổ", tone: "amber" },
   "hoan-tat": { label: "Hoàn tất", tone: "moss" },
-  "da-huy": { label: "Đã hủy", tone: "muted" },
+  "da-huy": { label: "Đã hủy", tone: "gray" },
 };
 
 export function TransferStatusBadge({ status }: { status: TransferStatus }) {
@@ -162,6 +197,12 @@ export function TransferStatusBadge({ status }: { status: TransferStatus }) {
       {s.label}
     </span>
   );
+}
+
+const MAU_TT_DIEU_CHUYEN: Record<TransferStatus, MauTT> = { "cho-ghi-so": "vang", "hoan-tat": "la", "da-huy": "xam" };
+
+export function ChipTrangThaiDieuChuyen({ status }: { status: TransferStatus }) {
+  return <ChipTT mau={MAU_TT_DIEU_CHUYEN[status]}>{TRANSFER_STATUS[status].label}</ChipTT>;
 }
 
 /** Nhãn ĐIỀU CHUYỂN — dán lên yêu cầu điều chuyển (NHẬP ở đích) để phân biệt với nhập/xuất thường.

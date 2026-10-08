@@ -36,9 +36,9 @@ from tests.test_xep_lich_service import (  # noqa: F401
 # --- Luật đèn (hàm thuần) ----------------------------------------------------
 def test_den_vat_tu_soi_dung_thu_tu_cua_cua_chan():
     """Bốn nhánh của `_chan_chua_giu_du`, đúng thứ tự — đèn đỏ phải đoán trúng việc bấm sẽ bị chặn."""
-    assert _den_vat_tu({"du": True, "xep_som_nhat": None}, 1)["muc"] == MUC_OK
-    ve = _den_vat_tu({"du": True, "xep_som_nhat": datetime(2026, 8, 25)}, 1)
-    assert ve["muc"] == MUC_VANG and "25/08" in ve["chu"]      # đủ, nhưng đừng xếp trước ngày hàng về
+    assert _den_vat_tu({"du": True}, 1)["muc"] == MUC_OK
+    # Giữ đủ mà một phần là hàng đang về vẫn XANH — đèn vàng "xếp từ ngày hàng về" đã bỏ 07/10/2026.
+    assert _den_vat_tu({"du": True, "xep_som_nhat": datetime(2026, 8, 25)}, 1)["muc"] == MUC_OK
     assert _den_vat_tu({"du": False, "bat": False}, 1)["muc"] == MUC_DO
     assert "quy đổi" in _den_vat_tu({"du": False, "bat": True, "khong_ro": True}, 1)["chu"]
     thieu = _den_vat_tu({"du": False, "bat": True, "khong_ro": False, "thieu": {("vt", 3): 5.0}}, 1)
@@ -59,7 +59,7 @@ def test_den_vat_tu_do_thi_bam_duoc_sang_man_ke_hoach_vat_tu():
     """Chấm đỏ mà không nhảy được đi đâu thì người dùng lại phải tự đi tìm màn — đúng cái đang sửa."""
     den = _den_vat_tu({"du": False, "bat": False}, 42)
     assert den["nhay"] == {"man": "ke-hoach-vat-tu", "id": 42}
-    assert _den_vat_tu({"du": True, "xep_som_nhat": None}, 42)["nhay"] is None  # `ok` không vẽ chấm
+    assert _den_vat_tu({"du": True}, 42)["nhay"] is None  # `ok` không vẽ chấm
 
 
 def test_den_may_gio_chua_co_gio_la_VANG_chu_khong_phai_ok():

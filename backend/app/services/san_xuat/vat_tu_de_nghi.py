@@ -261,7 +261,7 @@ def _don_vi_gui_kho(hang, hang_loai, hang_id, sl_goc: float,
                     dang: str | None = None) -> tuple[str, float]:
     """Chọn đơn vị gửi kho cho một lượng đã quy về gốc. Trả `(dvt, so_luong_theo_dvt)`.
 
-    Giấy TỜ gửi thẳng tờ nguyên — đúng đơn vị lô tờ đếm (spec giấy đếm tờ × khổ). Luật dò dưới đây
+    Giấy TỜ gửi thẳng đơn vị kho "tờ" (`to`) — đúng đơn vị lô tờ đếm (spec giấy đếm tờ × khổ). Luật dò dưới đây
     chỉ còn cho vật tư khác và giấy cuộn (gốc theo `don_vi_gia` của mã).
 
     KHÔNG mặc định dùng đơn vị gốc: `StockRequestLine.sl_de_nghi` là `Numeric(14, 2)` kèm
@@ -413,10 +413,10 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
     BA thang đơn vị chạy song song ở đây:
       · `SanXuatVatTuDeNghiDong.sl_yeu_cau`/`dvt` — đơn vị TỔ KHAI (tờ, ram…), giữ để bản đối
         chiếu hiện đúng chữ tổ gõ (ruling 10).
-      · `sl_yeu_cau_goc`/`dvt_goc` — đơn vị GỐC, dùng để SO LỆCH kế hoạch. Giấy tờ: tờ nguyên;
+      · `sl_yeu_cau_goc`/`dvt_goc` — đơn vị GỐC, dùng để SO LỆCH kế hoạch. Giấy tờ: "tờ" (`to`);
         giấy cuộn + vật tư khác: đơn vị gốc của mã. Không quy được thì `ve_don_vi_goc` ném lỗi.
       · `StockRequestLine.sl_de_nghi`/`dvt` — đơn vị GỬI KHO, do `_don_vi_gui_kho` chọn từ
-        `sl_yeu_cau_goc` (ruling 11b). Giấy tờ gửi thẳng tờ nguyên; hàng gốc thô (tấn) bước xuống
+        `sl_yeu_cau_goc` (ruling 11b). Giấy tờ gửi thẳng "tờ"; hàng gốc thô (tấn) bước xuống
         đơn vị mịn hơn vì `sl_de_nghi` là `Numeric(14, 2)` kèm `CHECK > 0`. Dòng kho mang dạng +
         khổ của dòng đề nghị.
     So sánh giữa `SanXuatVatTuDeNghiDong` và `StockRequestLine` vì thế PHẢI đi qua

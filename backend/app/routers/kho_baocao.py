@@ -194,7 +194,7 @@ def _report_rows(
             loai_kho=req.loai_kho if req else None,
             ma_hang=getattr(mh, "ma", None),
             ten_hang=getattr(mh, "ten", None),
-            # Dòng giấy TỜ đếm tờ nguyên (lô/phiếu tờ lưu số tờ); còn lại đơn vị gốc của mã.
+            # Dòng giấy TỜ đếm bằng "tờ" (`to`, lô/phiếu tờ lưu số tờ); còn lại đơn vị gốc của mã.
             dvt=(dv_ten.get(dv_to, dv_to) if ln.dang_giay == "to" else
                  dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None))),
             dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),

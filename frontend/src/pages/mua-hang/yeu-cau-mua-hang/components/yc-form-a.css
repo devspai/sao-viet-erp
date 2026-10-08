@@ -1,0 +1,99 @@
+/* Form tạo / sửa yêu cầu mua hàng — bản A (mockup A2, A2b). Thân dùng bộ `kna-*`; đây chỉ phần riêng. */
+.ycf-bang td { vertical-align: top; }
+/* Bảng form khai bề rộng cột bằng <colgroup>: layout FIXED để cột số giữ đúng bề rộng đó; layout auto
+   thì một câu cảnh báo dài ở cột Vật tư là đủ bóp ô số lượng tới mất chữ. */
+.ycf-bang { table-layout: fixed; width: 100%; }
+.ycf-hang { align-items: flex-start; }
+.ycf-hang__than { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.ycf-phu { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* Hàng tên vật tư kèm lệnh của dòng (form Yêu cầu nhập xuất); khổ giấy nằm ở .ycf-phu bên dưới. */
+.ycf-ten { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.ycf-ten + .ycf-phu { margin-top: 6px; }
+.ycf-them {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px;
+  border: 1px dashed var(--rule); border-radius: 6px; background: none; color: var(--ash-2);
+  font: inherit; font-size: var(--fs-xs); cursor: pointer;
+}
+.ycf-them:hover { background: var(--rule-hair); color: var(--ink); }
+.ycf-ghi {
+  height: 30px; border: 1px solid var(--rule); border-radius: 6px; padding: 0 8px;
+  font: inherit; font-size: var(--fs-sm); width: 100%; max-width: 420px;
+}
+.ycf-ghi:focus { outline: 2px solid var(--ink); outline-offset: -1px; }
+
+/* Ô số lượng: số đậm bên trái, chữ đơn vị mờ bên phải trong cùng một khung. */
+.ycf-gi {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; width: 152px;
+  border: 1px solid var(--rule); border-radius: 8px; padding: 0 10px; background: #fff;
+}
+.ycf-gi:focus-within { outline: 2px solid var(--ink); outline-offset: -1px; }
+.ycf-gi.loi { border-color: var(--tt-do-dot); }
+.ycf-gi input {
+  /* width 0 + flex 1: bề rộng mặc định ~170px của <input> không được kéo min-content cột bảng. */
+  flex: 1; width: 0; min-width: 0; border: 0; outline: 0; background: none; font: inherit;
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.ycf-gi > :not(input) { color: var(--ash-2); font-size: var(--fs-sm); white-space: nowrap; }
+/* Chữ đơn vị chỉ-đọc trong ô số: bỏ `min-width: 88px` của bản đứng riêng, kẻo nó chiếm hết chỗ của số. */
+.ycf-gi .kho-dv__ro { min-width: 0; min-height: 0; padding: 0; color: var(--ash-2); }
+
+.ycf-xoa {
+  width: 30px; height: 30px; border: 0; border-radius: 6px; background: none;
+  color: var(--ash-2); cursor: pointer; display: inline-grid; place-items: center;
+}
+.ycf-xoa:hover { background: var(--rule-hair); color: var(--tt-do-fg); }
+.ycf-dong-them { padding: 12px 16px; border-top: 1px solid var(--rule); }
+
+.ycf-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.ycf-pick button {
+  height: 28px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 999px;
+  background: #fff; font: inherit; font-size: var(--fs-xs); color: var(--ink); cursor: pointer;
+}
+.ycf-pick button:hover { background: var(--rule-hair); }
+.ycf-pick button.on { border-color: var(--ink); font-weight: 600; }
+.ycf-ta { height: auto; padding: 8px 10px; resize: vertical; min-height: 72px; }
+
+.ycf-xt { display: inline-flex; align-items: center; gap: 12px; font-size: var(--fs-sm); }
+.ycf-do { color: var(--tt-do-fg); }
+/* Ô chọn đơn vị (đổi được) nằm TRONG ô số: trông như chữ đơn vị, không viền, không ăn hết chỗ của số. */
+.ycf-gi select[style] { min-width: 0 !important; }
+.ycf-gi select {
+  flex: 0 1 auto; width: auto; max-width: 96px; min-width: 0; height: auto; min-height: 0;
+  border: 0; padding: 0 14px 0 0; background-color: transparent; box-shadow: none;
+  color: var(--ash-2); font-size: var(--fs-sm); text-overflow: ellipsis;
+}
+.ycf-gi input { min-width: 3ch; }
+
+/* Menu đơn vị gọn trong ô số lượng (DonViChonTheoHang gon) — thay hộp chọn gốc của trình duyệt. */
+.kho-dv__nut {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; height: 24px; padding: 0 4px;
+  border: 0; border-radius: 4px; background: none; color: var(--ash-2); font: inherit;
+  font-size: var(--fs-sm); cursor: pointer; white-space: nowrap;
+}
+.kho-dv__nut:hover, .kho-dv__nut[aria-expanded="true"] { background: var(--rule-hair); color: var(--ink); }
+.kho-dv__nut:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
+.kho-dv__chu { flex: none; color: var(--ash-2); font-size: var(--fs-sm); white-space: nowrap; }
+.kho-dv__ds { min-width: 168px; }
+.kho-dv__hs { color: var(--ash-2); font-size: var(--fs-xs); white-space: nowrap; }
+
+/* ---- Phương án 3 (07/10/2026): đầu form một hàng + bảng món trải ngang ---- */
+.ycf3 { display: block; }
+.ycf3-dau { display: grid; grid-template-columns: 200px auto minmax(0, 1fr); gap: 12px; align-items: end;
+  padding-bottom: 12px; border-bottom: 1px solid var(--rule-soft); margin-bottom: 4px; }
+.ycf3-dau .ycf-pick { margin: 0 0 6px; }
+.ycf3-loai { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 0 2px; }
+.ycf3-loai .ycf-pick { margin: 0; }
+.ycf3-loai .ycf-pick button.on { font-weight: 400; }
+.ycf3-loai__nhan { font-size: 13px; color: var(--ash-2); }
+.ycf3-loai__goi { font-size: 12.5px; color: var(--ash-2); }
+.ycf3-muc { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-size: 13px; color: var(--ash-2); }
+.ycf3-bang td { vertical-align: middle; }
+.ycf3-bang .ycf-gi { margin-left: auto; width: 100%; padding: 0 8px; }
+/* Bảng món có minWidth: ngăn hẹp thì khung cuộn ngang (menu chọn vật tư dựng qua portal nên không bị cắt). */
+.lds-bang.lds-bang--nhap.ycf3-khung { overflow-x: auto; }
+.ycf3-bang .ycf-ghi { width: 100%; margin: 0; }
+.ycf3-ic { display: inline-flex; vertical-align: -2px; margin-right: 8px; color: var(--ash-2); }
+.ycf3-them { height: auto; overflow: visible; white-space: normal; padding: 6px 10px; }
+@media (max-width: 900px) {
+  .ycf3-dau { grid-template-columns: 1fr; }
+}

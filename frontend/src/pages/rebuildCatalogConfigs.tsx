@@ -4,13 +4,14 @@
 // Enum hiển thị bằng thuật ngữ in ấn thuần Việt — dùng chung 1 bảng nhãn cho cả dropdown lẫn cột.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CatalogConfig, ChuanBiKhoanRow } from "./RebuildCatalogPage";
-import { ClockIcon, tongChuanBi } from "./RebuildCatalogPage";
+import { tongChuanBi } from "./RebuildCatalogPage";
 import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { nhanTramDai, tramOptions } from "./tenDonVi";
 import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
 import { KhoViTriPanel } from "./KhoViTriPanel";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ChipTT, type MauTT } from "../components/LuoiDs";
 import { CodeLink } from "../components/CodeLink";
 import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
@@ -110,8 +111,8 @@ const F_DON_VI = {
  *  Hiện TÊN (`don_vi_ten` server gán) chứ không hiện mã: `kem` không ai đoán ra "bản kẽm". */
 const dvCell = (r: Row) => {
   const ma = r.don_vi_gia ? String(r.don_vi_gia) : "";
-  if (!ma) return <span className="badge-sem badge-sem--muted">Chưa chọn đơn vị</span>;
-  return <span className="rc__formula-pill">{r.don_vi_ten ? String(r.don_vi_ten) : ma}</span>;
+  if (!ma) return <span className="lds-cam">Chưa chọn đơn vị</span>;
+  return r.don_vi_ten ? String(r.don_vi_ten) : ma;
 };
 
 
@@ -140,39 +141,51 @@ function ChipTen({ prefix, ids, nhanDau, toiDa = 2 }: { prefix: string; ids: unk
   const bang = useBangTen(prefix);
   const ds = Array.isArray(ids) ? ids.map(Number).filter((n) => Number.isFinite(n)) : [];
   if (ds.length === 0) return null;
-  if (!bang) return <span className="rc__formula-pill">{ds.length}</span>;
+  if (!bang) return <span className="lds-tag">{ds.length}</span>;
   const ten = ds.map((id, i) => {
     const t = bang.get(id) ?? `#${id}`;
     return i === 0 && nhanDau ? `${t} (${nhanDau})` : t;
   });
   const con = ten.length - toiDa;
   return (
-    <div className="rc__formula-chips" title={ten.join("\n")}>
-      {ds.slice(0, toiDa).map((id) => <span key={id} className="rc__formula-pill">{bang.get(id) ?? `#${id}`}</span>)}
-      {con > 0 && <span className="badge-sem badge-sem--muted">+{con}</span>}
-    </div>
+    <span className="dm-gop" title={ten.join("\n")}>
+      {ds.slice(0, toiDa).map((id) => <span key={id} className="lds-tag">{bang.get(id) ?? `#${id}`}</span>)}
+      {con > 0 && <span className="lds-mu">+{con}</span>}
+    </span>
   );
 }
 
-/** Các dòng chữ nhỏ xếp dọc trong một ô — thay cho nối bằng dấu chấm giữa. */
-const doc = (dong: ReactNode[]) => {
+/** Các mẩu trong MỘT ô lưới, cùng một dòng, cách nhau bằng khoảng trống (không dấu nối) — dòng của
+ *  lưới cao 34px nên không xếp dọc được. `title` = đủ chữ khi ô bị cắt "…". */
+const doc = (dong: ReactNode[], title?: string) => {
   const co = dong.filter((d) => d !== null && d !== false && d !== "");
   if (co.length === 0) return "";
-  return <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>{co}</div>;
+  return <span className="dm-gop" title={title}>{co}</span>;
 };
 
 /** Mức khoán km của xe — BẮT BUỘC từ 14/09/2026, nên thiếu phải lộ ra ở bảng. */
 function MucKhoanXe({ id }: { id: unknown }) {
   const bang = useBangTen("/api/giao-hang/muc-khoan-km");
-  if (id == null || id === "") return <span className="badge-sem badge-sem--amber">Chưa chọn mức</span>;
+  if (id == null || id === "") return <span className="lds-cam">Chưa chọn mức</span>;
   const ten = bang?.get(Number(id));
-  return <span className="rc__formula-pill">{ten ?? `Mức #${id}`}</span>;
+  return <>{ten ?? `Mức #${id}`}</>;
 }
 
 // Form MỞ (phẳng): mọi ô luôn hiện, không phân loại cứng. Chủ xưởng tự đặt "Nhóm máy"
 // (chữ tự do) rồi nhập khổ kẽm / nhíp / khổ giấy / vùng in / ghi chú.
 // Nhãn đơn vị tốc độ DỜI sang `fields/DonViTocDo` (08/09/2026): bảng "Máy chạy được công đoạn này"
 // của drawer Công đoạn nay cũng bày đơn vị của máy, hai bản sao là hai màn nói lệch nhau.
+
+/** Màu chip trạng thái máy — mỗi trạng thái MỘT sắc, không hai trạng thái trùng màu. Cũng KHÔNG
+ *  trùng sắc chấm của hàng lọc Đang dùng (lá) / Đã ngừng (xám) ở cùng màn: Rảnh = ngọc, Khoá = slate. */
+const MAU_TT_MAY: Record<string, MauTT> = {
+  may_dung: "do",
+  bao_tri: "cam",
+  co_phieu_sua: "vang",
+  khoa: "slate",
+  dang_chay: "xanh",
+  ranh: "ngoc",
+};
 
 export const CFG_MAY: CatalogConfig = {
   title: "Thiết bị & Máy móc",
@@ -184,23 +197,23 @@ export const CFG_MAY: CatalogConfig = {
   softDelete: true,
   prefix: "/api/may-thiet-bi",
   nhatKyLoai: "may_thiet_bi",
-  // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-  // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-  // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-  widthMa: "9%",
-  widthTen: "22%",
+  // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
+  // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 100,
+  widthTen: 200,
   columns: [
-    { key: "loai_may", label: "Nhóm máy", width: "10%", render: (r) => (r.loai_may ? String(r.loai_may) : "") },
+    { key: "loai_may", label: "Nhóm máy", w: 120, render: (r) => (r.loai_may ? String(r.loai_may) : "") },
     // Nhận diện tài sản — ba ô đã khai ở tab Thông tin chung, trước đây chỉ thấy khi mở thẻ máy.
-    { key: "hang_san_xuat", label: "Hãng & model", width: "14%",
+    // Một dòng của lưới: hãng, model, rồi seri chữ nhỏ mờ; đủ chữ ở `title`.
+    { key: "hang_san_xuat", label: "Hãng & model", w: 230,
       render: (r) => doc([
-        r.hang_san_xuat ? <span key="h" style={{ fontWeight: 600 }}>{String(r.hang_san_xuat)}</span> : null,
+        r.hang_san_xuat ? <span key="h">{String(r.hang_san_xuat)}</span> : null,
         r.model ? <span key="m">{String(r.model)}</span> : null,
-        r.so_seri ? <span key="s" style={{ fontSize: 12, color: "var(--ash)" }}>Seri {String(r.so_seri)}</span> : null,
-      ]) },
+        r.so_seri ? <span key="s" className="lds-u">Seri {String(r.so_seri)}</span> : null,
+      ], [r.hang_san_xuat, r.model, r.so_seri ? `Seri ${String(r.so_seri)}` : ""].filter(Boolean).join("\n")) },
     // Cột "Khổ máy & Vùng in" + "Chừa lề tờ in" ĐÃ ẨN (04/09/2026): mọi ô đổ ra hai cột này đã
     // rút khỏi form khai, để lại cột thì bảng chỉ còn bày số cũ mà không ai sửa được ở đâu nữa.
-    { key: "toc_do", label: "Tốc độ & Chuẩn bị", width: "16%",
+    { key: "toc_do", label: "Tốc độ & Chuẩn bị", w: 230,
       render: (r) => {
         const nSpeed = r.toc_do ? `${Number(r.toc_do).toLocaleString("vi-VN")} ${nhanDonViTocDo(r)}` : null;
         const box = (r.fields_theo_loai ?? {}) as Record<string, unknown>;
@@ -209,42 +222,33 @@ export const CFG_MAY: CatalogConfig = {
         const totalMakeready = tongKhoan > 0 ? tongKhoan : (Number(r.makeready_time_default) || 0);
 
         if (!nSpeed && !totalMakeready) return "";
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "12.5px" }}>
-            {nSpeed && <div style={{ fontWeight: 600 }}>{nSpeed}</div>}
-            {totalMakeready > 0 && (
-              <div style={{ fontSize: "12px", color: "var(--rust, #c5400a)", fontWeight: 500, display: "flex", alignItems: "center" }}>
-                <ClockIcon size={12} /> Chuẩn bị: {totalMakeready} phút
-              </div>
-            )}
-          </div>
-        );
+        return doc([
+          nSpeed ? <span key="t">{nSpeed}</span> : null,
+          totalMakeready > 0 ? <span key="c" className="lds-u">Chuẩn bị {totalMakeready} phút</span> : null,
+        ], [nSpeed, totalMakeready > 0 ? `Chuẩn bị ${totalMakeready} phút` : ""].filter(Boolean).join("\n"));
       }
     },
     // Trạng thái LÚC NÀY — dẫn xuất từ sự cố + vùng khoá + lệnh đang chạy (`loadExtra` bên dưới).
     // Cố ý KHÔNG đẻ lại cột `trang_thai` trên máy: cột đó từng có và bị gỡ 11/08/2026 vì là ô khai
     // tay không ai vào sửa, nên máy đang nằm vẫn hiện "đang hoạt động".
-    { key: "trang_thai", label: "Trạng thái",
+    { key: "trang_thai", label: "Trạng thái", w: 260,
       render: (_r, extra) => {
         // `undefined` = CHƯA BIẾT (đang nạp / nạp hỏng). Nói "Rảnh" lúc đó là bịa — cái máy đang
         // hỏng cũng sẽ hiện Rảnh cho tới khi API về.
         if (extra === undefined) {
-          return <span className="rc-tt rc-tt--chua-biet" title="Đang lấy trạng thái máy…">—</span>;
+          return <span className="lds-mu3" title="Đang lấy trạng thái máy…">—</span>;
         }
         const tt = extra as TrangThaiMay | null;
         const kieu = tt?.trang_thai ?? "ranh";
+        // Chấm + CHỮ, không chỉ dựa màu — xưởng có người phân biệt màu kém, mà đây đúng là thứ họ
+        // cần đọc nhanh nhất. Mỗi trạng thái một sắc (bộ `--tt-*`), không hai trạng thái trùng màu.
+        // Fallback nhãn phải KHỚP `NHAN[TT_RANH]` bên backend (`services/may_trang_thai.py`): máy
+        // rảnh không có mặt trong map nên nhãn của nó chỉ tồn tại ở đây.
         return (
-          <span className={`rc-tt rc-tt--${kieu}`}>
-            {/* Chấm + CHỮ, không chỉ dựa màu — xưởng có người phân biệt màu kém, mà đây đúng là
-                thứ họ cần đọc nhanh nhất. */}
-            <span className="rc-tt__dot" aria-hidden="true" />
-            <span className="rc-tt__body">
-              {/* Fallback phải KHỚP `NHAN[TT_RANH]` bên backend (`services/may_trang_thai.py`):
-                  máy rảnh không có mặt trong map nên nhãn của nó chỉ tồn tại ở đây. */}
-              <span className="rc-tt__nhan">{tt?.nhan ?? "Xếp được"}</span>
-              {tt?.chi_tiet && <span className="rc-tt__chi-tiet">{tt.chi_tiet}</span>}
-            </span>
-          </span>
+          <>
+            <ChipTT mau={MAU_TT_MAY[kieu] ?? "slate"} title={tt?.chi_tiet ?? undefined}>{tt?.nhan ?? "Xếp được"}</ChipTT>
+            {tt?.chi_tiet && <span className="lds-u" title={tt.chi_tiet}>{tt.chi_tiet}</span>}
+          </>
         );
       } },
   ],
@@ -390,25 +394,22 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     { id: "khoan", label: "Khoán", groups: ["Khoán"] },
     { id: "vat-tu", label: "Vật tư", groups: ["Vật tư"] },
   ],
-  // Bề rộng đo theo chữ dài nhất đang có (18/09/2026, bảng 1150px): Giai đoạn "Gia công sau in"
-  // 97px · Đơn vị "Con → Thành phẩm" 122 · Bù hao "Theo bậc — chưa khai" 158, còn Tên dài nhất
-  // chỉ "Cắt thành phẩm" 105. Để mặc định (Tên 24%, Ghi chú 22%) thì các cột kia chỉ còn 92px,
-  // đọc ra "Gia côn…" / "Tra bản…". Ghi chú không khai ⇒ ăn phần còn lại (kể cả 13% của cột
-  // "Ràng buộc" đã gỡ); chữ dài cắt "…", rê chuột xem đủ.
-  // 05/10/2026 thêm Tổ phụ trách + Máy & vật tư (bảng nay rộng 1480px) — hạ Mã/Giai đoạn/Bù hao.
-  widthMa: "9%",
-  widthTen: "12%",
+  // Bề rộng px đo theo chữ dài nhất đang có: Giai đoạn "Gia công sau in" ~100 · Đơn vị "Tờ nguyên
+  // → Thành phẩm" ~170 · Bù hao "Theo bậc — chưa khai" ~160 · Tên dài nhất "Cắt thành phẩm" ~110.
+  // Ghi chú không khai ⇒ ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 100,
+  widthTen: 170,
   columns: [
-    { key: "nhom", label: "Giai đoạn", width: "10%", render: (r) => lbl(NHOM_CD)(r.nhom) },
+    { key: "nhom", label: "Giai đoạn", w: 130, render: (r) => lbl(NHOM_CD)(r.nhom) },
     // Nhìn ra ngay bước nào ĐỔI CHẶNG, và bước nào để trống (không nằm trên dòng giấy).
     // Nhãn lấy từ `/api/don-vi/tram` — CÙNG nguồn mà ô chọn trong drawer dùng. Trước 08/09/2026 cột này đọc
     // `don_vi_vao_ten` server gán, mà server tra mã chặng vào danh mục Đơn vị & quy đổi: cùng một
     // bước hiện "con → cái" ở danh sách nhưng "Con (mảnh bế ra) → Thành phẩm" trong drawer.
     // Chưa khai thì hiện "—", đúng nghĩa "bước không chạm giấy", chứ không bịa tên.
-    { key: "don_vi_vao", label: "Đơn vị", width: "12%", render: (r) => tramVaoRa(r.don_vi_vao, r.don_vi_ra) },
+    { key: "don_vi_vao", label: "Đơn vị", w: 190, render: (r) => tramVaoRa(r.don_vi_vao, r.don_vi_ra) },
     // Đọc ra NGAY mức khai, không phải chỉ tên chế độ: "Theo bậc" mà rỗng bậc là công đoạn khai
     // dở (migration mất mã nguồn để lại đúng trạng thái này) — phải lộ ở danh sách.
-    { key: "kieu_bu_hao", label: "Bù hao", width: "12%", render: (r) => {
+    { key: "kieu_bu_hao", label: "Bù hao", w: 170, render: (r) => {
         if (r.kieu_bu_hao === "co_dinh") return `Cố định ${r.so_to_bu_hao ?? 50} tờ`;
         if (r.kieu_bu_hao === "theo_bac") {
           const n = Array.isArray(r.bac_bu_hao) ? r.bac_bu_hao.length : 0;
@@ -419,17 +420,17 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // Cột "Ràng buộc" (cần khuôn/dụng cụ) đã gỡ khỏi danh sách 05/10/2026 — gần như trống cả bảng;
     // vẫn khai trong thẻ công đoạn. Nhãn "Cần khuôn bế" nay nằm trong ô Máy & vật tư bên dưới.
     // Tổ đầu tiên là tổ MẶC ĐỊNH lúc lên lệnh (rê chuột thấy chữ "mặc định").
-    { key: "department_ids", label: "Tổ phụ trách", width: "14%",
+    { key: "department_ids", label: "Tổ phụ trách", w: 210,
       render: (r) => <ChipTen prefix="/api/cong-doan/phong-ban" ids={r.department_ids} nhanDau="mặc định" /> },
     // Đếm thôi, không kể tên: tên máy/vật tư nằm trong thẻ công đoạn. Đủ để thấy bước nào CHƯA gán
     // máy (bài ghép không chặn được gán sai) hay chưa có vật tư (lệnh SX không ra định mức).
-    { key: "may_lam_duoc", label: "Máy & vật tư", width: "11%", render: (r) => {
+    { key: "may_lam_duoc", label: "Máy & vật tư", w: 250, render: (r) => {
         const may = Array.isArray(r.may_lam_duoc) ? r.may_lam_duoc.length : 0;
         const vt = Array.isArray(r.vat_tus) ? r.vat_tus.length : 0;
         return doc([
-          <span key="m" style={may ? undefined : { color: "var(--ash)" }}>{may ? `${may} máy` : "Chưa gán máy"}</span>,
+          <span key="m" className={may ? undefined : "lds-mu"}>{may ? `${may} máy` : "Chưa gán máy"}</span>,
           vt ? <span key="v">{vt} vật tư</span> : null,
-          r.requires_tooling ? <span key="k" className="badge-sem badge-sem--steel">Cần khuôn bế</span> : null,
+          r.requires_tooling ? <span key="k" className="lds-tag">Cần khuôn bế</span> : null,
         ]);
       } },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
@@ -555,15 +556,14 @@ export const CFG_GIAY: CatalogConfig = {
   // Thanh lọc (06/10/2026): Đơn vị giá — giá trị + tên đơn vị do máy chủ đếm/tra.
   man: "giay",
   dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
-  // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-  // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-  // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-  widthMa: "12%",
-  widthTen: "20%",
+  // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
+  // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 130,
+  widthTen: 230,
   columns: [
-    { key: "gsm", label: "Định lượng", width: "8%", render: (r) => `${r.gsm} g/m²` },
-    { key: "don_vi_gia", label: "ĐVT", width: "6%", render: (r) => dvCell(r) },
-    { key: "don_gia", label: "Đơn giá (đ/kg)", width: "9%", render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
+    { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
+    { key: "don_vi_gia", label: "ĐVT", w: 100, render: (r) => dvCell(r) },
+    { key: "don_gia", label: "Đơn giá (đ/kg)", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
     // Cột "Cách tính tiền" + "Giấy thay thế" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem trong
     // thẻ giấy (ô Công thức tính giá, ô Giấy thay thế bên dưới).
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
@@ -603,32 +603,31 @@ export const CFG_VAT_TU: CatalogConfig = {
   // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
   // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
   softDelete: true,
-  // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-  // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-  // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-  widthMa: "12%",
-  widthTen: "22%",
+  // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
+  // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 130,
+  widthTen: 230,
   columns: [
-    { key: "don_vi_gia", label: "ĐVT", width: "8%", render: (r) => dvCell(r) },
+    { key: "don_vi_gia", label: "ĐVT", w: 120, render: (r) => dvCell(r) },
     // Cột "Đơn giá" ĐÃ ẨN 09/09/2026 — xem khối chú thích ở `fields` bên dưới.
     // Hai công thức + chip riêng (05/10/2026): thiếu công thức định mức thì lệnh SX không tự ra
     // lượng vật tư — phải thấy được từ bảng, không phải mở từng thẻ.
-    { key: "cong_thuc_gia", label: "Công thức", width: "15%", render: (r) => {
+    { key: "cong_thuc_gia", label: "Công thức", w: 270, render: (r) => {
         const co = (v: unknown) => String(v ?? "").trim() !== "";
+        // Có công thức = chữ thường; chưa có = chữ cam nói thẳng "Chưa có …" (thiếu định mức là
+        // lệnh SX không ra lượng vật tư).
         const o = (coKhai: boolean, ten: string) => (
-          <span key={ten} className={`badge-sem ${coKhai ? "badge-sem--moss" : "badge-sem--muted"}`}>
-            {coKhai ? ten : `Chưa có ${ten.toLowerCase()}`}
-          </span>
+          <span key={ten} className={coKhai ? undefined : "lds-cam"}>{coKhai ? ten : `Chưa có ${ten.toLowerCase()}`}</span>
         );
         return doc([o(co(r.cong_thuc_gia), "Tính giá"), o(co(r.cong_thuc_dinh_muc), "Định mức")]);
       } },
-    { key: "chips", label: "Chip riêng", width: "18%", render: (r) => {
+    { key: "chips", label: "Chip riêng", w: 260, render: (r) => {
         const chips = Array.isArray(r.chips) ? (r.chips as { ma?: string; ten?: string }[]) : [];
         if (chips.length === 0) return "";
         return (
-          <div className="rc__formula-chips">
-            {chips.map((c, i) => <span key={c.ma ?? i} className="rc__formula-pill">{c.ten ?? c.ma}</span>)}
-          </div>
+          <span className="dm-gop" title={chips.map((c) => c.ten ?? c.ma ?? "").join("\n")}>
+            {chips.map((c, i) => <span key={c.ma ?? i} className="lds-tag">{c.ten ?? c.ma}</span>)}
+          </span>
         );
       } },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
@@ -691,6 +690,7 @@ export const CFG_THANH_PHAM: CatalogConfig = {
   khongTaoTay: true,
   khongXoa: true,
   softDelete: true,
+  widthMa: 170,
   // Thanh lọc (06/10/2026): Khách đặt lần đầu (vết `customer_id`, tên do máy chủ gắn).
   man: "thanh-pham",
   dieuKien: [{ key: "khach_hang_id", nhan: "Khách đặt lần đầu", icon: "nguoi" }],
@@ -702,15 +702,14 @@ export const CFG_THANH_PHAM: CatalogConfig = {
     //
     // HIỆN LẠI dạng CHỈ ĐỌC 17/09/2026 (chủ: "hiển thị hết đi" — màn thiếu so với thứ bảng lưu):
     // đơn + khách ĐẶT LẦN ĐẦU là vết nguồn gốc máy ghi lúc chốt đơn, không phải chủ, không ai sửa.
-    // Bề rộng khai đủ cho cả bảng (Mã 14 + Tên 24 + Hành động 8 là của trang) — cộng quá 100% thì
-    // `table-layout: fixed` co mọi cột lệch nhau.
-    { key: "don_vi_gia", label: "ĐVT", width: "8%", render: (r) => dvCell(r) },
-    // 11%: nhãn "ĐƠN ĐẦU TIÊN" cần ~121px mới đứng một dòng (đo ở bảng 1150px, lúc sidebar mở).
-    { key: "order_no", label: "Đơn đầu tiên", width: "11%", render: (r) => <MaDon r={r} ngan /> },
-    { key: "customer_ten", label: "Khách đặt lần đầu", width: "16%",
+    // Bề rộng px: mã thành phẩm dài ("TP-DH-2026-041-11") nên Mã (`widthMa` ở đầu
+    // config) rộng hơn mặc định của trang; Ghi chú cuối không khai bề rộng ⇒ ăn phần còn lại.
+    { key: "don_vi_gia", label: "ĐVT", w: 110, render: (r) => dvCell(r) },
+    { key: "order_no", label: "Đơn đầu tiên", w: 130, render: (r) => <MaDon r={r} ngan /> },
+    { key: "customer_ten", label: "Khách đặt lần đầu", w: 240,
       render: (r) => (r.customer_ten ? String(r.customer_ten) : "") },
     // Cột "Ngày khai" GỠ 06/10/2026: trang chung đã có cột "Ngày tạo" (cùng `created_at`).
-    { key: "ghi_chu", label: "Ghi chú", width: "19%",
+    { key: "ghi_chu", label: "Ghi chú",
       render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
@@ -727,7 +726,7 @@ function donDauTien(r: Row, ngan: boolean): ReactNode {
   if (r.order_no) return String(r.order_no);
   if (r.order_id != null) return ngan ? `#${r.order_id}` : `Đơn #${r.order_id} — không còn trong hệ thống`;
   return ngan
-    ? <span className="badge-sem badge-sem--muted">Khai tay</span>
+    ? <span className="lds-mu">Khai tay</span>
     : "Khai tay trên danh mục — không từ đơn nào";
 }
 
@@ -885,17 +884,16 @@ export const CFG_KHO_HANG: CatalogConfig = {
   // Thanh lọc: kỳ Ngày tạo + Trạng thái (Đang dùng / Đã ngừng) — trang tự có, không khai thêm.
   man: "khai-bao-kho",
   autoCode: true,          // mã KHO-#### sinh ngầm ở backend, ẩn ô nhập mã
-  // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-  // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-  // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-  widthMa: "12%",
-  widthTen: "22%",
+  // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
+  // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 120,
+  widthTen: 230,
   columns: [
-    { key: "vi_tri", label: "Vị trí", width: "22%", render: (r) => (r.vi_tri ? String(r.vi_tri) : "") },
+    { key: "vi_tri", label: "Vị trí", w: 260, render: (r) => (r.vi_tri ? String(r.vi_tri) : "") },
     // Số kệ/ô đang dùng (server đếm, `so_vi_tri`). Chưa khai thì lập lô/phiếu không có gì để chọn.
-    { key: "so_vi_tri", label: "Vị trí cất", width: "13%", render: (r) => {
+    { key: "so_vi_tri", label: "Vị trí cất", w: 170, render: (r) => {
         const n = Number(r.so_vi_tri) || 0;
-        return n ? `${n} vị trí` : <span className="badge-sem badge-sem--muted">Chưa khai vị trí</span>;
+        return n ? `${n} vị trí` : <span className="lds-cam">Chưa khai vị trí</span>;
       } },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
@@ -931,6 +929,14 @@ export const TINH_TRANG_KHUON: Lbls = {
 // Khai báo KHUÔN BẾ — master data NHẸ, khai TAY. Mỗi khuôn làm riêng cho hình bế của 1
 // ấn phẩm; đơn lặp lại thì lôi khuôn cũ ra dùng. Chỉ đủ để TÌM LẠI: số kệ (vị trí lưu) +
 // tình trạng. Ref ấn phẩm/khách hàng đấu sau. Mã KB-#### tự sinh; xóa mềm giữ dấu vết.
+/** Màu chip Tình trạng khuôn — mỗi tình trạng một sắc. */
+const MAU_TINH_TRANG_KHUON: Record<string, MauTT> = {
+  dang_dung: "la",
+  dang_dat_lam: "vang",
+  hong: "do",
+  thanh_ly: "xam",
+};
+
 export const CFG_KHUON_BE: CatalogConfig = {
   // Nhan đề "Khuôn" (18/09/2026, trước đó "Khuôn & khung" từ 04/09/2026) — màn nay chỉ còn khuôn bế
   // (ép kim / khung lụa gỡ 01/10/2026; dòng cũ mang hai loại đó vẫn hiện, chỉ không tạo mới được). `prefix`, `nhatKyLoai` và
@@ -958,20 +964,24 @@ export const CFG_KHUON_BE: CatalogConfig = {
   ],
   // Ô tìm quét cả tên khách + số kệ (`khuon_be_repo._loc_q`) — nói ra, không thì chẳng ai thử.
   timGoiY: "Tìm mã / tên / khách / số kệ…",
-  // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-  // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-  // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-  widthMa: "11%",
-  widthTen: "20%",
+  // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
+  // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 120,
+  widthTen: 220,
   columns: [
-    { key: "khach_hang_ten", label: "Khách hàng", width: "18%",
+    { key: "khach_hang_ten", label: "Khách hàng", w: 230,
       render: (r) => (r.khach_hang_ten ? String(r.khach_hang_ten) : "") },
-    { key: "loai", label: "Loại", width: "10%", render: (r) => (r.loai ? lbl(LOAI_KHUON)(r.loai) : "") },
-    { key: "so_ke", label: "Số kệ", width: "10%", render: (r) => (r.so_ke ? String(r.so_ke) : "") },
+    { key: "loai", label: "Loại", w: 130, render: (r) => (r.loai ? lbl(LOAI_KHUON)(r.loai) : "") },
+    { key: "so_ke", label: "Số kệ", w: 110, render: (r) => (r.so_ke ? String(r.so_ke) : "") },
     // 🔴 Cột "Ngày có khuôn" ĐÃ GỠ (mg `0293`, 10/09/2026) — kho khuôn nay KHÔNG còn ô ngày nào.
     // Ngày dự kiến không cắm vào phép tính nào (xem `docs/DB_SCHEMA.md` mục `khuon_be`), chỉ bắt
     // người khai bịa một con số rồi để đó lạc hậu. "Đang đặt làm" ở cột Tình trạng là đủ.
-    { key: "tinh_trang", label: "Tình trạng", width: "11%", render: (r) => lbl(TINH_TRANG_KHUON)(r.tinh_trang) },
+    // Tình trạng khuôn là trạng thái thật: chip, mỗi tình trạng một sắc.
+    { key: "tinh_trang", label: "Tình trạng", w: 150, render: (r) => {
+        const ma = String(r.tinh_trang ?? "");
+        if (!ma) return "";
+        return <ChipTT mau={MAU_TINH_TRANG_KHUON[ma] ?? "slate"}>{lbl(TINH_TRANG_KHUON)(ma)}</ChipTT>;
+      } },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
@@ -1007,16 +1017,15 @@ export const CFG_DON_VI: CatalogConfig = {
   dieuKien: [{ key: "ho", nhan: "Loại đo", icon: "don-vi" }],
   // Tạo xong giữ drawer mở để khai quy đổi ngay — khối quy đổi phải có id mới gắn vào được.
   moLaiSauKhiTao: true,
-  // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-  // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-  // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-  widthMa: "10%",
-  widthTen: "16%",
+  // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
+  // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
+  widthMa: 110,
+  widthTen: 180,
   columns: [
     {
       key: "quy_doi_text",
       label: "Quy đổi",
-      width: "30%",
+      w: 380,
       // Loại của từng mảnh do SERVER trả (`quy_doi_chips`), màn này chỉ tô màu. Bản trước tự tách
       // `quy_doi_text` rồi đoán loại bằng cách dò tên biến ghi cứng — mà server đã đổi mã biến sang
       // nhãn tiếng Việt trước khi trả, nên "bài in = Tờ vào máy + 2000" hiện xám như một hệ số.
@@ -1025,21 +1034,15 @@ export const CFG_DON_VI: CatalogConfig = {
           ? (r.quy_doi_chips as { text?: string; loai?: string }[])
           : [];
         if (chips.length === 0) {
-          return <span className="badge-sem badge-sem--muted">Chưa khai báo</span>;
+          return <span className="lds-mu">Chưa khai báo</span>;
         }
         return (
-          <div className="rc__formula-chips">
+          <span className="dm-gop" title={chips.map((c) => c.text ?? "").join("\n")}>
             {chips.map((c, i) => (
-              <span
-                key={i}
-                // Mảnh "là công thức" nói bằng RUST — accent DUY NHẤT của app. Bản trước dùng
-                // `--dynamic` tô #1d4ed8, tức dựng thêm một accent xanh thứ hai chỉ cho một cột.
-                className={c.loai === "cong_thuc" ? "badge-sem badge-sem--rust" : "rc__formula-pill"}
-              >
-                {c.text}
-              </span>
+              // Mảnh "là công thức" chữ cam (cùng sắc accent của app); hệ số thường dùng thẻ xám.
+              <span key={i} className={c.loai === "cong_thuc" ? "lds-tag lds-cam" : "lds-tag"}>{c.text}</span>
             ))}
-          </div>
+          </span>
         );
       },
     },
@@ -1047,15 +1050,15 @@ export const CFG_DON_VI: CatalogConfig = {
     // cột Quy đổi đã nói. Server vẫn trả `canh_bao`, chỉ màn này thôi hiện.
     // Mặt hàng đang lấy đơn vị này làm ĐVT (server đếm, `mat_hang_dung`) — sửa/xoá đơn vị là đụng
     // tới chừng ấy hàng trong kho.
-    { key: "mat_hang_dung", label: "Đang dùng ở", width: "18%", render: (r) => {
+    { key: "mat_hang_dung", label: "Đang dùng ở", w: 260, render: (r) => {
         const d = (r.mat_hang_dung ?? {}) as Record<string, number>;
         const nhan: [string, string][] = [["giay", "giấy"], ["vat_tu", "vật tư"], ["thanh_pham", "thành phẩm"]];
         const co = nhan.filter(([k]) => (d[k] ?? 0) > 0);
-        if (co.length === 0) return <span className="badge-sem badge-sem--muted">Chưa mặt hàng nào</span>;
+        if (co.length === 0) return <span className="lds-mu">Chưa mặt hàng nào</span>;
         return (
-          <div className="rc__formula-chips">
-            {co.map(([k, ten]) => <span key={k} className="rc__formula-pill">{d[k]} {ten}</span>)}
-          </div>
+          <span className="dm-gop" title={co.map(([k, ten]) => `${d[k]} ${ten}`).join("\n")}>
+            {co.map(([k, ten]) => <span key={k} className="lds-tag">{d[k]} {ten}</span>)}
+          </span>
         );
       } },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
@@ -1091,11 +1094,8 @@ export const CFG_XE: CatalogConfig = {
   dieuKien: [{ key: "muc_khoan_km_id", nhan: "Mức khoán km", icon: "xe" }],
   columns: [
     // Mức khoán km quyết định tiền mỗi chuyến — ô bắt buộc mà trước đây chỉ thấy khi mở thẻ xe.
-    // Bề rộng KHAI ĐỦ (05/10/2026): thêm cột mà để `table-layout: fixed` tự chia thì cột không khai
-    // chỉ được phần dư — "Đang dùng ở" / "Cách tính tiền" từng bị ép còn vài chục px, chữ đè sang
-    // cột bên. Cột KHÔNG khai (Ghi chú / cột cuối) ăn phần còn lại.
-    { key: "muc_khoan_km_id", label: "Mức khoán km", width: "20%", render: (r) => <MucKhoanXe id={r.muc_khoan_km_id} /> },
-    { key: "tai_trong", label: "Tải trọng", width: "12%", render: (r) =>
+    { key: "muc_khoan_km_id", label: "Mức khoán km", w: 220, render: (r) => <MucKhoanXe id={r.muc_khoan_km_id} /> },
+    { key: "tai_trong", label: "Tải trọng", w: 120, n: true, render: (r) =>
         r.tai_trong != null ? `${Number(r.tai_trong).toLocaleString("vi-VN")} tấn` : "" },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],

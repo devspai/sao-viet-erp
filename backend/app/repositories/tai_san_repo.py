@@ -11,12 +11,12 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import date
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.department import Department
 from ..models.employee import Employee
-from ..models.tai_san import TaiSan
+from ..models.tai_san import LOAI_CCDC, TaiSan
 from .loc_danh_sach import dk_khoang_ngay
 
 #: Mốc của dải kỳ: (cột, là cột Date). `su_dung` = ngày bắt đầu dùng, `giam` = ngày thôi dùng.
@@ -40,6 +40,10 @@ class LocTaiSan:
     tu_ngay: date | None = None
     den_ngay: date | None = None
     moc: str = "tao"
+
+
+#: Cách nhóm danh sách: theo loại (TSCĐ trước CCDC), theo bộ phận, hoặc không nhóm.
+NHOM_LOAI, NHOM_BO_PHAN, NHOM_KHONG = "loai", "bo_phan", "khong"
 
 
 class TaiSanRepository:
@@ -67,17 +71,29 @@ class TaiSanRepository:
     def tim_theo_ma(self, ma: str) -> TaiSan | None:
         return self.db.execute(select(TaiSan).where(TaiSan.ma == ma)).scalar_one_or_none()
 
-    def danh_sach(self, loc: LocTaiSan, *, offset: int = 0, limit: int = 50) -> tuple[list[TaiSan], int]:
+    @staticmethod
+    def _sap_theo(nhom_theo: str) -> tuple:
+        """Khoá ORDER BY theo cách nhóm. Bộ phận trống xếp CUỐI bằng khoá `IS NULL` (không dùng
+        NULLS LAST để SQLite lẫn Postgres chạy như nhau); trong nhóm luôn theo mã."""
+        if nhom_theo == NHOM_LOAI:
+            return (case((TaiSan.loai == LOAI_CCDC, 1), else_=0), TaiSan.ma)
+        if nhom_theo == NHOM_BO_PHAN:
+            return (Department.name.is_(None), Department.name, TaiSan.bo_phan_id, TaiSan.ma)
+        return (TaiSan.ma,)
+
+    def danh_sach(
+        self, loc: LocTaiSan, *, offset: int = 0, limit: int = 50, nhom_theo: str = NHOM_KHONG
+    ) -> tuple[list[TaiSan], int]:
         conds = self._dieu_kien(loc)
         tong = self.db.execute(
             select(func.count()).select_from(TaiSan).where(*conds)
         ).scalar_one()
+        q = select(TaiSan).options(selectinload(TaiSan.moc)).where(*conds)
+        if nhom_theo == NHOM_BO_PHAN:
+            q = q.outerjoin(Department, Department.id == TaiSan.bo_phan_id)
         rows = list(
             self.db.execute(
-                select(TaiSan)
-                .options(selectinload(TaiSan.moc))
-                .where(*conds)
-                .order_by(TaiSan.ma)
+                q.order_by(*self._sap_theo(nhom_theo))
                 .offset(max(int(offset), 0))
                 .limit(max(int(limit), 1))
             ).scalars()
@@ -137,15 +153,27 @@ class TaiSanRepository:
             )
         ]
 
-    def tat_ca_theo_loc(self, loc: LocTaiSan) -> list[TaiSan]:
+    def tat_ca_theo_loc(self, loc: LocTaiSan, nhom_theo: str = NHOM_KHONG) -> list[TaiSan]:
         """Mọi tài sản khớp bộ lọc, KHÔNG cắt trang — để cộng dải số đầu màn (tổng giá mua, còn
-        lại) cho đúng cả sổ chứ không chỉ trang đang xem. Nạp sẵn `moc` như `danh_sach`."""
+        lại) và tổng theo nhóm cho đúng cả sổ chứ không chỉ trang đang xem. Nạp sẵn `moc` như
+        `danh_sach`, sắp theo cùng khoá nên nhóm ra đúng thứ tự trên bảng."""
         conds = self._dieu_kien(loc)
-        return list(
-            self.db.execute(
-                select(TaiSan).options(selectinload(TaiSan.moc)).where(*conds)
-            ).scalars()
-        )
+        q = select(TaiSan).options(selectinload(TaiSan.moc)).where(*conds)
+        if nhom_theo == NHOM_BO_PHAN:
+            q = q.outerjoin(Department, Department.id == TaiSan.bo_phan_id)
+        return list(self.db.execute(q.order_by(*self._sap_theo(nhom_theo))).scalars())
+
+    def ten_cac_bo_phan(self, ids: set[int]) -> dict[int, str]:
+        """Tên bộ phận theo id — một truy vấn cho cả danh sách."""
+        ids = {i for i in ids if i}
+        if not ids:
+            return {}
+        return {
+            int(i): ten
+            for i, ten in self.db.execute(
+                select(Department.id, Department.name).where(Department.id.in_(ids))
+            )
+        }
 
     def ma_lon_nhat(self, tien_to: str) -> str | None:
         """Mã lớn nhất đang có theo tiền tố — nền sinh số kế tiếp."""

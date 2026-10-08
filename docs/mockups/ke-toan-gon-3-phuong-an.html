@@ -1,0 +1,977 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kế toán gọn: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;--tt-cam-dot:#f97316;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;--tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;--tt-do-dot:#ef4444;
+  --tt-xam-bg:#e5e7eb;--tt-xam-fg:#4b5563;
+  --tt-xanh-fg:#1d4ed8;
+  --a0:#cbd5e1;--a1:#fcd34d;--a2:#f59e0b;--a3:#f97316;--a4:#ef4444;--a5:#991b1b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button{font:inherit;color:inherit}
+.doc{max-width:1680px;margin:0 auto;padding:36px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+.doc>p,.doc li{color:var(--ash);max-width:1100px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.cap{margin:22px 0 6px;font-size:16px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1160px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;margin:8px 0 4px;font-size:13px}
+.words th,.words td{padding:5px 12px;border-bottom:1px solid var(--rule-hair);text-align:left;vertical-align:top}
+.words th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px}
+.words td:first-child{color:var(--ash-2);text-decoration:line-through;text-decoration-color:var(--ash-3)}
+
+/* thanh chọn phương án + màn */
+.sw{position:sticky;top:0;z-index:30;background:#e9edf2;padding:12px 0 10px;margin-top:22px;border-bottom:1px solid var(--rule);display:flex;flex-direction:column;gap:8px}
+.sw-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sw-row .lb{font-size:12.5px;color:var(--ash-2);width:76px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px;max-width:1620px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.desc .man{color:var(--ink-2)}
+
+/* ---------- khung app ---------- */
+.frame{width:1620px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.frame.dw{height:800px}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:16px 24px 20px;flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tool h2{font-size:18px;font-weight:500;margin:0 6px 0 0;letter-spacing:-.01em;white-space:nowrap}
+.tool .sp{flex:1}
+.tool .cnt{color:var(--ash-2);font-size:12.5px;white-space:nowrap}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.flt{display:flex;gap:2px}
+.flt button{border:1px solid transparent;background:transparent;border-radius:7px;padding:4px 10px;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.flt button:hover{background:var(--rule-hair)}
+.flt button.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.flt .n{color:var(--ash-3);font-size:12px}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:240px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ash)}
+.btn.xs{padding:1px 8px;font-size:12px;font-weight:400}
+.btn.ico{padding:4px 7px}
+.btn .lt{font-weight:400;color:var(--ash-3);font-size:12px}
+.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- lưới ---------- */
+.sheet{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden;flex:none}
+.g{border-collapse:collapse;width:100%;table-layout:fixed}
+.g th,.g td{border-right:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair);padding:6px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;height:34px}
+.g th:last-child,.g td:last-child{border-right:0}
+.g th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g thead tr.t2 th{height:26px;border-bottom:1px solid var(--rule-hair);text-align:center;color:var(--ash-2)}
+.g td.n,.g th.n{text-align:right;font-variant-numeric:tabular-nums}
+.g td.c,.g th.c{text-align:center}
+.g tr.row{cursor:pointer}
+.g tr.row:hover td{background:#f8fafc}
+.g tr.row.sel td{background:#f1f5f9}
+.g tr.gr td{background:#f1f5f9;border-right-color:#e8edf3;color:var(--ink-2)}
+.g tr.tot td{background:#f8fafc;color:var(--ink-2)}
+.g tr.past td{color:var(--ash-3)}
+.g tr.past td.nm{text-decoration:line-through}
+.g tr.sub td{background:#fcfdfe}
+.g.light th,.g.light td{border-right:0}
+.g.light td{height:36px}
+.g tr.day td{background:#f8fafc;color:var(--ash-2);font-size:12.5px;height:30px;border-bottom:1px solid var(--rule-soft)}
+.g tr.day td .d{color:var(--ink-2)}
+.mu{color:var(--ash-2)}.mu3{color:var(--ash-3)}
+.red{color:var(--tt-do-fg)}.org{color:var(--tt-cam-fg)}.amb{color:var(--tt-vang-fg)}.grn{color:var(--tt-la-fg)}
+.u{color:var(--ash-2);font-size:11.5px;margin-left:3px}
+a.lk{color:var(--tt-xanh-fg);text-decoration:none}
+a.lk:hover{text-decoration:underline}
+.cb{width:14px;height:14px;border:1px solid var(--rule);border-radius:4px;display:inline-block;background:#fff;vertical-align:-2px;position:relative}
+.cb.on{background:var(--ink);border-color:var(--ink)}
+.cb.on:after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(45deg)}
+.tag{white-space:nowrap;display:inline-block;background:var(--rule-hair);border-radius:4px;padding:0 6px;font-size:12px;color:var(--ink-2);margin-right:6px}
+.tag.o{background:#fff;border:1px solid var(--rule-soft)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;font-weight:500;white-space:nowrap}
+.chip:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.c-do{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.c-la{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.c-vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.c-xam{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}
+.foot{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-soft)}
+.pg{display:flex;gap:4px;align-items:center}
+.pg span{border:1px solid var(--rule-soft);border-radius:6px;padding:1px 8px;color:var(--ash)}
+.pg span.on{border-color:var(--rule);color:var(--ink)}
+.pg .sel{border:1px solid var(--rule);border-radius:6px;padding:1px 6px;color:var(--ink);margin-right:8px}
+.bulk{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);display:flex;align-items:center;gap:12px;padding:7px 8px 7px 16px;font-size:13px;white-space:nowrap;z-index:3}
+.chev{display:inline-block;width:14px;color:var(--ash-3);font-size:10px}
+.ind{display:inline-block;width:22px}
+
+/* thanh tuổi nợ + thước hạn mức */
+.ab{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--rule-hair);flex:1}
+.ab i{display:block;height:100%}
+.abc{display:flex;align-items:center;gap:8px}
+.mt{height:5px;background:var(--rule-hair);border-radius:3px;position:relative;overflow:hidden;flex:1}
+.mt i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--ash-3)}
+.mtc{display:flex;align-items:center;gap:8px}
+.lg{display:flex;gap:18px;margin-top:8px;font-size:12px;color:var(--ash-2);flex-wrap:wrap}
+.lg button{border:1px solid transparent;background:transparent;border-radius:6px;padding:1px 6px;margin:-1px -6px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ash-2)}
+.lg button:hover{background:var(--rule-hair)}
+.lg i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.lg b{font-weight:400;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* thẻ lọc mỏng (B) */
+.stt{display:flex;gap:8px;margin-bottom:10px}
+.stt button{border:1px solid var(--rule-soft);background:#fff;border-radius:9px;padding:6px 14px;text-align:left;cursor:pointer;display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.stt button:hover{background:var(--rule-hair)}
+.stt button.on{border-color:var(--ash-2)}
+.stt .l{font-size:12.5px;color:var(--ash-2)}
+.stt .v{font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums}
+.stt .s{font-size:12px;color:var(--ash-3)}
+.stt i{width:7px;height:7px;border-radius:50%;display:inline-block;align-self:center}
+
+/* dải tổng công nợ (B) */
+.band{display:grid;grid-template-columns:230px 1fr 300px;gap:28px;background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 16px;margin-bottom:10px;align-items:center}
+.band .l{font-size:12.5px;color:var(--ash-2)}
+.band .v{font-size:19px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.band .pl{font-size:13px}
+.band .pl>span{padding:2px 0;border:0}
+
+/* ---------- ngăn ---------- */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.38);z-index:5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:1180px;background:#fff;z-index:6;display:flex;flex-direction:column;box-shadow:0 14px 34px rgba(20,19,15,.22)}
+.grip{position:absolute;left:0;top:0;bottom:0;width:8px;cursor:ew-resize}
+.grip:after{content:"";position:absolute;left:2px;top:50%;width:4px;height:40px;margin-top:-20px;border-radius:4px;background:var(--rule)}
+.dh{padding:14px 24px 0;flex:none}
+.dh-row{display:flex;align-items:center;gap:10px}
+.dh-row .sp{flex:1}
+.crumb{font-size:12.5px;color:var(--ash-2);display:flex;align-items:center;gap:6px}
+.crumb .ic{width:12px;height:12px;color:var(--ash-3)}
+.dt{font-size:18px;font-weight:500;margin:0;letter-spacing:-.01em;white-space:nowrap}
+.amt{font-size:22px;font-weight:500;letter-spacing:-.015em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.icb{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;display:grid;place-items:center;color:var(--ash);cursor:pointer}
+.icb:hover{background:var(--rule-hair)}
+.kv{display:flex;gap:24px;align-items:baseline;margin-top:8px;font-size:13px;color:var(--ash-2);flex-wrap:wrap}
+.kv span b{font-weight:400;color:var(--ink);font-size:14.5px;margin-left:6px;font-variant-numeric:tabular-nums}
+.kv .sep{width:1px;height:16px;background:var(--rule-soft);align-self:center}
+.tabs{display:flex;gap:2px;margin-top:12px;padding-bottom:8px;border-bottom:1px solid var(--rule-soft)}
+.tabs button{border:1px solid transparent;background:transparent;border-radius:7px;padding:4px 12px;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.tabs button:hover{background:var(--rule-hair)}
+.tabs button.on{border-color:var(--rule);color:var(--ink);background:#fff}
+.tabs .btn{border-color:var(--rule);background:#fff;color:var(--ink);padding:3px 11px}
+.tabs .n{color:var(--ash-3);font-size:12px}
+.db{flex:1;overflow:auto;padding:14px 24px 80px;position:relative}
+.sec{display:flex;align-items:baseline;gap:10px;font-size:12.5px;color:var(--ash-2);margin:18px 0 6px}
+.sec:first-child{margin-top:0}
+.sec .sp{flex:1}
+.sec .hint{color:var(--ash-3);font-size:12px}
+.split{display:grid;gap:24px;grid-template-columns:1fr 1fr}
+.pl{display:grid;grid-template-columns:auto 1fr;column-gap:16px;font-size:13px}
+.pl>span{padding:5px 0;border-bottom:1px solid var(--rule-hair)}
+.pl>span:nth-child(odd){color:var(--ash-2);white-space:nowrap}
+.pl>span:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+.pl.left>span:nth-child(even){text-align:left}
+.pl>span.tt{border-top:1px solid var(--rule);border-bottom:0;padding-top:7px;color:var(--ink)}
+.small{font-size:12px;color:var(--ash-3);margin:6px 0 0}
+
+/* bảng thuộc tính kiểu bảng tính (A) */
+.pg2{border-collapse:collapse;width:100%;table-layout:fixed;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;background:#fff}
+.pg2 td{border-bottom:1px solid var(--rule-hair);padding:5px 10px;font-size:13px;height:33px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pg2 td:first-child{color:var(--ash-2);width:150px;border-right:1px solid var(--rule-hair);background:#fcfdfe}
+.pg2 tr:last-child td{border-bottom:0}
+
+/* ngăn có cột phải (B) */
+.dsplit{display:grid;grid-template-columns:1fr 330px;flex:1;min-height:0}
+.dsplit>.db{border-right:1px solid var(--rule-soft)}
+.side{overflow:auto;padding:14px 20px 20px;background:#fcfdfe}
+.drop{border:1px dashed var(--rule);border-radius:8px;padding:16px 12px;text-align:center;color:var(--ash-2);background:#fff;font-size:12.5px}
+.drop .ic{width:20px;height:20px;color:var(--ash-3);display:block;margin:0 auto 6px}
+.flow{display:grid;grid-template-columns:1fr 32px 1fr;align-items:center;border:1px solid var(--rule-soft);border-radius:8px;background:#fff}
+.flow>div{padding:9px 14px;min-width:0}
+.flow .ar{color:var(--ash-3);display:grid;place-items:center}
+.flow .l{font-size:12px;color:var(--ash-2)}
+.flow .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* dòng mở rộng tại chỗ (C) */
+.g tr.ex>td{background:#fbfcfd;padding:12px 14px 14px 40px;height:auto;white-space:normal;overflow:visible}
+.exg{display:grid;grid-template-columns:1fr 1.3fr 200px;gap:22px;align-items:start}
+.exg .g th,.exg .g td{height:29px;padding:4px 9px;font-size:12.5px}
+.exa{display:flex;flex-direction:column;gap:6px}
+.exa .btn{justify-content:flex-start}
+.mini{display:grid;grid-template-columns:repeat(12,1fr);border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;background:#fff}
+.mini div{padding:4px 6px;border-right:1px solid var(--rule-hair);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+.mini div:nth-child(12n){border-right:0}
+.mini div.h{background:#f8fafc;color:var(--ash-2);text-align:center;border-bottom:1px solid var(--rule-hair)}
+.mini div.now{color:var(--ink)}
+.mini div.past{color:var(--ash-2)}
+
+/* tờ phiếu (C) */
+.dpaper{display:grid;grid-template-columns:1fr 340px;gap:24px}
+.paper{background:#fff;border:1px solid var(--rule-soft);box-shadow:0 2px 12px rgba(15,23,42,.06);padding:26px 34px 30px;font-family:"Times New Roman",Times,serif;font-size:14.5px;color:#111;line-height:1.55}
+.paper .ph{display:flex;justify-content:space-between;font-size:13px}
+.paper .tit{text-align:center;margin:14px 0 2px;font-size:20px;letter-spacing:.04em}
+.paper .sub{text-align:center;font-style:italic;font-size:13.5px;margin-bottom:12px}
+.paper .ln{display:flex;gap:6px;margin:3px 0}
+.paper .ln .k{white-space:nowrap}
+.paper .ln .v{flex:1;border-bottom:1px dotted #9ca3af;padding-left:4px}
+.paper .sg{display:grid;grid-template-columns:repeat(5,1fr);text-align:center;margin-top:18px;font-size:13px}
+.paper .sg i{display:block;font-size:11.5px;color:#555}
+.paper .no{position:absolute;right:0;top:0}
+/* ngăn A: 3 kiểu xếp thông tin */
+.lead .l,.c4 .l,.flow2 .l,.l12{font-size:12px;color:var(--ash-2)}
+.lead .nm{font-size:16px;margin-top:1px;letter-spacing:-.005em}
+.lead .ly{margin-top:3px}
+.c4{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;gap:40px;margin:16px 0 4px;padding-bottom:14px;border-bottom:1px solid var(--rule-hair)}
+.c4 .v{font-size:14px;margin-top:2px;white-space:nowrap}
+.c4 .v .big{font-size:18px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.c4 .s{font-size:12.5px;color:var(--ash-2);margin-top:1px;white-space:nowrap}
+.metaf{margin-top:14px;font-size:12px;color:var(--ash-3)}
+.flow2{display:grid;grid-template-columns:1fr 28px 1fr 1fr;align-items:start;gap:0 18px;padding:2px 0 14px;border-bottom:1px solid var(--rule-hair)}
+.flow2 .nm{font-size:15px;margin-top:1px}
+.flow2 .ar{color:var(--ash-3);padding-top:18px}
+.flow2 .ly2{padding-left:18px;border-left:1px solid var(--rule-hair)}
+.flow2 .ly2>div:last-child{margin-top:1px}
+.metaf2{display:flex;gap:28px;margin-top:16px;font-size:12.5px;color:var(--ash-2);flex-wrap:wrap}
+.metaf2>span>span:first-child,.metaf2 a{margin-left:4px}
+.metaf2>span>span{color:var(--ink)}
+.bits{display:flex;gap:16px;margin-top:6px;font-size:12.5px;color:var(--ash-2);flex-wrap:wrap}
+.pl.st{grid-template-columns:1fr}
+.pl.st>span:nth-child(odd){border-bottom:0;padding:6px 0 0;font-size:12px;color:var(--ash-3)}
+.pl.st>span:nth-child(even){text-align:left;padding:0 0 6px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-exp" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></symbol>
+  <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/><path d="M7 14h10v6H7z"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.2a1.7 1.7 0 0 1-2.4-2.4L15 7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-up2" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></symbol>
+  <symbol id="i-cols" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM10 5v14M15 5v14"/></symbol>
+  <symbol id="i-pay" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h3"/></symbol>
+</svg>
+
+<div class="doc">
+<h1>Kế toán gọn: 3 phương án cho Phiếu chi, Phiếu thu, Công nợ và Tài sản</h1>
+<p>Số liệu lấy từ 8 ảnh chụp ngày 07/10/2026 (thêm vài dòng cho đủ 20 phiếu chi, 15 phiếu thu, 20 tài sản; tổng khớp ảnh trừ phần Tài sản). Logic giữ đúng như đã chốt và đang chạy, chỉ đổi cách bày và cách gọi tên:</p>
+<ul>
+  <li>Phiếu chi chỉ có <span class="chip c-la">Đã chi</span> và <span class="chip c-xam">Đã hủy</span> (lập phiếu là tiền đã ra). Phiếu thu tương tự: <span class="chip c-la">Đã thu</span>, <span class="chip c-xam">Đã hủy</span>. Phiếu đã hủy không cộng vào tổng.</li>
+  <li>Chi theo: Đơn mua (có cọc), Gia công, Tạm ứng lương, Khác. Thu theo: Hoá đơn, Cọc đơn bán, Khác. Gia công không có đơn giá, phiếu chi gia công kế toán gõ số theo hoá đơn.</li>
+  <li>Công nợ phải trả tính theo từng <b>đợt giao</b> của đơn mua, phải thu tính theo <b>hoá đơn</b>. Tuổi nợ 5 mốc: 1–7, 8–15, 16–30, 31–60, trên 60 ngày. Hạn mức, cho nợ bao nhiêu ngày lấy từ hồ sơ đối tác. Ngăn đối tác giữ 3 tab Còn nợ, Sao kê, Lịch sử; tick đợt rồi bấm trả.</li>
+  <li>Mọi ngăn mở từ bên phải rộng 1180px, kéo được mép trái, có tab Lịch sử. Mọi danh sách có nút kỳ, nút Lọc, cột Ngày tạo, chân bảng phân trang chuẩn.</li>
+  <li>Tài sản: Đang dùng hoặc Đã thôi dùng; loại Tài sản cố định hoặc Công cụ dụng cụ; khấu hao đường thẳng theo tháng.</li>
+</ul>
+<p>Cả ba phương án cùng bỏ: thẻ số cao 110px ở đầu Phiếu chi, Phiếu thu; khối tổng quan công nợ cao 200px; dòng hai tầng cao 92px (tên bị cắt "Cửa hàng Dầu nhớt Mi…"); tiêu đề ngăn là cả câu lý do chi ghép tên nhà cung cấp; Hoá đơn in hai lần trong ngăn phiếu chi; "Xác nhận đã thu" trùng người và giờ với Người lập; chip "Công cụ dụng cụ" và "Thiếu chứng từ" lặp ở mọi dòng. Sửa luôn lỗi chữ đè nhau ở cột Trong kỳ và Trả gần nhất của Công nợ phải trả.</p>
+<p>Đổi chữ cho dễ hiểu, áp cho cả ba phương án:</p>
+<table class="words">
+  <tr><th>Chữ đang dùng</th><th>Đổi thành</th><th>Vì sao</th></tr>
+  <tr><td>Chi cho, Thu của</td><td>Người nhận tiền, Người nộp tiền</td><td>đúng chữ in trên mẫu 02-TT và 01-TT, kế toán quen</td></tr>
+  <tr><td>dòng nhỏ dưới tên</td><td>cột Lý do chi, Lý do nộp</td><td>cùng chữ trên tờ phiếu; tách cột thì không bị cắt</td></tr>
+  <tr><td>Nguồn: Thu hoá đơn, Thu khác</td><td>Chi theo, Thu theo: Hoá đơn, Khác</td><td>tiêu đề đã nói chi hay thu, giá trị khỏi lặp chữ "Thu"</td></tr>
+  <tr><td>Đơn mua + thẻ Đặt cọc</td><td>Cọc đơn mua</td><td>một thẻ thay hai, đối xứng với Cọc đơn bán bên thu</td></tr>
+  <tr><td>Thiếu chứng từ (chip mọi dòng, kể cả cạnh chip Đã chi)</td><td>Thiếu chứng từ gốc</td><td>"chứng từ gốc" là chữ in trên mẫu phiếu. A và C: chỉ dòng thiếu mới có chữ, ở cột Ghi chú; dòng bình thường để trống, không gắn chip Đã chi. B: giữ cột Trạng thái và cột Chứng từ gốc riêng</td></tr>
+  <tr><td>Mã phiếu UNC-261007-MD21 và Số chứng từ kế toán PC00012</td><td>Số phiếu PC00012 trên bảng, mã hệ thống chỉ còn trong ngăn</td><td>một phiếu đang có hai mã; kế toán tra theo số in trên tờ. <span class="amb">Cần anh chốt</span></td></tr>
+  <tr><td>Gia công chờ chi: 0 việc</td><td>tự ẩn khi không có việc; có việc thì hiện "Gia công chờ chi 2"</td><td>không có việc thì không nhắc</td></tr>
+  <tr><td>Mua thêm, Bán thêm, Đã trả, Đã thu</td><td>Mua trong kỳ, Bán trong kỳ, Trả trong kỳ, Thu trong kỳ</td><td>nói rõ số này thuộc kỳ đang chọn</td></tr>
+  <tr><td>6 khoản</td><td>6 đợt (phải trả), 2 hoá đơn (phải thu)</td><td>ngăn đã gọi là Đợt; một vật một tên</td></tr>
+  <tr><td>Hạn trả gần nhất</td><td>Hạn sớm nhất</td><td>"gần nhất" dễ hiểu nhầm là hạn sắp tới; đây là đợt chưa trả có hạn sớm nhất</td></tr>
+  <tr><td>Đã dùng 200%, hạn mức 100 triệu</td><td>Hạn mức 100 tr, Đã dùng 200%</td><td>hai số hai cột, đọc như bảng tính</td></tr>
+  <tr><td>Bắt đầu d…, Giá trị còn lại</td><td>Bắt đầu dùng, Còn lại</td><td>không cắt chữ; ngắn mà đủ nghĩa</td></tr>
+</table>
+
+<div class="sw">
+  <div class="sw-row"><span class="lb">Phương án</span><span id="swPa"></span></div>
+  <div class="sw-row"><span class="lb">Màn</span><span id="swMan"></span></div>
+  <div class="sw-row" id="swKieuRow"><span class="lb">Kiểu ngăn</span><span id="swKieu"></span></div>
+</div>
+<div class="desc" id="desc"></div>
+<div class="scroll"><div id="out"></div></div>
+</div>
+
+<script>
+/* ======================= tiện ích ======================= */
+const f = n => Math.round(n).toLocaleString('vi-VN');
+const z = n => n ? f(n) : '<span class="mu3">–</span>';
+const ic = (id, st) => `<svg class="ic"${st ? ` style="${st}"` : ''}><use href="#i-${id}"/></svg>`;
+const cg = ws => '<colgroup>' + ws.map(w => w ? `<col style="width:${w}px">` : '<col>').join('') + '</colgroup>';
+const th = hs => '<tr>' + hs.map(h => { const [t, c = ''] = [].concat(h); return `<th class="${c}">${t}</th>`; }).join('') + '</tr>';
+const cb = on => `<span class="cb${on ? ' on' : ''}"></span>`;
+const THU = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+const thu = s => { const [d, m, y] = s.split('/').map(Number); return THU[new Date(y, m - 1, d).getDay()]; };
+const tr = n => n >= 1e6 ? (n / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + ' tr' : f(n);
+const HT = { TM: 'Tiền mặt', CK: 'Chuyển khoản' };
+const MAU = ['var(--a0)', 'var(--a1)', 'var(--a2)', 'var(--a3)', 'var(--a4)', 'var(--a5)'];
+const MOC = ['Chưa tới hạn', 'Trễ 1–7 ngày', 'Trễ 8–15', 'Trễ 16–30', 'Trễ 31–60', 'Trễ trên 60'];
+const MOC2 = ['1–7', '8–15', '16–30', '31–60', 'Trên 60'];
+
+/* ======================= dữ liệu ======================= */
+const PC = [
+  ['PC-261007-OE92','07/10/2026','07/10/2026','Cửa hàng Dầu nhớt Minh Phát','Mua dầu nhớt bảo trì máy bế',980000,'TM','khac','',0],
+  ['PC-261007-FNWN','07/10/2026','07/10/2026','Công ty TNHH Nhũ ép kim Sài Gòn','Thanh toán đủ đợt 1 DMH-261007-7DK7',8047600,'TM','mua','DMH-261007-7DK7',0],
+  ['UNC-261007-MD21','07/10/2026','07/10/2026','Công ty TNHH Thương mại Giấy An Phát','Thanh toán một phần đợt 1 DMH-261007-UIMN',31817000,'CK','mua','DMH-261007-UIMN',0],
+  ['PC-261007-D5ZB','07/10/2026','07/10/2026','Cơ sở Gia công Cán màng Tân Phú','Gia công trọn gói cả lệnh LSX26-0006',2000000,'TM','gc','LSX26-0006',1],
+  ['UNC-261007-8F2L','06/10/2026','07/10/2026','Công ty TNHH Giấy Tân Mai Sài Gòn','Thanh toán đủ đợt 1 DMH-261007-0R7L',70761600,'CK','mua','DMH-261007-0R7L',0],
+  ['UNC-261006-K3TB','06/10/2026','06/10/2026','Công ty CP Giấy Việt Trì','Thanh toán một phần đợt 1 DMH-261007-PTHV',28958000,'CK','mua','DMH-261007-PTHV',0],
+  ['PC-261005-H8QD','05/10/2026','05/10/2026','Nguyễn Văn Hùng','Tạm ứng lương tháng 10',3000000,'TM','ung','TU-261005-0003',0],
+  ['UNC-261003-W2EM','03/10/2026','03/10/2026','Điện lực Bình Dương','Tiền điện tháng 9 xưởng in',18460000,'CK','khac','',0],
+  ['UNC-261002-B7RN','02/10/2026','02/10/2026','Công ty Cấp nước Thuận An','Tiền nước tháng 9',2316000,'CK','khac','',0],
+  ['PC-261001-ZK4P','01/10/2026','01/10/2026','Văn phòng phẩm Hồng Hà','Mua mực in và giấy A4 văn phòng',1850000,'TM','khac','',0],
+  ['PC-260925-M1XC','25/09/2026','25/09/2026','Phạm Thị Thu','Tạm ứng lương tháng 9',2000000,'TM','ung','TU-260925-0007',0],
+  ['UNC-260922-T6GA','22/09/2026','22/09/2026','Garage Thành Công','Sửa xe tải giao hàng',6800000,'CK','khac','',0],
+  ['PC-260918-R9UL','18/09/2026','18/09/2026','Cơ sở Gia công Bế hộp Hoàng Long','Gia công bế hộp lệnh LSX26-0003',4500000,'TM','gc','LSX26-0003',0],
+  ['UNC-260915-N5VD','15/09/2026','15/09/2026','Công ty CP Giấy Việt Trì','Đặt cọc DMH-260901-8HXA',15000000,'CK','coc','DMH-260901-8HXA',0],
+  ['UNC-260912-E3JW','12/09/2026','12/09/2026','Viettel Bình Dương','Cước internet và điện thoại tháng 9',1320000,'CK','khac','',0],
+  ['UNC-260910-P8KS','10/09/2026','10/09/2026','Công ty TNHH Thương mại Giấy An Phát','Thanh toán cuối DMH-260828-3MPK',20000000,'CK','mua','DMH-260828-3MPK',0],
+  ['PC-260905-Q2LF','05/09/2026','05/09/2026','Lê Văn Tài','Tạm ứng lương tháng 9',2500000,'TM','ung','TU-260905-0002',0],
+  ['UNC-260902-Y7HB','02/09/2026','02/09/2026','Công ty TNHH Tổng hợp In ấn Phương Nam','Thanh toán đủ đợt 1 DMH-260818-K2LQ',7348000,'CK','mua','DMH-260818-K2LQ',0],
+  ['UNC-260828-C4ZE','28/08/2026','28/08/2026','Công ty TNHH Mực in Đông Nam','Thanh toán đủ DMH-260820-Q7TT',9272000,'CK','mua','DMH-260820-Q7TT',0],
+  ['PC-260825-U6MA','25/08/2026','25/08/2026','Công ty TNHH PCCC An Toàn','Nạp bình chữa cháy xưởng',5000000,'TM','khac','',0],
+].map((r, i) => ({ ma: r[0], ngay: r[1], tao: r[2], ten: r[3], ly: r[4], tien: r[5], ht: r[6], theo: r[7], ref: r[8], ct: r[9], tt: 'xong', so: 'PC' + String(20 - i).padStart(5, '0') }));
+
+const PT = [
+  ['PT-261007-HO1X','07/10/2026','07/10/2026','Trần Đình Sơn','Nhân viên hoàn tạm ứng công tác',5000000,'CK','khac','',0,'xong'],
+  ['PT-261007-MWDF','07/10/2026','07/10/2026','CÔNG TY CỔ PHẦN CAFÉ KATINAT','Thu tiền hoá đơn 0000125',468000,'CK','hd','0000125',0,'xong'],
+  ['PT-261007-FSAE','07/10/2026','07/10/2026','CÔNG TY CỔ PHẦN BIBICA','Thu tiền hoá đơn 0000124',13472000,'CK','hd','0000124',0,'xong'],
+  ['PT-261006-A9KQ','06/10/2026','06/10/2026','Nguyễn Thanh Vy','Thu tiền hoá đơn 0000123',1000000,'CK','hd','0000123',0,'xong'],
+  ['PT-261006-3A9L','06/10/2026','06/10/2026','CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM','Thu tiền hoá đơn 0000123',8460973,'TM','hd','0000123',0,'huy'],
+  ['PT-261006-Y5VV','06/10/2026','06/10/2026','CÔNG TY CỔ PHẦN CAFÉ KATINAT','Thu cọc đơn DH003',1060420,'TM','coc','DH003',0,'xong'],
+  ['PT-261006-L2PD','06/10/2026','06/10/2026','CÔNG TY CỔ PHẦN CAFÉ KATINAT','Thu tiền hoá đơn 0000121',500000,'TM','hd','0000121',0,'xong'],
+  ['PT-261003-V8NE','03/10/2026','03/10/2026','Công ty TNHH Bao bì Minh Long','Thu tiền hoá đơn 0000119',9850000,'CK','hd','0000119',1,'xong'],
+  ['PT-261001-G5RA','01/10/2026','01/10/2026','Nguyễn Văn Hùng','Hoàn tạm ứng mua vật tư',1200000,'TM','khac','',0,'xong'],
+  ['PT-260929-J4KT','29/09/2026','29/09/2026','Công ty CP Sữa Ba Vì','Thu tiền hoá đơn 0000117',4336500,'CK','hd','0000117',0,'xong'],
+  ['PT-260925-X1WQ','25/09/2026','25/09/2026','Cơ sở Ve chai Tám Lành','Bán giấy vụn tháng 9',2150000,'TM','khac','',0,'xong'],
+  ['PT-260920-D7MS','20/09/2026','20/09/2026','Công ty TNHH Thực phẩm Hưng Phát','Thu cọc đơn DH001',3000000,'CK','coc','DH001',0,'xong'],
+  ['PT-260915-K9BZ','15/09/2026','15/09/2026','Công ty TNHH Thực phẩm Hưng Phát','Thu tiền hoá đơn 0000112',2400000,'CK','hd','0000112',0,'xong'],
+  ['PT-260910-F3UC','10/09/2026','10/09/2026','Ngân hàng BIDV CN Bình Dương','Lãi tiền gửi tháng 8',50000,'CK','khac','',0,'xong'],
+  ['PT-260905-S6HY','05/09/2026','05/09/2026','Cơ sở Gỗ Tân Uyên','Bán pallet gỗ cũ',1400000,'TM','khac','',0,'xong'],
+].map((r, i) => ({ ma: r[0], ngay: r[1], tao: r[2], ten: r[3], ly: r[4], tien: r[5], ht: r[6], theo: r[7], ref: r[8], ct: r[9], tt: r[10], so: 'PT' + String(15 - i).padStart(5, '0') }));
+
+const CFG = {
+  pc: { ten: 'Phiếu chi', nguoi: 'Người nhận tiền', ly: 'Lý do chi', theo: 'Chi theo', ngay: 'Ngày chi', rows: PC, xong: 'Đã chi', lap: 'Lập phiếu chi', tim: 'Tìm số phiếu, người nhận, lý do, mã đơn',
+        theoL: { mua: 'Đơn mua', coc: 'Cọc đơn mua', gc: 'Gia công', ung: 'Tạm ứng lương', khac: 'Khác' }, mo: 'UNC-261007-MD21' },
+  pt: { ten: 'Phiếu thu', nguoi: 'Người nộp tiền', ly: 'Lý do nộp', theo: 'Thu theo', ngay: 'Ngày thu', rows: PT, xong: 'Đã thu', lap: 'Lập phiếu thu', tim: 'Tìm số phiếu, người nộp, số hoá đơn',
+        theoL: { hd: 'Hoá đơn', coc: 'Cọc đơn bán', khac: 'Khác' }, mo: 'PT-261007-FSAE' },
+};
+
+/* công nợ: b = [chưa tới hạn, 1–7, 8–15, 16–30, 31–60, trên 60] */
+const NCC = [
+  { ten: 'Công ty TNHH Thương mại Giấy An Phát', ma: 'NCC003', so: 6, b: [187785880, 9552800, 0, 0, 0, 2500000], han: '19/07/2026', tre: 80, k1: 219602880, k2: 31817000, gan: ['07/10/2026', 31817000], lh: ['Lê Minh Tuấn', '0963 152 266'], hm: 100e6, cho: 15 },
+  { ten: 'Công ty CP Giấy Việt Trì', ma: 'NCC002', so: 4, b: [105199600, 0, 0, 0, 0, 0], han: '16/11/2026', con: 40, k1: 134157600, k2: 28958000, gan: ['06/10/2026', 28958000], lh: ['Trần Thị Lan', '0915 441 924'], hm: 0, cho: 45 },
+  { ten: 'Công ty TNHH Tổng hợp In ấn Phương Nam', ma: 'NCC007', so: 3, b: [19011000, 0, 0, 11022000, 0, 0], han: '20/09/2026', tre: 17, k1: 0, k2: 0, gan: ['02/09/2026', 7348000], lh: ['Huỳnh Thanh Tâm', '0932 273 132'], hm: 200e6, cho: 45 },
+  { ten: 'Công ty CP Màng và Keo Đông Á', ma: 'NCC005', so: 1, b: [0, 0, 0, 0, 17600000, 0], han: '04/09/2026', tre: 33, k1: 0, k2: 0, gan: null, lh: ['Võ Thị Hồng', '0966 959 579'], hm: 50e6, cho: 15 },
+  { ten: 'Công ty TNHH Nhũ ép kim Sài Gòn', ma: 'NCC009', so: 1, b: [8047600, 0, 0, 0, 0, 0], han: '22/10/2026', con: 15, k1: 16095200, k2: 8047600, gan: ['07/10/2026', 8047600], lh: ['Đặng Quốc Bảo', '0908 112 457'], hm: 30e6, cho: 15 },
+];
+const KH = [
+  { ten: 'CÔNG TY CỔ PHẦN BIBICA', ma: 'KH002', so: 1, b: [13471796, 0, 0, 0, 0, 0], han: null, k1: 26943796, k2: 13472000, gan: ['07/10/2026', 13472000], lh: ['Hồ Đức Sơn', '0986 080 684'], hm: 0, cho: 0, pt: 'Nguyễn Thị Huyền' },
+  { ten: 'CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM', ma: 'KH006', so: 1, b: [7460973, 0, 0, 0, 0, 0], han: '05/11/2026', con: 29, k1: 8460973, k2: 1000000, gan: ['06/10/2026', 1000000], lh: ['Nguyễn Thanh Vy', '0797 235 637'], hm: 100e6, cho: 30, pt: 'Nguyễn Thị Huyền' },
+  { ten: 'CÔNG TY CỔ PHẦN CAFÉ KATINAT', ma: 'KH005', so: 2, b: [6841409, 0, 0, 0, 0, 0], han: null, k1: 8869829, k2: 2028420, gan: ['07/10/2026', 468000], lh: ['Nguyễn Ngọc Vy', '0934 426 699'], hm: 0, cho: 0, pt: 'Nguyễn Thị Huyền' },
+];
+[...NCC, ...KH].forEach(r => r.no = r.b.reduce((a, x) => a + x, 0));
+
+const DOT = [ /* đợt còn nợ của Giấy An Phát */
+  { dm: 'DMH-260620-7QKC', dot: 'Đợt 2', giao: '04/07/2026', hd: 'HD9012233', han: '19/07/2026', tre: 80, gt: 42500000, tra: 40000000, coc: 0 },
+  { dm: 'DMH-260915-2WNE', dot: 'Đợt 1', giao: '15/09/2026', hd: 'HD9071180', han: '30/09/2026', tre: 7, gt: 9552800, tra: 0, coc: 0 },
+  { dm: 'DMH-261003-K8RA', dot: 'Đợt 1', giao: '03/10/2026', hd: 'HD9088102', han: '18/10/2026', con: 11, gt: 39208880, tra: 0, coc: 0 },
+  { dm: 'DMH-261003-K8RA', dot: 'Đợt 2', giao: '05/10/2026', hd: 'HD9090457', han: '20/10/2026', con: 13, gt: 25620000, tra: 0, coc: 0 },
+  { dm: 'DMH-261007-UIMN', dot: 'Đợt 1', giao: '06/10/2026', hd: 'HD9093426', han: '21/10/2026', con: 14, gt: 106056000, tra: 31817000, coc: 0 },
+  { dm: 'DMH-261007-UIMN', dot: 'Đợt 2', giao: '07/10/2026', hd: 'HD9093610', han: '22/10/2026', con: 15, gt: 48718000, tra: 0, coc: 0 },
+];
+const HDK = [ /* hoá đơn còn nợ của Katinat */
+  { dm: 'DH003', dot: '0000121', giao: '06/10/2026', hd: '1C26TSV', han: null, gt: 2120840, tra: 500000, coc: 1060420 },
+  { dm: 'DH005', dot: '0000125', giao: '07/10/2026', hd: '1C26TSV', han: null, gt: 6748989, tra: 468000, coc: 0 },
+];
+[...DOT, ...HDK].forEach(r => r.no = r.gt - r.tra - r.coc);
+
+const CN = {
+  npt: { ten: 'Công nợ phải trả', dt: 'Nhà cung cấp', dv: 'đợt', rows: NCC, k1: 'Mua trong kỳ', k2: 'Trả trong kỳ', gan: 'Trả gần nhất', tim: 'Tìm nhà cung cấp, kể cả đã trả hết', chua: 'Chưa trả lần nào',
+         het: ['Giấy Tân Mai Sài Gòn', 70761600, 70761600], mo: 0, chiTiet: DOT, nut: 'Lập phiếu chi trả', hoso: 'Hồ sơ nhà cung cấp' },
+  nth: { ten: 'Công nợ phải thu', dt: 'Khách hàng', dv: 'hoá đơn', rows: KH, k1: 'Bán trong kỳ', k2: 'Thu trong kỳ', gan: 'Thu gần nhất', tim: 'Tìm khách hàng, kể cả đã thu hết', chua: 'Chưa thu lần nào',
+         mo: 2, chiTiet: HDK, nut: 'Lập phiếu thu', hoso: 'Hồ sơ khách hàng' },
+};
+
+/* tài sản: [mã, tên, loại, sl, bộ phận, bắt đầu, số tháng, giá mua, đã khấu hao (null = tự tính), ngày tạo] */
+const TS = [
+  ['TS-0001','Máy in offset 4 màu Heidelberg SM 74','ts',1,'Xưởng in','15/03/2024',120,5200000000,null,'05/10/2026'],
+  ['TS-0002','Máy in offset 2 màu Komori','ts',1,'Xưởng in','10/06/2023',120,1800000000,null,'05/10/2026'],
+  ['TS-0003','Máy cắt giấy Polar 115','ts',1,'Thành phẩm','02/11/2023',96,820000000,null,'05/10/2026'],
+  ['TS-0004','Máy bế hộp tự động Bobst','ts',1,'Thành phẩm','20/01/2025',120,1650000000,null,'05/10/2026'],
+  ['TS-0005','Máy cán màng nhiệt','ts',1,'Thành phẩm','08/08/2024',84,380000000,null,'05/10/2026'],
+  ['TS-0006','Máy ghi bản CTP Kodak','ts',1,'Chế bản','12/04/2024',96,950000000,null,'05/10/2026'],
+  ['TS-0007','Xe tải 2,5 tấn Hyundai','ts',1,'Giao hàng','05/05/2025',96,640000000,null,'05/10/2026'],
+  ['TS-0008','Máy dán hộp','ts',1,'Thành phẩm','18/02/2026',96,420000000,null,'05/10/2026'],
+  ['TS-0009','Máy gấp giấy','ts',1,'Thành phẩm','01/07/2022',84,186500000,null,'05/10/2026'],
+  ['TS-0010','Máy nén khí trục vít','ts',1,'Xưởng in','22/09/2025',84,130000000,null,'05/10/2026'],
+  ['CC-0001','Pallet nhựa','cc',10,'Gỡ hàng','05/10/2026',24,8500000,0,'05/10/2026'],
+  ['CC-0002','Xe nâng tay','cc',2,'Gỡ hàng','15/01/2025',24,12000000,10500000,'05/10/2026'],
+  ['CC-0003','Máy vi tính phòng kế toán','cc',4,'Kế toán','18/08/2026',36,58000000,2338709,'07/10/2026'],
+  ['CC-0004','Máy in laser A4','cc',2,'Kế toán','18/08/2026',24,12400000,749999,'07/10/2026'],
+  ['CC-0005','Điều hoà phòng kinh doanh 18000BTU','cc',2,'Phòng Kinh Doanh','09/07/2026',36,35600000,2711467,'07/10/2026'],
+  ['CC-0006','Bàn đóng gói inox','cc',4,'Thành phẩm','12/03/2026',24,9600000,null,'07/10/2026'],
+  ['CC-0007','Máy hút ẩm kho giấy','cc',2,'Kho','20/05/2026',24,18000000,null,'07/10/2026'],
+  ['CC-0008','Cân điện tử 300 kg','cc',1,'Kho','03/04/2025',24,6500000,null,'07/10/2026'],
+  ['CC-0009','Máy tính bảng ở xưởng','cc',6,'Xưởng in','15/06/2026',24,27000000,null,'07/10/2026'],
+  ['CC-0010','Tủ hồ sơ sắt','cc',3,'Hành chính','10/10/2025',24,7400000,null,'07/10/2026'],
+].map(r => {
+  const [d, m, y] = r[5].split('/').map(Number);
+  const thang = Math.max(0, (2026 - y) * 12 + (9 - m) + (d <= 15 ? 1 : 0.5));
+  const mo = r[7] / r[6];
+  const kh = r[8] != null ? r[8] : Math.min(r[7], Math.round(mo * thang));
+  return { ma: r[0], ten: r[1], loai: r[2], sl: r[3], bp: r[4], bd: r[5], st: r[6], gia: r[7], kh, con: r[7] - kh, thang: kh >= r[7] ? 0 : Math.round(mo), tao: r[9] };
+});
+const LOAI = { ts: 'Tài sản cố định', cc: 'Công cụ dụng cụ' };
+const sum = (a, k) => a.reduce((s, r) => s + (typeof k === 'function' ? k(r) : r[k]), 0);
+
+/* ======================= khung chung ======================= */
+function frame(inner, drawer) {
+  return `<div class="frame${drawer ? ' dw' : ''}"><div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i><i></i></div>
+  <div class="main"><div class="top">Admin <span class="av">A</span></div><div class="body">${inner}</div>
+  ${drawer ? `<div class="scrim"></div><div class="drawer"><div class="grip"></div>${drawer}</div>` : ''}</div></div>`;
+}
+const kyBtn = (t, s) => `<button class="btn">${ic('cal')}${t} <span class="lt">${s}</span>${ic('down')}</button>`;
+const locBtn = `<button class="btn">${ic('filter')}Lọc</button>`;
+const timBox = (t, w) => `<div class="search"${w ? ` style="width:${w}px"` : ''}>${ic('search')}${t}</div>`;
+const xlBtn = `<button class="btn ico" title="Xuất Excel">${ic('dl')}</button>`;
+const foot = (n, tong, dv) => `<div class="foot"><span>Trang 1/1 <span class="mu3" style="margin-left:10px">${n} dòng trên tổng ${tong} ${dv}</span></span><div class="pg"><span class="mu">Dòng/trang</span><span class="sel">25 ▾</span><span>‹</span><span class="on">1</span><span>›</span></div></div>`;
+const navIc = `<button class="icb">${ic('up')}</button><button class="icb">${ic('down')}</button><button class="icb">${ic('exp')}</button><button class="icb">${ic('x')}</button>`;
+const chipTT = (c, r) => r.tt === 'huy' ? '<span class="chip c-xam">Đã hủy</span>' : `<span class="chip c-la">${c.xong}</span>`;
+const ghiChu = r => r.tt === 'huy' ? '<span class="chip c-xam">Đã hủy</span>' : r.ct ? '' : '<span class="amb">Thiếu chứng từ gốc</span>';
+const ctCell = r => r.tt === 'huy' ? '' : r.ct ? `<span class="mu">1 tệp</span>` : `<span class="amb">Chưa có</span>`;
+const theoCell = (c, r) => `<span class="tag">${c.theoL[r.theo]}</span>${r.ref ? `<a class="lk" href="#">${r.ref}</a>` : ''}`;
+const hanCell = r => r.han == null ? '<span class="mu3">chưa đặt hạn nợ</span>' : `${r.han}<span style="margin-left:8px" class="${r.tre ? 'red' : 'mu'}">${r.tre ? `trễ ${r.tre} ngày` : `còn ${r.con} ngày`}</span>`;
+const pct = r => r.hm ? Math.round(r.no / r.hm * 100) : null;
+const pctCls = p => p > 100 ? 'red' : p > 80 ? 'amb' : '';
+function phieuDem(c) {
+  const R = c.rows, xong = R.filter(r => r.tt !== 'huy');
+  return { R, xong, tong: sum(xong, 'tien'), thieu: xong.filter(r => !r.ct).length, huy: R.length - xong.length };
+}
+
+/* ======================= PHIẾU: danh sách ======================= */
+function phieuA(k, sel) {
+  const c = CFG[k], d = phieuDem(c);
+  const rows = d.R.map(r => `<tr class="row${r.tt === 'huy' ? ' past' : ''}${sel === r.ma ? ' sel' : ''}">
+    <td>${r.so}</td><td>${r.ngay}</td><td class="nm">${r.ten}</td><td class="mu">${r.ly}</td>
+    <td>${theoCell(c, r)}</td><td>${HT[r.ht]}</td><td class="n">${f(r.tien)}</td><td>${ghiChu(r)}</td><td class="mu">${r.tao}</td></tr>`).join('');
+  return `<div class="tool"><h2>${c.ten}</h2>
+      <div class="flt"><button class="on">Tất cả <span class="n">${d.R.length}</span></button><button><i style="background:var(--tt-la-dot)"></i>${c.xong} <span class="n">${d.xong.length}</span></button><button><i style="background:var(--tt-vang-dot)"></i>Thiếu chứng từ gốc <span class="n">${d.thieu}</span></button><button><i style="background:#9ca3af"></i>Đã hủy <span class="n">${d.huy}</span></button></div>
+      <span class="sp"></span>${timBox(c.tim, 260)}${kyBtn('Mọi thời gian', 'theo ' + c.ngay.toLowerCase())}${locBtn}${xlBtn}<button class="btn pri">${ic('plus')}${c.lap}</button></div>
+    <div class="sheet"><table class="g">${cg([82, 104, k === 'pc' ? 288 : 312, 0, k === 'pc' ? 248 : 206, 114, 104, 142, 104])}
+      <thead>${th(['Số phiếu', c.ngay, c.nguoi, c.ly, c.theo, 'Hình thức', ['Số tiền', 'n'], 'Ghi chú', 'Ngày tạo'])}</thead>
+      <tbody>${rows}<tr class="tot"><td colspan="6">Cộng ${d.xong.length} phiếu ${c.xong.toLowerCase()} <span class="mu3" style="margin-left:8px">không tính phiếu đã hủy</span></td><td class="n">${f(d.tong)}</td><td></td><td></td></tr></tbody></table>
+      ${foot(d.R.length, d.R.length, 'phiếu')}</div>`;
+}
+
+function phieuB(k, sel) {
+  const c = CFG[k], d = phieuDem(c);
+  let rows = '', ngay = '';
+  d.R.forEach(r => {
+    if (r.ngay !== ngay) {
+      ngay = r.ngay;
+      const cung = d.R.filter(x => x.ngay === ngay), cx = cung.filter(x => x.tt !== 'huy');
+      rows += `<tr class="day"><td colspan="8"><span class="d">${thu(ngay)} ${ngay}</span><span style="margin-left:14px">${cung.length} phiếu</span></td><td class="n"><span class="d">${f(sum(cx, 'tien'))}</span></td></tr>`;
+    }
+    rows += `<tr class="row${r.tt === 'huy' ? ' past' : ''}${sel === r.ma ? ' sel' : ''}"><td class="nm">${r.ten}</td><td class="mu">${r.ly}</td><td>${theoCell(c, r)}</td><td class="mu">${HT[r.ht]}</td>
+      <td>${r.tt === 'huy' ? '' : r.ct ? `<span class="mu">${ic('clip', 'vertical-align:-2px;margin-right:4px')}1 tệp</span>` : `<span class="amb">${ic('clip', 'vertical-align:-2px;margin-right:4px')}Chưa có</span>`}</td>
+      <td class="mu">${r.so}</td><td class="mu">${r.tao}</td><td>${chipTT(c, r)}</td><td class="n">${f(r.tien)}</td></tr>`;
+  });
+  return `<div class="tool"><h2>${c.ten}</h2><span class="sp"></span><button class="btn pri">${ic('plus')}${c.lap}</button></div>
+    <div class="stt"><button class="on"><span class="l">Tất cả</span><span class="v">${d.R.length}</span><span class="s">phiếu</span></button>
+      <button><i style="background:var(--tt-la-dot)"></i><span class="l">${c.xong}</span><span class="v">${f(d.tong)} đ</span><span class="s">${d.xong.length} phiếu</span></button>
+      <button><i style="background:var(--tt-vang-dot)"></i><span class="l">Thiếu chứng từ gốc</span><span class="v">${d.thieu}</span><span class="s">phiếu</span></button>
+      <button><i style="background:#9ca3af"></i><span class="l">Đã hủy</span><span class="v">${d.huy}</span></button></div>
+    <div class="tool">${timBox(c.tim, 300)}${kyBtn('Mọi thời gian', 'theo ' + c.ngay.toLowerCase())}${locBtn}<span class="sp"></span><span class="mu" style="font-size:12.5px">Nhóm theo</span><div class="seg"><button class="on">${c.ngay}</button><button>${c.theo}</button><button>Không nhóm</button></div>${xlBtn}</div>
+    <div class="sheet"><table class="g light">${cg([k === 'pc' ? 290 : 316, 0, 256, 114, 118, 90, 104, 92, 120])}
+      <thead>${th([c.nguoi, c.ly, c.theo, 'Hình thức', 'Chứng từ gốc', 'Số phiếu', 'Ngày tạo', 'Trạng thái', ['Số tiền', 'n']])}</thead><tbody>${rows}</tbody></table>
+      ${foot(d.R.length, d.R.length, 'phiếu')}</div>`;
+}
+
+function phieuC(k, sel, moRong = true) {
+  const c = CFG[k], d = phieuDem(c);
+  const nhom = Object.keys(c.theoL).map(t => [t, d.R.filter(r => r.theo === t)]).filter(x => x[1].length);
+  let rows = '';
+  nhom.forEach(([t, ds]) => {
+    const xong = ds.filter(r => r.tt !== 'huy');
+    rows += `<tr class="gr"><td class="c"><span class="chev">▾</span></td><td colspan="6">${c.theoL[t]}<span class="mu" style="margin-left:12px">${ds.length} phiếu</span></td><td class="n">${f(sum(xong, 'tien'))}</td><td></td><td></td></tr>`;
+    ds.forEach(r => {
+      const mo = moRong && r.ma === c.mo;
+      rows += `<tr class="row${r.tt === 'huy' ? ' past' : ''}${mo ? ' sel' : ''}"><td class="c"><span class="chev">${mo ? '▾' : '▸'}</span></td><td>${r.so}</td><td>${r.ngay}</td><td class="nm">${r.ten}</td><td class="mu">${r.ly}</td>
+        <td>${r.ref ? `<a class="lk" href="#">${r.ref}</a>` : '<span class="mu3">–</span>'}</td><td>${HT[r.ht]}</td><td class="n">${f(r.tien)}</td><td>${ghiChu(r)}</td><td class="mu">${r.tao}</td></tr>`;
+      if (mo) rows += `<tr class="ex"><td colspan="10">${k === 'pc' ? exPC() : exPT()}</td></tr>`;
+    });
+  });
+  return `<div class="tool"><h2>${c.ten}</h2>
+      <div class="flt"><button class="on">Tất cả <span class="n">${d.R.length}</span></button><button><i style="background:var(--tt-vang-dot)"></i>Thiếu chứng từ gốc <span class="n">${d.thieu}</span></button><button><i style="background:#9ca3af"></i>Đã hủy <span class="n">${d.huy}</span></button></div>
+      <span class="sp"></span>${timBox(c.tim, 250)}${kyBtn('Mọi thời gian', 'theo ' + c.ngay.toLowerCase())}${locBtn}<button class="btn pri">${ic('plus')}${c.lap}</button></div>
+    <div class="tool" style="margin-top:-2px"><span class="mu" style="font-size:12.5px">Nhóm theo</span><div class="seg"><button class="on">${c.theo}</button><button>${c.ngay}</button><button>${c.nguoi}</button><button>Không nhóm</button></div>
+      <span class="sp"></span><span class="cnt">Cộng ${c.xong.toLowerCase()} <span style="color:var(--ink);margin-left:6px">${f(d.tong)} đ</span></span>${xlBtn}</div>
+    <div class="sheet"><table class="g">${cg([36, 82, 104, k === 'pc' ? 288 : 312, 0, 160, 114, 104, 146, 104])}
+      <thead>${th(['', 'Số phiếu', c.ngay, c.nguoi, c.ly, 'Mã chứng từ', 'Hình thức', ['Số tiền', 'n'], 'Ghi chú', 'Ngày tạo'])}</thead><tbody>${rows}</tbody></table>
+      ${foot(d.R.length, d.R.length, 'phiếu')}</div>`;
+}
+function exPC() {
+  return `<div class="exg">
+    <div><div class="sec" style="margin-top:0">Chuyển khoản</div><div class="pl left">
+      <span>Từ</span><span>Techcombank 19036688123011 <span class="tag" style="margin-left:6px">CN Thuận An</span></span>
+      <span>Tới</span><span>Techcombank 19028765432019 <span class="tag" style="margin-left:6px">CN Tân Bình</span></span>
+      <span>Chủ tài khoản</span><span>CONG TY TNHH TM GIAY AN PHAT</span></div></div>
+    <div><div class="sec" style="margin-top:0">Trả cho đợt giao<span class="sp"></span><a class="lk" href="#">Mở đơn mua</a></div>
+      <div class="sheet"><table class="g">${cg([64, 96, 0, 112, 112, 112])}<thead>${th(['Đợt', 'Ngày giao', 'Hoá đơn', ['Giá trị đợt', 'n'], ['Phiếu này', 'n'], ['Còn nợ', 'n']])}</thead>
+      <tbody><tr><td>Đợt 1</td><td>06/10/2026</td><td>HD9093426</td><td class="n">106.056.000</td><td class="n">31.817.000</td><td class="n">74.239.000</td></tr></tbody></table></div>
+      <p class="small">Hàng của đợt: <span class="tag">COUCHE 150GSM</span><span class="tag">GIẤY IVORY 300-400GSM</span></p></div>
+    <div class="exa"><div class="drop" style="padding:10px">${ic('up2')}Chưa có chứng từ gốc<br><a class="lk" href="#">Thêm ảnh hoá đơn</a></div>
+      <button class="btn">${ic('print')}In phiếu</button><button class="btn">${ic('open')}Mở đầy đủ</button></div></div>`;
+}
+function exPT() {
+  return `<div class="exg">
+    <div><div class="sec" style="margin-top:0">Chuyển khoản</div><div class="pl left">
+      <span>Vào tài khoản</span><span>BIDV 65010001234568 <span class="tag" style="margin-left:6px">CN Bình Dương</span></span>
+      <span>Mã giao dịch</span><span>FT2628000002</span><span>Đơn bán</span><span><a class="lk" href="#">DH002</a></span></div></div>
+    <div><div class="sec" style="margin-top:0">Áp vào hoá đơn<span class="sp"></span><a class="lk" href="#">Mở công nợ khách này</a></div>
+      <div class="sheet"><table class="g">${cg([0, 96, 112, 112, 112])}<thead>${th(['Hoá đơn', 'Ngày', ['Giá trị', 'n'], ['Phiếu này', 'n'], ['Còn nợ', 'n']])}</thead>
+      <tbody><tr><td>1C26TSV 0000124</td><td>06/10/2026</td><td class="n">26.943.796</td><td class="n">13.472.000</td><td class="n">13.471.796</td></tr></tbody></table></div></div>
+    <div class="exa"><div class="drop" style="padding:10px">${ic('up2')}Chưa có chứng từ gốc<br><a class="lk" href="#">Thêm báo có, biên nhận</a></div>
+      <button class="btn">${ic('print')}In phiếu</button><button class="btn">${ic('open')}Mở đầy đủ</button></div></div>`;
+}
+
+/* ======================= PHIẾU: ngăn chi tiết ======================= */
+const NGAN = {
+  pc: { so: 'PC00018', ma: 'UNC-261007-MD21', tien: 31817000, chu: 'Ba mươi mốt triệu tám trăm mười bảy nghìn đồng', ngay: '07/10/2026', ht: 'Chuyển khoản',
+        ten: 'Công ty TNHH Thương mại Giấy An Phát', ly: 'Thanh toán một phần đợt 1 DMH-261007-UIMN', ct: 0, ls: 1 },
+  pt: { so: 'PT00013', ma: 'PT-261007-FSAE', tien: 13472000, chu: 'Mười ba triệu bốn trăm bảy mươi hai nghìn đồng', ngay: '07/10/2026', ht: 'Chuyển khoản',
+        ten: 'CÔNG TY CỔ PHẦN BIBICA', ly: 'Thu tiền hoá đơn 0000124', ct: 0, ls: 1 },
+};
+function bangDoiChieu(k, hep) {
+  /* hep: cột trái của kiểu 3 hẹp hơn, bỏ Ngày giao (đã ở trang đợt) và cho ô Hàng xuống dòng */
+  return k === 'pc'
+    ? `<div class="sheet"><table class="g">${cg(hep ? [52, 104, 0, 108, 74, 100, 100, 104] : [60, 100, 104, 0, 120, 84, 108, 108, 116])}<thead>${th(['Đợt', ...(hep ? [] : ['Ngày giao']), 'Hoá đơn', 'Hàng', ['Giá trị đợt', 'n'], ['Trừ cọc', 'n'], ['Trả trước đó', 'n'], ['Phiếu này', 'n'], ['Còn nợ', 'n']])}</thead>
+       <tbody><tr><td>Đợt 1</td>${hep ? '' : '<td>06/10/2026</td>'}<td>HD9093426</td><td${hep ? ' style="white-space:normal;line-height:24px"' : ''}><span class="tag">COUCHE 150GSM</span><span class="tag">GIẤY IVORY 300-400GSM</span></td><td class="n">106.056.000</td><td class="n">${z(0)}</td><td class="n">${z(0)}</td><td class="n">31.817.000</td><td class="n">74.239.000</td></tr></tbody></table></div>`
+    : `<div class="sheet"><table class="g">${cg([0, 104, 124, 92, 104, 116, 124])}<thead>${th(['Hoá đơn', 'Ngày', ['Giá trị', 'n'], ['Trừ cọc', 'n'], ['Thu trước đó', 'n'], ['Phiếu này', 'n'], ['Còn nợ', 'n']])}</thead>
+       <tbody><tr><td>1C26TSV 0000124</td><td>06/10/2026</td><td class="n">26.943.796</td><td class="n">${z(0)}</td><td class="n">${z(0)}</td><td class="n">13.472.000</td><td class="n">13.471.796</td></tr></tbody></table></div>`;
+}
+function tabsPhieu(n) { return `<div class="tabs"><button class="on">Chi tiết</button><button>Chứng từ gốc <span class="n">${n.ct}</span></button><button>Lịch sử <span class="n">${n.ls}</span></button></div>`; }
+
+/* ---- ngăn phiếu của A: 3 kiểu xếp thông tin ---- */
+const PD = {
+  pc: { tk: [['Từ tài khoản', 'Techcombank 19036688123011', 'CN Thuận An', 'CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT'], ['Tới tài khoản', 'Techcombank 19028765432019', 'CN Tân Bình', 'CONG TY TNHH TM GIAY AN PHAT']],
+        them: ['Đơn mua', 'DMH-261007-UIMN'], them2: ['Yêu cầu mua', 'YCMH-261007-O5HY'], sec: 'Trả cho đợt giao', mo: 'Mở đơn mua', ct: 'hoá đơn, ủy nhiệm chi' },
+  pt: { tk: [['Vào tài khoản', 'BIDV 65010001234568', 'CN Bình Dương', 'CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT'], ['Mã giao dịch', 'FT2628000002', '', '']],
+        them: ['Đơn bán', 'DH002'], them2: null, sec: 'Áp vào hoá đơn', mo: 'Mở công nợ khách này', ct: 'báo có, biên nhận' },
+};
+const tabsPhieu2 = n => `<div class="tabs"><button class="on">Chi tiết</button><button>Chứng từ gốc <span class="amb" style="font-size:12px">chưa có</span></button><button>Lịch sử <span class="n">${n.ls}</span></button></div>`;
+const o4 = (l, v, s) => `<div><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+function dauPhieu(c, n, phu) {
+  return `<div class="dh-row"><span class="crumb">${c.ten} ${ic('arrow')} ${n.so} ${ic('copy')}</span><span class="sp"></span>${navIc}</div>
+    <div class="dh-row" style="margin-top:6px"><span class="amt">${f(n.tien)} đ</span>${chipTT(c, {})}${phu || ''}<span class="mu3" style="margin-left:6px">${n.chu}</span><span class="sp"></span>
+      <button class="btn">${ic('print')}In phiếu</button><button class="btn ico">${ic('more')}</button></div>`;
+}
+function secDoiChieu(k, hep) {
+  const d = PD[k];
+  return `<div class="sec">${d.sec}<span class="sp"></span><a class="lk" href="#">${d.mo}</a></div>${bangDoiChieu(k, hep)}`;
+}
+function nganPhieuA(k) {
+  const c = CFG[k], n = NGAN[k], d = PD[k], K = S.kieu;
+  const [t1, t2] = d.tk;
+  if (K === '1') {
+    const o = [o4('Hình thức', n.ht, n.ngay),
+      o4(t1[0], t1[1], `<span class="tag">${t1[2]}</span>`),
+      k === 'pc' ? o4(t2[0], `${t2[1]} <span class="tag" style="margin-left:4px">${t2[2]}</span>`, t2[3]) : o4(t2[0], t2[1]),
+      o4(d.them[0], `<a class="lk" href="#">${d.them[1]}</a>`, d.them2 ? `${d.them2[0]} <a class="lk" href="#">${d.them2[1]}</a>` : ''),
+      o4('Người lập', 'Admin', '07/10/2026 21:13')].join('');
+    return `<div class="dh">${dauPhieu(c, n)}${tabsPhieu2(n)}</div>
+      <div class="db"><div class="lead"><div class="l">${c.nguoi}</div><div class="nm">${n.ten}</div><div class="ly"><span class="mu">${c.ly}</span><span style="margin-left:10px">${n.ly}</span></div></div>
+        <div class="c4">${o}</div>${secDoiChieu(k)}<p class="metaf">Mã hệ thống ${n.ma}</p></div>`;
+  }
+  if (K === '2') {
+    const tu = k === 'pc' ? [t1[3], `${t1[1]} <span class="tag" style="margin-left:4px">${t1[2]}</span>`] : [n.ten, `Mã giao dịch ${t2[1]}`];
+    const toi = k === 'pc' ? [n.ten, `${t2[1]} <span class="tag" style="margin-left:4px">${t2[2]}</span>`, `Chủ tài khoản ${t2[3]}`] : [t1[3], `${t1[1]} <span class="tag" style="margin-left:4px">${t1[2]}</span>`, ''];
+    return `<div class="dh">${dauPhieu(c, n, `<span class="tag o" style="margin-left:6px">${n.ht}</span><span class="mu">${n.ngay}</span>`)}${tabsPhieu2(n)}</div>
+      <div class="db"><div class="flow2"><div><div class="l">${k === 'pc' ? 'Từ' : c.nguoi}</div><div class="nm">${tu[0]}</div><div class="mu">${tu[1]}</div></div>
+          <div class="ar">${ic('arrow')}</div><div><div class="l">${k === 'pc' ? c.nguoi : 'Vào'}</div><div class="nm">${toi[0]}</div><div class="mu">${toi[1]}</div>${toi[2] ? `<div class="mu3" style="font-size:12px">${toi[2]}</div>` : ''}</div>
+          <div class="ly2"><div class="l">${c.ly}</div><div>${n.ly}</div></div></div>
+        ${secDoiChieu(k)}
+        <div class="metaf2"><span>Người lập <span>Admin</span><span class="tag" style="margin-left:6px">07/10/2026 21:13</span></span><span>${d.them[0]} <a class="lk" href="#">${d.them[1]}</a></span>${d.them2 ? `<span>${d.them2[0]} <a class="lk" href="#">${d.them2[1]}</a></span>` : ''}<span>Mã hệ thống <span class="mu">${n.ma}</span></span></div></div>`;
+  }
+  const rail = [[c.nguoi, n.ten], ['Hình thức', n.ht], [c.ngay, n.ngay],
+    [t1[0], `${t1[1]} <span class="tag" style="margin-left:4px">${t1[2]}</span>`],
+    ...(k === 'pc' ? [[t2[0], `${t2[1]} <span class="tag" style="margin-left:4px">${t2[2]}</span>`], ['Chủ tài khoản nhận', t2[3]]] : [[t2[0], t2[1]]]),
+    [d.them[0], `<a class="lk" href="#">${d.them[1]}</a>`], ...(d.them2 ? [[d.them2[0], `<a class="lk" href="#">${d.them2[1]}</a>`]] : []),
+    ['Người lập', 'Admin <span class="mu" style="margin-left:6px">07/10/2026 21:13</span>'], ['Mã hệ thống', `<span class="mu">${n.ma}</span>`]];
+  return `<div class="dh">${dauPhieu(c, n)}${tabsPhieu2(n)}</div>
+    <div class="dsplit" style="grid-template-columns:1fr 290px"><div class="db" style="padding-top:16px"><div class="lead"><div class="l">${c.ly}</div><div class="nm">${n.ly}</div></div>${secDoiChieu(k, true)}
+        </div>
+      <div class="side"><div class="pl st">${rail.map(([l, v]) => `<span>${l}</span><span>${v}</span>`).join('')}</div></div></div>`;
+}
+function nganPhieuB(k) {
+  const c = CFG[k], n = NGAN[k];
+  const flow = k === 'pc'
+    ? `<div class="flow"><div><div class="l">Từ</div><div class="nm">CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT</div><div class="mu">Techcombank 19036688123011 <span class="tag" style="margin-left:6px">CN Thuận An</span></div></div><div class="ar">${ic('arrow')}</div>
+       <div><div class="l">Tới</div><div class="nm">CONG TY TNHH TM GIAY AN PHAT</div><div class="mu">Techcombank 19028765432019 <span class="tag" style="margin-left:6px">CN Tân Bình</span></div></div></div>`
+    : `<div class="flow"><div><div class="l">Từ</div><div class="nm">CÔNG TY CỔ PHẦN BIBICA</div><div class="mu">Mã giao dịch FT2628000002</div></div><div class="ar">${ic('arrow')}</div>
+       <div><div class="l">Tới</div><div class="nm">CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT</div><div class="mu">BIDV 65010001234568 <span class="tag" style="margin-left:6px">CN Bình Dương</span></div></div></div>`;
+  const tinh = k === 'pc'
+    ? `<div class="sec">Trả cho đợt giao<span class="sp"></span><a class="lk" href="#">Mở đơn mua</a></div>
+       <div class="sheet" style="padding:10px 14px"><div class="dh-row" style="margin-bottom:6px;white-space:nowrap"><a class="lk" href="#">DMH-261007-UIMN</a><span class="tag o">Đợt 1</span><span class="mu">giao 06/10/2026</span><span class="mu">hoá đơn HD9093426</span><span class="sp"></span><span class="tag">COUCHE 150GSM</span><span class="tag" style="margin-right:0">GIẤY IVORY 300-400GSM</span></div>
+       <div class="pl" style="max-width:440px;margin-left:auto"><span>Giá trị đợt</span><span>106.056.000</span><span>Trừ cọc</span><span>${z(0)}</span><span>Trả trước đó</span><span>${z(0)}</span><span>Phiếu này</span><span>− 31.817.000</span><span class="tt">Còn nợ sau phiếu này</span><span class="tt">74.239.000</span></div></div>`
+    : `<div class="sec">Áp vào hoá đơn<span class="sp"></span><a class="lk" href="#">Mở công nợ khách này</a></div>
+       <div class="sheet" style="padding:10px 14px"><div class="dh-row" style="margin-bottom:6px;white-space:nowrap"><span>1C26TSV 0000124</span><span class="mu">ngày 06/10/2026</span><span class="mu">đơn bán</span><a class="lk" href="#">DH002</a></div>
+       <div class="pl" style="max-width:440px;margin-left:auto"><span>Giá trị hoá đơn</span><span>26.943.796</span><span>Trừ cọc</span><span>${z(0)}</span><span>Thu trước đó</span><span>${z(0)}</span><span>Phiếu này</span><span>− 13.472.000</span><span class="tt">Còn nợ sau phiếu này</span><span class="tt">13.471.796</span></div></div>`;
+  const side = k === 'pc'
+    ? [[c.ngay, n.ngay], ['Hình thức', n.ht], ['Yêu cầu mua', `<a class="lk" href="#">YCMH-261007-O5HY</a>`], ['Người lập', 'Admin 07/10 21:13'], ['Mã hệ thống', `<span class="mu">${n.ma}</span>`]]
+    : [[c.ngay, n.ngay], ['Hình thức', n.ht], ['Người lập', 'Admin 07/10 21:13'], ['Mã hệ thống', `<span class="mu">${n.ma}</span>`]];
+  return `<div class="dh" style="padding-bottom:0"><div class="dh-row"><span class="crumb">${c.ten} ${ic('arrow')} ${n.so}</span><span class="sp"></span>${navIc}</div>
+      <div class="dh-row" style="margin-top:6px"><h3 class="dt">${n.ten}</h3>${chipTT(c, {})}<span class="sp"></span><span class="amt">${f(n.tien)} đ</span></div>
+      <div class="dh-row" style="margin-top:2px"><span class="mu">${n.ly}</span><span class="sp"></span><span class="mu3">${n.chu}</span></div>
+      <div class="tabs" style="margin-bottom:0;border-bottom:0"><button class="on">Chi tiết</button><button>Chứng từ gốc <span class="n">0</span></button><button>Lịch sử <span class="n">1</span></button><span style="flex:1"></span><button class="btn">${ic('print')}In phiếu</button><button class="btn ico" style="margin-left:6px">${ic('more')}</button></div></div>
+    <div class="dsplit" style="border-top:1px solid var(--rule-soft)"><div class="db">${flow}${tinh}</div>
+      <div class="side"><div class="sec" style="margin-top:0">Chứng từ gốc</div><div class="drop">${ic('up2')}Kéo ảnh ${k === 'pc' ? 'hoá đơn, ủy nhiệm chi' : 'báo có, biên nhận'} vào đây<br><a class="lk" href="#">hoặc chọn tệp</a></div>
+        <div class="sec">Thông tin phiếu</div><div class="pl">${side.map(([l, v]) => `<span>${l}</span><span>${v}</span>`).join('')}</div></div></div>`;
+}
+
+function nganPhieuC(k) {
+  const c = CFG[k], n = NGAN[k];
+  const paper = `<div class="paper" style="position:relative">
+      <div class="ph"><div>CÔNG TY CỔ PHẦN IN SAO VIỆT NHẬT<br><span style="font-size:12px">Thuận An, Bình Dương</span></div><div style="text-align:center">Mẫu số ${k === 'pc' ? '02-TT' : '01-TT'}<br><i style="font-size:11.5px">(Thông tư 99/2025/TT-BTC)</i></div></div>
+      <div class="tit">${k === 'pc' ? 'PHIẾU CHI' : 'PHIẾU THU'}</div><div class="sub">Ngày 07 tháng 10 năm 2026 <span style="margin-left:30px;font-style:normal">Số: ${n.so}</span></div>
+      <div class="ln"><span class="k">Họ và tên ${k === 'pc' ? 'người nhận tiền' : 'người nộp tiền'}:</span><span class="v">${n.ten}</span></div>
+      <div class="ln"><span class="k">${k === 'pc' ? 'Lý do chi' : 'Lý do nộp'}:</span><span class="v">${n.ly}</span></div>
+      <div class="ln"><span class="k">Số tiền:</span><span class="v">${f(n.tien)} đồng</span></div>
+      <div class="ln"><span class="k">Viết bằng chữ:</span><span class="v"><i>${n.chu}</i></span></div>
+      <div class="ln"><span class="k">Kèm theo:</span><span class="v">0 chứng từ gốc</span></div>
+      <div class="sg"><div>Giám đốc<i>(Ký, họ tên)</i></div><div>Kế toán trưởng<i>(Ký, họ tên)</i></div><div>Thủ quỹ<i>(Ký, họ tên)</i></div><div>Người lập phiếu<i>(Ký, họ tên)</i><br>Admin</div><div>${k === 'pc' ? 'Người nhận tiền' : 'Người nộp tiền'}<i>(Ký, họ tên)</i></div></div></div>`;
+  const ben = k === 'pc'
+    ? `<div class="sec" style="margin-top:0">Trả cho đợt giao<span class="sp"></span><a class="lk" href="#">Mở đơn mua</a></div>
+       <div class="pl"><span>Đơn mua</span><span><a class="lk" href="#">DMH-261007-UIMN</a></span><span>Đợt</span><span>Đợt 1 giao 06/10/2026</span><span>Hoá đơn</span><span>HD9093426</span><span>Giá trị đợt</span><span>106.056.000</span><span>Trừ cọc</span><span>${z(0)}</span><span>Trả trước đó</span><span>${z(0)}</span><span>Phiếu này</span><span>31.817.000</span><span class="tt">Còn nợ</span><span class="tt">74.239.000</span></div>
+       <div class="sec">Chuyển khoản</div><div class="pl"><span>Từ</span><span>Techcombank 19036688123011</span><span>Tới</span><span>Techcombank 19028765432019</span><span>Chủ tài khoản</span><span>GIAY AN PHAT</span><span>Yêu cầu mua</span><span><a class="lk" href="#">YCMH-261007-O5HY</a></span></div>`
+    : `<div class="sec" style="margin-top:0">Áp vào hoá đơn<span class="sp"></span><a class="lk" href="#">Mở công nợ khách</a></div>
+       <div class="pl"><span>Hoá đơn</span><span>1C26TSV 0000124</span><span>Ngày</span><span>06/10/2026</span><span>Đơn bán</span><span><a class="lk" href="#">DH002</a></span><span>Giá trị</span><span>26.943.796</span><span>Trừ cọc</span><span>${z(0)}</span><span>Thu trước đó</span><span>${z(0)}</span><span>Phiếu này</span><span>13.472.000</span><span class="tt">Còn nợ</span><span class="tt">13.471.796</span></div>
+       <div class="sec">Chuyển khoản</div><div class="pl"><span>Vào tài khoản</span><span>BIDV 65010001234568</span><span>Mã giao dịch</span><span>FT2628000002</span></div>`;
+  return `<div class="dh"><div class="dh-row"><span class="crumb">${c.ten} ${ic('arrow')} ${n.so}</span><span class="tag o" style="margin-left:4px">${n.ht}</span>${chipTT(c, {})}<span class="sp"></span>
+      <button class="btn">${ic('print')}In phiếu</button><button class="btn ico">${ic('more')}</button><span style="width:8px"></span>${navIc}</div>
+      <div class="tabs"><button class="on">Tờ phiếu</button><button>Chứng từ gốc <span class="n">0</span></button><button>Lịch sử <span class="n">1</span></button></div></div>
+    <div class="db" style="background:#f8fafc"><div class="dpaper">${paper}<div>${ben}<div class="sec">Chứng từ gốc</div><div class="drop">${ic('up2')}Chưa có. Kéo ảnh vào đây<br><a class="lk" href="#">hoặc chọn tệp</a></div><p class="small">Người lập Admin lúc 07/10/2026 21:13. Mã hệ thống ${n.ma}.</p></div></div></div>`;
+}
+
+/* ======================= CÔNG NỢ: danh sách ======================= */
+function cnTong(c) {
+  const R = c.rows, b = [0, 1, 2, 3, 4, 5].map(i => sum(R, r => r.b[i]));
+  return { R, b, no: sum(R, 'no'), so: sum(R, 'so'), qua: b.slice(1).reduce((a, x) => a + x, 0), k1: sum(R, 'k1') + (c.het ? c.het[1] : 0), k2: sum(R, 'k2') + (c.het ? c.het[2] : 0),
+           dQua: R.filter(r => r.b.slice(1).some(x => x)).length, dVuot: R.filter(r => r.hm && r.no > r.hm).length };
+}
+function cnTabs(c, t) {
+  return `<div class="flt"><button class="on">Tất cả <span class="n">${t.R.length}</span></button><button><i style="background:var(--tt-do-dot)"></i>Quá hạn <span class="n">${t.dQua}</span></button><button><i style="background:var(--tt-cam-dot)"></i>Vượt hạn mức <span class="n">${t.dVuot}</span></button></div>`;
+}
+function cnA(k, view = 'tuoi', sel) {
+  const c = CN[k], t = cnTong(c);
+  const nut = `<span class="mu" style="font-size:12.5px">Xem cột</span><div class="seg" data-view="${k}"><button class="${view === 'tuoi' ? 'on' : ''}" data-v="tuoi">Tuổi nợ</button><button class="${view === 'ky' ? 'on' : ''}" data-v="ky">Trong kỳ và liên hệ</button></div>`;
+  let head, body, totRow, cols;
+  if (view === 'tuoi') {
+    cols = [0, k === 'nth' ? 72 : 56, 120, 120, 96, 96, 96, 96, 96, 186, 84, 76];
+    head = `<tr><th rowspan="2">${c.dt}</th><th rowspan="2" class="n">${c.dv === 'đợt' ? 'Đợt' : 'Hoá đơn'}</th><th rowspan="2" class="n">Còn nợ</th><th rowspan="2" class="n">Chưa tới hạn</th><th colspan="5" style="text-align:center;height:26px;border-bottom:1px solid var(--rule-hair)">Quá hạn, theo số ngày trễ</th><th rowspan="2">Hạn sớm nhất</th><th rowspan="2" class="n">Hạn mức</th><th rowspan="2" class="n">Đã dùng</th></tr>
+            <tr class="t2">${MOC2.map(m => `<th class="n">${m}</th>`).join('')}</tr>`;
+    const hang = (r, cls = 'row') => { const p = pct(r); return `<tr class="${cls}${sel === r.ma ? ' sel' : ''}"><td>${r.ten}</td><td class="n mu">${r.so}</td><td class="n">${f(r.no)}</td>${r.b.map((x, i) => `<td class="n${i && x ? ' red' : ''}">${z(x)}</td>`).join('')}<td>${hanCell(r)}</td><td class="n">${r.hm ? tr(r.hm) : '<span class="mu3">chưa đặt</span>'}</td><td class="n ${p ? pctCls(p) : ''}">${p ? p + '%' : '<span class="mu3">–</span>'}</td></tr>`; };
+    totRow = `<tr class="tot"><td>Cộng ${t.R.length} ${c.dt.toLowerCase()}</td><td class="n">${t.so}</td><td class="n">${f(t.no)}</td>${t.b.map((x, i) => `<td class="n${i && x ? ' red' : ''}">${z(x)}</td>`).join('')}<td class="mu">quá hạn ${f(t.qua)}</td><td></td><td></td></tr>`;
+    body = totRow + t.R.map(r => hang(r)).join('');
+  } else {
+    cols = [0, 70, 120, 124, 124, 130, 112, 86, k === 'nth' ? 140 : 0, 150, 120].filter((w, i) => !(i === 8 && k === 'npt'));
+    const hs = [c.dt, ['Đợt', 'n'], ['Còn nợ', 'n'], [c.k1, 'n'], [c.k2, 'n'], c.gan, ['Số tiền', 'n'], ['Cho nợ', 'n'], ...(k === 'nth' ? ['Phụ trách'] : []), 'Người liên hệ', 'Điện thoại'];
+    if (k === 'nth') hs[1] = ['Hoá đơn', 'n'];
+    head = th(hs);
+    totRow = `<tr class="tot"><td>Cộng ${t.R.length} ${c.dt.toLowerCase()}${c.het ? `<span class="mu3" style="margin-left:8px">tính cả ${c.het[0]} đã trả hết</span>` : ''}</td><td class="n">${t.so}</td><td class="n">${f(t.no)}</td><td class="n">${f(t.k1)}</td><td class="n">${f(t.k2)}</td><td></td><td></td><td></td>${k === 'nth' ? '<td></td>' : ''}<td></td><td></td></tr>`;
+    body = totRow + t.R.map(r => `<tr class="row"><td>${r.ten}</td><td class="n mu">${r.so}</td><td class="n">${f(r.no)}</td><td class="n">${z(r.k1)}</td><td class="n">${z(r.k2)}</td><td>${r.gan ? r.gan[0] : `<span class="mu3">${c.chua.toLowerCase()}</span>`}</td><td class="n">${r.gan ? f(r.gan[1]) : ''}</td><td class="n">${r.cho ? r.cho + ' ngày' : '<span class="mu3">chưa đặt</span>'}</td>${k === 'nth' ? `<td>${r.pt}</td>` : ''}<td>${r.lh[0]}</td><td class="mu">${r.lh[1]}</td></tr>`).join('');
+  }
+  return `<div class="tool"><h2>${c.ten}</h2>${cnTabs(c, t)}<span class="sp"></span>${timBox(c.tim, 270)}${kyBtn('Tháng này', 'theo ngày chứng từ')}${locBtn}${xlBtn}</div>
+    <div class="tool"><span class="cnt">Còn nợ tới 07/10/2026</span><span class="sp"></span>${nut}</div>
+    <div class="sheet"><table class="g">${cg(cols)}<thead>${head}</thead><tbody>${body}</tbody></table>${foot(t.R.length, t.R.length, c.dt.toLowerCase())}</div>
+    <p class="small" style="margin-top:8px">Kỳ "Tháng này" (01/10 đến 07/10/2026) chỉ đổi hai cột ${c.k1} và ${c.k2}; số Còn nợ luôn tính tới hôm nay.</p>`;
+}
+const thanhTuoi = (b, w) => `<div class="ab"${w ? ` style="flex:none;width:${w}px"` : ''}>${b.map((x, i) => x ? `<i style="width:${x / b.reduce((a, y) => a + y, 0) * 100}%;background:${MAU[i]}"></i>` : '').join('')}</div>`;
+function cnB(k) {
+  const c = CN[k], t = cnTong(c);
+  const band = `<div class="band"><div><div class="l">Còn nợ tới 07/10/2026</div><div class="v">${f(t.no)} đ</div><div class="l">${t.so} ${c.dv} của ${t.R.length} ${c.dt.toLowerCase()}</div></div>
+      <div><div class="dh-row" style="font-size:12.5px;color:var(--ash-2);margin-bottom:6px"><span>Tuổi nợ</span><span class="sp"></span><span>quá hạn <span class="${t.qua ? 'red' : ''}">${f(t.qua)}</span></span></div>${thanhTuoi(t.b)}
+        <div class="lg">${t.b.map((x, i) => `<button><i style="background:${MAU[i]}"></i>${MOC[i]} <b>${tr(x)}</b></button>`).join('')}</div></div>
+      <div><div class="l" style="margin-bottom:2px">Trong kỳ 01/10 đến 07/10/2026${c.het ? '<span class="mu3" style="margin-left:6px">tính cả bên đã trả hết</span>' : ''}</div><div class="pl"><span>${c.k1}</span><span>${f(t.k1)}</span><span>${c.k2}</span><span>${f(t.k2)}</span></div></div></div>`;
+  const rows = t.R.map(r => { const p = pct(r), q = r.b.slice(1).reduce((a, x) => a + x, 0);
+    return `<tr class="row"><td>${r.ten}</td><td class="n mu">${r.so}</td><td class="n">${f(r.no)}</td>
+      <td><div class="abc">${thanhTuoi(r.b, 64)}<span class="${q ? 'red' : 'mu3'}" style="font-size:12.5px">${q ? 'quá ' + tr(q) : 'chưa quá hạn'}</span></div></td>
+      <td>${hanCell(r)}</td><td class="n">${z(r.k1)}</td><td class="n">${z(r.k2)}</td>
+      <td>${r.hm ? `<div class="mtc"><div class="mt"><i style="width:${Math.min(100, p)}%;${p > 100 ? 'background:var(--tt-do-dot)' : ''}"></i></div><span class="${pctCls(p)}" style="font-size:12.5px;width:96px;text-align:right">${p}% của ${tr(r.hm)}</span></div>` : '<span class="mu3">chưa đặt hạn mức</span>'}</td>
+      <td>${r.lh[0]}<span class="mu" style="margin-left:8px">${r.lh[1]}</span></td></tr>`; }).join('');
+  return `<div class="tool"><h2>${c.ten}</h2><span class="sp"></span>${xlBtn}</div>${band}
+    <div class="tool">${cnTabs(c, t)}${timBox(c.tim, 280)}${kyBtn('Tháng này', 'theo ngày chứng từ')}${locBtn}<span class="sp"></span><span class="cnt">${t.R.length} ${c.dt.toLowerCase()}</span></div>
+    <div class="sheet"><table class="g light">${cg([0, 50, 120, 190, 186, 120, 120, 180, 230])}<thead>${th([c.dt, ['Số', 'n'], ['Còn nợ', 'n'], 'Tuổi nợ', 'Hạn sớm nhất', [c.k1, 'n'], [c.k2, 'n'], 'Hạn mức', 'Người liên hệ'])}</thead><tbody>${rows}</tbody></table>${foot(t.R.length, t.R.length, c.dt.toLowerCase())}</div>`;
+}
+function cnC(k) {
+  const c = CN[k], t = cnTong(c), mo = c.rows[c.mo];
+  let body = `<tr class="tot"><td class="c"></td><td>Cộng ${t.R.length} ${c.dt.toLowerCase()}<span class="mu" style="margin-left:10px">${t.so} ${c.dv}</span></td><td class="n">${f(t.no)}</td>${t.b.map((x, i) => `<td class="n${i && x ? ' red' : ''}">${z(x)}</td>`).join('')}<td></td><td></td></tr>`;
+  t.R.forEach(r => {
+    const m = r === mo, p = pct(r);
+    body += `<tr class="row${m ? ' sel' : ''}"><td class="c"><span class="chev">${m ? '▾' : '▸'}</span></td><td>${r.ten}<span class="mu3" style="margin-left:8px">${r.so} ${c.dv}</span></td><td class="n">${f(r.no)}</td>${r.b.map((x, i) => `<td class="n${i && x ? ' red' : ''}">${z(x)}</td>`).join('')}<td>${hanCell(r)}</td><td class="n ${p ? pctCls(p) : ''}">${p ? p + '% của ' + tr(r.hm) : '<span class="mu3">chưa đặt</span>'}</td></tr>`;
+    if (m) c.chiTiet.forEach((d, j) => {
+      const tre = d.tre || 0, i = !d.han ? 0 : tre ? (tre <= 7 ? 1 : tre <= 15 ? 2 : tre <= 30 ? 3 : tre <= 60 ? 4 : 5) : 0, on = k === 'npt' ? j < 2 : false;
+      body += `<tr class="row sub"><td class="c">${cb(on)}</td><td><span class="ind"></span>${k === 'npt' ? `<a class="lk" href="#">${d.dm}</a><span class="tag o" style="margin-left:8px">${d.dot}</span><span class="mu">HĐ ${d.hd}</span>` : `<span>${d.hd} ${d.dot}</span><span class="mu" style="margin-left:8px">ngày ${d.giao}</span><a class="lk" href="#" style="margin-left:8px">${d.dm}</a>`}</td>
+        <td class="n">${f(d.no)}</td>${[0, 1, 2, 3, 4, 5].map(x => `<td class="n${x && x === i ? ' red' : ''}">${x === i ? f(d.no) : ''}</td>`).join('')}<td>${hanCell(d)}</td><td></td></tr>`;
+    });
+  });
+  const chon = k === 'npt' ? c.chiTiet.slice(0, 2) : [];
+  return `<div class="tool"><h2>${c.ten}</h2>${cnTabs(c, t)}<span class="sp"></span>${timBox(c.tim, 270)}${kyBtn('Tháng này', 'theo ngày chứng từ')}${locBtn}${xlBtn}</div>
+    <div class="tool"><span class="cnt">Còn nợ tới 07/10/2026. Bấm ▸ để mở từng ${c.dv}, tick rồi ${k === 'npt' ? 'trả' : 'thu'} ngay tại đây.</span><span class="sp"></span><span class="mu" style="font-size:12.5px">Mở</span><div class="seg"><button>Tất cả</button><button class="on">Từng dòng</button><button>Chỉ dòng quá hạn</button></div></div>
+    <div class="sheet"><table class="g">${cg([36, 0, 120, 112, 96, 96, 96, 96, 96, 186, 140])}
+      <thead><tr><th rowspan="2"></th><th rowspan="2">${c.dt} và ${c.dv}</th><th rowspan="2" class="n">Còn nợ</th><th rowspan="2" class="n">Chưa tới hạn</th><th colspan="5" style="text-align:center;height:26px;border-bottom:1px solid var(--rule-hair)">Quá hạn, theo số ngày trễ</th><th rowspan="2">Hạn sớm nhất</th><th rowspan="2" class="n">Hạn mức</th></tr><tr class="t2">${MOC2.map(m => `<th class="n">${m}</th>`).join('')}</tr></thead>
+      <tbody>${body}</tbody></table>${foot(t.R.length, t.R.length, c.dt.toLowerCase())}</div>
+    ${chon.length ? `<div class="bulk" style="bottom:70px">Đã chọn ${chon.length} đợt <span>${f(sum(chon, 'no'))} đ</span><span class="mu">cùng một nhà cung cấp</span><button class="btn ghost">Bỏ chọn</button><button class="btn pri">${ic('pay')}${c.nut}</button></div>` : ''}`;
+}
+
+/* ======================= CÔNG NỢ: ngăn đối tác ======================= */
+function dongDot(k, d, on, coDm) {
+  if (coDm === 'gop') return `<tr class="row"><td class="c">${cb(on)}</td>${k === 'npt' ? `<td><a class="lk" href="#">${d.dm}</a><span class="tag o" style="margin-left:8px">${d.dot}</span></td><td>${d.hd}</td>` : `<td>${d.hd} ${d.dot}</td><td><a class="lk" href="#">${d.dm}</a></td>`}<td>${hanCell(d)}</td><td class="n">${f(d.gt)}</td><td class="n">${z(d.coc)}</td><td class="n">${z(d.tra)}</td><td class="n">${f(d.no)}</td></tr>`;
+  return `<tr class="row"><td class="c">${cb(on)}</td>${coDm ? `<td>${k === 'npt' ? `<a class="lk" href="#">${d.dm}</a>` : `<a class="lk" href="#">${d.dm}</a>`}</td>` : ''}<td>${k === 'npt' ? d.dot : d.hd + ' ' + d.dot}</td><td>${d.giao}</td>${k === 'npt' ? `<td>${d.hd}</td>` : ''}<td>${hanCell(d)}</td><td class="n">${f(d.gt)}</td><td class="n">${z(d.coc)}</td><td class="n">${z(d.tra)}</td><td class="n">${f(d.no)}</td></tr>`;
+}
+function headDot(k, coDm) {
+  if (coDm === 'gop') return th(['', k === 'npt' ? 'Đơn mua và đợt' : 'Hoá đơn', k === 'npt' ? 'Hoá đơn' : 'Đơn bán', k === 'npt' ? 'Hạn trả' : 'Hạn thu', ['Giá trị', 'n'], ['Trừ cọc', 'n'], [k === 'npt' ? 'Đã trả' : 'Đã thu', 'n'], ['Còn nợ', 'n']]);
+  return th(['', ...(coDm ? [k === 'npt' ? 'Đơn mua' : 'Đơn bán'] : []), k === 'npt' ? 'Đợt' : 'Hoá đơn', k === 'npt' ? 'Ngày giao' : 'Ngày', ...(k === 'npt' ? ['Hoá đơn'] : []), k === 'npt' ? 'Hạn trả' : 'Hạn thu', ['Giá trị', 'n'], ['Trừ cọc', 'n'], [k === 'npt' ? 'Đã trả' : 'Đã thu', 'n'], ['Còn nợ', 'n']]);
+}
+function nganCnHead(k, r) {
+  const c = CN[k];
+  return `<div class="dh-row"><span class="crumb">${c.ten} ${ic('arrow')} ${c.dt}</span><span class="sp"></span>${navIc}</div>
+    <div class="dh-row" style="margin-top:6px"><h3 class="dt">${r.ten}</h3><span class="tag">${r.ma}</span><span class="sp"></span><button class="btn">${ic('print')}In sao kê</button><button class="btn">${ic('open')}${c.hoso}</button></div>`;
+}
+function nganCnA(k) {
+  const c = CN[k], r = c.rows[c.mo], p = pct(r), D = c.chiTiet, qua = r.b.slice(1).reduce((a, x) => a + x, 0), K = S.kieu;
+  const hep = K === '3';
+  let body = '';
+  const nhom = [...new Set(D.map(d => d.dm))], chonI = d => k === 'npt' && D.indexOf(d) < 2;
+  nhom.forEach(dm => { const ds = D.filter(d => d.dm === dm);
+    body += `<tr class="gr"><td class="c">${cb(ds.every(chonI))}</td><td colspan="${hep ? 3 : k === 'npt' ? 3 : 2}"><a class="lk" href="#">${dm}</a><span class="mu" style="margin-left:10px">${ds.length} ${c.dv}</span></td>${hep ? '' : '<td></td>'}<td class="n">${f(sum(ds, 'gt'))}</td><td class="n">${z(sum(ds, 'coc'))}</td><td class="n">${z(sum(ds, 'tra'))}</td><td class="n">${f(sum(ds, 'no'))}</td></tr>`;
+    body += ds.map(d => hep
+      ? `<tr class="row"><td class="c">${cb(chonI(d))}</td><td>${k === 'npt' ? d.dot : d.hd + ' ' + d.dot}</td><td>${k === 'npt' ? d.hd : d.giao}</td><td>${hanCell(d)}</td><td class="n">${f(d.gt)}</td><td class="n">${z(d.coc)}</td><td class="n">${z(d.tra)}</td><td class="n">${f(d.no)}</td></tr>`
+      : dongDot(k, d, chonI(d), false)).join('');
+  });
+  body += `<tr class="tot"><td></td><td colspan="${hep ? 3 : k === 'npt' ? 4 : 3}">Cộng ${D.length} ${c.dv}</td><td class="n">${f(sum(D, 'gt'))}</td><td class="n">${z(sum(D, 'coc'))}</td><td class="n">${f(sum(D, 'tra'))}</td><td class="n">${f(sum(D, 'no'))}</td></tr>`;
+  /* đầu ngăn đã nói "chưa đặt" thì cột hạn trong bảng chỉ để gạch, không lặp chữ */
+  if (!r.cho) body = body.replaceAll('<span class="mu3">chưa đặt hạn nợ</span>', '<span class="mu3">–</span>');
+  const chon = D.filter(chonI);
+  const bang = `<div class="sec" style="margin-top:0">Nhóm theo ${k === 'npt' ? 'đơn mua' : 'đơn bán'}, tick ${c.dv} muốn ${k === 'npt' ? 'trả' : 'thu'}<span class="sp"></span><div class="seg"><button class="on">${k === 'npt' ? 'Đơn mua' : 'Đơn bán'}</button><button>${k === 'npt' ? 'Hạn trả' : 'Hạn thu'}</button></div></div>
+    <div class="sheet"><table class="g">${hep
+      ? cg(k === 'npt' ? [36, 80, 104, 182, 110, 92, 100, 112] : [36, 142, 100, 136, 104, 92, 100, 112]) + `<thead>${th(['', k === 'npt' ? 'Đợt' : 'Hoá đơn', k === 'npt' ? 'Hoá đơn' : 'Ngày', k === 'npt' ? 'Hạn trả' : 'Hạn thu', ['Giá trị', 'n'], ['Trừ cọc', 'n'], [k === 'npt' ? 'Đã trả' : 'Đã thu', 'n'], ['Còn nợ', 'n']])}</thead>`
+      : cg(k === 'npt' ? [36, 96, 104, 120, 180, 124, 104, 116, 124] : [36, 160, 104, 160, 124, 104, 116, 124]) + `<thead>${headDot(k, false)}</thead>`}<tbody>${body}</tbody></table></div>
+    ${chon.length ? `<div class="bulk">Đã chọn ${chon.length} đợt <span>${f(sum(chon, 'no'))} đ</span><button class="btn ghost">Bỏ chọn</button><button class="btn pri">${ic('pay')}${c.nut}</button></div>` : ''}`;
+  const tabs = `<div class="tabs"><button class="on">Còn nợ <span class="n">${D.length}</span></button><button>Sao kê</button><button>Lịch sử</button></div>`;
+  const nutDau = `<button class="btn">${ic('print')}In sao kê</button><button class="btn">${ic('open')}${c.hoso}</button>`;
+  const crumb = `<div class="dh-row"><span class="crumb">${c.ten} ${ic('arrow')} ${c.dt}</span><span class="sp"></span>${navIc}</div>`;
+  const quaS = qua ? `<span class="red">quá hạn ${f(qua)}</span>` : 'không có khoản quá hạn';
+  const han = r.han ? [r.han, r.tre ? `<span class="red">trễ ${r.tre} ngày</span>` : `còn ${r.con} ngày`] : ['chưa có hạn', 'chưa đặt số ngày cho nợ'];
+  const dieuKhoan = (r.hm || r.cho)
+    ? o4('Hạn mức', r.hm ? f(r.hm) : 'chưa đặt', p ? `<span class="${pctCls(p)}">đã dùng ${p}%</span>` : '') + o4('Cho nợ', r.cho ? r.cho + ' ngày' : 'chưa đặt', `sau mỗi ${k === 'npt' ? 'đợt giao' : 'hoá đơn'}`)
+    : o4('Hạn mức và cho nợ', 'chưa đặt', `<a class="lk" href="#">Đặt trong hồ sơ</a>`);
+  if (K === '1') {
+    return `<div class="dh">${crumb}<div class="dh-row" style="margin-top:6px"><h3 class="dt">${r.ten}</h3><span class="tag">${r.ma}</span><span class="sp"></span>${nutDau}</div>
+      <div class="c4" style="border-bottom:0;padding-bottom:0;margin-top:14px">${o4('Còn nợ', `<span class="big">${f(r.no)}</span>`, quaS)}${r.han ? o4('Hạn sớm nhất', han[0], han[1]) : ''}${dieuKhoan}${o4('Người liên hệ', r.lh[0], r.lh[1])}${k === 'nth' ? o4('Phụ trách', r.pt) : ''}</div>${tabs}</div>
+      <div class="db">${bang}</div>`;
+  }
+  if (K === '2') {
+    const bits = [r.ma, ...(r.cho || r.hm ? [r.cho ? `Cho nợ ${r.cho} ngày` : 'Chưa đặt số ngày cho nợ', r.hm ? `Hạn mức ${tr(r.hm)}` : 'Chưa đặt hạn mức'] : ['Chưa đặt hạn mức và cho nợ']), ...(k === 'nth' ? [`Phụ trách ${r.pt}`] : [])];
+    return `<div class="dh">${crumb}<div class="dh-row" style="margin-top:6px;align-items:flex-start"><div><h3 class="dt">${r.ten}</h3>
+          <div class="bits">${bits.map(b => `<span>${b}</span>`).join('')}${p && p > 100 ? `<span class="red">đã dùng ${p}% hạn mức</span>` : ''}<span>${r.lh[0]} <span class="mu">${r.lh[1]}</span></span></div></div>
+        <span class="sp"></span><div style="text-align:right"><div class="l12">Còn nợ tới 07/10/2026</div><div class="amt">${f(r.no)} đ</div><div style="font-size:12.5px" class="mu">${quaS}</div></div></div>
+      <div class="dh-row tabs" style="margin-top:10px"><button class="on">Còn nợ <span class="n">${D.length}</span></button><button>Sao kê</button><button>Lịch sử</button><span class="sp"></span>${nutDau}</div></div>
+      <div class="db">${bang}</div>`;
+  }
+  const rail = [['Còn nợ tới 07/10/2026', `<span style="font-size:18px">${f(r.no)}</span>`], ['Quá hạn', qua ? `<span class="red">${f(qua)}</span>` : 'không có'], ...(r.han ? [['Hạn sớm nhất', `${han[0]} <span class="mu" style="margin-left:6px">${han[1]}</span>`]] : []),
+    ...(r.hm || r.cho ? [['Hạn mức', r.hm ? `${f(r.hm)}${p ? `<span class="${pctCls(p)}" style="margin-left:8px">đã dùng ${p}%</span>` : ''}` : 'chưa đặt'], ['Cho nợ', r.cho ? `${r.cho} ngày sau mỗi ${k === 'npt' ? 'đợt giao' : 'hoá đơn'}` : 'chưa đặt']]
+      : [['Hạn mức và cho nợ', 'chưa đặt <a class="lk" href="#" style="margin-left:8px">Đặt trong hồ sơ</a>']]),
+    ['Người liên hệ', `${r.lh[0]} <span class="mu" style="margin-left:6px">${r.lh[1]}</span>`], ...(k === 'nth' ? [['Phụ trách', r.pt]] : [['Tài khoản nhận tiền', 'Techcombank 19028765432019']])];
+  return `<div class="dh">${crumb}<div class="dh-row" style="margin-top:6px"><h3 class="dt">${r.ten}</h3><span class="tag">${r.ma}</span><span class="sp"></span>${nutDau}</div>${tabs}</div>
+    <div class="dsplit" style="grid-template-columns:1fr 300px"><div class="db" style="border-right:1px solid var(--rule-soft)">${bang}</div><div class="side"><div class="pl st">${rail.map(([l, v]) => `<span>${l}</span><span>${v}</span>`).join('')}</div></div></div>`;
+}
+function nganCnB(k) {
+  const c = CN[k], r = c.rows[c.mo], p = pct(r), D = [...c.chiTiet].sort((a, b) => (b.tre || -b.con || 0) - (a.tre || -a.con || 0)), qua = r.b.slice(1).reduce((a, x) => a + x, 0);
+  const chon = k === 'npt' ? D.slice(0, 2) : [];
+  return `<div class="dh">${nganCnHead(k, r)}
+      <div class="band" style="margin:12px 0 0;grid-template-columns:220px 1fr 260px"><div><div class="l">Còn nợ tới 07/10/2026</div><div class="v">${f(r.no)} đ</div></div>
+        <div>${thanhTuoi(r.b)}<div class="lg">${r.b.map((x, i) => x ? `<button><i style="background:${MAU[i]}"></i>${MOC[i]} <b>${f(x)}</b></button>` : '').join('')}</div></div>
+        <div>${r.hm ? `<div class="dh-row l" style="margin-bottom:5px"><span>Hạn mức ${tr(r.hm)}</span><span class="sp"></span><span class="${pctCls(p)}">${p}%${p > 100 ? ' vượt ' + tr(r.no - r.hm) : ''}</span></div><div class="mt" style="height:6px"><i style="width:${Math.min(100, p)}%;${p > 100 ? 'background:var(--tt-do-dot)' : ''}"></i></div>` : '<div class="l">Chưa đặt hạn mức</div>'}
+          <div class="l" style="margin-top:6px">${r.cho ? `Cho nợ ${r.cho} ngày sau mỗi ${k === 'npt' ? 'đợt giao' : 'hoá đơn'}` : 'Chưa đặt số ngày cho nợ'}</div></div></div>
+      <div class="tabs"><button class="on">Còn nợ <span class="n">${D.length}</span></button><button>Sao kê</button><button>Lịch sử</button></div></div>
+    <div class="db"><div class="sec" style="margin-top:0">Xếp theo hạn, quá hạn lên đầu<span class="sp"></span><div class="seg"><button class="on">${k === 'npt' ? 'Hạn trả' : 'Hạn thu'}</button><button>${k === 'npt' ? 'Đơn mua' : 'Đơn bán'}</button></div></div>
+      <div class="sheet"><table class="g light">${cg(k === 'npt' ? [36, 150, 70, 100, 110, 180, 124, 92, 112, 124] : [36, 110, 150, 100, 160, 124, 92, 112, 124])}<thead>${headDot(k, true)}</thead><tbody>${D.map((d, j) => dongDot(k, d, j < chon.length, true)).join('')}
+        <tr class="tot"><td></td><td colspan="${k === 'npt' ? 5 : 4}">Cộng ${D.length} ${c.dv}</td><td class="n">${f(sum(D, 'gt'))}</td><td class="n">${z(sum(D, 'coc'))}</td><td class="n">${f(sum(D, 'tra'))}</td><td class="n">${f(sum(D, 'no'))}</td></tr></tbody></table></div>
+      ${chon.length ? `<div class="bulk">Đã chọn ${chon.length} đợt <span>${f(sum(chon, 'no'))} đ</span><span class="mu">cả hai đang quá hạn</span><button class="btn ghost">Bỏ chọn</button><button class="btn pri">${ic('pay')}${c.nut}</button></div>` : ''}</div>`;
+}
+function nganCnC(k) {
+  const c = CN[k], r = c.rows[c.mo], p = pct(r), D = c.chiTiet;
+  const muc = k === 'npt'
+    ? [['Quá hạn', D.filter(d => d.tre)], ['Tới hạn trong 14 ngày', D.filter(d => d.con && d.con <= 14)], ['Sau 14 ngày', D.filter(d => d.con > 14)]]
+    : [['Chưa đặt hạn thu', D]];
+  let body = '';
+  muc.forEach(([t, ds]) => { if (!ds.length) return;
+    body += `<tr class="gr"><td class="c">${cb()}</td><td colspan="3"><span class="${t === 'Quá hạn' ? 'red' : ''}">${t}</span><span class="mu" style="margin-left:10px">${ds.length} ${c.dv}</span></td><td class="n">${f(sum(ds, 'gt'))}</td><td class="n">${z(sum(ds, 'coc'))}</td><td class="n">${z(sum(ds, 'tra'))}</td><td class="n">${f(sum(ds, 'no'))}</td></tr>`;
+    body += ds.map(d => dongDot(k, d, k === 'npt' && t === 'Quá hạn', 'gop')).join('');
+  });
+  const prof = `<div class="sec" style="margin-top:0">Liên hệ</div><div class="pl st"><span>Người liên hệ</span><span>${r.lh[0]}</span><span>Điện thoại</span><span>${r.lh[1]}</span>${k === 'nth' ? `<span>Phụ trách</span><span>${r.pt}</span>` : ''}</div>
+    <div class="sec">Điều khoản</div><div class="pl st"><span>Cho nợ</span><span>${r.cho ? r.cho + ' ngày sau mỗi ' + (k === 'npt' ? 'đợt giao' : 'hoá đơn') : 'chưa đặt'}</span><span>Hạn mức</span><span>${r.hm ? f(r.hm) : 'chưa đặt'}${p ? `<span class="${pctCls(p)}" style="margin-left:10px">đã dùng ${p}%</span>` : ''}</span></div>
+    ${k === 'npt' ? `<div class="sec">Tài khoản nhận tiền</div><div class="pl st"><span>Techcombank <span class="tag" style="margin-left:4px">CN Tân Bình</span></span><span>19028765432019</span></div>` : ''}
+    <div class="sec">Tháng này</div><div class="pl"><span>${c.k1}</span><span>${f(r.k1)}</span><span>${c.k2}</span><span>${f(r.k2)}</span><span>${c.gan}</span><span>${r.gan ? r.gan[0] : '–'}</span></div>`;
+  const chon = k === 'npt' ? D.filter(d => d.tre) : [];
+  return `<div class="dh">${nganCnHead(k, r)}
+      <div class="kv"><span>Còn nợ<b>${f(r.no)}</b></span><span>Quá hạn<b class="${r.b.slice(1).some(x => x) ? 'red' : ''}">${f(r.no - r.b[0])}</b></span><span>Hạn sớm nhất<b>${r.han || 'chưa đặt'}</b></span></div>
+      <div class="tabs"><button class="on">Còn nợ <span class="n">${D.length}</span></button><button>Sao kê</button><button>Lịch sử</button></div></div>
+    <div class="dsplit" style="grid-template-columns:222px 1fr"><div class="side" style="border-right:1px solid var(--rule-soft)">${prof}</div>
+      <div class="db" style="border-right:0;padding-left:20px;padding-right:20px"><div class="sec" style="margin-top:0">Nhóm theo mức gấp<span class="sp"></span><span class="hint">tick nhóm là chọn cả nhóm</span></div>
+        <div class="sheet"><table class="g">${cg(k === 'npt' ? [36, 0, 100, 182, 106, 66, 100, 106] : [36, 0, 90, 150, 106, 90, 100, 106])}<thead>${headDot(k, 'gop')}</thead><tbody>${body}</tbody></table></div>
+        ${chon.length ? `<div class="bulk">Đã chọn ${chon.length} đợt quá hạn <span>${f(sum(chon, 'no'))} đ</span><button class="btn ghost">Bỏ chọn</button><button class="btn pri">${ic('pay')}${c.nut}</button></div>` : ''}</div></div>`;
+}
+
+/* ======================= TÀI SẢN ======================= */
+function tsTool(nhom) {
+  return `<div class="tool"><h2>Tài sản và công cụ dụng cụ</h2><div class="seg" style="margin-left:8px"><button class="on">Tài sản</button><button>Khấu hao từng tháng</button></div><span class="sp"></span><button class="btn pri">${ic('plus')}Thêm tài sản</button><button class="btn pri ico" style="margin-left:-6px">${ic('down')}</button></div>
+    <div class="tool"><div class="flt"><button class="on"><i style="background:var(--tt-la-dot)"></i>Đang dùng <span class="n">20</span></button><button><i style="background:#9ca3af"></i>Đã thôi dùng <span class="n">0</span></button><button>Tất cả <span class="n">20</span></button></div>
+      ${timBox('Tìm theo mã hoặc tên', 240)}${kyBtn('Mọi thời gian', 'theo ngày bắt đầu dùng')}${locBtn}<span class="sp"></span>${nhom}${xlBtn}</div>`;
+}
+const tsHang = (r, sel, ex) => `<tr class="row${sel ? ' sel' : ''}">${ex !== undefined ? `<td class="c"><span class="chev">${ex ? '▾' : '▸'}</span></td>` : ''}<td class="mu">${r.ma}</td><td>${r.ten}</td><td class="n">${r.sl}</td><td>${r.bp}</td><td>${r.bd}</td><td class="n">${r.st}<span class="u">tháng</span></td><td class="n">${f(r.gia)}</td><td class="n">${z(r.kh)}</td><td class="n">${f(r.con)}</td><td class="n">${z(r.thang)}</td><td class="mu">${r.tao}</td></tr>`;
+const tsHead = ex => th([...(ex ? [''] : []), 'Mã', 'Tên', ['SL', 'n'], 'Bộ phận', 'Bắt đầu dùng', ['Khấu hao trong', 'n'], ['Giá mua', 'n'], ['Đã khấu hao', 'n'], ['Còn lại', 'n'], ['Tháng 10/2026', 'n'], 'Ngày tạo']);
+const tsCols = ex => cg([...(ex ? [36] : []), 86, 0, 56, 150, 108, 120, 136, 128, 136, 120, 100]);
+function tsA() {
+  let body = '';
+  ['ts', 'cc'].forEach(l => { const ds = TS.filter(r => r.loai === l);
+    body += `<tr class="gr"><td colspan="2">${LOAI[l]}<span class="mu" style="margin-left:10px">${ds.length} mục</span></td><td></td><td></td><td></td><td></td><td class="n">${f(sum(ds, 'gia'))}</td><td class="n">${f(sum(ds, 'kh'))}</td><td class="n">${f(sum(ds, 'con'))}</td><td class="n">${f(sum(ds, 'thang'))}</td><td></td></tr>`;
+    body += ds.map(r => tsHang(r)).join(''); });
+  body += `<tr class="tot"><td colspan="2">Cộng 20 đang dùng</td><td></td><td></td><td></td><td></td><td class="n">${f(sum(TS, 'gia'))}</td><td class="n">${f(sum(TS, 'kh'))}</td><td class="n">${f(sum(TS, 'con'))}</td><td class="n">${f(sum(TS, 'thang'))}</td><td></td></tr>`;
+  return tsTool(`<span class="mu" style="font-size:12.5px">Nhóm theo</span><div class="seg"><button class="on">Loại</button><button>Bộ phận</button><button>Không nhóm</button></div>`)
+    + `<div class="sheet"><table class="g">${tsCols()}<thead>${tsHead()}</thead><tbody>${body}</tbody></table>${foot(20, 20, 'tài sản')}</div>`;
+}
+function tsB() {
+  const bps = [...new Set(TS.map(r => r.bp))];
+  let body = '';
+  bps.forEach(bp => { const ds = TS.filter(r => r.bp === bp);
+    body += `<tr class="day"><td colspan="6"><span class="d">${bp}</span><span style="margin-left:12px">${ds.length} mục</span></td><td class="n">${f(sum(ds, 'gia'))}</td><td></td><td class="n"><span class="d">${f(sum(ds, 'con'))}</span></td><td class="n">${f(sum(ds, 'thang'))}</td></tr>`;
+    body += ds.map(r => { const pc = Math.round(r.con / r.gia * 100);
+      return `<tr class="row"><td class="mu">${r.ma}</td><td>${r.ten}</td><td><span class="tag">${r.loai === 'ts' ? 'Tài sản cố định' : 'Công cụ'}</span></td><td class="n">${r.sl}</td><td>${r.bd}</td><td class="mu">${r.tao}</td><td class="n">${f(r.gia)}</td>
+        <td><div class="mtc"><div class="mt"><i style="width:${pc}%"></i></div><span class="mu" style="font-size:12px;width:34px;text-align:right">${pc}%</span></div></td><td class="n">${f(r.con)}</td><td class="n">${z(r.thang)}</td></tr>`; }).join(''); });
+  const strip = `<div class="stt"><button class="on"><span class="l">Đang dùng</span><span class="v">20</span></button><button><span class="l">Giá mua</span><span class="v">${f(sum(TS, 'gia'))} đ</span></button><button><span class="l">Còn lại</span><span class="v">${f(sum(TS, 'con'))} đ</span></button><button><span class="l">Khấu hao tháng 10/2026</span><span class="v">${f(sum(TS, 'thang'))} đ</span>${ic('arrow', 'align-self:center;color:var(--ash-3)')}</button></div>`;
+  return `<div class="tool"><h2>Tài sản và công cụ dụng cụ</h2><div class="seg" style="margin-left:8px"><button class="on">Tài sản</button><button>Khấu hao từng tháng</button></div><span class="sp"></span><button class="btn pri">${ic('plus')}Thêm tài sản</button></div>${strip}
+    <div class="tool">${timBox('Tìm theo mã hoặc tên', 280)}${kyBtn('Mọi thời gian', 'theo ngày bắt đầu dùng')}<button class="btn">Đang dùng ${ic('x')}</button>${locBtn}<span class="sp"></span><span class="mu" style="font-size:12.5px">Nhóm theo</span><div class="seg"><button class="on">Bộ phận</button><button>Loại</button><button>Không nhóm</button></div>${xlBtn}</div>
+    <div class="sheet"><table class="g light">${cg([86, 0, 130, 50, 108, 100, 136, 150, 136, 120])}<thead>${th(['Mã', 'Tên', 'Loại', ['SL', 'n'], 'Bắt đầu dùng', 'Ngày tạo', ['Giá mua', 'n'], 'Còn bao nhiêu phần', ['Còn lại', 'n'], ['Tháng 10/2026', 'n']])}</thead><tbody>${body}</tbody></table>${foot(20, 20, 'tài sản')}</div>`;
+}
+function tsC() {
+  let body = '';
+  ['ts', 'cc'].forEach(l => { const ds = TS.filter(r => r.loai === l);
+    body += `<tr class="gr"><td class="c"><span class="chev">▾</span></td><td colspan="2">${LOAI[l]}<span class="mu" style="margin-left:10px">${ds.length} mục</span></td><td></td><td></td><td></td><td></td><td class="n">${f(sum(ds, 'gia'))}</td><td class="n">${f(sum(ds, 'kh'))}</td><td class="n">${f(sum(ds, 'con'))}</td><td class="n">${f(sum(ds, 'thang'))}</td><td></td></tr>`;
+    ds.forEach(r => { const m = r.ma === 'TS-0001'; body += tsHang(r, m, m);
+      if (m) { const mo = Math.round(r.gia / r.st), ths = ['11/25', '12/25', '01/26', '02/26', '03/26', '04/26', '05/26', '06/26', '07/26', '08/26', '09/26', '10/26'];
+        body += `<tr class="ex"><td colspan="12"><div class="exg" style="grid-template-columns:270px 1fr 190px">
+          <div><div class="sec" style="margin-top:0">Khấu hao</div><div class="pl"><span>Mỗi tháng</span><span>${f(mo)}</span><span>Đã khấu hao</span><span>${Math.round(r.kh / mo)} trên ${r.st} tháng</span><span>Hết khấu hao</span><span>tháng 03/2034</span><span>Mua của</span><span>Heidelberg Việt Nam</span></div></div>
+          <div><div class="sec" style="margin-top:0">12 tháng gần nhất<span class="sp"></span><a class="lk" href="#">Xem cả bảng khấu hao</a></div>
+            <div class="mini">${ths.map(t => `<div class="h">${t}</div>`).join('')}${ths.map((t, i) => `<div class="${i === 11 ? 'now' : 'past'}">${tr(mo)}</div>`).join('')}</div>
+            <p class="small">Tháng 10/2026 chưa chốt, số sẽ vào báo cáo khi hết tháng.</p></div>
+          <div class="exa"><button class="btn">Chuyển bộ phận</button><button class="btn">Sửa chữa lớn</button><button class="btn">Thôi dùng</button><button class="btn">${ic('open')}Mở đầy đủ</button></div></div></td></tr>`; } });
+  });
+  return tsTool(`<span class="mu" style="font-size:12.5px">Nhóm theo</span><div class="seg"><button class="on">Loại</button><button>Bộ phận</button></div>`)
+    + `<div class="sheet"><table class="g">${tsCols(1)}<thead>${tsHead(1)}</thead><tbody>${body}
+      <tr class="tot"><td></td><td colspan="2">Cộng 20 đang dùng</td><td></td><td></td><td></td><td></td><td class="n">${f(sum(TS, 'gia'))}</td><td class="n">${f(sum(TS, 'kh'))}</td><td class="n">${f(sum(TS, 'con'))}</td><td class="n">${f(sum(TS, 'thang'))}</td><td></td></tr></tbody></table>${foot(20, 20, 'tài sản')}</div>`;
+}
+
+/* ======================= điều phối ======================= */
+const PA = {
+  A: { ten: 'A. Bảng tính phẳng', khuon: 'Khuôn: lưới Google Sheets và Airtable; bảng Tuổi nợ phải trả (A/P Aging Summary) của QuickBooks; danh sách Bills của Xero.',
+       y: 'Bỏ hết thẻ số và khối tổng quan: mọi con số tổng nằm ở dòng Cộng của chính bảng, như Excel. Mỗi phiếu một dòng 34px, mỗi mẩu tin một cột. Công nợ thành bảng tuổi nợ: mỗi mốc trễ một cột, dòng Cộng trên cùng thay khối tổng quan 200px; nút "Xem cột" đổi sang bộ cột Trong kỳ và liên hệ. Ngăn: 3 kiểu xếp thông tin để chọn ở dòng Kiểu ngăn (bản hai bảng thuộc tính nhãn trái giá trị phải đã bỏ).' },
+  B: { ten: 'B. Danh sách theo ngày, ngăn có cột phải', khuon: 'Khuôn: Mercury (giao dịch nhóm theo ngày, cộng tiền từng ngày); Stripe Payments (thẻ lọc mỏng có số); Ramp Bills (ngăn chi tiết có cột phải chứa ô thả chứng từ); thanh Aged Payables của Xero.',
+       y: 'Giữ thẻ lọc có số nhưng chỉ cao 34px thay 110px. Phiếu xếp theo ngày, dòng ngày cộng sẵn tiền. Bảng không kẻ dọc cho thoáng mà vẫn một dòng một phiếu. Công nợ: một thanh tuổi nợ bấm được thay 5 cột biểu đồ, mỗi dòng có thanh nhỏ của riêng đối tác. Ngăn: trái là luồng tiền và phép tính còn nợ, phải là ô thả chứng từ gốc luôn trong tầm mắt (19 trên 20 phiếu đang thiếu).' },
+  C: { ten: 'C. Bảng mở dòng tại chỗ', khuon: 'Khuôn: Odoo (nhóm theo, cộng từng nhóm); nhóm dòng +/− của Excel; Zoho Books (ngăn xem đúng tờ chứng từ sẽ in); Upflow (gom nợ theo mức gấp).',
+       y: 'Xem nhanh không cần mở ngăn: bấm ▸ là dòng mở ra phần chi tiết ngay trong bảng. Phiếu nhóm theo Chi theo, mỗi nhóm cộng tiền. Công nợ mở nhà cung cấp ra từng đợt, số tiền mỗi đợt rơi đúng cột tuổi nợ, tick rồi trả luôn từ danh sách. Ngăn phiếu hiện đúng tờ 02-TT, 01-TT sẽ in. Ngăn đối tác có cột hồ sơ bên trái, nợ gom theo mức gấp.' },
+};
+const MAN = [
+  ['pc', 'Phiếu chi'], ['pcN', 'Ngăn phiếu chi'], ['pt', 'Phiếu thu'], ['ptN', 'Ngăn phiếu thu'],
+  ['npt', 'Công nợ phải trả'], ['nptN', 'Ngăn nhà cung cấp'], ['nth', 'Công nợ phải thu'], ['nthN', 'Ngăn khách hàng'], ['ts', 'Tài sản'],
+];
+const GHI = {
+  A: { pc: 'Thẻ lọc thành dải tab có số ngay cạnh tiêu đề. Dòng Cộng cuối bảng thay thẻ "Đã chi 241.930.200 đ". Đã hủy hiện gạch ngang, không cộng.',
+       pcN: 'Chung cho cả 3 kiểu: số phiếu chỉ ở đường dẫn; Đơn mua chỉ còn một chỗ (không lặp ô Chi theo); Chứng từ gốc chỉ nói ở nhãn tab ("chưa có"); Hình thức và ngày chỉ nói một lần.',
+       pt: 'Đối xứng với Phiếu chi. Thu theo: Hoá đơn, Cọc đơn bán, Khác.', ptN: 'Như ngăn phiếu chi. Bỏ "Xác nhận đã thu" vì trùng người và phút với Người lập; hiện lại khi khác người. Không còn bảng nhãn trái giá trị phải nên không có hàng tràn chữ.',
+       npt: 'Dòng Cộng trên cùng thay cả khối tổng quan. Ô quá hạn chữ đỏ, số 0 thành gạch mờ. Nhấn "Trong kỳ và liên hệ" để đổi bộ cột (thử bấm).',
+       nptN: 'Bỏ ô Chưa tới hạn (bằng Còn nợ trừ Quá hạn); quá hạn đi kèm ngay dưới số Còn nợ. Số tiền, điều khoản, liên hệ tách nhóm rõ. Tab Còn nợ là một lưới: dòng xám là đơn mua cộng sẵn, tick dòng xám là chọn cả đơn.',
+       nth: 'Đối xứng phải trả; bộ cột "Trong kỳ và liên hệ" có thêm Phụ trách.', nthN: 'Như ngăn nhà cung cấp. Khách chưa đặt hạn mức và cho nợ thì gom một câu "chưa đặt" kèm lối vào hồ sơ, không để hai ô trống.',
+       ts: 'Bỏ dải 4 ô số: tổng nằm ở dòng nhóm và dòng Cộng. Chip "Công cụ dụng cụ" và "10 cái" thành dòng nhóm và cột SL. Thêm cột Khấu hao trong và Tháng 10/2026.' },
+  B: { pc: 'Dòng ngày cộng sẵn tiền chi trong ngày. Không cần cột Ngày chi vì đã ở dòng ngày; vẫn có cột Ngày tạo.', pcN: 'Tên người nhận làm tiêu đề, số tiền góc phải. Phép tính còn nợ đọc từ trên xuống như hoá đơn.',
+       pt: 'Đối xứng với Phiếu chi.', ptN: 'Ô thả nói đúng loại chứng từ của bên thu: báo có, biên nhận.',
+       npt: 'Thanh tuổi nợ trên cùng: bấm một mốc là lọc bảng. Hạn mức là thước nhỏ, vượt thì đỏ.', nptN: 'Danh sách phẳng xếp theo hạn, quá hạn lên đầu; muốn xem theo đơn thì đổi nút.',
+       nth: 'Đối xứng phải trả.', nthN: 'Không có mốc trễ nào thì thanh tuổi nợ một màu, chú thích chỉ một mục.',
+       ts: 'Nhóm theo bộ phận, dòng bộ phận cộng sẵn. Thước "Còn bao nhiêu phần" cho thấy tài sản sắp hết khấu hao.' },
+  C: { pc: 'Đang mở dòng PC00018: luồng tiền, đợt giao, ô thả chứng từ, nút In và Mở đầy đủ. Bấm dòng khác thì dòng này gập lại.',
+       pcN: 'Tab đầu là tờ phiếu đúng mẫu in; bên phải là phần máy tính thêm (đợt giao, còn nợ). Kế toán đối chiếu với tờ giấy là một.',
+       pt: 'Đang mở dòng PT00013. Nhóm theo Thu theo.', ptN: 'Tờ phiếu thu mẫu 01-TT.',
+       npt: 'Giấy An Phát đang mở 6 đợt; 2 đợt quá hạn đã tick nên thanh dưới hiện nút trả. Số mỗi đợt nằm đúng cột tuổi của nó.',
+       nptN: 'Cột trái là hồ sơ ngắn (liên hệ, điều khoản, tài khoản nhận tiền). Nợ gom Quá hạn, Tới hạn trong 14 ngày, Sau 14 ngày.',
+       nth: 'Katinat đang mở 2 hoá đơn.', nthN: 'Khách chưa đặt hạn nên chỉ một nhóm.',
+       ts: 'Đang mở máy in Heidelberg: khấu hao mỗi tháng, 12 tháng gần nhất và các nút Chuyển bộ phận, Sửa chữa lớn, Thôi dùng ngay tại dòng.' },
+};
+const KIEU = {
+  1: { ten: 'Kiểu 1. Ai, vì sao, rồi một hàng ô', y: 'Khuôn trang chi tiết thanh toán của Stripe. Phiếu: đầu thân là người nhận và lý do (thứ người ta tìm đầu tiên), dưới là một hàng 5 ô nhãn trên giá trị dưới: hình thức và ngày, hai tài khoản, chứng từ nguồn, người lập. Công nợ: hàng ô ngay dưới tên: còn nợ kèm quá hạn, hạn sớm nhất, điều khoản, liên hệ.' },
+  2: { ten: 'Kiểu 2. Luồng tiền, số lên góc phải', y: 'Khuôn biên nhận chuyển khoản của Wise và Mercury. Phiếu: một hàng đọc trái sang phải Từ → Tới → Lý do, phần phụ (người lập, đơn, mã hệ thống) dồn xuống chân. Công nợ: số còn nợ lên góc phải ngang tên, điều khoản và liên hệ thành một dòng chữ nhỏ dưới tên, nút In sao kê xuống hàng tab.' },
+  3: { ten: 'Kiểu 3. Nội dung trái, thuộc tính phải', y: 'Khuôn Linear và Ramp. Bên trái chỉ có thứ cần đọc và làm (lý do, bảng đợt, ô thả chứng từ, bảng nợ để tick). Mọi thuộc tính xếp dọc ở cột phải 300px, nhãn trên giá trị dưới, không còn ô nhãn tô nền.' },
+};
+const S = { pa: 'A', man: 'pc', kieu: '1', view: { npt: 'tuoi', nth: 'tuoi' } };
+function ve() {
+  const { pa, man } = S;
+  let html;
+  const L = { A: [phieuA, cnA], B: [phieuB, cnB], C: [phieuC, cnC] }[pa];
+  const N = { A: [nganPhieuA, nganCnA], B: [nganPhieuB, nganCnB], C: [nganPhieuC, nganCnC] }[pa];
+  if (man === 'pc' || man === 'pt') html = frame(L[0](man));
+  else if (man === 'pcN' || man === 'ptN') { const k = man.slice(0, 2); html = frame(L[0](k, CFG[k].mo, false), N[0](k)); }
+  else if (man === 'npt' || man === 'nth') html = frame(pa === 'A' ? cnA(man, S.view[man]) : L[1](man));
+  else if (man === 'nptN' || man === 'nthN') { const k = man.slice(0, 3); html = frame(pa === 'A' ? cnA(k, 'tuoi', CN[k].rows[CN[k].mo].ma) : L[1](k), N[1](k)); }
+  else html = frame({ A: tsA, B: tsB, C: tsC }[pa]());
+  document.getElementById('out').innerHTML = html;
+  const p = PA[pa];
+  const coKieu = pa === 'A' && man.endsWith('N');
+  document.getElementById('desc').innerHTML = `<h3>${p.ten}</h3><p>${p.khuon}</p><p>${p.y}</p><p class="man">${MAN.find(m => m[0] === man)[1]}: ${GHI[pa][man]}</p>`
+    + (coKieu ? `<p class="man" style="margin-top:8px">${KIEU[S.kieu].ten}. ${KIEU[S.kieu].y}</p>` : '');
+  document.getElementById('swKieuRow').style.display = coKieu ? '' : 'none';
+  document.getElementById('swKieu').innerHTML = Object.keys(KIEU).map(k => `<button class="pill${k === S.kieu ? ' on' : ''}" data-kieu="${k}">${KIEU[k].ten}</button>`).join(' ');
+  document.getElementById('swPa').innerHTML = Object.keys(PA).map(k => `<button class="pill${k === pa ? ' on' : ''}" data-pa="${k}">${PA[k].ten}</button>`).join(' ');
+  document.getElementById('swMan').innerHTML = MAN.map(([k, t]) => `<button class="pill${k === man ? ' on' : ''}" data-man="${k}">${t}</button>`).join(' ');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.pa) { S.pa = b.dataset.pa; ve(); }
+  else if (b.dataset.man) { S.man = b.dataset.man; ve(); }
+  else if (b.dataset.kieu) { S.kieu = b.dataset.kieu; ve(); }
+  else if (b.dataset.v) { const k = b.parentElement.dataset.view; S.view[k] = b.dataset.v; ve(); }
+});
+const q = new URLSearchParams(location.search);
+if (q.get('pa')) S.pa = q.get('pa'); if (q.get('man')) S.man = q.get('man'); if (q.get('kieu')) S.kieu = q.get('kieu');
+ve();
+</script>
+</body>
+</html>

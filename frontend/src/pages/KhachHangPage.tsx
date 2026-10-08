@@ -1,5 +1,5 @@
-// Khách hàng — CRM-360 (spec-06). List-Report với KPI header strip + filter tabs +
-// bảng định-danh (tier sao, tags, badge) → slide-over Object-page (header + gauge uy tín,
+// Khách hàng — CRM-360 (spec-06). Danh bạ theo lưới phương án A (07/10/2026: lọc nhanh tình trạng
+// mua + thanh lọc chung + lưới một dòng, dòng Cộng) → slide-over Object-page (header + gauge uy tín,
 // toolbar hành động, tabs Dashboard / Lịch sử mua hàng / Lịch sử báo giá). MỌI số liệu
 // (KPI, doanh số 12T, cơ cấu SP, tần suất đặt, lịch sử) tính từ ĐƠN HÀNG / BÁO GIÁ THẬT;
 // thiếu dữ liệu → empty state trung thực (không bịa số). Công nợ chỉ-đọc qua SEAM-16.
@@ -17,7 +17,6 @@ import {
   type CustomerInput,
   type CustomerFinancialInput,
   type CustomerKind,
-  type CustomerKpis,
   type CustomerNote,
   type CustomerRow,
   type DuplicateWarn,
@@ -33,7 +32,25 @@ import { TabBaoGia, TabMuaHang, TabTongQuan, ThanhKy, useSoLieuKhach, type TabSo
 import { Button } from "../components/Button";
 import { docSoVN } from "../components/ONhapSo";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { EmptyState } from "../components/EmptyState";
+import { EmptyRow, EmptyState } from "../components/EmptyState";
+import {
+  CuonLuoi,
+  soCotGhim,
+  ChipTT,
+  ChonCot,
+  LocNhanhTrangThai,
+  OTim,
+  TieuDeSapXep,
+  ngayVN,
+  rongLuoi,
+  soVN,
+  tenKhachGon,
+  useCotAn,
+  useThuTuCot,
+  xepCot,
+  type CotLuoi,
+  type MauTT,
+} from "../components/LuoiDs";
 import { Select } from "../components/Select";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import {
@@ -56,7 +73,6 @@ import {
   Phone,
   ReceiptText,
   Search,
-  SearchX,
   Tags,
   UploadCloud,
   UserPlus,
@@ -76,8 +92,6 @@ import {
   StickyNote,
   Pin,
   Loader2,          // spinner nút "Tra cứu MST" (.kh__spin quay nó)
-  LayoutGrid,
-  List,
   ArrowLeftRight,
   ArrowRight,
   ShieldAlert,
@@ -284,11 +298,24 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
   const { token } = useAuth();
 
   const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [kpis, setKpis] = useState<CustomerKpis | null>(null);
+  // Lọc nhanh tình trạng mua + dòng Cộng — máy chủ đếm/cộng trên cả tập lọc.
+  const [demMua, setDemMua] = useState<Record<string, number>>({});
+  const [tongMua, setTongMua] = useState(0);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState("code");
   const [q, setQ] = useState("");
+  // Gõ tới đâu lọc tới đó (trễ 250ms cho khỏi gọi máy chủ theo từng phím).
+  const [qTre, setQTre] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQTre(q.trim());
+      setPage(1);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+  const [cotAn, setCotAn] = useCotAn("khach-hang");
+  const [thuTu, setThuTu] = useThuTuCot("khach-hang");
   // Kỳ + điều kiện lọc (NV phụ trách, Nhãn, Trạng thái mua hàng, Loại khách) — ghi lên URL, nhớ
   // theo màn. Tab "Cần theo dõi" gỡ 05/10/2026 — trùng việc với nút "Lịch hẹn".
   const [locMan, setLocManGoc] = useLocMan("khach-hang", LOC_MAN_KH_TRONG, docLocManKH, ghiLocManKH);
@@ -323,7 +350,6 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
   // Nhập Excel: dòng Mã KH trống là thêm (`create`), dòng có Mã là sửa (`update`) — server gác cửa
   // bằng MỘT trong hai rồi kiểm từng dòng, nên nút hiện khi có một trong hai.
   const canImport = canCreate || can("khach_hang", "update");
-  const colCount = canReassign ? 7 : 6; // [checkbox] · KH · mua hàng · liên hệ chính · NV · ngày tạo · ›
   const dieuKien = useMemo(
     () => dieuKienKhachHang(sales, tagLabels, canSeeUnassigned),
     [sales, tagLabels, canSeeUnassigned],
@@ -381,7 +407,6 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
   useEffect(() => {
     if (openCustomerId != null) setOpenId(openCustomerId);
   }, [openCustomerId]);
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [quickTagModalCust, setQuickTagModalCust] = useState<{ id: number; name: string } | null>(null);
 
   const load = useCallback(() => {
@@ -391,7 +416,7 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
     setSelectedIds(new Set()); // selection is per current page/filter
     api.customers
       .list(token, {
-        q: q.trim() || undefined,
+        q: qTre || undefined,
         loc: JSON.parse(khoaLoc),
         sort,
         page,
@@ -400,31 +425,25 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
       .then((res) => {
         setRows(res.items);
         setTotal(res.total);
-        setKpis(res.kpis);
+        setDemMua(res.dem_mua ?? {});
+        setTongMua(res.tong_mua_12m ?? 0);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.isForbidden) setForbidden(true);
         else setListError("Không tải được danh bạ khách hàng.");
       })
       .finally(() => setLoading(false));
-  }, [token, q, khoaLoc, sort, page, pageSize]);
+  }, [token, qTre, khoaLoc, sort, page, pageSize]);
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, sort, page, pageSize, khoaLoc]);
+  }, [load]);
 
   useEffect(() => {
     if (!token) return;
     api.customers.sales(token).then(setSales).catch(() => setSales([]));
     api.customers.tagLabels(token).then(setTagLabels).catch(() => setTagLabels([]));
   }, [token]);
-
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    setPage(1);
-    load();
-  }
 
   function openReassign() {
     setFromSale(null);
@@ -541,40 +560,59 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
     );
   }
 
+  const hien = (k: string) => !cotAn.has(k) && (k !== "chon" || canReassign);
+  const cotHien = xepCot(COT_KH, thuTu).filter((c) => hien(c.key));
+  const viTriMua = cotHien.findIndex((c) => c.key === "mua");
+  const mucMua = [
+    { key: "", label: "Tất cả", count: Object.values(demMua).reduce((a, b) => a + b, 0) },
+    ...MUA_NHANH.map((m) => ({ ...m, count: demMua[m.key] ?? 0 })),
+  ];
+  const taoMoi = () => {
+    setEditing(null);
+    setMode("create");
+  };
+  // Một chân cho CẢ hai kiểu xem (lưới / thẻ): cùng một trang dữ liệu máy chủ trả.
+  const phanTrang =
+    !listError && total > 0 ? (
+      <PhanTrangDayDu
+        trang={page}
+        size={pageSize}
+        tong={total}
+        soDong={rows.length}
+        onTrang={setPage}
+        onSize={(n) => {
+          setPageSize(n);
+          setPage(1);
+        }}
+        loading={loading}
+        donVi="khách hàng"
+        ariaLabel="Phân trang khách hàng"
+      />
+    ) : null;
+
   return (
-    <main className="kh">
-      <header className="kh__head">
-        <div className="kh__title-group">
-          <p className="eyebrow">Kinh doanh · CRM</p>
-          <div className="kh__title-row">
-            <h1 className="kh__title">Khách hàng</h1>
-          </div>
-        </div>
-        <div className="kh__head-actions">
+    <main className="kh lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Khách hàng</h1>
+        <div className="lds-dau__nut">
           {canExport && (
-            <Button variant="ghost" onClick={exportBook} loading={exportingBook}>
-              <Download size={14} /> Xuất Excel
-            </Button>
+            <button type="button" className="lds-btn" onClick={exportBook} disabled={exportingBook}>
+              <Download size={14} /> {exportingBook ? "Đang xuất…" : "Xuất Excel"}
+            </button>
           )}
           {canImport && (
-            <Button variant="ghost" onClick={() => setImportOpen(true)}>
-              Nhập Excel
-            </Button>
+            <button type="button" className="lds-btn" onClick={() => setImportOpen(true)}>
+              <UploadCloud size={14} /> Nhập Excel
+            </button>
           )}
           {canReassign && (
-            <Button variant="ghost" onClick={openReassign} disabled={sales.length < 2}>
-              Điều chuyển
-            </Button>
+            <button type="button" className="lds-btn" onClick={openReassign} disabled={sales.length < 2}>
+              <ArrowLeftRight size={14} /> Điều chuyển
+            </button>
           )}
           {canCreate && (
-            <Button
-              variant="primary"
-              onClick={() => {
-                setEditing(null);
-                setMode("create");
-              }}
-            >
-              + Tạo khách hàng
+            <Button variant="accent" onClick={taoMoi}>
+              <Plus size={15} /> Tạo khách hàng
             </Button>
           )}
         </div>
@@ -586,69 +624,6 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
         </div>
       )}
 
-      {/* KPI header strip — low profile compact bar */}
-      <KpiStrip kpis={kpis} loading={loading && !kpis} />
-
-      {/* Single-row Integrated Toolbar */}
-      <div className="kh__toolbar-strip">
-        <button
-          type="button"
-          className={`kh__lich-hen${lichHenMo ? " is-on" : ""}`}
-          aria-expanded={lichHenMo}
-          onClick={() => setLichHenMo((v) => !v)}
-          title={lh.so > 0 ? `${lh.so} hẹn trễ hoặc hôm nay của tôi` : undefined}
-        >
-          <CalendarDays size={14} /> Lịch hẹn
-          {lh.so > 0 && <span className="kh__lich-hen-so">{lh.so}</span>}
-        </button>
-
-        <div className="kh__toolbar-controls tl-thanh">
-          <form className="kh__search" onSubmit={onSearch} role="search">
-            <div className="kh__search-input-wrap">
-              <span className="kh__search-icon" aria-hidden="true"><Search size={14} /></span>
-              <input
-                className="input kh__search-input"
-                placeholder="Tìm theo tên / MST / điện thoại…"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                aria-label="Tìm khách hàng"
-              />
-            </div>
-          </form>
-
-          <ThanhLoc
-            ky={locMan.ky}
-            moc={MOC_KH}
-            onKy={(ky) => setLocMan({ ...locMan, ky })}
-            dieuKien={dieuKien}
-            loc={locMan.loc}
-            onLoc={(loc) => setLocMan({ ...locMan, loc })}
-          />
-
-          {/* View Mode Switcher: Bảng ⟷ Thẻ CRM */}
-          <div className="kh__view-switcher" role="group" aria-label="Chế độ hiển thị">
-            <button
-              type="button"
-              className={`kh__view-btn${viewMode === "table" ? " is-active" : ""}`}
-              title="Xem dạng Bảng"
-              aria-pressed={viewMode === "table"}
-              onClick={() => setViewMode("table")}
-            >
-              <List size={14} />
-            </button>
-            <button
-              type="button"
-              className={`kh__view-btn${viewMode === "cards" ? " is-active" : ""}`}
-              title="Xem dạng Thẻ CRM"
-              aria-pressed={viewMode === "cards"}
-              onClick={() => setViewMode("cards")}
-            >
-              <LayoutGrid size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
-
       {lichHenMo && (
         <BangLichHen
           lh={lh}
@@ -659,393 +634,170 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
         />
       )}
 
-      {/* Khoảng CỐ ĐỊNH ngay trên bảng (chỉ cho người có quyền điều chuyển): luôn giữ chiều
-          cao nên khi tick chọn, thanh thao tác lấp vào đúng chỗ — danh sách KHÔNG bị đẩy. */}
-      {canReassign && (
-        <div className="kh__bulkslot">
-          {selectedIds.size > 0 ? (
-            <div className="kh__bulkbar">
-              <div className="kh__bulkbar-left">
-                <span className="kh__bulkcount">
-                  Đã chọn <strong>{selectedIds.size}</strong> khách hàng
-                </span>
-              </div>
-              <div className="kh__bulkbar-actions">
-                <Button variant="accent" onClick={openBulk}>
-                  Chuyển hàng loạt
-                </Button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setSelectedIds(new Set())}
-                >
-                  Bỏ chọn
-                </button>
-              </div>
+      <section className="lds-loc">
+        <LocNhanhTrangThai
+          muc={mucMua}
+          dang={locMan.loc.mua ?? ""}
+          onChon={(k) => setLocMan({ ...locMan, loc: { ...locMan.loc, mua: (k || undefined) as LocKhachHang["mua"] } })}
+          ariaLabel="Lọc nhanh theo tình trạng mua hàng"
+        />
+        {/* Đang tick chọn: hàng công cụ nhường chỗ cho thao tác trên các dòng đã chọn — cùng chiều
+            cao nên danh sách không bị đẩy. */}
+        {canReassign && selectedIds.size > 0 ? (
+          <div className="lds-loc__thanh lds-loc__chon">
+            <span>Đã chọn {selectedIds.size} khách hàng</span>
+            <Button variant="accent" onClick={openBulk}>
+              Chuyển hàng loạt
+            </Button>
+            <button type="button" className="lds-btn" onClick={() => setSelectedIds(new Set())}>
+              Bỏ chọn
+            </button>
+          </div>
+        ) : (
+          <div className="lds-loc__thanh tl-thanh" role="search">
+            <OTim value={q} onChange={setQ} placeholder="Tìm tên, mã số thuế, điện thoại" ariaLabel="Tìm khách hàng" />
+            <ThanhLoc
+              ky={locMan.ky}
+              moc={MOC_KH}
+              onKy={(ky) => setLocMan({ ...locMan, ky })}
+              dieuKien={dieuKien}
+              loc={locMan.loc}
+              onLoc={(loc) => setLocMan({ ...locMan, loc })}
+            />
+            <div className="lds-loc__phai">
+              <button
+                type="button"
+                className={`lds-btn${lichHenMo ? " is-on" : ""}`}
+                aria-expanded={lichHenMo}
+                onClick={() => setLichHenMo((v) => !v)}
+                title={lh.so > 0 ? `${lh.so} hẹn trễ hoặc hôm nay của tôi` : undefined}
+              >
+                <CalendarDays size={14} /> Lịch hẹn
+                {lh.so > 0 && <span className="kh__lich-hen-so">{lh.so}</span>}
+              </button>
+              <ChonCot cot={COT_KH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
             </div>
-          ) : null}
+          </div>
+        )}
+      </section>
+
+      {listError && (
+        <div className="banner banner--error" role="alert">
+          <span>{listError}</span>
+          <button type="button" className="lds-btn lds-btn--xs" onClick={() => load()}>
+            Thử lại
+          </button>
         </div>
       )}
 
-      {/* Vùng hiển thị dữ liệu: Dạng Bảng hoặc Dạng Thẻ CRM */}
-      {viewMode === "cards" && !loading && !listError && rows.length > 0 ? (
-        <div className="kh__cards-grid">
-          {rows.map((c) => {
-            const initials = getInitials(c.name);
-            const customerTags = c.tags ?? [];
-
-            return (
-              <div
-                key={c.id}
-                className={`kh__customer-card-v2${openId === c.id ? " is-open" : ""}`}
-                onClick={() => setOpenId(c.id)}
-              >
-                <div className="kh__card-top">
-                  <div className="kh__card-identity">
-                    <div className="kh__avatar-wrapper">
-                      <div className={`kh__avatar ${getKhAvatarClass(c.name)}`}>{initials}</div>
-                      <span className={`kh__avatar-dot ${getKhDotClass(c.name)}`} />
-                    </div>
-                    <div className="kh__card-info">
-                      <div className="kh__card-name-row">
-                        <h3 className="kh__card-name" title={c.name}>{c.name}</h3>
-                      </div>
-                      <div className="kh__card-submeta">
-                        <span className="kh__code-badge">{c.code || `KH${String(c.id).padStart(3, "0")}`}</span>
-                        {c.tax_code && <span className="kh__mst-chip">MST {c.tax_code}</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="kh__card-tag-btn"
-                    title="Gắn thẻ"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setQuickTagModalCust({ id: c.id, name: c.name });
-                    }}
-                  >
-                    <Tags size={13} />
-                  </button>
-                </div>
-
-                <div className="kh__card-stats">
-                  <div className="kh__card-stat-item">
-                    <span className="kh__card-stat-label">Doanh số 12T</span>
-                    <span className="kh__card-stat-val kh__card-stat-val--rev">
-                      {c.revenue_12m > 0 ? moneyStat(c.revenue_12m) : "—"}
-                    </span>
-                  </div>
-                  <div className="kh__card-stat-item">
-                    <span className="kh__card-stat-label">Số đơn hàng</span>
-                    <span className="kh__card-stat-val">{c.orders_total} đơn</span>
-                  </div>
-                  <div className="kh__card-stat-item">
-                    <span className="kh__card-stat-label">Ngày tạo</span>
-                    <span className="kh__card-stat-val" title={gioTaoKH(c.created_at)}>
-                      {ngayTaoKH(c.created_at)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="kh__card-footer">
-                  {c.sale_name ? (
-                    <div className="kh__sale-chip-compact">
-                      <span className="kh__sale-avatar">{getInitials(c.sale_name)}</span>
-                      <span className="kh__sale-name">{c.sale_name}</span>
-                    </div>
-                  ) : (
-                    <span className="kh__muted">Chưa gán NV</span>
-                  )}
-                  <div className="kh__card-tags">
-                    {customerTags.slice(0, 2).map((t) => (
-                      <span key={t} className={`kh__row-badge kh__row-badge--tag-${tagTone(t)}`}>
-                        {t}
-                      </span>
-                    ))}
-                    {customerTags.length > 2 && (
-                      <span
-                        className="kh__row-badge kh__row-badge--more"
-                        title={customerTags.slice(2).join(", ")}
-                      >
-                        +{customerTags.length - 2}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="kh__tablewrap">
-          <div className="kh__tablescroll">
-            <table className="kh__table">
+        <div className="lds-sheet">
+          <CuonLuoi ghim={soCotGhim(cotHien)}>
+            <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+              <colgroup>
+                {cotHien.map((c) => (
+                  <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  {canReassign && (
-                    <th className="kh__check-col">
-                      <input
-                        type="checkbox"
-                        aria-label="Chọn tất cả trên trang"
-                        title="Tick để chọn khách hàng — chọn xong sẽ hiện nút điều chuyển hàng loạt"
-                        checked={allOnPageSelected}
-                        onChange={toggleAllOnPage}
-                      />
+                  {cotHien.map((c) => (
+                    <th key={c.key} className={c.n ? "n" : c.key === "chon" ? "c" : undefined}>
+                      {c.key === "chon" ? (
+                        <input
+                          type="checkbox"
+                          className="lds-cb"
+                          aria-label="Chọn tất cả trên trang"
+                          title="Tick để chọn khách hàng — chọn xong sẽ hiện nút chuyển hàng loạt"
+                          checked={allOnPageSelected}
+                          onChange={toggleAllOnPage}
+                        />
+                      ) : c.key === "the" ? null : c.sx ? (
+                        <TieuDeSapXep label={c.label} cot={c.sx} sort={sort} onSort={setSort} />
+                      ) : (
+                        c.label
+                      )}
                     </th>
-                  )}
-                  <th>
-                    <SortBtn label="Khách hàng" col="name" sort={sort} onSort={setSort} />
-                  </th>
-                  {/* Ba cột số cũ (doanh số / số đơn / TB đơn) gộp một: khách chưa có đơn thì ba ô
-                      "—, 0, —" chẳng nói gì; TB đơn cũ còn chia doanh số 12 tháng cho số đơn MỌI thời kỳ. */}
-                  <th>
-                    <SortBtn label="Mua hàng 12 tháng" col="revenue" sort={sort} onSort={setSort} />
-                  </th>
-                  <th>Liên hệ chính</th>
-                  <th>NV phụ trách</th>
-                  <th>Ngày tạo</th>
-                  <th></th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  [...Array(6)].map((_, i) => (
-                    <tr key={i} className="kh__skelrow">
-                      {[...Array(colCount)].map((__, j) => (
-                        <td key={j}>
-                          <span className="kh__skel" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                ) : listError ? (
+                {loading && rows.length === 0 && <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />}
+                {!loading && !listError && rows.length === 0 && (
                   <tr>
-                    <td colSpan={colCount} className="kh__status">
-                      <div className="banner banner--error" role="alert">
-                        <span>{listError}</span>
-                        <button type="button" className="btn btn--ghost" onClick={() => load()}>
-                          Thử lại
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={colCount} className="kh__empty-cell">
+                    <td colSpan={cotHien.length} className="lds-trong">
                       {q || khoaLoc !== "{}" ? (
-                        <div className="kh__empty-state">
-                          <div className="kh__empty-icon">
-                            <SearchX size={28} />
-                          </div>
-                          <h3 className="kh__empty-title">Không tìm thấy khách hàng</h3>
-                          <p className="kh__empty-sub">
-                            Không tìm thấy khách hàng nào phù hợp với điều kiện tìm kiếm hoặc bộ lọc hiện tại.
-                          </p>
-                          <Button
-                            variant="ghost"
+                        <>
+                          Không có khách hàng nào khớp điều kiện đang lọc.{" "}
+                          <button
+                            type="button"
+                            className="lds-lk"
                             onClick={() => {
                               setQ("");
                               setLocMan(LOC_MAN_KH_TRONG);
                             }}
                           >
                             Xoá bộ lọc
-                          </Button>
-                        </div>
+                          </button>
+                        </>
                       ) : (
-                        <div className="kh__empty-state">
-                          <div className="kh__empty-icon">
-                            <UserPlus size={28} />
-                          </div>
-                          <h3 className="kh__empty-title">Chưa có khách hàng nào trong sổ</h3>
-                          <p className="kh__empty-sub">
-                            Danh sách khách hàng của bạn hiện đang trống. Hãy tạo mới khách hàng đầu tiên để bắt đầu quản lý hồ sơ và giao dịch.
-                          </p>
-                          <Button
-                            variant="primary"
-                            onClick={() => {
-                              setEditing(null);
-                              setMode("create");
-                            }}
-                          >
-                            + Tạo khách hàng đầu tiên
-                          </Button>
-                        </div>
+                        <>
+                          Chưa có khách hàng nào trong sổ.{" "}
+                          {canCreate && (
+                            <button type="button" className="lds-lk" onClick={taoMoi}>
+                              Tạo khách hàng đầu tiên
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                   </tr>
-                ) : (
-                  (() => {
-                    return rows.map((c) => {
-                      const ngayDat = c.last_order_at
-                        ? Math.floor((Date.now() - new Date(c.last_order_at).getTime()) / 86_400_000)
-                        : null;
-                      const customerTags = c.tags ?? [];
-                      const displayTags = customerTags.slice(0, 2);
-                      const remainingTagsCount = customerTags.length - 2;
-                      const salesRole = saleMeta.get(c.sale_user_id ?? -1);
-
-                      return (
-                        <tr
-                          key={c.id}
-                          className={`kh__row${openId === c.id ? " is-open" : ""}`}
-                          onClick={() => setOpenId(c.id)}
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") setOpenId(c.id);
-                          }}
-                        >
-                          {canReassign && (
-                            <td className="kh__check-col" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                aria-label={`Chọn ${c.name}`}
-                                checked={selectedIds.has(c.id)}
-                                onChange={() => toggleRow(c.id)}
-                              />
-                            </td>
-                          )}
-                          <td>
-                            <div className="kh__identity-cell">
-                              <div className="kh__identity">
-                                <div className="kh__name-row">
-                                  <span className="kh__name" title={c.name}>{c.name}</span>
-                                  <span className="kh__code-badge">{c.code || `KH${String(c.id).padStart(3, "0")}`}</span>
-                                </div>
-                                <div className="kh__submeta">
-                                  {c.tax_code && <span className="kh__mst-chip">MST {c.tax_code}</span>}
-                                  {displayTags.map((t) => (
-                                    <span key={t} className={`kh__row-badge kh__row-badge--tag-${tagTone(t)}`}>
-                                      {t}
-                                    </span>
-                                  ))}
-                                  {remainingTagsCount > 0 && (
-                                    <span
-                                      className="kh__row-badge kh__row-badge--more"
-                                      title={customerTags.slice(2).join(", ")}
-                                    >
-                                      +{remainingTagsCount}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="kh__mua-cell">
-                            {c.orders_total > 0 ? (
-                              <>
-                                {c.revenue_12m > 0 ? (
-                                  <span className="kh__mua-tien" title="Doanh số đơn đã chốt trong 12 tháng qua">
-                                    {moneyStat(c.revenue_12m)}
-                                  </span>
-                                ) : (
-                                  <span className="kh__muted" title="Có đơn trước đây nhưng 12 tháng gần nhất không đặt">
-                                    Ngừng đặt
-                                  </span>
-                                )}
-                                <span className="kh__mua-phu">
-                                  {/* Cùng khoảng 12 tháng với số tiền phía trên — không trộn số đơn mọi thời kỳ. */}
-                                  {c.orders_12m > 0 && <span>{c.orders_12m} đơn</span>}
-                                  {ngayDat != null && (
-                                    <span>
-                                      {/* Quá 60 ngày đếm theo tháng: "Đặt 420 ngày trước" dài mà khó hình dung. */}
-                                      {ngayDat <= 0
-                                        ? "Đặt hôm nay"
-                                        : ngayDat < 60
-                                          ? `Đặt ${ngayDat} ngày trước`
-                                          : `Đặt ${Math.floor(ngayDat / 30)} tháng trước`}
-                                    </span>
-                                  )}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="kh__muted">Chưa có đơn</span>
-                            )}
-                          </td>
-                          <td className="kh__lh-cell">
-                            {c.contact_name || c.phone ? (
-                              <>
-                                {c.contact_name && <span className="kh__lh-ten">{c.contact_name}</span>}
-                                {c.phone && (
-                                  <a
-                                    className="kh__lh-sdt"
-                                    href={`tel:${c.phone.replace(/\s+/g, "")}`}
-                                    title="Gọi"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {sdtDeDoc(c.phone)}
-                                  </a>
-                                )}
-                              </>
-                            ) : (
-                              <span className="kh__muted">Chưa có</span>
-                            )}
-                          </td>
-                          <td>
-                            {c.sale_name ? (
-                              <div
-                                className="kh__sale-chip-compact"
-                                title={salesRole ? `${c.sale_name} · ${salesRole}` : c.sale_name}
-                              >
-                                <span className="kh__sale-avatar">{getInitials(c.sale_name)}</span>
-                                <span className="kh__sale-name">{c.sale_name}</span>
-                              </div>
-                            ) : (
-                              <span className="kh__muted">Chưa gán</span>
-                            )}
-                          </td>
-                          <td className="kh__ngay-tao" title={gioTaoKH(c.created_at)}>
-                            {ngayTaoKH(c.created_at)}
-                          </td>
-                          <td className="kh__action-col" onClick={(e) => e.stopPropagation()}>
-                            <div className="kh__row-quick-actions">
-                              <button
-                                type="button"
-                                className="kh__quick-btn"
-                                title="Gắn thẻ"
-                                onClick={() => setQuickTagModalCust({ id: c.id, name: c.name })}
-                              >
-                                <Tags size={12} />
-                              </button>
-                              <button
-                                type="button"
-                                className="kh__quick-btn"
-                                title="Xem hồ sơ"
-                                onClick={() => setOpenId(c.id)}
-                              >
-                                <ChevronRight size={14} />
-                              </button>
-                            </div>
-                            <ChevronRight size={15} className="kh__arrow-icon" />
-                          </td>
-                        </tr>
-                      );
-                    });
-                  })()
                 )}
+                {rows.map((c) => (
+                  <tr
+                    key={c.id}
+                    className={`lds-dong${openId === c.id ? " is-chon" : ""}${selectedIds.has(c.id) ? " is-tick" : ""}`}
+                    onClick={() => setOpenId(c.id)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        setOpenId(c.id);
+                      }
+                    }}
+                  >
+                    {cotHien.map((cot) => (
+                      <OKhach
+                        key={cot.key}
+                        cot={cot.key}
+                        c={c}
+                        chucDanh={saleMeta.get(c.sale_user_id ?? -1)}
+                        chon={selectedIds.has(c.id)}
+                        onChon={() => toggleRow(c.id)}
+                        onGanThe={() => setQuickTagModalCust({ id: c.id, name: c.name })}
+                      />
+                    ))}
+                  </tr>
+                ))}
+                {/* Dòng Cộng: Σ mua 12 tháng của MỌI khách khớp bộ lọc (máy chủ cộng). */}
+                {rows.length > 0 && viTriMua > 0 ? (
+                  <tr className="lds-cong lds-nhom">
+                    <td className="lead" colSpan={viTriMua}>
+                      <span className="lds-dinh-trai">Cộng {total.toLocaleString("vi-VN")} khách hàng</span>
+                    </td>
+                    {cotHien.slice(viTriMua).map((cot) =>
+                      cot.key === "mua" ? (
+                        <td key={cot.key} className="n">{soVN(tongMua)}</td>
+                      ) : (
+                        <td key={cot.key} />
+                      ),
+                    )}
+                  </tr>
+                ) : null}
               </tbody>
             </table>
-          </div>
+          </CuonLuoi>
+          {phanTrang}
         </div>
-      )}
-
-  {/* Một chân cho CẢ hai kiểu xem (bảng / thẻ): cùng một trang dữ liệu máy chủ trả. */}
-  {!listError && total > 0 && (
-    <PhanTrangDayDu
-      trang={page}
-      size={pageSize}
-      tong={total}
-      soDong={rows.length}
-      onTrang={setPage}
-      onSize={(n) => {
-        setPageSize(n);
-        setPage(1);
-      }}
-      loading={loading}
-      donVi="khách hàng"
-      ariaLabel="Phân trang khách hàng"
-    />
-  )}
 
       {mode === "create" && (
         <CustomerFormDialog
@@ -1161,69 +913,149 @@ export function KhachHangPage({ navigate, onBadgeStale, eventTick = 0, openCusto
 
 // --- KPI header strip --------------------------------------------------------
 
-function KpiStrip({ kpis, loading }: { kpis: CustomerKpis | null; loading: boolean }) {
+// --- Lưới danh sách (phương án A, 07/10/2026 — cùng khuôn với các màn Kinh doanh) ------------------
+// Thứ tự theo nhóm nghĩa: định danh (Mã, Khách hàng kèm nhãn, MST) → mua bán (Mua 12 tháng, Số đơn,
+// Đặt gần nhất, Tình trạng) → liên lạc (Liên hệ, Điện thoại) → NV phụ trách → Ngày tạo → nút gắn thẻ.
+// Nhãn KHÔNG tách cột: nó là đặc điểm của khách nên đi liền sau tên.
+const COT_KH: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
+  { key: "chon", label: "Chọn", coDinh: true, w: 40 },
+  { key: "ma", label: "Mã KH", coDinh: true, w: 84, sx: "code" },
+  { key: "ten", label: "Khách hàng", coDinh: true, w: 360, sx: "name" },
+  { key: "mst", label: "Mã số thuế", w: 120 },
+  { key: "mua", label: "Mua 12 tháng", w: 124, n: true, sx: "revenue" },
+  { key: "don", label: "Số đơn", w: 76, n: true },
+  { key: "gan", label: "Đặt gần nhất", w: 120, sx: "last_order" },
+  { key: "tt", label: "Tình trạng", w: 128 },
+  { key: "lh", label: "Liên hệ chính", w: 160 },
+  { key: "dt", label: "Điện thoại", w: 124 },
+  { key: "nv", label: "NV phụ trách", w: 170 },
+  { key: "ngay", label: "Ngày tạo", w: 110, sx: "created" },
+  { key: "the", label: "Gắn thẻ", coDinh: true, w: 46 },
+];
 
-  // UI_DESIGN §4: chỉ số gộp thành MỘT dải pill (~38px), không phải 4 thẻ 84px xếp 4 cột —
-  // thẻ cao đẩy bảng dữ liệu (nội dung thật của màn) xuống dưới màn hình.
-  // "Cần chăm sóc" tách ra pill riêng: nó là VIỆC PHẢI LÀM, không phải số để đọc, nên nó
-  // được mang màu (§3) — nhưng ở liều pill, không phải tô cả thẻ.
-  return (
-    <div className="kh__kpis">
-      <div className="kh__ckpi">
-        <div className="kh__ckpi-item">
-          <span className="kh__ckpi-icon">
-            <Users size={14} />
-          </span>
-          <span className="kh__ckpi-body">
-            <span className="kh__ckpi-val">
-              {loading ? <span className="kh__skel kh__skel--kpi" /> : (kpis ? String(kpis.total_customers) : "—")}
-            </span>
-            <span className="kh__ckpi-lbl">khách hàng</span>
-          </span>
-        </div>
+/** Lọc nhanh theo tình trạng mua — cùng luật với ô "Trạng thái mua hàng" của nút Lọc (một state). */
+const MUA_NHANH: { key: string; label: string; mau: MauTT }[] = [
+  { key: "dang_mua", label: "Đang mua", mau: "la" },
+  { key: "ngung", label: "Ngừng đặt", mau: "cam" },
+  { key: "chua_don", label: "Chưa có đơn", mau: "xam" },
+];
 
-        <span className="kh__ckpi-div" aria-hidden="true" />
-
-        <div className="kh__ckpi-item">
-          <span className="kh__ckpi-icon">
-            <UserPlus size={14} />
-          </span>
-          <span className="kh__ckpi-body">
-            <span className="kh__ckpi-val">
-              {loading ? <span className="kh__skel kh__skel--kpi" /> : (kpis ? String(kpis.new_this_month) : "—")}
-            </span>
-            <span className="kh__ckpi-lbl">mới tháng này</span>
-          </span>
-        </div>
-      </div>
-
-    </div>
-  );
+function tinhTrangMua(c: CustomerRow): (typeof MUA_NHANH)[number] {
+  if (c.orders_total === 0) return MUA_NHANH[2];
+  return c.orders_12m > 0 ? MUA_NHANH[0] : MUA_NHANH[1];
 }
 
-function SortBtn({
-  label,
-  col,
-  sort,
-  onSort,
+/** "Đặt 3 ngày trước" — quá 60 ngày đếm theo tháng cho dễ hình dung. */
+function datCachDay(iso: string | null): string {
+  if (!iso) return "—";
+  const ngay = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  if (ngay <= 0) return "Hôm nay";
+  return ngay < 60 ? `${ngay} ngày trước` : `${Math.floor(ngay / 30)} tháng trước`;
+}
+
+function OKhach({
+  cot,
+  c,
+  chucDanh,
+  chon,
+  onChon,
+  onGanThe,
 }: {
-  label: string;
-  col: string;
-  sort: string;
-  onSort: (s: string) => void;
+  cot: string;
+  c: CustomerRow;
+  chucDanh?: string;
+  chon: boolean;
+  onChon: () => void;
+  onGanThe: () => void;
 }) {
-  const active = sort === col || sort === `-${col}`;
-  const desc = sort === `-${col}`;
-  return (
-    <button
-      type="button"
-      className={`kh__sortbtn${active ? " is-active" : ""}`}
-      onClick={() => onSort(desc ? col : active ? `-${col}` : `-${col}`)}
-    >
-      {label}
-      {active && <span aria-hidden="true">{desc ? " ↓" : " ↑"}</span>}
-    </button>
-  );
+  const chan = (e: { stopPropagation: () => void }) => e.stopPropagation();
+  switch (cot) {
+    case "chon":
+      return (
+        <td className="c" onClick={chan}>
+          <input type="checkbox" className="lds-cb" aria-label={`Chọn ${c.name}`} checked={chon} onChange={onChon} />
+        </td>
+      );
+    case "ma":
+      return <td>{c.code || `KH${String(c.id).padStart(3, "0")}`}</td>;
+    case "ngay":
+      return <td title={gioTaoKH(c.created_at)}>{ngayTaoKH(c.created_at)}</td>;
+    case "ten": {
+      const tags = c.tags ?? [];
+      return (
+        <td title={tags.length > 0 ? `${c.name}
+Nhãn: ${tags.join(", ")}` : c.name}>
+          <span className="kh-ten">
+            <span className="kh-ten__chu">{tenKhachGon(c.name)}</span>
+            {tags.slice(0, 2).map((t) => (
+              <span key={t} className={`kh__row-badge kh__row-badge--tag-${tagTone(t)}`}>
+                {t}
+              </span>
+            ))}
+            {tags.length > 2 && <span className="lds-mu">+{tags.length - 2}</span>}
+          </span>
+        </td>
+      );
+    }
+    case "mst":
+      return <td>{c.tax_code || <span className="lds-mu3">—</span>}</td>;
+    case "lh":
+      return <td title={c.contact_name ?? undefined}>{c.contact_name || <span className="lds-mu3">—</span>}</td>;
+    case "dt":
+      return (
+        <td>
+          {c.phone ? (
+            <a className="lds-lk" href={`tel:${c.phone.replace(/\s+/g, "")}`} title="Gọi" onClick={chan}>
+              {sdtDeDoc(c.phone)}
+            </a>
+          ) : (
+            <span className="lds-mu3">—</span>
+          )}
+        </td>
+      );
+    case "mua":
+      return (
+        <td className="n" title="Doanh số đơn đã chốt trong 12 tháng qua">
+          {c.revenue_12m > 0 ? soVN(c.revenue_12m) : <span className="lds-mu3">—</span>}
+        </td>
+      );
+    case "don":
+      return (
+        <td className="n" title="Số đơn đã chốt trong 12 tháng qua">
+          {c.orders_12m > 0 ? c.orders_12m : <span className="lds-mu3">—</span>}
+        </td>
+      );
+    case "tt": {
+      const t = tinhTrangMua(c);
+      return (
+        <td>
+          <ChipTT mau={t.mau}>{t.label}</ChipTT>
+        </td>
+      );
+    }
+    case "gan":
+      return (
+        <td title={c.last_order_at ? ngayVN(c.last_order_at) : undefined}>
+          {c.last_order_at ? datCachDay(c.last_order_at) : <span className="lds-mu3">—</span>}
+        </td>
+      );
+    case "nv":
+      return (
+        <td title={c.sale_name ? (chucDanh ? `${c.sale_name}\n${chucDanh}` : c.sale_name) : undefined}>
+          {c.sale_name || <span className="lds-mu3">Chưa gán</span>}
+        </td>
+      );
+    case "the":
+      return (
+        <td className="c lds-nut" onClick={chan}>
+          <button type="button" className="lds-btn lds-btn--xs" title="Gắn thẻ" aria-label={`Gắn thẻ ${c.name}`} onClick={onGanThe}>
+            <Tags size={12} />
+          </button>
+        </td>
+      );
+    default:
+      return <td />;
+  }
 }
 
 // =============================================================================

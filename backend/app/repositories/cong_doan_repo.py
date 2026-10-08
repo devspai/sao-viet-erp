@@ -9,7 +9,6 @@ from ..models.cong_doan import (
 )
 from ..models.don_vi_do import DonViDo
 from ..models.may_thiet_bi import MayThietBi
-from ..models.piece_work import CongViecKhoanTo
 from ..models.vat_lieu_kho import VatTuInAn
 from .catalog_base import CatalogRepo
 
@@ -79,27 +78,14 @@ class CongDoanRepository(CatalogRepo):
     # nên `_validate` đối chiếu thẳng với `TRAM_DONG_GIAY` trong code — không phải hỏi danh mục
     # Đơn vị nữa, và cột `don_vi_do.tram_dong_giay` nó đọc cũng đã thành cột chết.
 
-    def department_ids_dang_dung(self) -> set[int]:
-        """Id phòng ban đang được CÔNG ĐOẠN hoặc CÔNG VIỆC KHOÁN nào đó trỏ tới.
-
-        Dùng cho dropdown "Tổ phụ trách" / "Tổ làm việc này" (cùng một endpoint): đổi định nghĩa Tổ
-        (mục H) thì giá trị cũ vẫn phải chọn lại được, không thì mở form ra là ô rỗng và bấm Lưu là
-        mất tổ đang gán.
-        """
-        return {i for (i,) in self.db.execute(
-            select(CongDoanTo.department_id).union(select(CongViecKhoanTo.department_id)))}
+    # ⚠️ `department_ids_dang_dung()` + `phong_ban_tat_ca()` GỠ 07/10/2026: chỉ phục vụ đường kèm nút
+    #    CHA "(không còn là tổ)" vào ô chọn tổ — đường ấy đã gỡ, ô chọn nay CHỈ có nút lá.
 
     def phong_ban_tos(self):
         """TỔ sản xuất = nút LÁ trong nhánh Khối Sản xuất (ĐỊNH NGHĨA CHUNG `to_san_xuat()`)."""
         from .rbac_repo import DepartmentRepository
 
         return DepartmentRepository(self.db).to_san_xuat()
-
-    def phong_ban_tat_ca(self):
-        """Mọi phòng ban — để dựng lại nhãn cho giá trị CŨ nay không còn là tổ."""
-        from .rbac_repo import DepartmentRepository
-
-        return DepartmentRepository(self.db).list_all()
 
     # ⚠️ `piece_rates()` + `piece_rates_active()` GỠ 18/09/2026 (mg `0320`): công đoạn thôi khai
     #    đầu việc nên không còn chỗ nào tra `piece_rates` từ màn này.

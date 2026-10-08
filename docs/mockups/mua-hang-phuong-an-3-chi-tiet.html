@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ngăn đơn mua phương án 3</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;
+  --tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;
+  --tt-cyan-bg:#cffafe;--tt-cyan-fg:#0e7490;
+  --tt-cham-bg:#e0e7ff;--tt-cham-fg:#4338ca;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;
+  --tt-xam-bg:#e5e7eb;--tt-xam-fg:#374151;
+  --tt-slate-bg:#f1f5f9;--tt-slate-fg:#475569;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button{font:inherit;color:inherit}
+.doc{max-width:1830px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+.doc p,.doc li{color:var(--ash);max-width:1080px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.h2{margin:40px 0 4px;font-size:20px;font-weight:500;letter-spacing:-.01em;padding-top:18px;border-top:1px solid var(--rule)}
+.cap{margin:28px 0 6px;font-size:16px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1120px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);margin:8px 0 4px;font-size:13px}
+.words th,.words td{padding:5px 12px;border:1px solid var(--rule-hair);text-align:left}
+.words th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px}
+.words td.old{color:var(--ash-2);text-decoration:line-through;text-decoration-color:var(--ash-3)}
+
+/* chọn phương án */
+.pick{position:sticky;top:0;z-index:20;background:#e9edf2;padding:10px 0;margin:18px 0 0;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--rule)}
+.pick .seg button{padding:6px 14px;font-size:13.5px}
+.pa{display:none}.pa.on{display:block}
+
+/* khung app */
+.frame{width:1760px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.frame.dw{height:780px}
+.frame.solo{display:block;width:1180px;border-radius:12px}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;position:relative}
+.top{height:44px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:14px 24px 18px;flex:1;display:flex;flex-direction:column;min-height:0;position:relative}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.tool h2{font-size:18px;font-weight:500;margin:0 6px 0 0;letter-spacing:-.01em;white-space:nowrap}
+.tool .sp{flex:1}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px;border:1px solid var(--rule-soft)}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 11px;border-radius:6px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.flt{display:flex;gap:2px;flex-wrap:wrap}
+.flt button{border:1px solid transparent;background:transparent;border-radius:7px;padding:3px 9px;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.flt button:hover{background:var(--rule-hair)}
+.flt button.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.flt .n{color:var(--ash-3);font-size:12px}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:260px;color:var(--ash-3);font-size:13px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ash)}
+.btn.xs{padding:1px 8px;font-size:12px;font-weight:400}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.ic{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* lưới bảng tính */
+.sheet{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden;flex:none}
+.g{border-collapse:collapse;width:100%;table-layout:fixed}
+.g th,.g td{border-right:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair);padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;height:34px}
+.g th:last-child,.g td:last-child{border-right:0}
+.g th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:30px}
+.g td.n,.g th.n{text-align:right;font-variant-numeric:tabular-nums}
+.g td.c,.g th.c{text-align:center}
+.g tr.row{cursor:pointer}
+.g tr.row:hover td{background:#f8fafc}
+.g tr.sel td{background:#f8fafc}
+.g tr.gr td{background:#f1f5f9;border-right-color:#e8edf3;color:var(--ink-2)}
+.g tr.tot td{background:#f8fafc;color:var(--ink-2)}
+.g tr.past td{color:var(--ash-3)}
+.g tr.past td.org{color:var(--tt-cam-fg)}
+.g tr.sub td{background:#fcfdfe}
+.g tr.dis td{color:var(--ash-3)}
+.g td.wrap{white-space:normal}
+.g td.inner{padding:0 0 0 38px;background:#fcfdfe}
+.g td.inner .g td,.g td.inner .g th{height:30px;font-size:12.5px}
+.g td.inner .g{border-left:1px solid var(--rule-soft)}
+.mu{color:var(--ash-2)}.mu3{color:var(--ash-3)}
+.red{color:var(--tt-do-fg)}.org{color:var(--tt-cam-fg)}.amb{color:var(--tt-vang-fg)}.grn{color:var(--tt-la-fg)}
+.u{color:var(--ash-2);font-size:11.5px;margin-left:3px}
+a.lk{color:var(--tt-xanh-fg);text-decoration:none}
+a.lk:hover{text-decoration:underline}
+.cb{width:14px;height:14px;border:1px solid var(--rule);border-radius:4px;display:inline-block;background:#fff;vertical-align:-2px;position:relative}
+.cb.on{background:var(--ink);border-color:var(--ink)}
+.cb.on:after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(45deg)}
+.cb.off{background:var(--rule-hair);border-color:var(--rule-soft)}
+.tag{white-space:nowrap;display:inline-block;background:var(--rule-hair);border-radius:4px;padding:0 6px;font-size:12px;color:var(--ink-2);margin-left:6px}
+.tag:first-child{margin-left:0}
+.tag.o{background:#fff;border:1px solid var(--rule-soft)}
+.tag.warn{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.tag.lsx{background:var(--tt-cham-bg);color:var(--tt-cham-fg)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;font-weight:500;white-space:nowrap}
+.chip:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.c-do{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.c-cam{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.c-vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.c-la{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.c-xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}
+.c-cyan{background:var(--tt-cyan-bg);color:var(--tt-cyan-fg)}
+.c-cham{background:var(--tt-cham-bg);color:var(--tt-cham-fg)}
+.c-xam{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}
+.c-slate{background:var(--tt-slate-bg);color:var(--tt-slate-fg)}
+.d{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.d:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.dash{display:inline-flex;align-items:center;gap:5px;border:1px dashed var(--rule);border-radius:6px;padding:0 7px;font-size:12px;color:var(--ash);background:#fff;white-space:nowrap}
+.foot{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-soft)}
+.pg{display:flex;gap:4px}
+.pg span{border:1px solid var(--rule-soft);border-radius:6px;padding:1px 8px;color:var(--ash)}
+.pg span.on{border-color:var(--rule);color:var(--ink)}
+.bar{display:inline-block;width:44px;height:5px;border-radius:3px;background:var(--rule-soft);vertical-align:middle;margin-right:7px;position:relative;overflow:hidden}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--tt-la-fg);border-radius:3px}
+.bar.p i{background:#f97316}
+.chev{color:var(--ash-3);font-size:11px;display:inline-block;width:12px}
+.bulk{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);display:flex;align-items:center;gap:12px;padding:6px 8px 6px 16px;font-size:13px;white-space:nowrap;z-index:3}
+.steps{display:inline-flex;gap:3px;vertical-align:middle}
+.steps i{width:16px;height:5px;border-radius:2px;background:var(--rule-soft)}
+.steps i.on{background:var(--tt-la-fg)}
+.steps i.half{background:#f97316}
+
+/* ô nhập trong lưới */
+.cell{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--rule);border-radius:5px;height:24px;padding:0 7px;background:#fff;color:var(--ash-3);font-size:12.5px;gap:6px}
+.cell.req{border-color:#f87171}
+.cell.val{color:var(--ink)}
+.cell .u{margin:0}
+.khz{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:5px;height:24px;padding:0 7px;background:#fff;font-size:12.5px;color:var(--ash-3)}
+.khz b{font-weight:400;color:var(--ink)}
+.sel-mini{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--rule);border-radius:5px;height:24px;padding:0 7px;background:#fff;font-size:12.5px}
+.field{display:block;margin-bottom:12px}
+.field>span{display:block;font-size:12.5px;color:var(--ash-2);margin-bottom:4px}
+.field>span em{color:var(--tt-do-fg);font-style:normal}
+.inp{border:1px solid var(--rule);border-radius:7px;background:#fff;padding:5px 9px;font-size:13px;color:var(--ash-3);display:flex;justify-content:space-between;align-items:center}
+.inp.ta{height:64px;align-items:flex-start}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.quick span{border:1px solid var(--rule-soft);border-radius:999px;padding:0 9px;font-size:12px;color:var(--ash);background:#fff}
+
+/* ngăn */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.38);z-index:5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:1180px;background:#fff;z-index:6;display:flex;flex-direction:column;box-shadow:0 14px 34px rgba(20,19,15,.22)}
+.frame.solo .drawer{position:relative;box-shadow:none;height:auto}
+.grip{position:absolute;left:0;top:0;bottom:0;width:8px;cursor:ew-resize}
+.grip:after{content:"";position:absolute;left:2px;top:50%;width:4px;height:40px;margin-top:-20px;border-radius:4px;background:var(--rule)}
+.dh{padding:14px 24px 0;flex:none}
+.dh-row{display:flex;align-items:center;gap:10px}
+.dh-row .sp{flex:1}
+.crumb{font-size:12.5px;color:var(--ash-2);margin-bottom:4px}
+.dt{font-size:18px;font-weight:500;margin:0;letter-spacing:-.01em;white-space:nowrap}
+.sub{color:var(--ash);font-size:13px;margin-top:2px}
+.icb{width:28px;height:28px;border-radius:7px;border:1px solid transparent;background:transparent;display:grid;place-items:center;color:var(--ash);cursor:pointer}
+.icb:hover{background:var(--rule-hair)}
+.kv{display:flex;gap:6px 26px;align-items:baseline;margin-top:10px;font-size:12.5px;color:var(--ash-2);flex-wrap:wrap}
+.kv>span>b{font-weight:400;color:var(--ink);font-size:14px;margin-left:6px;font-variant-numeric:tabular-nums}
+.kv .sep{width:1px;height:16px;background:var(--rule-soft);align-self:center}
+.tabs{display:flex;gap:2px;margin-top:10px;padding-bottom:8px;border-bottom:1px solid var(--rule-soft)}
+.tabs button{border:1px solid transparent;background:transparent;border-radius:7px;padding:3px 12px;font-size:13px;color:var(--ash);cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.tabs button:hover{background:var(--rule-hair)}
+.tabs button.on{border-color:var(--rule);color:var(--ink);background:#fff}
+.tabs .n{color:var(--ash-3);font-size:12px}
+.db{flex:1;overflow:auto;padding:12px 24px 16px}
+.tp{display:none}.tp.on{display:block}
+.sec{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);margin:16px 0 6px;min-height:24px}
+.sec:first-child{margin-top:0}
+.sec .sp{flex:1}
+.sec .hint{color:var(--ash-3);font-size:12px}
+.dfoot{flex:none;border-top:1px solid var(--rule-soft);padding:9px 24px;display:flex;align-items:center;gap:10px;font-size:13px}
+.dfoot .sp{flex:1}
+.two{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start}
+.two.w340{grid-template-columns:1fr 340px}
+.side{border-left:1px solid var(--rule-soft);padding-left:20px}
+.pl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.pl dt{color:var(--ash-2)}
+.pl dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.pl hr{grid-column:1/-1;border:0;border-top:1px solid var(--rule-hair);margin:4px 0}
+.pl .big{font-size:15px}
+/* bảng thuộc tính 4 cột kiểu Excel */
+.props{border-collapse:collapse;width:100%;table-layout:fixed;font-size:13px}
+.props td{border:1px solid var(--rule-hair);padding:5px 10px;height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.props td.k{background:#f8fafc;color:var(--ash-2);width:140px;font-size:12.5px}
+.box{border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden}
+.callout{display:flex;align-items:center;gap:10px;border:1px solid #fecaca;background:#fef2f2;border-radius:8px;padding:7px 12px;font-size:13px;color:var(--ink-2);margin-top:10px}
+.callout.warn{border-color:#fed7aa;background:#fff7ed}
+.callout .sp{flex:1}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--ash-2);margin:0 0 6px;align-items:center}
+.who{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--ash-2)}
+.mark{position:relative}
+.mark:after{content:"";position:absolute;right:0;top:0;border-style:solid;border-width:0 8px 8px 0;border-color:transparent #f97316 transparent transparent}
+
+/* bố cục ngăn: trái cuộn, phải đứng yên */
+.frame.tall{height:860px}
+.dbody{flex:1;min-height:0;display:grid;grid-template-columns:1fr 250px}
+.dleft{overflow:auto;padding:12px 20px 16px 24px;min-width:0}
+.dside{border-left:1px solid var(--rule-soft);overflow:auto;padding:12px 20px 16px 18px;background:#fcfdfe}
+.g thead th{position:sticky;top:0;z-index:1}
+.sb{margin-bottom:14px}
+.sb h4{margin:0 0 4px;font-size:12.5px;font-weight:500;color:var(--ash-2);display:flex;align-items:center}
+.sb h4 .sp{flex:1}
+.sb h4 a{font-weight:400}
+.r{display:flex;justify-content:space-between;align-items:baseline;height:26px;font-size:13px;gap:10px}
+.r span:first-child{color:var(--ash-2);white-space:nowrap}
+.r span:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r.big span:last-child{font-size:15px}
+.r.sum{border-top:1px solid var(--rule-soft);margin-top:2px}
+.sb+.sb{border-top:1px solid var(--rule-hair);padding-top:12px}
+.minibar{display:block;height:4px;border-radius:2px;background:var(--rule-soft);margin:2px 0 4px;overflow:hidden}
+.minibar i{display:block;height:100%;background:#f97316}
+.miss{color:var(--tt-cam-fg)}
+.ok{color:var(--tt-la-fg)}
+tr.pc td{background:#fcfdfe;color:var(--ash)}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Ngăn đơn mua, phương án 3 sắp lại</h1>
+<p>Anh chọn phương án 3. Bản trước xếp mọi thứ từ trên xuống: bảng món, rồi ba khối tiền, rồi phiếu chi, rồi điều khoản. Đơn có 1 món thì vừa, đơn 8 món kèm vài đợt thì bảng dài ra, tiền và điều khoản bị đẩy khỏi màn, phải cuộn mới thấy. Thêm nữa, cây món kèm đợt lặp nút Nhập kho ở từng món, trong khi nhập kho là việc của cả đợt.</p>
+<p>Bản này chia ngăn làm hai phần cố định, theo khuôn trang đơn của Shopify và hoá đơn của Stripe: <b>bên trái</b> là tab, nội dung dài bao nhiêu thì cuộn bấy nhiêu, đầu bảng dính trên cùng; <b>bên phải</b> là cột 250px đứng yên ở mọi tab: Tiền, Điều khoản, Người. Đơn 1 món hay 30 món thì cột phải vẫn nằm đúng chỗ.</p>
+<ul>
+<li><b>Mặt hàng</b>: mỗi món một dòng. Món còn thiếu xếp lên đầu, có lọc nhanh Còn thiếu và Đã đủ, có ô tìm. Bấm ▸ ở một món mới xổ ra món đó về ở đợt nào.</li>
+<li><b>Đợt giao</b>: mỗi đợt một dòng, có nút Nhập kho hoặc mã phiếu nhập. Bấm ▸ mới xổ ra các món của đợt.</li>
+<li><b>Thanh toán</b>: một bảng nợ theo đợt; phiếu chi đã lập là dòng con nằm ngay dưới đợt nó trả. Bỏ bảng "Phiếu chi đã lập" rỗng và khối Điều khoản (đã sang cột phải).</li>
+<li>Đầu ngăn bỏ Tổng đơn và Còn nợ vì cột phải đã có, mỗi số chỉ nằm một chỗ.</li>
+<li>Đơn đã huỷ dùng cùng khung: cột phải có thêm "Huỷ bởi", nên dòng lý do chỉ còn lý do.</li>
+</ul>
+<p class="note">Đơn DMH-261001-AP08 dưới đây là đơn minh hoạ nhiều món (giá và số lượng do tôi đặt, cộng trừ khớp nhau). Danh sách yêu cầu, form tạo yêu cầu, danh sách đơn giữ như phương án 3 trong mua-hang-gon-3-phuong-an.html.</p>
+
+<div class="cap">1. Đơn nhiều món, về một phần, đã trả một phần</div>
+<p class="note">Bấm các tab và nút Thu mua / Kế toán để xem. Cột phải không đổi khi đổi tab.</p>
+<div class="scroll"><div class="frame tall"><div class="rail"><i></i><i></i><i class="on"></i><i></i></div><div class="main">
+  <div class="top">Admin<span class="av">A</span></div>
+  <div class="body"><div class="tool"><h2>Mua hàng</h2></div></div>
+  <div class="scrim"></div>
+  <div class="drawer"><span class="grip"></span>
+    <div class="dh">
+      <div class="dh-row"><h3 class="dt">DMH-261001-AP08</h3><span class="chip c-cam">Về một phần</span><span class="chip c-cam">Trả một phần</span><span class="sp"></span><div class="seg"><button class="on" data-vai="tm">Thu mua</button><button data-vai="kt">Kế toán</button></div><button class="btn only-tm">Đóng đơn</button><button class="btn pri only-tm">+ Ghi đợt giao</button><button class="btn">In phiếu</button><button class="btn pri only-kt" style="display:none">Lập phiếu chi</button><button class="icb">⤢</button><button class="icb">✕</button></div>
+      <div class="sub">Giấy cho đơn hộp thuốc và tờ rơi tháng 10</div>
+      <div class="kv"><span>Nhà cung cấp<b>Công ty TNHH Thương mại Giấy An Phát</b></span><span>Yêu cầu<b><a class="lk">YCMH-261001-K2PA</a></b><span class="tag o">+2</span></span><span>Ngày cần<b>08/10/2026</b></span><span>Ngày tạo<b>01/10/2026</b></span></div>
+      <div class="tabs"><button class="on" data-t="mh">Mặt hàng <span class="n">8</span></button><button data-t="dg">Đợt giao <span class="n">2</span></button><button data-t="tt">Thanh toán <span class="n">1</span></button><button data-t="ct">Chứng từ <span class="n">2</span></button><button data-t="ls">Lịch sử <span class="n">9</span></button></div>
+    </div>
+    <div class="dbody">
+      <div class="dleft">
+        <div class="tp on" data-p="mh">
+          <div class="tool" style="margin-bottom:8px"><div class="flt"><button class="on">Tất cả <span class="n">8</span></button><button><i style="background:#f97316"></i>Còn thiếu <span class="n">4</span></button><button><i style="background:#22c55e"></i>Đã đủ <span class="n">4</span></button></div><span class="sp"></span><div class="search" style="width:220px">Tìm món trong đơn…</div></div>
+          <div class="box"><table class="g">
+            <colgroup><col><col style="width:186px"><col style="width:94px"><col style="width:80px"><col style="width:84px"><col style="width:72px"><col style="width:106px"></colgroup>
+            <thead><tr><th>Vật tư</th><th>Khổ đặt</th><th class="n">Đặt</th><th class="n">Đã về</th><th class="n">Còn thiếu</th><th class="n">Đơn giá</th><th class="n">Thành tiền</th></tr></thead>
+            <tbody id="mh"></tbody>
+          </table></div>
+        </div>
+        <div class="tp" data-p="dg">
+          <div class="box"><table class="g">
+            <colgroup><col style="width:120px"><col style="width:104px"><col style="width:110px"><col style="width:104px"><col style="width:70px"><col style="width:116px"><col></colgroup>
+            <thead><tr><th>Đợt</th><th>Ngày nhận</th><th>Hoá đơn</th><th>Hạn trả</th><th class="n">Số món</th><th class="n">Giá trị</th><th>Nhập kho</th></tr></thead>
+            <tbody>
+              <tr class="row sel"><td><span class="chev">▾</span>Đợt 2</td><td>06/10/2026</td><td>HD0001234</td><td>21/10/2026</td><td class="n">4</td><td class="n">21.178.800</td><td><button class="btn xs">Nhập kho</button><span class="mu3" style="margin-left:10px">Sửa</span><span class="mu3" style="margin-left:10px">Xoá</span></td></tr>
+              <tr><td colspan="7" class="inner"><table class="g"><colgroup><col><col style="width:190px"><col style="width:110px"><col style="width:120px"></colgroup>
+                <tr><th>Vật tư</th><th>Khổ nhận</th><th class="n">Số lượng</th><th class="n">Giá trị</th></tr>
+                <tr><td>COUCHE 80GSM</td><td>Tờ 650 × 870</td><td class="n">4.000<span class="u">tờ</span></td><td class="n">4.492.800</td></tr>
+                <tr><td>GIẤY IVORY 300-400GSM</td><td>Tờ 790 × 1080<span class="tag warn">khác khổ</span></td><td class="n">2.000<span class="u">tờ</span></td><td class="n">6.804.000</td></tr>
+                <tr><td>DUPLEX 230-250GSM</td><td>Tờ 790 × 1090</td><td class="n">3.000<span class="u">tờ</span></td><td class="n">8.100.000</td></tr>
+                <tr><td>BRISTOL 250GSM</td><td>Tờ 790 × 1090</td><td class="n">500<span class="u">tờ</span></td><td class="n">1.782.000</td></tr>
+              </table></td></tr>
+              <tr class="row"><td><span class="chev">▸</span>Đợt 1</td><td>03/10/2026</td><td>HD0001187</td><td>18/10/2026</td><td class="n">3</td><td class="n">55.015.200</td><td><span class="chip c-la">Đã nhập</span> <a class="lk">NK-261003-0007</a></td></tr>
+            </tbody>
+          </table></div>
+          <p class="note" style="margin-top:8px">Đợt chưa nhập kho mới có Sửa và Xoá. Ghi đợt giao nằm ở đầu ngăn vì là việc của cả đơn.</p>
+        </div>
+        <div class="tp" data-p="tt">
+          <div class="box"><table class="g">
+            <colgroup><col><col style="width:104px"><col style="width:104px"><col style="width:112px"><col style="width:106px"><col style="width:112px"><col style="width:112px"></colgroup>
+            <thead><tr><th>Đợt và phiếu chi</th><th>Ngày</th><th>Hạn trả</th><th class="n">Giá trị</th><th class="n">Đã chi</th><th class="n">Còn nợ</th><th></th></tr></thead>
+            <tbody>
+              <tr class="gr"><td>Đợt 1<span class="tag o">HD0001187</span></td><td>03/10/2026</td><td class="amb">18/10/2026</td><td class="n">55.015.200</td><td class="n">30.000.000</td><td class="n">25.015.200</td><td><button class="btn xs only-kt" style="display:none">Lập phiếu chi</button></td></tr>
+              <tr class="pc"><td style="padding-left:28px"><a class="lk">PC-261005-0004</a><span class="mu" style="margin-left:8px">Admin</span></td><td>05/10/2026</td><td></td><td></td><td class="n">30.000.000</td><td></td><td></td></tr>
+              <tr class="gr"><td>Đợt 2<span class="tag o">HD0001234</span></td><td>06/10/2026</td><td>21/10/2026</td><td class="n">21.178.800</td><td class="n">0</td><td class="n">21.178.800</td><td><button class="btn xs only-kt" style="display:none">Lập phiếu chi</button></td></tr>
+            </tbody>
+          </table></div>
+          <p class="note" style="margin-top:8px">Phiếu chi là dòng con dưới đúng đợt nó trả. Chưa có phiếu chi thì đợt chỉ có một dòng, không còn bảng rỗng riêng. Mỗi phiếu chi tối đa bằng số còn nợ của đợt.</p>
+        </div>
+        <div class="tp" data-p="ct">
+          <div class="box"><table class="g"><colgroup><col><col style="width:130px"><col style="width:110px"><col style="width:140px"></colgroup>
+            <thead><tr><th>Tệp</th><th>Gắn vào</th><th>Người tải</th><th>Lúc</th></tr></thead>
+            <tbody><tr><td><a class="lk">hoa-don-0001187.pdf</a></td><td>Đợt 1</td><td>Admin</td><td>03/10/2026 15:20</td></tr><tr><td><a class="lk">hoa-don-0001234.jpg</a></td><td>Đợt 2</td><td>Admin</td><td>06/10/2026 10:05</td></tr><tr><td colspan="4" class="mu3">Kéo ảnh hoặc PDF vào đây, hoặc <a class="lk">chọn tệp</a>.</td></tr></tbody></table></div>
+        </div>
+        <div class="tp" data-p="ls">
+          <div class="box"><table class="g"><colgroup><col style="width:140px"><col style="width:100px"><col></colgroup>
+            <thead><tr><th>Lúc</th><th>Người</th><th>Việc</th></tr></thead>
+            <tbody id="ls"></tbody></table></div>
+        </div>
+      </div>
+      <aside class="dside">
+        <div class="sb"><h4>Tiền</h4>
+          <div class="r"><span>Tiền hàng</span><span>87.700.000</span></div>
+          <div class="r"><span>Thuế GTGT 8%</span><span>7.016.000</span></div>
+          <div class="r big sum"><span>Tổng đơn</span><span>94.716.000 đ</span></div>
+          <div class="r" style="margin-top:6px"><span>Hàng đã về</span><span>76.194.000</span></div>
+          <span class="minibar"><i style="width:80%"></i></span>
+          <div class="r"><span>Đã chi</span><span>30.000.000</span></div>
+          <div class="r big sum"><span>Còn nợ</span><span>46.194.000 đ</span></div>
+          <div class="r"><span>Hạn gần nhất</span><span class="amb">18/10/2026</span></div>
+        </div>
+        <div class="sb"><h4>Điều khoản<span class="sp"></span><a class="lk">Sửa</a></h4>
+          <div class="r"><span>Cho nợ</span><span>15 ngày</span></div>
+          <div class="r"><span>Số hợp đồng</span><span class="mu3">Chưa có</span></div>
+          <div class="r"><span>Ngày chốt nợ</span><span class="mu3">Theo hoá đơn</span></div>
+          <div class="r"><span>Cọc dự kiến</span><span>0 đ</span></div>
+        </div>
+        <div class="sb"><h4>Người</h4>
+          <div class="r"><span>Người lập</span><span>Admin</span></div>
+          <div class="r"><span>Duyệt bởi</span><span>Admin</span></div>
+          <div class="r"><span>Duyệt lúc</span><span>01/10/2026 10:30</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div></div></div>
+
+<div class="cap">2. Đơn đã huỷ</div>
+<p class="note">Cùng khung. Đơn huỷ khi chưa có hàng về chỉ còn tab Mặt hàng và Lịch sử. Lý do huỷ một dòng; ai huỷ, lúc nào nằm ở cột phải dưới mục Người, không lặp. Tổng đơn gạch ngang; không còn Hàng đã về, Đã chi, Còn nợ.</p>
+<div class="scroll"><div class="frame" style="height:560px"><div class="rail"><i></i><i></i><i class="on"></i><i></i></div><div class="main">
+  <div class="top">Admin<span class="av">A</span></div>
+  <div class="body"><div class="tool"><h2>Mua hàng</h2></div></div>
+  <div class="scrim"></div>
+  <div class="drawer"><span class="grip"></span>
+    <div class="dh">
+      <div class="dh-row"><h3 class="dt">DMH-261007-J3QB</h3><span class="chip c-xam">Đã huỷ</span><span class="sp"></span><button class="btn">In phiếu</button><button class="icb">⤢</button><button class="icb">✕</button></div>
+      <div class="sub">Vật tư ép kim cho hộp quà Trung thu đợt 2</div>
+      <div class="callout"><span class="red">Lý do huỷ</span><span>NCC báo hết hàng, chuyển sang mua nơi khác.</span></div>
+      <div class="kv"><span>Nhà cung cấp<b>Công ty CP Giấy Việt Trì</b></span><span>Yêu cầu<b><a class="lk">YCMH-261007-SBBL</a></b></span><span>Ngày cần<b>11/10/2026</b></span><span>Ngày tạo<b>07/10/2026</b></span></div>
+      <div class="tabs"><button class="on">Mặt hàng <span class="n">1</span></button><button>Lịch sử <span class="n">3</span></button></div>
+    </div>
+    <div class="dbody">
+      <div class="dleft">
+        <div class="box"><table class="g">
+          <colgroup><col><col style="width:150px"><col style="width:110px"><col style="width:90px"><col style="width:120px"></colgroup>
+          <thead><tr><th>Vật tư</th><th>Khổ đặt</th><th class="n">Đặt</th><th class="n">Đơn giá</th><th class="n">Thành tiền</th></tr></thead>
+          <tbody><tr class="past"><td>DUPLEX MALAYSIA 300-450GSM</td><td class="mu3">Không ghi khổ</td><td class="n">1.950<span class="u">kg</span></td><td class="n">19.800</td><td class="n">41.698.800</td></tr></tbody>
+        </table></div>
+      </div>
+      <aside class="dside">
+        <div class="sb"><h4>Tiền</h4>
+          <div class="r"><span>Tiền hàng</span><span>38.610.000</span></div>
+          <div class="r"><span>Thuế GTGT 8%</span><span>3.088.800</span></div>
+          <div class="r big sum"><span>Tổng đơn</span><span class="mu"><s>41.698.800 đ</s></span></div>
+        </div>
+        <div class="sb"><h4>Điều khoản</h4>
+          <div class="r"><span>Cho nợ</span><span>45 ngày</span></div>
+        </div>
+        <div class="sb"><h4>Người</h4>
+          <div class="r"><span>Người lập</span><span>Admin</span></div>
+          <div class="r"><span>Gửi duyệt</span><span class="mu3">Chưa gửi</span></div>
+          <div class="r"><span>Huỷ bởi</span><span>Admin</span></div>
+          <div class="r"><span>Huỷ lúc</span><span>07/10/2026 14:20</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div></div></div>
+</div>
+<script>
+const mon=[
+ ['DUPLEX MALAYSIA 300-450GSM','Tờ 720 × 1020','',1500,'tờ',0,3400,5508000],
+ ['GIẤY IVORY 210-230-250GSM','Tờ 790 × 1090','',2000,'tờ',0,2700,5832000],
+ ['DUPLEX 230-250GSM','Tờ 790 × 1090','',5000,'tờ',3000,2500,13500000],
+ ['BRISTOL 250GSM','Tờ 790 × 1090','',1000,'tờ',500,3300,3564000],
+ ['COUCHE 80GSM','Tờ 650 × 870','',10000,'tờ',10000,1040,11232000],
+ ['COUCHE 150GSM','Cuộn khổ 1090','',1500,'kg',1500,26600,43092000],
+ ['GIẤY IVORY 300-400GSM','Tờ 790 × 1090','khác',2000,'tờ',2000,3150,6804000],
+ ['COUCHE 120GSM','Tờ 650 × 860','',3000,'tờ',3000,1600,5184000],
+];
+const f=n=>n.toLocaleString('vi-VN');
+document.getElementById('mh').innerHTML=mon.map(m=>{
+  const thieu=m[3]-m[5];const open=!!m[2];
+  let r=`<tr class="row${open?' sel':''}"><td><span class="chev">${open?'▾':'▸'}</span>${m[0]}</td><td>${m[1]}${m[2]?'<span class="tag warn">khác khổ</span>':''}</td><td class="n">${f(m[3])}<span class="u">${m[4]}</span></td><td class="n">${m[5]?f(m[5]):'<span class="mu3">0</span>'}</td><td class="n">${thieu?`<span class="miss">${f(thieu)}</span>`:'<span class="ok">Đủ</span>'}</td><td class="n">${f(m[6])}</td><td class="n">${f(m[7])}</td></tr>`;
+  if(open) r+=`<tr class="sub"><td style="padding-left:36px" class="mu">Đợt 2<span class="tag o">nhận 06/10/2026</span></td><td>Tờ 790 × 1080</td><td></td><td class="n">2.000</td><td colspan="3" class="mu">Vào tồn theo khổ nhận</td></tr>`;
+  return r;}).join('');
+const LS=[['01/10/2026 09:40','Admin','Lập đơn từ YCMH-261001-K2PA và 2 yêu cầu khác'],['01/10/2026 09:45','Admin','Gửi duyệt'],['01/10/2026 10:30','Admin','Duyệt đơn'],['01/10/2026 10:32','Admin','Đặt hàng với nhà cung cấp'],['03/10/2026 15:18','Admin','Ghi đợt 1: 3 món, hoá đơn HD0001187'],['03/10/2026 16:02','Thủ kho','Nhập kho đợt 1, phiếu NK-261003-0007'],['05/10/2026 11:10','Admin','Lập phiếu chi PC-261005-0004 trả đợt 1: 30.000.000 đ'],['06/10/2026 10:02','Admin','Ghi đợt 2: 4 món, hoá đơn HD0001234, IVORY 300-400GSM khác khổ đặt'],['06/10/2026 10:02','Máy','Còn thiếu 4 món, đơn ở Về một phần']];
+document.getElementById('ls').innerHTML=LS.reverse().map(r=>`<tr><td class="mu">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.tabs button[data-t]');if(b){const dr=b.closest('.drawer');dr.querySelectorAll('.tabs button[data-t]').forEach(x=>x.classList.toggle('on',x===b));dr.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.dataset.p===b.dataset.t));return;}
+  const v=e.target.closest('[data-vai]');if(v){const dr=v.closest('.drawer');const kt=v.dataset.vai==='kt';v.parentElement.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===v));dr.querySelectorAll('.only-kt').forEach(x=>x.style.display=kt?'':'none');dr.querySelectorAll('.only-tm').forEach(x=>x.style.display=kt?'none':'');dr.querySelector(`.tabs button[data-t="${kt?'tt':'mh'}"]`).click();}
+});
+</script>
+</body>
+</html>

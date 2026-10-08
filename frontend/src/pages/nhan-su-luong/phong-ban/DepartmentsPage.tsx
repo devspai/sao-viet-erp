@@ -1757,9 +1757,6 @@ export function DepartmentsPage({
         <div className="rdx-dept__head-main">
           <p className="eyebrow">Nhân sự &amp; Lương</p>
           <h1 className="depts__title">Phòng ban</h1>
-          <p className="depts__sub">
-            Quản lý cơ cấu phòng ban, nhân sự và vai trò trong từng phòng.
-          </p>
         </div>
 
         {/* ── Sleek Compact Metric Pills ─────────────────────────────────── */}

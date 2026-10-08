@@ -1,5 +1,8 @@
 # Spec — Kế hoạch vật tư (siết logic trên giữ chỗ hiện có)
 
+> **07/10/2026:** luật "mỗi chỗ thiếu một phiếu mua" và giữ hàng đang về theo đúng phiếu đã đè lên
+> §1 bước 5, §2 (gợi ý mua), §3.3, §3.5 — xem `spec-ke-hoach-vat-tu-mot-o-mot-phieu.md`.
+
 > Bối cảnh: `GiuChoService` (giữ chỗ vật tư) đã được chủ dự án chốt và build ngày 17/08/2026
 > (xem docstring `backend/app/services/giu_cho_service.py:1-38`). Bản spec này KHÔNG xây chức
 > năng giữ chỗ mới — nó SIẾT một số điểm còn hở trên nền đã có: liên kết ngược về đúng dòng

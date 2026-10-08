@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kế hoạch vật tư 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5;  --tt-cam-fg:#c2410c;  --tt-cam-dot:#f97316;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8; --tt-xanh-dot:#3b82f6;
+  --tt-cham-bg:#e0e7ff; --tt-cham-fg:#4338ca; --tt-cham-dot:#6366f1;
+  --tt-ngoc-bg:#ccfbf1; --tt-ngoc-fg:#0f766e; --tt-ngoc-dot:#14b8a6;
+  --tt-tim-bg:#ede9fe;  --tt-tim-fg:#6d28d9;  --tt-tim-dot:#8b5cf6;
+  --tt-la-bg:#dcfce7;   --tt-la-fg:#15803d;   --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2;   --tt-do-fg:#b91c1c;   --tt-do-dot:#ef4444;
+  --tt-xam-bg:#e5e7eb;  --tt-xam-fg:#374151;  --tt-xam-dot:#6b7280;
+  --s-cap:#cbd5e1; --s-ton:#22c55e; --s-ve:#f59e0b; --s-thieu:#ef4444;
+  --sh-1:0 1px 2px rgba(15,23,42,.05);
+  --sh-2:0 1px 2px rgba(15,23,42,.04),0 10px 30px -14px rgba(15,23,42,.18);
+  --sh-dw:0 30px 60px -28px rgba(15,23,42,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ecf1;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1340px;margin:0 auto;padding:36px 20px 140px}
+h1{font-size:26px;margin:0 0 6px;font-weight:600;letter-spacing:-.015em}
+.lead{color:var(--ash);margin:0 0 20px;max-width:920px}
+.box{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;padding:18px 22px;margin-bottom:14px}
+.box h2{font-size:15px;margin:0 0 10px;font-weight:600}
+.box ul{margin:0;padding-left:18px;display:grid;gap:5px;color:var(--ash);font-size:13.5px}
+.box p{color:var(--ash);font-size:13.5px;margin:0}
+.box .k{color:var(--ink)}
+.optnav{position:sticky;top:0;z-index:30;background:rgba(232,236,241,.92);backdrop-filter:blur(8px);padding:12px 0;margin:30px 0 26px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.optnav button{height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:500;color:var(--ink-2);cursor:pointer}
+.optnav button:hover{background:var(--rule-hair)}
+.optnav button.on{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-h{margin:0 0 6px;font-size:22px;font-weight:600;letter-spacing:-.01em}
+.opt-lead{color:var(--ash);margin:0 0 30px;max-width:960px}
+.scr{margin:0 0 70px}
+.scr-h h3{font-size:17px;margin:0 0 4px;font-weight:600}
+.why{color:var(--ash);margin:0 0 16px;max-width:980px;font-size:13.5px}
+.scroll{overflow-x:auto;padding:4px 4px 14px}
+
+/* ---------- nền chung ---------- */
+.ico{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ico.s{width:14px;height:14px}
+.muted{color:var(--ash-2)} .num{font-variant-numeric:tabular-nums} .r{text-align:right} .nw{white-space:nowrap}
+.u{font-size:12px;color:var(--ash-2);margin-left:4px}
+.red{color:var(--tt-do-fg)} .amb{color:var(--tt-vang-fg)} .grn{color:var(--tt-la-fg)}
+.tag{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);font-size:12px;color:var(--ash);white-space:nowrap}
+.lk{color:var(--tt-xanh-fg);text-decoration:none;cursor:pointer}
+.lk:hover{text-decoration:underline}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap;background:var(--bg);color:var(--fg)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--dot)}
+.chip--sm{height:20px;font-size:11.5px;padding:0 8px;gap:5px}
+.chip--lon{height:28px;font-size:13px;padding:0 12px}
+.t-vang{--bg:var(--tt-vang-bg);--fg:var(--tt-vang-fg);--dot:var(--tt-vang-dot)}
+.t-cam{--bg:var(--tt-cam-bg);--fg:var(--tt-cam-fg);--dot:var(--tt-cam-dot)}
+.t-xanh{--bg:var(--tt-xanh-bg);--fg:var(--tt-xanh-fg);--dot:var(--tt-xanh-dot)}
+.t-cham{--bg:var(--tt-cham-bg);--fg:var(--tt-cham-fg);--dot:var(--tt-cham-dot)}
+.t-ngoc{--bg:var(--tt-ngoc-bg);--fg:var(--tt-ngoc-fg);--dot:var(--tt-ngoc-dot)}
+.t-tim{--bg:var(--tt-tim-bg);--fg:var(--tt-tim-fg);--dot:var(--tt-tim-dot)}
+.t-la{--bg:var(--tt-la-bg);--fg:var(--tt-la-fg);--dot:var(--tt-la-dot)}
+.t-do{--bg:var(--tt-do-bg);--fg:var(--tt-do-fg);--dot:var(--tt-do-dot)}
+.t-xam{--bg:var(--tt-xam-bg);--fg:var(--tt-xam-fg);--dot:var(--tt-xam-dot)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;cursor:pointer;box-shadow:var(--sh-1)}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--ghost{border-color:transparent;background:transparent;color:var(--ash);box-shadow:none}
+.btn--sm{height:30px;padding:0 11px;font-size:12.5px;border-radius:8px}
+.iconbtn{width:34px;height:34px;border-radius:9px;display:inline-grid;place-items:center;color:var(--ash-2);border:0;background:none}
+
+/* biểu tượng mặt hàng */
+.av{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--bg);color:var(--fg);flex:none}
+.av .ico{width:19px;height:19px}
+.av.sm{width:30px;height:30px;border-radius:9px}.av.sm .ico{width:16px;height:16px}
+.av.xs{width:24px;height:24px;border-radius:7px}.av.xs .ico{width:14px;height:14px}
+.av.lg{width:52px;height:52px;border-radius:14px}.av.lg .ico{width:26px;height:26px}
+.mh{display:flex;align-items:center;gap:12px;min-width:0}
+.mh .t{min-width:0}
+td .mh .t>div:first-child{white-space:nowrap}
+.mh .t2{font-size:12px;color:var(--ash-2);margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* thanh nguồn hàng */
+.bar{display:flex;gap:2px;height:8px;border-radius:99px;overflow:hidden;background:var(--rule-hair);width:100%}
+.bar i{display:block;height:100%}
+.bar .cap{background:var(--s-cap)} .bar .ton{background:var(--s-ton)}
+.bar .ve{background:repeating-linear-gradient(-45deg,#f59e0b 0 5px,#fbbf24 5px 10px)}
+.bar .thieu{background:var(--s-thieu)}
+.bar.lg{height:14px;border-radius:8px}
+.lg-r{display:flex;gap:14px;margin-top:7px;font-size:12px;color:var(--ash);flex-wrap:wrap}
+.lg-r span{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.lg-r span::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c)}
+.lg-r b{font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.c-cap{--c:var(--s-cap)} .c-ton{--c:var(--s-ton)} .c-ve{--c:var(--s-ve)} .c-thieu{--c:var(--s-thieu)}
+
+/* đơn mua trong ô */
+.dons{display:grid;gap:5px}
+.don{display:grid;grid-template-columns:8px 112px 68px auto;gap:8px;align-items:center;font-size:12.5px;white-space:nowrap}
+.don i{width:8px;height:8px;border-radius:50%;background:var(--dot)}
+.don .ma{color:var(--ink-2)}
+.don .sl{text-align:right;font-variant-numeric:tabular-nums}
+.don .ng{color:var(--ash-2)}
+
+/* khung app */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:16px;padding:24px 26px 26px;min-width:1240px;box-shadow:var(--sh-2)}
+.app-h{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.app-h h4{font-size:22px;margin:0;font-weight:600;letter-spacing:-.01em}
+.app-h .hom{font-size:13px;color:var(--ash-2)}
+.sp{flex:1}
+.gom{display:inline-flex;padding:3px;border:1px solid var(--rule-soft);border-radius:11px;background:var(--canvas);gap:2px;box-shadow:var(--sh-1)}
+.gom span{padding:6px 14px;border-radius:8px;font-size:13px;color:var(--ash);display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+.gom span.on{background:var(--charcoal);color:#fff}
+.gom .d{width:7px;height:7px;border-radius:50%;background:var(--tt-do-dot)}
+.search{height:36px;width:290px;border:1px solid var(--rule);border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 11px;color:var(--ash-3);background:var(--canvas);font-size:13.5px}
+.tool{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:11px;box-shadow:var(--sh-1)}
+.seg span{padding:6px 12px;border-radius:8px;font-size:13px;color:var(--ash);display:inline-flex;gap:7px;align-items:center;white-space:nowrap;cursor:pointer}
+.seg span i{width:7px;height:7px;border-radius:50%;background:var(--dot)}
+.seg span em{font-style:normal;font-size:11.5px;color:var(--ash-2)}
+.seg span.on{background:var(--charcoal);color:#fff}
+.seg span.on em{color:#cbd5e1}
+
+/* hàng trên cùng: việc cần lo + lịch 30 ngày */
+.top{display:grid;grid-template-columns:400px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.pn{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;box-shadow:var(--sh-1);overflow:hidden}
+.pn-h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--rule-hair);font-size:13.5px}
+.pn-h .g{color:var(--ash-2);font-size:12.5px}
+.pn-h .end{margin-left:auto;display:flex;gap:6px;align-items:center}
+.viec{display:flex;gap:12px;padding:12px 16px;border-top:1px solid var(--rule-hair);align-items:flex-start}
+.viec:first-of-type{border-top:0}
+.viec .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--bg);color:var(--fg);flex:none}
+.viec .nd{flex:1;min-width:0}
+.viec .t1{font-size:13.5px}
+.viec .t2{font-size:12.5px;color:var(--ash);margin-top:2px}
+.viec .btn{flex:none}
+.lich{position:relative;height:240px;margin:0 40px 0 44px}
+.lich .truc{position:absolute;left:0;right:0;top:104px;height:2px;background:var(--rule-soft)}
+.lich .tk{position:absolute;top:110px;transform:translateX(-50%);font-size:11px;color:var(--ash-3);white-space:nowrap}
+.lich .tk::before{content:"";position:absolute;left:50%;top:-10px;width:1px;height:6px;background:var(--rule)}
+.lich .nay{position:absolute;top:18px;height:92px;width:2px;background:var(--charcoal);transform:translateX(-1px);border-radius:2px}
+.lich .nay span{position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--ink);white-space:nowrap}
+.ev{position:absolute;transform:translateX(-50%);display:grid;gap:3px;justify-items:center}
+.ev.tren{bottom:160px}
+.ev.duoi{top:128px}
+.ev .o{width:12px;height:12px;border-radius:50%;background:var(--canvas);border:2.5px solid var(--dot);position:absolute;left:50%;transform:translateX(-50%)}
+.ev.tren .o{bottom:-33px}
+.ev.duoi .o{top:-30px}
+.ev.lech .p{margin-top:46px}
+.ev .p{display:grid;gap:1px;padding:5px 8px;border-radius:8px;background:var(--bg);color:var(--fg);font-size:11.5px;white-space:nowrap;text-align:center;line-height:1.35}
+.ev .p small{font-size:10.5px;opacity:.85}
+.ev.lenh .p{background:var(--canvas);border:1px solid var(--rule-soft);color:var(--ink-2)}
+.chu-giai{display:flex;gap:16px;padding:0 16px 12px;font-size:12px;color:var(--ash-2)}
+.chu-giai span{display:inline-flex;gap:6px;align-items:center}
+.chu-giai i{width:10px;height:10px;border-radius:50%;border:2.5px solid var(--dot);background:#fff}
+
+/* bảng */
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;overflow:hidden;box-shadow:var(--sh-1)}
+table{border-collapse:collapse;width:100%}
+th{font-size:12px;font-weight:500;color:var(--ash-2);text-align:left;padding:11px 16px;border-bottom:1px solid var(--rule-soft);white-space:nowrap;background:#fbfcfd}
+td{padding:14px 16px;border-bottom:1px solid var(--rule-hair);vertical-align:top;font-size:13.5px}
+tbody tr:last-child td{border-bottom:0}
+.hov tbody tr:hover td{background:#fafbfc;cursor:pointer}
+tr.mo td{opacity:.62}
+.big-n{font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sub{font-size:12px;color:var(--ash-2);margin-top:3px}
+td .sub{white-space:nowrap}
+.ket .sub{white-space:normal}
+.sub-r{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.ck{width:17px;height:17px;border:1.5px solid var(--rule);border-radius:5px;display:inline-block;vertical-align:middle;background:var(--canvas);margin-top:10px}
+.ck.on{background:var(--charcoal);border-color:var(--charcoal);position:relative}
+.ck.on::after{content:"";position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.ck.tat{opacity:.3}
+.du-tt{display:grid;justify-items:end;gap:2px}
+.vts{display:flex;gap:6px;flex-wrap:wrap}
+.vt{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 10px 0 4px;border-radius:9px;border:1px solid var(--rule-soft);background:var(--canvas);font-size:12.5px;white-space:nowrap}
+.vt .q{color:var(--ash-2);font-variant-numeric:tabular-nums}
+.vt .s{width:7px;height:7px;border-radius:50%;background:var(--dot)}
+.ket{font-size:13px;color:var(--ink-2)}
+.ket .sub{margin-top:2px}
+
+/* ngăn phải */
+.dw{width:1180px;background:var(--canvas);border:1px solid var(--rule);border-radius:16px;box-shadow:var(--sh-dw);overflow:hidden}
+.dw-dau{padding:16px 28px 0}
+.dw-1{display:flex;align-items:center;gap:8px;color:var(--ash-2);font-size:12.5px}
+.dw-1 .end{margin-left:auto}
+.dw-t{display:flex;align-items:center;gap:16px;margin-top:6px}
+.dw-t h4{margin:0;font-size:23px;font-weight:600;letter-spacing:-.015em}
+.dw-t .phu{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center}
+.dw-t .hd{margin-left:auto;display:flex;gap:8px;align-self:flex-start;margin-top:6px}
+.dai{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin-top:20px;border:1px solid var(--rule-soft);border-radius:14px;overflow:hidden}
+.dai>div{padding:13px 16px;display:grid;gap:1px;border-left:1px solid var(--rule-hair);background:#fbfcfd}
+.dai>div:first-child{border-left:0}
+.dai .l{font-size:12px;color:var(--ash-2)}
+.dai .v{font-size:20px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.dai .g{font-size:12px;color:var(--ash-2)}
+.dai .kl{background:var(--bg)}
+.dai .kl .l,.dai .kl .g{color:var(--fg)}
+.dw-tab{display:flex;gap:2px;margin-top:18px;border-bottom:1px solid var(--rule-soft)}
+.dw-tab button{height:40px;padding:0 14px;border:0;background:none;color:var(--ash);font:inherit;font-size:13.5px;cursor:pointer;display:inline-flex;gap:7px;align-items:center;position:relative}
+.dw-tab button.on{color:var(--ink)}
+.dw-tab button.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;border-radius:2px;background:var(--charcoal)}
+.dw-tab em{font-style:normal;font-size:11.5px;background:var(--rule-hair);color:var(--ash);border-radius:99px;padding:0 7px}
+.dw-than{padding:20px 28px 26px;background:#fbfcfd}
+.dw-chan{border-top:1px solid var(--rule-soft);padding:14px 28px;display:flex;align-items:center;gap:8px}
+.dw-chan .xt{margin-right:auto;color:var(--ash);font-size:13px}
+.hai>.sec+.sec{margin-top:0}
+.hai{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:16px;align-items:start}
+.sec{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;overflow:hidden}
+.sec+.sec{margin-top:16px}
+.sec-h{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--rule-hair);font-size:14px}
+.sec-h .g{font-size:12.5px;color:var(--ash-2)}
+.sec-h .end{margin-left:auto}
+.sec table th{background:var(--canvas)}
+.sec td{vertical-align:middle;padding:12px 16px}
+.dm{padding:14px 16px;border-top:1px solid var(--rule-hair)}
+.dm:first-of-type{border-top:0}
+.dm .r1{display:flex;align-items:center;gap:8px}
+.dm .r1 .sl{margin-left:auto;font-size:15px;font-variant-numeric:tabular-nums}
+.dm .r2{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;font-size:12px;color:var(--ash-2)}
+.dm .tien{margin-top:9px}
+.dm .tien .bar{height:6px}
+.src{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);white-space:nowrap}
+.src .ico{color:var(--ash-2)}
+.ghi{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:var(--bg);color:var(--fg);font-size:13px;margin-bottom:16px}
+.ghi .ico{margin-top:2px}
+
+/* thẻ món trong ngăn lệnh */
+.mon{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;padding:16px 18px}
+.mon+.mon{margin-top:12px}
+.mon .r1{display:flex;align-items:center;gap:12px}
+.mon .r1 .hd{margin-left:auto;display:flex;gap:8px;align-items:center}
+.mon .so6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--rule-hair)}
+.mon .so6 div{display:grid;gap:1px}
+.mon .so6 span{font-size:12px;color:var(--ash-2)}
+.mon .so6 b{font-weight:500;font-size:15px;font-variant-numeric:tabular-nums}
+.mon .nguon{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:12.5px;color:var(--ash)}
+.mon .nguon span{display:inline-flex;gap:6px;align-items:center}
+.mon .nguon i.chip{font-style:normal}
+
+/* gantt vật tư của lệnh */
+.gt{position:relative;margin:4px 0 0}
+.gt-r{display:grid;grid-template-columns:200px minmax(0,1fr);align-items:center;min-height:40px;border-top:1px solid var(--rule-hair)}
+.gt-r:first-child{border-top:0}
+.gt-r .tn{font-size:13px;display:flex;gap:8px;align-items:center}
+.gt-r .tr{position:relative;height:40px}
+.gt-thang{display:grid;grid-template-columns:200px minmax(0,1fr);font-size:11px;color:var(--ash-3)}
+.gt-thang .tr{position:relative;height:18px}
+.gt-thang .tr span{position:absolute;transform:translateX(-50%)}
+.gt .vach{position:absolute;top:0;bottom:0;width:0;border-left:1.5px dashed var(--rule)}
+.gt .vach.nay{border-left:2px solid var(--charcoal)}
+.gt .vach.han{border-left:2px solid var(--tt-do-dot)}
+.gt .doan{position:absolute;top:13px;height:14px;border-radius:7px}
+.gt .doan.cho{background:repeating-linear-gradient(-45deg,#fde68a 0 5px,#fef3c7 5px 10px)}
+.gt .doan.co{background:var(--tt-la-dot)}
+.gt .doan.khong{background:repeating-linear-gradient(-45deg,#fecaca 0 5px,#fee2e2 5px 10px)}
+.gt .moc{position:absolute;top:8px;transform:translateX(-50%);font-size:11px;white-space:nowrap;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:6px;padding:1px 6px;color:var(--ink-2)}
+
+/* B: chia đôi */
+.split{display:grid;grid-template-columns:380px minmax(0,1fr);background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;overflow:hidden;box-shadow:var(--sh-1)}
+.ds{border-right:1px solid var(--rule-soft);background:#fbfcfd}
+.ds-h{padding:12px 14px;border-bottom:1px solid var(--rule-soft)}
+.ds-h .search{width:100%}
+.ds-nhom{padding:14px 16px 6px;font-size:12px;color:var(--ash-2);display:flex;gap:8px;align-items:center}
+.ds-nhom i{width:8px;height:8px;border-radius:50%;background:var(--dot)}
+.ds-nhom em{font-style:normal;margin-left:auto;color:var(--ash-3)}
+.it{margin:2px 8px;padding:11px 12px;border-radius:11px;border:1px solid transparent;cursor:pointer}
+.it:hover{background:var(--rule-hair)}
+.it.on{background:var(--canvas);border-color:var(--rule);box-shadow:var(--sh-1)}
+.it .r1{display:flex;align-items:center;gap:10px}
+.it .t{flex:1;min-width:0}
+.it .t1{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .t2{font-size:12px;color:var(--ash-2)}
+.it .n{text-align:right;font-size:12.5px;white-space:nowrap}
+.it .bar{margin-top:9px;height:5px}
+.ct{padding:22px 26px 26px;min-width:0}
+.ct-h{display:flex;gap:16px;align-items:center}
+.ct-h h5{margin:0;font-size:21px;font-weight:600;letter-spacing:-.01em}
+.ct-h .hd{margin-left:auto;display:flex;gap:8px}
+.chart{border:1px solid var(--rule-soft);border-radius:14px;padding:14px 16px 8px;background:var(--canvas)}
+.chart .tt{display:flex;align-items:baseline;gap:10px;font-size:13px;color:var(--ash)}
+.chart .tt b{font-weight:500;color:var(--ink);font-size:15px}
+
+/* C: bảng cột */
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start}
+.col{background:#eef2f6;border-radius:14px;padding:10px;min-height:440px}
+.col-h{display:flex;align-items:center;gap:8px;padding:4px 6px 10px;font-size:13px}
+.col-h i{width:8px;height:8px;border-radius:50%;background:var(--dot)}
+.col-h em{font-style:normal;color:var(--ash-2);font-size:12px;background:var(--canvas);border-radius:99px;padding:0 8px}
+.col-h .g{margin-left:auto;font-size:12px;color:var(--ash-2)}
+.kc{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:14px;box-shadow:var(--sh-1)}
+.kc+.kc{margin-top:10px}
+.kc .r1{display:flex;gap:10px;align-items:flex-start}
+.kc .r1 .t{flex:1;min-width:0}
+.kc .t2{font-size:12px;color:var(--ash-2)}
+.kc .lon{display:flex;align-items:baseline;gap:6px;margin:12px 0 8px}
+.kc .lon b{font-weight:500;font-size:22px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.kc .lon span{font-size:12.5px;color:var(--ash-2)}
+.kc .khoi{margin-top:12px;padding-top:10px;border-top:1px solid var(--rule-hair)}
+.kc .khoi .l{font-size:11.5px;color:var(--ash-2);margin-bottom:6px}
+.kc .don{grid-template-columns:8px 1fr auto;font-size:12px}
+.kc .hang{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 0}
+.kc .hang .q{margin-left:auto;color:var(--ash-2);font-variant-numeric:tabular-nums}
+.kc .hang .s{width:7px;height:7px;border-radius:50%;background:var(--dot);flex:none}
+.kc .ft{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
+.trong{border:1.5px dashed var(--rule);border-radius:12px;padding:22px 10px;text-align:center;color:var(--ash-3);font-size:12.5px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-kem" viewBox="0 0 24 24"><rect x="4.5" y="3" width="15" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+  <symbol id="i-keo" viewBox="0 0 24 24"><path d="M12 3.5s6 6.4 6 10.8a6 6 0 0 1-12 0C6 9.9 12 3.5 12 3.5z"/><path d="M9.5 15a2.5 2.5 0 0 0 2.5 2.5"/></symbol>
+  <symbol id="i-mang" viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="m3 13 9 5 9-5"/></symbol>
+  <symbol id="i-xe" viewBox="0 0 24 24"><path d="M3 6h11v10H3zM14 9h4l3 3.5V16h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/></symbol>
+  <symbol id="i-lenh" viewBox="0 0 24 24"><path d="M3 21V10l6 4v-4l6 4V5h6v16z"/></symbol>
+  <symbol id="i-kho" viewBox="0 0 24 24"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/></symbol>
+  <symbol id="i-gio" viewBox="0 0 24 24"><path d="M3 4h2l2.4 11h11L21 7H6.1"/><circle cx="9" cy="19.5" r="1.4"/><circle cx="18" cy="19.5" r="1.4"/></symbol>
+  <symbol id="i-ok" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
+  <symbol id="i-loi" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.3"/></symbol>
+  <symbol id="i-dh" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></symbol>
+  <symbol id="i-tim" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="i-loc" viewBox="0 0 24 24"><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-ra" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-khach" viewBox="0 0 24 24"><path d="M4 21V5.5L12 3v18M12 9h8v12M3 21h18M8 8v.01M8 12v.01M8 16v.01M16 13v.01M16 17v.01"/></symbol>
+  <symbol id="i-lich" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-khoa" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9.5" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-chong" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></symbol>
+  <symbol id="i-lua" viewBox="0 0 24 24"><path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.2 1-3.6 2-4.5.3 1.6 1.2 2.5 2 2.5-1-3 0-6 1-8z"/></symbol>
+</svg>
+
+<div class="page">
+
+<h1>Kế hoạch vật tư: 3 phương án làm lại</h1>
+<p class="lead">Lần này mỗi màn trả lời đủ câu hỏi của người lo vật tư chứ không chỉ "thiếu hay đủ". Số liệu thật của DB dev ngày 07/10: 5 lệnh, 4 mặt hàng, 7 đơn mua đang chạy của 3 nhà cung cấp.</p>
+
+<div class="box">
+  <h2>Thông tin mới đưa lên màn (dữ liệu đã có sẵn trong hệ thống, trước nay không hiện)</h2>
+  <ul>
+    <li><span class="k">Đơn mua đang chạy của từng món:</span> mã đơn, nhà cung cấp, trạng thái (nháp, chờ duyệt, đã duyệt, đã đặt), số lượng, ngày hẹn về, đã về bao nhiêu. Ví dụ keo nhiệt thiếu 3 kg cho LSX26-0003: yêu cầu YCMH-261007-45DR đã thành đơn DMH-261007-RV39 nhưng đơn còn nháp, ngày cần ghi 07/10 là hôm nay. Việc phải làm là gửi duyệt đơn đó, không phải lập đề nghị mới.</li>
+    <li><span class="k">Sau khi các đơn về hết còn bao nhiêu:</span> bản kẽm cần 36 nhưng 3 đơn đang lo 248, tức sẽ dư 212. Người lo vật tư thấy ngay chỗ có thể đang đặt chồng.</li>
+    <li><span class="k">Lịch 30 ngày tới:</span> ngày từng đơn về đặt cạnh hạn giao từng lệnh trên một trục.</li>
+    <li><span class="k">Việc cần lo hôm nay:</span> chỉ những việc đang sống, mỗi việc có nút làm ngay.</li>
+    <li><span class="k">Ở lệnh:</span> trạng thái lệnh, đã xếp lịch chưa, ngày sớm nhất xếp được, giữ chỗ từ ngày nào, lệnh gấp, kẹt ở món nào và vì sao, từng món dùng ở công đoạn nào, số đang lĩnh.</li>
+    <li><span class="k">Ở mặt hàng:</span> đã cấp, giữ từ kho, giữ từ hàng về, chưa ai giữ, nhà cung cấp quen, lệnh cần sớm nhất.</li>
+    <li><span class="k">Bỏ:</span> Live Sync, Độ phủ %, 4 thẻ số lặp lại, Bảng/Thẻ, "Chọn 1 dòng thiếu", "Mở khóa", "Chờ bù tồn", viền một cạnh, dấu chấm giữa nối mã, mã đơn bị cắt "+3". Không có cột tiền (màn mở cho vai Kế hoạch SX).</li>
+  </ul>
+</div>
+
+<div class="box">
+  <h2>Tham khảo</h2>
+  <ul>
+    <li>A: Katana MRP (đèn In stock / Expected / Not available và ô Inventory Intel kèm danh sách đơn mua), Shopify Polaris (bảng thưa, việc cần làm đặt trên đầu trang).</li>
+    <li>B: Linear (danh sách trái, chi tiết phải, gom theo việc), Microsoft Business Central (Item Availability by Event: tồn dự kiến theo từng sự kiện cung cầu).</li>
+    <li>C: bảng cột của Linear và Notion, SAP Fiori Monitor Material Coverage (gom món theo mức thiếu, thấy còn bao lâu thì hụt).</li>
+  </ul>
+</div>
+
+<div class="optnav">
+  <button data-o="a" class="on">A. Bàn làm việc có lịch 30 ngày</button>
+  <button data-o="b">B. Danh sách và chi tiết cạnh nhau</button>
+  <button data-o="c">C. Bảng cột theo việc</button>
+</div>
+
+<!-- =========================================================== A -->
+<section class="opt on" data-o="a">
+<h2 class="opt-h">A. Bàn làm việc có lịch 30 ngày</h2>
+<p class="opt-lead">Đầu trang trả lời "hôm nay phải làm gì" và "30 ngày tới hàng về lúc nào, lệnh giao lúc nào". Dưới là bảng đủ thông tin cung và cầu của từng món. Bấm dòng mở ngăn phải như các màn khác.</p>
+
+<div class="scr">
+  <div class="scr-h"><h3>A1. Theo mặt hàng</h3></div>
+  <p class="why">Cột "Đơn mua đang chạy" liệt kê đủ mã, trạng thái, số, ngày hẹn, không cắt. Cột "Sau khi đơn về" cho biết dư hay thiếu khi mọi đơn đã lập đều về.</p>
+  <div class="scroll"><div class="app">
+    <div class="app-h">
+      <h4>Kế hoạch vật tư</h4><span class="hom">thứ Tư 07/10</span>
+      <div class="sp"></div>
+      <div class="gom"><span class="on">Theo mặt hàng <i class="d"></i></span><span>Theo lệnh</span></div>
+    </div>
+
+    <div class="top">
+      <div class="pn">
+        <div class="pn-h">Việc cần lo<span class="g">3 việc</span></div>
+        <div class="viec t-do"><span class="ic"><svg class="ico"><use href="#i-loi"/></svg></span><div class="nd"><div class="t1">Keo nhiệt thiếu 3 kg</div><div class="t2">Đơn RV39 lập cho LSX26-0003 còn nháp. Ngày cần ghi hôm nay.</div></div><button class="btn btn--sm">Mở đơn</button></div>
+        <div class="viec t-vang"><span class="ic"><svg class="ico"><use href="#i-chong"/></svg></span><div class="nd"><div class="t1">Bản kẽm đặt 248, chỉ cần 36</div><div class="t2">3 đơn của Phương Nam và Hoà Bình. Xem có đặt chồng không.</div></div><button class="btn btn--sm">Xem đơn</button></div>
+        <div class="viec t-la"><span class="ic"><svg class="ico"><use href="#i-lich"/></svg></span><div class="nd"><div class="t1">LSX26-0004 chạy được từ 21/10</div><div class="t2">Đủ vật tư khi đơn 337Y về.</div></div><button class="btn btn--sm">Xếp lịch</button></div>
+      </div>
+      <div class="pn">
+        <div class="pn-h">30 ngày tới<span class="end"><span class="tag">07/10 đến 06/11</span></span></div>
+        <div class="lich">
+          <div class="truc"></div>
+          <div class="nay" style="left:0%"><span>hôm nay 07/10</span></div>
+          <span class="tk" style="left:23.3%">14/10</span><span class="tk" style="left:46.7%">21/10</span><span class="tk" style="left:70%">28/10</span><span class="tk" style="left:100%">06/11</span>
+          <div class="ev tren t-cam" style="left:6.7%"><div class="p">Kẽm 80<small>45AS chờ duyệt</small></div><i class="o"></i></div>
+          <div class="ev tren t-cam" style="left:26.7%"><div class="p">Keo 1.000 kg<small>MCG1 chờ duyệt</small></div><i class="o"></i></div>
+          <div class="ev tren t-xanh" style="left:46.7%"><div class="p">Kẽm 68 Màng mờ 9.500<small>337Y đã đặt</small></div><i class="o"></i></div>
+          <div class="ev tren t-cham" style="left:83.3%"><div class="p">Kẽm 100<small>D4QC đã duyệt</small></div><i class="o"></i></div>
+          <div class="ev duoi lenh t-xam" style="left:66.7%"><i class="o"></i><div class="p">giao 27/10<small>0005 0006</small></div></div>
+          <div class="ev duoi lenh lech t-do" style="left:76.7%"><i class="o"></i><div class="p">giao 30/10<small>0002 gấp</small></div></div>
+          <div class="ev duoi lenh t-xam" style="left:100%"><i class="o"></i><div class="p">giao 06/11<small>0003 0004</small></div></div>
+        </div>
+        <div class="chu-giai"><span class="t-xanh"><i></i>đã đặt</span><span class="t-cham"><i></i>đã duyệt</span><span class="t-cam"><i></i>chờ duyệt</span><span class="t-xam"><i></i>hạn giao lệnh</span></div>
+      </div>
+    </div>
+
+    <div class="tool">
+      <div class="seg"><span class="on">Tất cả <em>4</em></span><span class="t-do"><i></i>Thiếu <em>1</em></span><span class="t-vang"><i></i>Chờ hàng về <em>2</em></span><span class="t-xam"><i></i>Đã cấp đủ <em>1</em></span></div>
+      <div class="sp"></div>
+      <div class="search"><svg class="ico"><use href="#i-tim"/></svg>Tìm mặt hàng, mã lệnh, mã đơn</div>
+      <button class="btn"><svg class="ico"><use href="#i-loc"/></svg>Lọc</button>
+    </div>
+    <div class="card"><table class="hov">
+      <thead><tr><th style="width:44px"></th><th style="width:250px">Mặt hàng</th><th class="r" style="width:150px">Còn cần</th><th style="width:190px">Nguồn hàng cho lệnh</th><th>Đơn mua đang chạy</th><th class="r" style="width:130px">Sau khi đơn về</th><th style="width:170px">Trạng thái</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="ck on"></span></td>
+          <td><div class="mh"><div class="av t-cam"><svg class="ico"><use href="#i-keo"/></svg></div><div class="t"><div>Keo nhiệt (vào gáy sách)</div><div class="t2">KEO-NHIET</div></div></div></td>
+          <td class="r"><span class="big-n">3</span><span class="u">kg</span><div class="sub">1 lệnh cần 06/11</div></td>
+          <td><div class="bar" style="margin-top:7px"><i class="thieu" style="width:100%"></i></div><div class="lg-r"><span class="c-thieu">thiếu <b>3</b></span></div></td>
+          <td><div class="dons"><div class="don t-xam"><i></i><span class="ma">DMH-261007-RV39</span><span class="sl">3</span><span class="ng">nháp</span></div><div class="don t-cam"><i></i><span class="ma">DMH-261007-MCG1</span><span class="sl">1.000</span><span class="ng">chờ duyệt</span></div></div></td>
+          <td class="r"><div class="du-tt"><span class="big-n">+1.000</span><span class="sub">nếu đơn được duyệt</span></div></td>
+          <td><span class="chip t-do">Thiếu</span><div class="sub">đơn còn nháp</div></td>
+        </tr>
+        <tr>
+          <td><span class="ck tat"></span></td>
+          <td><div class="mh"><div class="av t-cham"><svg class="ico"><use href="#i-kem"/></svg></div><div class="t"><div>Bản kẽm CTP</div><div class="t2">KEM-CTP</div></div></div></td>
+          <td class="r"><span class="big-n">36</span><span class="u">bản kẽm</span><div class="sub">2 lệnh cần 06/11</div><div class="sub">đã cấp 12</div></td>
+          <td><div class="bar" style="margin-top:7px"><i class="ve" style="width:100%"></i></div><div class="lg-r"><span class="c-ve">giữ từ hàng về <b>36</b></span></div></td>
+          <td><div class="dons"><div class="don t-xanh"><i></i><span class="ma">DMH-261007-337Y</span><span class="sl">68</span><span class="ng">về 21/10</span></div><div class="don t-cham"><i></i><span class="ma">DMH-261007-D4QC</span><span class="sl">100</span><span class="ng">hẹn 01/11</span></div><div class="don t-cam"><i></i><span class="ma">DMH-261007-45AS</span><span class="sl">80</span><span class="ng">chờ duyệt</span></div></div></td>
+          <td class="r"><div class="du-tt"><span class="big-n amb">+212</span><span class="sub">gấp 7 lần cần</span></div></td>
+          <td><span class="chip t-vang">Chờ hàng về 21/10</span></td>
+        </tr>
+        <tr>
+          <td><span class="ck tat"></span></td>
+          <td><div class="mh"><div class="av t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></div><div class="t"><div>Màng cán mờ</div><div class="t2">MANG-MO</div></div></div></td>
+          <td class="r"><span class="big-n">106,65</span><span class="u">m²</span><div class="sub">1 lệnh cần 06/11</div></td>
+          <td><div class="bar" style="margin-top:7px"><i class="ve" style="width:100%"></i></div><div class="lg-r"><span class="c-ve">giữ từ hàng về <b>106,65</b></span></div></td>
+          <td><div class="dons"><div class="don t-xanh"><i></i><span class="ma">DMH-261007-337Y</span><span class="sl">9.500</span><span class="ng">về 21/10</span></div><div class="don t-cam"><i></i><span class="ma">DMH-261007-MCG1</span><span class="sl">6.500</span><span class="ng">chờ duyệt</span></div></div></td>
+          <td class="r"><div class="du-tt"><span class="big-n">+15.893</span><span class="sub">m²</span></div></td>
+          <td><span class="chip t-vang">Chờ hàng về 21/10</span></td>
+        </tr>
+        <tr class="mo">
+          <td><span class="ck tat"></span></td>
+          <td><div class="mh"><div class="av t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></div><div class="t"><div>Màng cán bóng</div><div class="t2">MANG-BONG</div></div></div></td>
+          <td class="r"><span class="big-n">0</span><span class="u">m²</span><div class="sub">đã cấp 362,61</div></td>
+          <td><div class="bar" style="margin-top:7px"><i class="cap" style="width:100%"></i></div><div class="lg-r"><span class="c-cap">đã cấp <b>362,61</b></span></div></td>
+          <td><div class="dons"><div class="don t-xanh"><i></i><span class="ma">DMH-261007-NCB1</span><span class="sl">10.000</span><span class="ng">về 21/10</span></div><div class="don t-cam"><i></i><span class="ma">DMH-261007-MCG1</span><span class="sl">4.000</span><span class="ng">chờ duyệt</span></div></div></td>
+          <td class="r"><div class="du-tt"><span class="big-n">+14.000</span><span class="sub">m² để tồn</span></div></td>
+          <td><span class="chip t-xam">Đã cấp đủ</span></td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div></div>
+</div>
+
+<div class="scr">
+  <div class="scr-h"><h3>A2. Ngăn mặt hàng Bản kẽm CTP</h3></div>
+  <p class="why">Dải 6 số đọc từ trái sang phải đúng phép cân đối, ô cuối là kết luận. Thân ngăn chia hai: bên trái lệnh nào cần và đang được giữ từ đâu, bên phải từng đơn mua với tiến độ đã về.</p>
+  <div class="scroll"><div class="dw">
+    <div class="dw-dau">
+      <div class="dw-1">Kế hoạch vật tư <span class="end"><button class="iconbtn"><svg class="ico"><use href="#i-x"/></svg></button></span></div>
+      <div class="dw-t">
+        <div class="av lg t-cham"><svg class="ico"><use href="#i-kem"/></svg></div>
+        <div><h4>Bản kẽm CTP</h4><div class="phu"><span class="chip t-vang">Chờ hàng về 21/10</span><span class="tag">KEM-CTP</span><span class="tag">đơn vị bản kẽm</span><span class="tag">kho đếm theo bản kẽm</span></div></div>
+        <div class="hd"><button class="btn"><svg class="ico s"><use href="#i-gio"/></svg>Đề nghị mua</button></div>
+      </div>
+      <div class="dai">
+        <div><span class="l">Còn cần</span><span class="v">36</span><span class="g">2 lệnh</span></div>
+        <div><span class="l">Đã cấp</span><span class="v">12</span><span class="g">3 lệnh xong</span></div>
+        <div><span class="l">Tồn kho</span><span class="v">0</span><span class="g">mọi kho</span></div>
+        <div><span class="l">Đã đặt, có ngày về</span><span class="v">68</span><span class="g">giữ 36 cho lệnh</span></div>
+        <div><span class="l">Đang lo, chưa đặt</span><span class="v">180</span><span class="g">2 đơn Hoà Bình</span></div>
+        <div class="kl t-vang"><span class="l">Sau khi đơn về</span><span class="v">dư 212</span><span class="g">không phải mua thêm</span></div>
+      </div>
+      <div class="dw-tab"><button class="on">Cung và cầu</button><button>Diễn biến tồn</button><button>Đã cấp <em>3</em></button><button>Lịch sử</button></div>
+    </div>
+    <div class="dw-than">
+      <div class="hai">
+        <div class="sec">
+          <div class="sec-h">Lệnh cần<span class="g">xếp theo thứ tự được nhận hàng</span></div>
+          <table>
+            <thead><tr><th>Lệnh</th><th>Công đoạn</th><th>Hạn giao</th><th class="r">Cần</th><th>Đang giữ từ</th></tr></thead>
+            <tbody>
+              <tr><td><a class="lk">LSX26-0003</a><div class="sub">Ruột sách A5 64 trang</div><div class="sub">BIBICA</div></td><td>In 4 màu<div class="sub">máy IN-03</div></td><td>06/11<div class="sub">còn 30 ngày</div></td><td class="r"><span class="big-n">32</span></td><td><span class="src"><svg class="ico s"><use href="#i-xe"/></svg>đơn 337Y</span><div class="sub">về 21/10</div></td></tr>
+              <tr><td><a class="lk">LSX26-0004</a><div class="sub">Bìa sách A5</div><div class="sub">BIBICA</div></td><td>In 4 màu<div class="sub">máy IN-03</div></td><td>06/11<div class="sub">còn 30 ngày</div></td><td class="r"><span class="big-n">4</span></td><td><span class="src"><svg class="ico s"><use href="#i-xe"/></svg>đơn 337Y</span><div class="sub">về 21/10</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="sec">
+          <div class="sec-h">Đơn mua đang chạy<span class="g">3 đơn</span></div>
+          <div class="dm">
+            <div class="r1"><a class="lk">DMH-261007-337Y</a><span class="chip chip--sm t-xanh">Đã đặt</span><span class="sl">68</span></div>
+            <div class="r2"><span>Tổng hợp In ấn Phương Nam</span><span class="tag">về 21/10</span><span class="tag">đã về 0/68</span></div>
+            <div class="tien"><div class="bar"><i class="ve" style="width:53%"></i></div><div class="lg-r"><span class="c-ve">giữ cho 2 lệnh <b>36</b></span><span class="c-cap">chưa ai giữ <b>32</b></span></div></div>
+          </div>
+          <div class="dm">
+            <div class="r1"><a class="lk">DMH-261007-D4QC</a><span class="chip chip--sm t-cham">Đã duyệt</span><span class="sl">100</span></div>
+            <div class="r2"><span>Vật tư in Hoà Bình</span><span class="tag">hẹn 01/11</span><span class="tag">chưa gắn lệnh</span></div>
+          </div>
+          <div class="dm">
+            <div class="r1"><a class="lk">DMH-261007-45AS</a><span class="chip chip--sm t-cam">Chờ duyệt</span><span class="sl">80</span></div>
+            <div class="r2"><span>Vật tư in Hoà Bình</span><span class="tag">cần 10/10</span><span class="tag">chưa gắn lệnh</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dw-chan"><span class="xt">Đủ cho mọi lệnh nếu đơn DMH-261007-337Y về đúng 21/10</span><button class="btn">Đóng</button></div>
+  </div></div>
+</div>
+
+<div class="scr">
+  <div class="scr-h"><h3>A3. Theo lệnh</h3></div>
+  <p class="why">Mỗi dòng trả lời ba câu: lệnh đang ở đâu (trạng thái, lịch), thiếu gì (các món với chấm màu), kẹt vì sao (một câu, có mã đơn). Lệnh gấp có cờ lửa ngay cạnh mã.</p>
+  <div class="scroll"><div class="app">
+    <div class="app-h">
+      <h4>Kế hoạch vật tư</h4><span class="hom">thứ Tư 07/10</span>
+      <div class="sp"></div>
+      <div class="gom"><span>Theo mặt hàng <i class="d"></i></span><span class="on">Theo lệnh</span></div>
+    </div>
+    <div class="tool">
+      <div class="seg"><span class="on">Tất cả <em>5</em></span><span class="t-do"><i></i>Còn thiếu <em>1</em></span><span class="t-vang"><i></i>Chờ hàng về <em>1</em></span><span class="t-xam"><i></i>Đã cấp đủ <em>3</em></span><span class="t-cam"><i></i>Giữ lâu chưa chạy <em>0</em></span></div>
+      <div class="sp"></div>
+      <div class="search"><svg class="ico"><use href="#i-tim"/></svg>Tìm mã lệnh, khách, mặt hàng</div>
+      <button class="btn"><svg class="ico"><use href="#i-loc"/></svg>Lọc</button>
+    </div>
+    <div class="card"><table class="hov">
+      <thead><tr><th>Lệnh</th><th>Khách và hạn giao</th><th>Lệnh đang ở</th><th>Vật tư</th><th>Kẹt ở đâu</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        <tr>
+          <td>LSX26-0003<div class="sub">Ruột sách A5 64 trang</div><div class="sub">1.000 cuốn</div></td>
+          <td>BIBICA<div class="sub">giao 06/11 còn 30 ngày</div></td>
+          <td><span class="chip chip--sm t-xanh">Sẵn sàng</span><div class="sub">chưa xếp lịch</div><div class="sub">giữ chỗ từ 07/10</div></td>
+          <td><div class="vts"><span class="vt"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP<span class="q">32</span><i class="s t-vang"></i></span><span class="vt"><span class="av xs t-cam"><svg class="ico"><use href="#i-keo"/></svg></span>Keo nhiệt<span class="q">3 kg</span><i class="s t-do"></i></span></div></td>
+          <td class="ket">Keo nhiệt 3 kg<div class="sub">đơn RV39 còn nháp, cần hàng hôm nay</div></td>
+          <td><span class="chip t-do">Còn thiếu</span></td>
+          <td class="r"><button class="btn btn--sm">Mở đơn</button></td>
+        </tr>
+        <tr>
+          <td>LSX26-0004<div class="sub">Bìa sách A5</div><div class="sub">1.000 cuốn</div></td>
+          <td>BIBICA<div class="sub">giao 06/11 còn 30 ngày</div></td>
+          <td><span class="chip chip--sm t-xanh">Sẵn sàng</span><div class="sub">xếp lịch được từ 21/10</div><div class="sub">giữ chỗ từ 07/10</div></td>
+          <td><div class="vts"><span class="vt"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP<span class="q">4</span><i class="s t-vang"></i></span><span class="vt"><span class="av xs t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></span>Màng cán mờ<span class="q">106,65 m²</span><i class="s t-vang"></i></span></div></td>
+          <td class="ket">Chờ đơn 337Y<div class="sub">Phương Nam hẹn về 21/10</div></td>
+          <td><span class="chip t-vang">Chờ hàng về 21/10</span></td>
+          <td class="r"><button class="btn btn--sm">Xếp lịch</button></td>
+        </tr>
+        <tr class="mo">
+          <td><span class="nw">LSX26-0002 <span class="chip chip--sm t-do">Gấp</span></span><div class="sub">Hộp kem 50ml</div><div class="sub">5.000 cái</div></td>
+          <td>Cao Lợi Hưng<div class="sub">giao 30/10 còn 23 ngày</div></td>
+          <td><span class="chip chip--sm t-tim">Đã phát hành</span></td>
+          <td><div class="vts"><span class="vt"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP<span class="q">4</span></span><span class="vt"><span class="av xs t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></span>Màng cán bóng<span class="q">362,61 m²</span></span></div></td>
+          <td class="muted">Kho đã cấp đủ</td>
+          <td><span class="chip t-xam">Đã cấp đủ</span></td><td></td>
+        </tr>
+        <tr class="mo">
+          <td>LSX26-0005<div class="sub">Tờ rơi A4 4/4</div><div class="sub">3.000 tờ</div></td>
+          <td>Katinat<div class="sub">giao 27/10 còn 20 ngày</div></td>
+          <td><span class="chip chip--sm t-tim">Đã phát hành</span></td>
+          <td><div class="vts"><span class="vt"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP<span class="q">4</span></span></div></td>
+          <td class="muted">Kho đã cấp đủ</td>
+          <td><span class="chip t-xam">Đã cấp đủ</span></td><td></td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div></div>
+</div>
+
+<div class="scr">
+  <div class="scr-h"><h3>A4. Ngăn lệnh LSX26-0003</h3></div>
+  <p class="why">Trên cùng là biểu đồ "từng món có hàng từ ngày nào" so với hôm nay và hạn giao: thấy ngay món nào kéo lùi cả lệnh. Dưới là thẻ từng món với 6 số giữ chỗ và đơn mua đang lo cho món đó.</p>
+  <div class="scroll"><div class="dw">
+    <div class="dw-dau">
+      <div class="dw-1">Kế hoạch vật tư <span class="end"><button class="iconbtn"><svg class="ico"><use href="#i-x"/></svg></button></span></div>
+      <div class="dw-t">
+        <div class="av lg t-xam"><svg class="ico"><use href="#i-lenh"/></svg></div>
+        <div><h4>LSX26-0003</h4><div class="phu"><span class="chip t-do">Còn thiếu</span><span class="tag">Ruột sách A5 64 trang</span><span class="tag">1.000 cuốn</span><span class="tag"><svg class="ico s"><use href="#i-khach"/></svg>BIBICA</span><span class="tag"><svg class="ico s"><use href="#i-lich"/></svg>giao 06/11</span></div></div>
+        <div class="hd"><button class="btn"><svg class="ico s"><use href="#i-ra"/></svg>Mở lệnh</button></div>
+      </div>
+      <div class="dai">
+        <div><span class="l">Trạng thái lệnh</span><span class="v" style="font-size:16px">Sẵn sàng</span><span class="g">chưa phát hành</span></div>
+        <div><span class="l">Lịch chạy</span><span class="v" style="font-size:16px">Chưa xếp</span><span class="g">cửa xếp lịch đang khoá</span></div>
+        <div><span class="l">Giữ chỗ</span><span class="v" style="font-size:16px">Từ 07/10</span><span class="g">giữ 1 trên 2 món</span></div>
+        <div><span class="l">Hạn giao</span><span class="v" style="font-size:16px">06/11</span><span class="g">còn 30 ngày</span></div>
+        <div><span class="l">Món vật tư</span><span class="v" style="font-size:16px">2</span><span class="g">2 công đoạn</span></div>
+        <div class="kl t-do"><span class="l">Đủ vật tư từ</span><span class="v" style="font-size:16px">Chưa biết</span><span class="g">đơn keo còn nháp</span></div>
+      </div>
+      <div class="dw-tab"><button class="on">Vật tư <em>2</em></button><button>Lịch sử</button></div>
+    </div>
+    <div class="dw-than">
+      <div class="sec" style="padding:12px 18px 14px">
+        <div class="gt-thang"><span></span><div class="tr"><span style="left:0%">07/10</span><span style="left:46.7%">21/10</span><span style="left:100%">06/11</span></div></div>
+        <div class="gt">
+          <div class="gt-r"><div class="tn"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP</div><div class="tr"><i class="vach nay" style="left:0%"></i><i class="vach han" style="left:100%"></i><i class="doan cho" style="left:0%;width:46.7%"></i><i class="doan co" style="left:46.7%;width:53.3%"></i><span class="moc" style="left:46.7%">có hàng 21/10</span></div></div>
+          <div class="gt-r"><div class="tn"><span class="av xs t-cam"><svg class="ico"><use href="#i-keo"/></svg></span>Keo nhiệt</div><div class="tr"><i class="vach nay" style="left:0%"></i><i class="vach han" style="left:100%"></i><i class="doan khong" style="left:0%;width:100%"></i><span class="moc" style="left:50%">chưa có ngày về</span></div></div>
+        </div>
+        <div class="lg-r" style="margin-top:10px"><span style="--c:repeating-linear-gradient(-45deg,#fde68a 0 3px,#fef3c7 3px 6px)">chờ hàng</span><span style="--c:var(--tt-la-dot)">đã có hàng</span><span style="--c:#fecaca">chưa biết bao giờ có</span><span style="--c:var(--tt-do-dot)">hạn giao</span></div>
+      </div>
+      <div style="height:16px"></div>
+      <div class="mon">
+        <div class="r1"><div class="av t-cam"><svg class="ico"><use href="#i-keo"/></svg></div><div><div>Keo nhiệt (vào gáy sách)</div><div class="sub">dùng ở Bắt tay + vào keo</div></div><div class="hd"><span class="chip t-do">Thiếu 3 kg</span><button class="btn btn--sm">Mở đơn RV39</button></div></div>
+        <div class="so6"><div><span>Cần</span><b>3 kg</b></div><div><span>Đã cấp</span><b class="muted">0</b></div><div><span>Đang lĩnh</span><b class="muted">0</b></div><div><span>Giữ từ kho</span><b class="muted">0</b></div><div><span>Giữ từ hàng về</span><b class="muted">0</b></div><div><span>Thiếu</span><b class="red">3 kg</b></div></div>
+        <div class="nguon"><span><i class="chip chip--sm t-xam">Nháp</i>DMH-261007-RV39 3 kg lập cho lệnh này từ YCMH-261007-45DR</span><span><i class="chip chip--sm t-cam">Chờ duyệt</i>DMH-261007-MCG1 1.000 kg Đông Á không gắn lệnh</span></div>
+      </div>
+      <div class="mon">
+        <div class="r1"><div class="av t-cham"><svg class="ico"><use href="#i-kem"/></svg></div><div><div>Bản kẽm CTP</div><div class="sub">dùng ở In 4 màu trên Máy in 5 màu Mitsubishi</div></div><div class="hd"><span class="chip t-vang">Chờ hàng về 21/10</span></div></div>
+        <div class="so6"><div><span>Cần</span><b>32</b></div><div><span>Đã cấp</span><b class="muted">0</b></div><div><span>Đang lĩnh</span><b class="muted">0</b></div><div><span>Giữ từ kho</span><b class="muted">0</b></div><div><span>Giữ từ hàng về</span><b>32</b></div><div><span>Thiếu</span><b class="muted">0</b></div></div>
+        <div class="nguon"><span><i class="chip chip--sm t-xanh">Đã đặt</i>DMH-261007-337Y của Phương Nam về 21/10</span></div>
+      </div>
+    </div>
+    <div class="dw-chan"><span class="xt">Gửi duyệt đơn keo RV39 và có ngày về thì lệnh mới có ngày đủ vật tư</span><button class="btn btn--ghost">Nhả chỗ giữ</button><button class="btn">Đóng</button></div>
+  </div></div>
+</div>
+</section>
+
+<!-- =========================================================== B -->
+<section class="opt" data-o="b">
+<h2 class="opt-h">B. Danh sách và chi tiết cạnh nhau</h2>
+<p class="opt-lead">Không mở ngăn: bấm món bên trái, chi tiết hiện ngay bên phải, đi qua cả loạt món rất nhanh. Bên phải đặt diễn biến tồn theo ngày lên trên cùng: hàng về cộng vào, lệnh lấy trừ ra theo thứ tự hạn, kèm đủ đơn mua và lệnh.</p>
+
+<div class="scr">
+  <div class="scr-h"><h3>B1. Theo mặt hàng, đang chọn Bản kẽm CTP</h3></div>
+  <p class="why">Mỗi món bên trái có thanh nhỏ và một câu ngắn. Bên phải: dải 6 số, biểu đồ tồn dự kiến có cả đơn đã đặt (đường liền) và đơn chưa chắc (đường nét đứt), rồi sổ sự kiện.</p>
+  <div class="scroll"><div class="app">
+    <div class="app-h"><h4>Kế hoạch vật tư</h4><span class="hom">thứ Tư 07/10</span><div class="sp"></div><div class="gom"><span class="on">Theo mặt hàng <i class="d"></i></span><span>Theo lệnh</span></div></div>
+    <div class="split">
+      <div class="ds">
+        <div class="ds-h"><div class="search"><svg class="ico"><use href="#i-tim"/></svg>Tìm mặt hàng, mã lệnh, mã đơn</div></div>
+        <div class="ds-nhom t-do"><i></i>Thiếu<em>1</em></div>
+        <div class="it"><div class="r1"><div class="av sm t-cam"><svg class="ico"><use href="#i-keo"/></svg></div><div class="t"><div class="t1">Keo nhiệt (vào gáy sách)</div><div class="t2">đơn RV39 còn nháp</div></div><div class="n red">thiếu 3 kg</div></div><div class="bar"><i class="thieu" style="width:100%"></i></div></div>
+        <div class="ds-nhom t-vang"><i></i>Chờ hàng về<em>2</em></div>
+        <div class="it on"><div class="r1"><div class="av sm t-cham"><svg class="ico"><use href="#i-kem"/></svg></div><div class="t"><div class="t1">Bản kẽm CTP</div><div class="t2">36 cho 2 lệnh</div></div><div class="n amb">về 21/10</div></div><div class="bar"><i class="ve" style="width:100%"></i></div></div>
+        <div class="it"><div class="r1"><div class="av sm t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></div><div class="t"><div class="t1">Màng cán mờ</div><div class="t2">106,65 m² cho 1 lệnh</div></div><div class="n amb">về 21/10</div></div><div class="bar"><i class="ve" style="width:100%"></i></div></div>
+        <div class="ds-nhom t-xam"><i></i>Đã cấp đủ<em>1</em></div>
+        <div class="it"><div class="r1"><div class="av sm t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></div><div class="t"><div class="t1">Màng cán bóng</div><div class="t2">362,61 m² đã cấp</div></div><div class="n muted">xong</div></div><div class="bar"><i class="cap" style="width:100%"></i></div></div>
+      </div>
+      <div class="ct">
+        <div class="ct-h"><div class="av lg t-cham"><svg class="ico"><use href="#i-kem"/></svg></div><div><h5>Bản kẽm CTP</h5><div style="display:flex;gap:8px;margin-top:6px"><span class="chip t-vang">Chờ hàng về 21/10</span><span class="tag">KEM-CTP</span><span class="tag">Phương Nam</span><span class="tag">Hoà Bình</span></div></div><div class="hd"><button class="btn"><svg class="ico s"><use href="#i-gio"/></svg>Đề nghị mua</button></div></div>
+        <div class="dai">
+          <div><span class="l">Còn cần</span><span class="v">36</span><span class="g">2 lệnh</span></div>
+          <div><span class="l">Đã cấp</span><span class="v">12</span><span class="g">3 lệnh</span></div>
+          <div><span class="l">Tồn kho</span><span class="v">0</span></div>
+          <div><span class="l">Đã đặt</span><span class="v">68</span><span class="g">về 21/10</span></div>
+          <div><span class="l">Chưa đặt</span><span class="v">180</span><span class="g">2 đơn</span></div>
+          <div class="kl t-vang"><span class="l">Sau cùng</span><span class="v">dư 212</span></div>
+        </div>
+        <div class="chart" style="margin-top:16px">
+          <div class="tt">Tồn dự kiến<b>thấp nhất 0</b>không ngày nào âm</div>
+          <svg viewBox="0 0 760 190" style="width:100%;height:190px;display:block">
+            <defs><linearGradient id="gB" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3b82f6" stop-opacity=".2"/><stop offset="1" stop-color="#3b82f6" stop-opacity="0"/></linearGradient></defs>
+            <line x1="34" y1="160" x2="750" y2="160" stroke="#e2e8f0"/>
+            <line x1="34" y1="105" x2="750" y2="105" stroke="#f1f5f9"/><line x1="34" y1="50" x2="750" y2="50" stroke="#f1f5f9"/>
+            <text x="0" y="164" font-size="11" fill="#94a3b8">0</text><text x="0" y="109" font-size="11" fill="#94a3b8">100</text><text x="0" y="54" font-size="11" fill="#94a3b8">200</text>
+            <path d="M34 160 H368 V122.6 H702 V142.4 H750 V160z" fill="url(#gB)"/>
+            <path d="M34 160 H82 V116 H368 V78.6 H630 V23.6 H702 V43.4 H750" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 5"/>
+            <path d="M34 160 H368 V122.6 H702 V142.4 H750" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
+            <circle cx="368" cy="122.6" r="5" fill="#fff" stroke="#22c55e" stroke-width="2.5"/>
+            <circle cx="702" cy="142.4" r="5" fill="#fff" stroke="#3b82f6" stroke-width="2.5"/>
+            <text x="376" y="138" font-size="11.5" fill="#15803d">+68 đơn 337Y về</text>
+            <text x="90" y="110" font-size="11.5" fill="#64748b">+80 nếu 45AS được duyệt</text>
+            <text x="500" y="18" font-size="11.5" fill="#64748b">+100 đơn D4QC hẹn 01/11</text>
+            <text x="612" y="156" font-size="11.5" fill="#475569">−36 hai lệnh</text>
+            <text x="34" y="182" font-size="11" fill="#94a3b8">07/10</text><text x="350" y="182" font-size="11" fill="#94a3b8">21/10</text><text x="610" y="182" font-size="11" fill="#94a3b8">01/11</text><text x="706" y="182" font-size="11" fill="#94a3b8">06/11</text>
+          </svg>
+          <div class="lg-r" style="margin:0 0 6px"><span style="--c:#3b82f6">chỉ tính đơn đã đặt</span><span style="--c:#94a3b8">tính cả đơn chưa đặt</span></div>
+        </div>
+        <div class="hai" style="margin-top:16px">
+          <div class="sec">
+            <div class="sec-h">Lệnh cần</div>
+            <table><tbody>
+              <tr><td><a class="lk">LSX26-0003</a><div class="sub">In 4 màu</div></td><td>BIBICA<div class="sub">giao 06/11</div></td><td class="r"><span class="big-n">32</span></td><td><span class="chip chip--sm t-vang">giữ từ 337Y</span></td></tr>
+              <tr><td><a class="lk">LSX26-0004</a><div class="sub">In 4 màu</div></td><td>BIBICA<div class="sub">giao 06/11</div></td><td class="r"><span class="big-n">4</span></td><td><span class="chip chip--sm t-vang">giữ từ 337Y</span></td></tr>
+            </tbody></table>
+          </div>
+          <div class="sec">
+            <div class="sec-h">Đơn mua</div>
+            <div class="dm"><div class="r1"><a class="lk">DMH-261007-337Y</a><span class="chip chip--sm t-xanh">Đã đặt</span><span class="sl">68</span></div><div class="r2"><span>Phương Nam</span><span class="tag">về 21/10</span></div></div>
+            <div class="dm"><div class="r1"><a class="lk">DMH-261007-D4QC</a><span class="chip chip--sm t-cham">Đã duyệt</span><span class="sl">100</span></div><div class="r2"><span>Hoà Bình</span><span class="tag">hẹn 01/11</span></div></div>
+            <div class="dm"><div class="r1"><a class="lk">DMH-261007-45AS</a><span class="chip chip--sm t-cam">Chờ duyệt</span><span class="sl">80</span></div><div class="r2"><span>Hoà Bình</span><span class="tag">cần 10/10</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<div class="scr">
+  <div class="scr-h"><h3>B2. Theo lệnh, đang chọn LSX26-0003</h3></div>
+  <p class="why">Bên trái mỗi lệnh có dòng chữ trả lời "chạy được từ ngày nào". Bên phải là biểu đồ vật tư của lệnh, thẻ từng món, và nút đúng việc nằm ở món kẹt.</p>
+  <div class="scroll"><div class="app">
+    <div class="app-h"><h4>Kế hoạch vật tư</h4><span class="hom">thứ Tư 07/10</span><div class="sp"></div><div class="gom"><span>Theo mặt hàng <i class="d"></i></span><span class="on">Theo lệnh</span></div></div>
+    <div class="split">
+      <div class="ds">
+        <div class="ds-h"><div class="search"><svg class="ico"><use href="#i-tim"/></svg>Tìm mã lệnh, khách</div></div>
+        <div class="ds-nhom t-do"><i></i>Còn thiếu<em>1</em></div>
+        <div class="it on"><div class="r1"><div class="t"><div class="t1">LSX26-0003 Ruột sách A5</div><div class="t2">BIBICA giao 06/11</div></div><div class="n red">kẹt keo</div></div></div>
+        <div class="ds-nhom t-vang"><i></i>Chờ hàng về<em>1</em></div>
+        <div class="it"><div class="r1"><div class="t"><div class="t1">LSX26-0004 Bìa sách A5</div><div class="t2">BIBICA giao 06/11</div></div><div class="n amb">chạy được 21/10</div></div></div>
+        <div class="ds-nhom t-xam"><i></i>Đã cấp đủ<em>3</em></div>
+        <div class="it"><div class="r1"><div class="t"><div class="t1">LSX26-0002 Hộp kem 50ml <span class="chip chip--sm t-do">Gấp</span></div><div class="t2">Cao Lợi Hưng giao 30/10</div></div><div class="n muted">đã phát hành</div></div></div>
+        <div class="it"><div class="r1"><div class="t"><div class="t1">LSX26-0005 Tờ rơi A4 4/4</div><div class="t2">Katinat giao 27/10</div></div><div class="n muted">đã phát hành</div></div></div>
+        <div class="it"><div class="r1"><div class="t"><div class="t1">LSX26-0006 Tờ rơi A4 4/4</div><div class="t2">Katinat giao 27/10</div></div><div class="n muted">đã phát hành</div></div></div>
+      </div>
+      <div class="ct">
+        <div class="ct-h"><div><h5>LSX26-0003</h5><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><span class="chip t-do">Còn thiếu</span><span class="tag">Ruột sách A5 64 trang</span><span class="tag">1.000 cuốn</span><span class="tag">BIBICA</span><span class="tag">Sẵn sàng</span><span class="tag">chưa xếp lịch</span><span class="tag">giữ chỗ từ 07/10</span></div></div><div class="hd"><button class="btn btn--ghost">Nhả chỗ giữ</button><button class="btn"><svg class="ico s"><use href="#i-ra"/></svg>Mở lệnh</button></div></div>
+        <div class="sec" style="padding:12px 18px 14px;margin-top:16px">
+          <div class="gt-thang"><span></span><div class="tr"><span style="left:0%">07/10</span><span style="left:46.7%">21/10</span><span style="left:100%">06/11</span></div></div>
+          <div class="gt">
+            <div class="gt-r"><div class="tn"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP 32</div><div class="tr"><i class="vach nay" style="left:0%"></i><i class="vach han" style="left:100%"></i><i class="doan cho" style="left:0%;width:46.7%"></i><i class="doan co" style="left:46.7%;width:53.3%"></i><span class="moc" style="left:46.7%">có 21/10</span></div></div>
+            <div class="gt-r"><div class="tn"><span class="av xs t-cam"><svg class="ico"><use href="#i-keo"/></svg></span>Keo nhiệt 3 kg</div><div class="tr"><i class="vach nay" style="left:0%"></i><i class="vach han" style="left:100%"></i><i class="doan khong" style="left:0%;width:100%"></i><span class="moc" style="left:50%">chưa có ngày về</span></div></div>
+          </div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="mon">
+          <div class="r1"><div class="av sm t-cam"><svg class="ico"><use href="#i-keo"/></svg></div><div><div>Keo nhiệt 3 kg</div><div class="sub">Bắt tay + vào keo</div></div><div class="hd"><span class="chip t-do">Thiếu</span><button class="btn btn--sm">Mở đơn RV39</button></div></div>
+          <div class="nguon"><span><i class="chip chip--sm t-xam">Nháp</i>DMH-261007-RV39 3 kg lập cho lệnh này</span><span><i class="chip chip--sm t-cam">Chờ duyệt</i>DMH-261007-MCG1 1.000 kg không gắn lệnh</span></div>
+        </div>
+        <div class="mon">
+          <div class="r1"><div class="av sm t-cham"><svg class="ico"><use href="#i-kem"/></svg></div><div><div>Bản kẽm CTP 32</div><div class="sub">In 4 màu trên Máy in 5 màu Mitsubishi</div></div><div class="hd"><span class="chip t-vang">Giữ từ hàng về</span></div></div>
+          <div class="nguon"><span><i class="chip chip--sm t-xanh">Đã đặt</i>DMH-261007-337Y Phương Nam về 21/10</span></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+</section>
+
+<!-- =========================================================== C -->
+<section class="opt" data-o="c">
+<h2 class="opt-h">C. Bảng cột theo việc</h2>
+<p class="opt-lead">Bốn cột là bốn chặng của một món: Thiếu, Chờ hàng về, Có trong kho, Đã cấp. Thẻ đi dần sang phải khi được lo xong. Mỗi thẻ đủ số cần, nguồn hàng, đơn mua và lệnh. Nhìn một lần thấy cả xưởng đang kẹt ở đâu.</p>
+
+<div class="scr">
+  <div class="scr-h"><h3>C1. Theo mặt hàng</h3></div>
+  <p class="why">Đầu mỗi cột ghi tổng việc của cột. Thẻ có khối "Đơn mua" liệt kê đủ mã và trạng thái, khối "Lệnh" liệt kê lệnh cần. Bấm thẻ mở ngăn phải dùng khuôn A2.</p>
+  <div class="scroll"><div class="app">
+    <div class="app-h"><h4>Kế hoạch vật tư</h4><span class="hom">thứ Tư 07/10</span><div class="search" style="margin-left:18px"><svg class="ico"><use href="#i-tim"/></svg>Tìm mặt hàng, mã lệnh, mã đơn</div><div class="sp"></div><div class="gom"><span class="on">Theo mặt hàng <i class="d"></i></span><span>Theo lệnh</span></div></div>
+    <div class="board">
+      <div class="col t-do">
+        <div class="col-h"><i></i>Thiếu<em>1</em><span class="g">1 lệnh bị kẹt</span></div>
+        <div class="kc">
+          <div class="r1"><div class="av sm t-cam"><svg class="ico"><use href="#i-keo"/></svg></div><div class="t"><div>Keo nhiệt (vào gáy sách)</div><div class="t2">KEO-NHIET</div></div></div>
+          <div class="lon"><b class="red">3</b><span>kg còn thiếu</span></div>
+          <div class="bar"><i class="thieu" style="width:100%"></i></div>
+          <div class="khoi"><div class="l">Đơn mua</div><div class="dons"><div class="don t-xam"><i></i><span>DMH-261007-RV39</span><span class="ng">nháp cho lệnh</span></div><div class="don t-cam"><i></i><span>DMH-261007-MCG1</span><span class="ng">chờ duyệt</span></div></div></div>
+          <div class="khoi"><div class="l">Lệnh</div><div class="hang"><i class="s t-do"></i>LSX26-0003<span class="q">3 kg giao 06/11</span></div></div>
+          <div class="ft"><button class="btn btn--sm" style="width:100%">Mở đơn nháp RV39</button></div>
+        </div>
+      </div>
+      <div class="col t-vang">
+        <div class="col-h"><i></i>Chờ hàng về<em>2</em><span class="g">sớm nhất 21/10</span></div>
+        <div class="kc">
+          <div class="r1"><div class="av sm t-cham"><svg class="ico"><use href="#i-kem"/></svg></div><div class="t"><div>Bản kẽm CTP</div><div class="t2">KEM-CTP</div></div><span class="tag">dư 212</span></div>
+          <div class="lon"><b>36</b><span>bản kẽm cho 2 lệnh</span></div>
+          <div class="bar"><i class="ve" style="width:100%"></i></div>
+          <div class="khoi"><div class="l">Đơn mua</div><div class="dons"><div class="don t-xanh"><i></i><span>DMH-261007-337Y</span><span class="ng">về 21/10</span></div><div class="don t-cham"><i></i><span>DMH-261007-D4QC</span><span class="ng">hẹn 01/11</span></div><div class="don t-cam"><i></i><span>DMH-261007-45AS</span><span class="ng">chờ duyệt</span></div></div></div>
+          <div class="khoi"><div class="l">Lệnh</div><div class="hang"><i class="s t-vang"></i>LSX26-0003<span class="q">32</span></div><div class="hang"><i class="s t-vang"></i>LSX26-0004<span class="q">4</span></div></div>
+        </div>
+        <div class="kc">
+          <div class="r1"><div class="av sm t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></div><div class="t"><div>Màng cán mờ</div><div class="t2">MANG-MO</div></div><span class="tag">dư 15.893</span></div>
+          <div class="lon"><b>106,65</b><span>m² cho 1 lệnh</span></div>
+          <div class="bar"><i class="ve" style="width:100%"></i></div>
+          <div class="khoi"><div class="l">Đơn mua</div><div class="dons"><div class="don t-xanh"><i></i><span>DMH-261007-337Y</span><span class="ng">về 21/10</span></div><div class="don t-cam"><i></i><span>DMH-261007-MCG1</span><span class="ng">chờ duyệt</span></div></div></div>
+          <div class="khoi"><div class="l">Lệnh</div><div class="hang"><i class="s t-vang"></i>LSX26-0004<span class="q">106,65 m²</span></div></div>
+        </div>
+      </div>
+      <div class="col t-la">
+        <div class="col-h"><i></i>Có trong kho<em>0</em></div>
+        <div class="trong">Không món nào đang chờ kho cấp</div>
+      </div>
+      <div class="col t-xam">
+        <div class="col-h"><i></i>Đã cấp đủ<em>1</em></div>
+        <div class="kc" style="opacity:.8">
+          <div class="r1"><div class="av sm t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></div><div class="t"><div>Màng cán bóng</div><div class="t2">MANG-BONG</div></div></div>
+          <div class="lon"><b>362,61</b><span>m² đã cấp</span></div>
+          <div class="bar"><i class="cap" style="width:100%"></i></div>
+          <div class="khoi"><div class="l">Còn đang về để tồn</div><div class="dons"><div class="don t-xanh"><i></i><span>DMH-261007-NCB1</span><span class="ng">10.000 về 21/10</span></div><div class="don t-cam"><i></i><span>DMH-261007-MCG1</span><span class="ng">4.000 chờ duyệt</span></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div>
+
+<div class="scr">
+  <div class="scr-h"><h3>C2. Theo lệnh</h3></div>
+  <p class="why">Cùng bốn cột nhưng thẻ là lệnh: mã, sản phẩm, khách, hạn giao, trạng thái lệnh và lịch, từng món kèm chấm màu, câu "kẹt ở đâu" và nút đúng việc. Bấm thẻ mở ngăn phải dùng khuôn A4.</p>
+  <div class="scroll"><div class="app">
+    <div class="app-h"><h4>Kế hoạch vật tư</h4><span class="hom">thứ Tư 07/10</span><div class="search" style="margin-left:18px"><svg class="ico"><use href="#i-tim"/></svg>Tìm mã lệnh, khách, mặt hàng</div><div class="sp"></div><div class="gom"><span>Theo mặt hàng <i class="d"></i></span><span class="on">Theo lệnh</span></div></div>
+    <div class="board">
+      <div class="col t-do">
+        <div class="col-h"><i></i>Còn thiếu<em>1</em></div>
+        <div class="kc">
+          <div class="r1"><div class="t"><div>LSX26-0003</div><div class="t2">Ruột sách A5 64 trang 1.000 cuốn</div></div><span class="tag">06/11</span></div>
+          <div class="ft" style="margin-top:8px"><span class="tag"><svg class="ico s"><use href="#i-khach"/></svg>BIBICA</span><span class="tag">Sẵn sàng</span><span class="tag">chưa xếp lịch</span></div>
+          <div class="khoi"><div class="hang"><span class="av xs t-cam"><svg class="ico"><use href="#i-keo"/></svg></span>Keo nhiệt<span class="q">3 kg</span><i class="s t-do"></i></div><div class="hang"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP<span class="q">32</span><i class="s t-vang"></i></div></div>
+          <div class="khoi"><div class="l">Kẹt ở đâu</div><div style="font-size:12.5px">Keo nhiệt: đơn RV39 còn nháp, ngày cần ghi hôm nay.</div></div>
+          <div class="ft"><button class="btn btn--sm" style="width:100%">Mở đơn RV39</button></div>
+        </div>
+      </div>
+      <div class="col t-vang">
+        <div class="col-h"><i></i>Chờ hàng về<em>1</em></div>
+        <div class="kc">
+          <div class="r1"><div class="t"><div>LSX26-0004</div><div class="t2">Bìa sách A5 1.000 cuốn</div></div><span class="tag">06/11</span></div>
+          <div class="ft" style="margin-top:8px"><span class="tag"><svg class="ico s"><use href="#i-khach"/></svg>BIBICA</span><span class="tag">Sẵn sàng</span></div>
+          <div class="khoi"><div class="hang"><span class="av xs t-cham"><svg class="ico"><use href="#i-kem"/></svg></span>Bản kẽm CTP<span class="q">4</span><i class="s t-vang"></i></div><div class="hang"><span class="av xs t-ngoc"><svg class="ico"><use href="#i-mang"/></svg></span>Màng cán mờ<span class="q">106,65 m²</span><i class="s t-vang"></i></div></div>
+          <div class="khoi"><div class="l">Chạy được từ</div><div style="font-size:12.5px">21/10, khi đơn 337Y của Phương Nam về.</div></div>
+          <div class="ft"><button class="btn btn--sm" style="width:100%">Xếp lịch từ 21/10</button></div>
+        </div>
+      </div>
+      <div class="col t-la">
+        <div class="col-h"><i></i>Đủ vật tư<em>0</em></div>
+        <div class="trong">Chưa lệnh nào đủ mà chưa lĩnh</div>
+      </div>
+      <div class="col t-xam">
+        <div class="col-h"><i></i>Đã cấp đủ<em>3</em></div>
+        <div class="kc" style="opacity:.8"><div class="r1"><div class="t"><div>LSX26-0002 <span class="chip chip--sm t-do">Gấp</span></div><div class="t2">Hộp kem 50ml Cao Lợi Hưng</div></div><span class="tag">30/10</span></div></div>
+        <div class="kc" style="opacity:.8"><div class="r1"><div class="t"><div>LSX26-0005</div><div class="t2">Tờ rơi A4 4/4 Katinat</div></div><span class="tag">27/10</span></div></div>
+        <div class="kc" style="opacity:.8"><div class="r1"><div class="t"><div>LSX26-0006</div><div class="t2">Tờ rơi A4 4/4 Katinat</div></div><span class="tag">27/10</span></div></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+</section>
+
+<div class="box" style="margin-top:20px">
+  <h2>Gợi ý</h2>
+  <p>Tôi nghiêng về A: phần "Việc cần lo" và lịch 30 ngày trả lời câu hỏi đầu ngày, bảng vẫn cùng khuôn danh sách và ngăn phải như các màn khác. B hợp nếu người dùng hay đi lần lượt qua nhiều món. C đẹp khi ít món, sẽ chật khi mỗi cột có trên chục thẻ.</p>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.optnav button').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.optnav button').forEach(function(x){x.classList.toggle('on',x===b)});
+    document.querySelectorAll('.opt').forEach(function(s){s.classList.toggle('on',s.dataset.o===b.dataset.o)});
+  });
+});
+</script>
+</body>
+</html>

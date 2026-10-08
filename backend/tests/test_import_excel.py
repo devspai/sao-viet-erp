@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 
 from app.db import SessionLocal
 from app.models.audit import AuditLog
+from app.models.department import Department
 from app.models.role import SCOPE_ALL
 from app.models.vat_lieu_kho import VatTuInAn
 from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
@@ -38,6 +39,7 @@ from app.services.catalog_excel_specs import SPECS
 
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 TO_TEST = "Hành chính nhân sự"
+TO_SX_TEST = "Tổ thử Excel"
 
 
 # ======================================================================================
@@ -119,10 +121,16 @@ def _dem_nhat_ky() -> int:
 
 
 def _to() -> tuple[int, str, str]:
-    """`(id, mã, tên)` của một phòng ban có thật — FK của Công đoạn."""
+    """`(id, mã, tên)` của một TỔ có thật — tổ phụ trách của Công đoạn. Phải là nút lá khối Sản xuất
+    (07/10/2026); trước đó nền mượn phòng HCNS (`TO_TEST`) và server nhận mọi phòng ban."""
     db = SessionLocal()
     try:
-        d = DepartmentRepository(db).get_by_name(TO_TEST)
+        depts = DepartmentRepository(db)
+        d = depts.get_by_name(TO_SX_TEST)
+        if d is None:
+            d = Department(name=TO_SX_TEST, code="PB-XL-TO", la_san_xuat=True)
+            db.add(d)
+            db.commit()
         return d.id, d.code, d.name
     finally:
         db.close()

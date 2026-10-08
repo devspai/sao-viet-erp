@@ -43,6 +43,13 @@ class XuatGiayIn(BaseModel):
     so_to: float = Field(gt=0)
 
 
+class PhieuKhoNganOut(BaseModel):
+    id: int
+    ma: str
+    ngay: date
+    trang_thai: str
+
+
 class XuatGiayOut(BaseModel):
     id: int
     ma: str
@@ -51,6 +58,8 @@ class XuatGiayOut(BaseModel):
     kho_dai: int = 0
     so_to: float | None = None
     don_vi: str | None = None
+    # Phiếu xuất kho lập theo đề nghị này (bỏ phiếu huỷ) — kho xuất nhiều đợt thì nhiều phiếu.
+    phieu: list[PhieuKhoNganOut] = []
 
 
 class CapGiayKhoOut(BaseModel):
@@ -161,6 +170,8 @@ class GiaCongNgoaiOut(BaseModel):
     phieu_chi: PhieuChiNganOut | None = None
     # Máy chủ sẽ từ chối "Mở lại" vì lý do này (None = mở lại được / chưa chốt).
     ly_do_khong_mo_lai: str | None = None
+    # Máy chủ sẽ từ chối "Nhận hàng về" vì lý do này (trọn gói xưởng cấp giấy mà kho chưa xuất).
+    ly_do_khong_nhan_ve: str | None = None
     lich_su: list[LichSuOut] = []
     xuat_giay: XuatGiayOut | None = None
     cap_giay: CapGiayOut | None = None

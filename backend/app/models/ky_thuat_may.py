@@ -42,12 +42,13 @@ from ..db import Base
 # --- Phiếu sửa chữa: MỘT phiếu chạy từ lúc báo hỏng tới lúc sửa xong ---------------
 # Cố ý không tách "phiếu báo hỏng" và "phiếu sửa chữa": cùng một cái máy, cùng một lần hỏng, tách
 # hai chứng từ là bắt thợ nhập hai lần rồi tự đi nối lại.
+# Chỉ HAI trạng thái: còn mở → đã sửa xong. "Đang sửa" và "Chờ vật tư" đã gỡ (07/10/2026): ngăn
+# phiếu không còn nút nào chuyển tới hai nấc đó, chúng chỉ còn sống trong dữ liệu cũ — mg 0379 dồn
+# về `cho_sua`. Thiếu đồ gì thì ghi vào ô ghi chú tiến độ.
 TT_SC_CHO_SUA = "cho_sua"
-TT_SC_DANG_SUA = "dang_sua"
-TT_SC_CHO_VAT_TU = "cho_vat_tu"   # đã bắt tay vào nhưng thiếu đồ (lát này chỉ ghi chữ, chưa nối kho)
 TT_SC_DA_SUA_XONG = "da_sua_xong"
-TRANG_THAI_SUA_CHUA = (TT_SC_CHO_SUA, TT_SC_DANG_SUA, TT_SC_CHO_VAT_TU, TT_SC_DA_SUA_XONG)
-TT_SC_DANG_MO = (TT_SC_CHO_SUA, TT_SC_DANG_SUA, TT_SC_CHO_VAT_TU)
+TRANG_THAI_SUA_CHUA = (TT_SC_CHO_SUA, TT_SC_DA_SUA_XONG)
+TT_SC_DANG_MO = (TT_SC_CHO_SUA,)
 
 MUC_DO_NHE = "nhe"
 MUC_DO_TRUNG_BINH = "trung_binh"

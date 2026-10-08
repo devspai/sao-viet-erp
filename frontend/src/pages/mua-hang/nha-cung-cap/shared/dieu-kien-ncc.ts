@@ -1,5 +1,5 @@
 /** Điều kiện lọc của danh sách Nhà cung cấp (06/10/2026). Lọc ở máy chủ; thanh lọc chung lo giao diện. */
-import { CircleDot, Factory, Layers, Star } from "lucide-react";
+import { Factory, Layers, Star } from "lucide-react";
 
 import type { SupplierTongQuan, ThamSoLoc } from "../../../../api/client";
 import type { GiaTriUrl } from "../../../ke-toan/shared/urlMan";
@@ -49,21 +49,14 @@ export function locNccLenUrl(loc: LocNcc): GiaTriUrl {
   return { tt: loc.trang_thai, nhom: loc.nhom, sao: loc.sao, gia_cong: loc.gia_cong };
 }
 
-/** Số đếm lấy từ `/api/suppliers/tong-quan` (toàn danh mục) — màn đã nạp sẵn cho thanh đếm. */
+/** Số đếm lấy từ `/api/suppliers/tong-quan` (toàn danh mục) — màn đã nạp sẵn cho thanh đếm.
+ *  Trạng thái hợp tác KHÔNG có ở đây (07/10/2026): chọn ở dải lọc nhanh của thẻ lọc, vẫn ghi vào
+ *  `trang_thai` của bộ lọc này (một state, lên URL `tt`). */
 export function dieuKienNcc(tq: SupplierTongQuan | null): DieuKien<LocNcc>[] {
-  const trangThai: GiaTriDK[] = [
-    { value: "active", nhan: "Đang hợp tác", so: tq?.dang_hop_tac },
-    { value: "inactive", nhan: "Tạm ngừng hợp tác", so: tq?.tam_ngung },
-  ];
   const nhom: GiaTriDK[] = (tq?.nhom ?? [])
     .map((n) => ({ value: n.supplier_group, nhan: n.supplier_group, so: n.so_ncc }))
     .sort((a, b) => a.nhan.localeCompare(b.nhan, "vi"));
   return [
-    {
-      khoa: "trang_thai", nhan: "Trạng thái", icon: CircleDot, kieu: "mot", giaTri: trangThai,
-      doc: (l) => l.trang_thai,
-      ghi: (l, v) => ({ ...l, trang_thai: v as LocNcc["trang_thai"] }),
-    },
     {
       khoa: "nhom", nhan: "Nhóm nhà cung cấp", icon: Layers, kieu: "mot", tim: true, giaTri: nhom,
       doc: (l) => l.nhom,

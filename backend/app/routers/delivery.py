@@ -17,6 +17,7 @@ trong Hộp yêu cầu mà kho vẫn mở hằng ngày. Bắt kho được cấp
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Annotated
 
@@ -32,7 +33,7 @@ from ..realtime import hub
 from ..models.role import SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from ..repositories.customer_repo import CustomerRepository
-from ..repositories.delivery_repo import DeliveryRepository, LocChuyen, LocYeuCau
+from ..repositories.delivery_repo import HAN_YEU_CAU, DeliveryRepository, LocChuyen, LocYeuCau
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.order_repo import OrderRepository
 from ..repositories.xe_repo import MucKhoanKmRepository, XeRepository
@@ -237,6 +238,54 @@ def _ten_mat_hang(db: Session, cap: set[tuple[str, int]]) -> dict[tuple[str, int
     return ra
 
 
+def _ten_nguoi_nhieu(db: Session, user_ids: set[int | None]) -> dict[int, str | None]:
+    """`{user_id: tên}` trong MỘT truy vấn — tra `_ten_nguoi` cho từng dòng lịch sử là N+1."""
+    from sqlalchemy import select as _select
+
+    ids = {i for i in user_ids if i is not None}
+    if not ids:
+        return {}
+    return {int(r[0]): r[1] for r in db.execute(_select(User.id, User.name).where(User.id.in_(ids))).all()}
+
+
+def _hang_theo_yeu_cau(db: Session, svc: DeliveryService,
+                       request_ids: list[int]) -> dict[int, list[DeliveryRequestLineOut]]:
+    """Dòng hàng (tên, số yêu cầu, đã giao) của NHIỀU yêu cầu, gộp cả trang: 4 truy vấn bất kể bao
+    nhiêu chuyến — yêu cầu + dòng, mô tả dòng đơn, đã giao, tên mặt hàng kho. Bảng giao gắn vào
+    từng chuyến để ngăn chi tiết có bảng hàng ngay lúc mở (07/10/2026)."""
+    from sqlalchemy import select as _select
+
+    from ..models.order import OrderLine
+
+    reqs = svc.deliveries.requests_theo_ids(request_ids)
+    if not reqs:
+        return {}
+    dong = [ln for r in reqs for ln in r.lines]
+    mo_ta: dict[int, tuple[str, str]] = {}
+    olids = {ln.order_line_id for ln in dong}
+    if olids:
+        for r in db.execute(_select(OrderLine.id, OrderLine.description, OrderLine.don_vi_tinh)
+                            .where(OrderLine.id.in_(olids))).all():
+            mo_ta[int(r[0])] = (r[1] or "", r[2] or "")
+    da_giao = svc.deliveries.da_giao_theo_yeu_cau([r.id for r in reqs])
+    ten_kho = _ten_mat_hang(db, {(ln.hang_loai, ln.hang_id) for ln in dong
+                                 if ln.hang_loai and ln.hang_id is not None})
+    return {
+        r.id: [
+            DeliveryRequestLineOut(
+                id=ln.id, order_line_id=ln.order_line_id, qty=ln.qty,
+                mo_ta=mo_ta.get(ln.order_line_id, ("", ""))[0],
+                don_vi_tinh=mo_ta.get(ln.order_line_id, ("", ""))[1],
+                da_giao=int(da_giao.get(r.id, {}).get(ln.order_line_id, 0)),
+                hang_loai=ln.hang_loai, hang_id=ln.hang_id, dvt=ln.dvt,
+                hang_ten=ten_kho.get((ln.hang_loai or "", ln.hang_id or 0)),
+            )
+            for ln in r.lines
+        ]
+        for r in reqs
+    }
+
+
 def _dong_don(db: Session, order_id: int) -> dict[int, tuple[str, str]]:
     order = OrderRepository(db).get_by_id(order_id)
     if order is None:
@@ -244,7 +293,8 @@ def _dong_don(db: Session, order_id: int) -> dict[int, tuple[str, str]]:
     return {ln.id: (ln.description or "", ln.don_vi_tinh or "") for ln in order.lines}
 
 
-def _request_out(db: Session, svc: DeliveryService, req) -> DeliveryRequestOut:
+def _request_out(db: Session, svc: DeliveryService, req, *,
+                 so_lan_giao: int | None = None) -> DeliveryRequestOut:
     order = OrderRepository(db).get_by_id(req.order_id)
     mo_ta = _dong_don(db, req.order_id)
     da_giao = svc.deliveries.da_giao_cua_yeu_cau(req.id)
@@ -287,7 +337,8 @@ def _request_out(db: Session, svc: DeliveryService, req) -> DeliveryRequestOut:
             )
             for ln in req.lines
         ],
-        so_lan_giao=len(svc.deliveries.trips_cua_yeu_cau(req.id)),
+        so_lan_giao=(so_lan_giao if so_lan_giao is not None
+                     else len(svc.deliveries.trips_cua_yeu_cau(req.id))),
     )
 
 
@@ -309,26 +360,99 @@ def _cum_cua(cum: dict, order_line_id: int) -> dict:
 
 
 def _xe_cua(svc: DeliveryService, vehicle_id):
-    """Bản ghi xe của chuyến, hoặc None. Gói lại vì `_trip_out` hỏi hai lần (biển số + tên)."""
+    """Bản ghi xe của lượt, hoặc None."""
     if vehicle_id is None or svc.xe is None:
         return None
     return svc.xe.get(vehicle_id)
 
 
+def _theo_id(db: Session, model, ids) -> dict:
+    """`{id: bản ghi}` của một bảng trong MỘT truy vấn (id rỗng ⇒ không truy vấn)."""
+    from sqlalchemy import select as _select
+
+    ids = {int(i) for i in ids if i is not None}
+    if not ids:
+        return {}
+    return {r.id: r for r in db.execute(_select(model).where(model.id.in_(ids))).scalars().all()}
+
+
+@dataclass
+class _NapChuyen:
+    """Mọi thứ `_trip_out` cần ngoài bản thân chuyến, nạp GỘP cho cả trang (07/10/2026). Bảng giao
+    từng tốn ~26 truy vấn mỗi chuyến — đơn, khách, tài xế, phụ xe, xe, hai yêu cầu kho, phiếu kho,
+    người ghi sổ, lượt, giao thẳng — nay số truy vấn cố định dù trang bao nhiêu chuyến."""
+    don: dict
+    khach: dict
+    nhan_vien: dict
+    xe: dict
+    yc_xuat: dict       # trip_id → yêu cầu XUẤT còn sống
+    yc_tra: dict        # trip_id → yêu cầu NHẬP (trả hàng về) còn sống
+    phieu: dict         # stock_request_id → PhieuKhoOut
+    luot: dict          # trip_id → dict như `luot_cua_trip`
+    giao_thang: dict    # trip_id → GiaoThangOut
+
+
+def _nap_chuyen(db: Session, svc: DeliveryService, trips) -> _NapChuyen:
+    from ..models.customer import Customer
+    from ..models.employee import Employee
+    from ..models.order import Order
+    from ..models.xe import Xe
+
+    ids = [t.id for t in trips]
+    reqs = [t.request for t in trips if t.request is not None]
+    yc_xuat = svc.deliveries.yeu_cau_kho_cua_nhieu_chuyen(ids, "XUAT")
+    yc_tra = svc.deliveries.yeu_cau_kho_cua_nhieu_chuyen(ids, "NHAP")
+    phieu = svc.deliveries.phieu_kho_cua_nhieu_yeu_cau(
+        [y.id for y in (*yc_xuat.values(), *yc_tra.values())])
+    ten = _ten_nguoi_nhieu(db, {p.nguoi_ghi_so_id or p.nguoi_lap_id for p in phieu.values()})
+    return _NapChuyen(
+        don=_theo_id(db, Order, {r.order_id for r in reqs}),
+        khach=_theo_id(db, Customer, {r.customer_id for r in reqs}),
+        nhan_vien=_theo_id(db, Employee, {t.employee_id for t in trips}
+                           | {t.phu_xe_employee_id for t in trips}),
+        xe=_theo_id(db, Xe, {t.vehicle_id for t in trips}) if svc.xe is not None else {},
+        yc_xuat=yc_xuat,
+        yc_tra=yc_tra,
+        phieu={
+            rid: PhieuKhoOut(ma=p.ma, trang_thai=p.trang_thai, luc=p.ghi_so_luc or p.created_at,
+                             boi_ten=ten.get(p.nguoi_ghi_so_id or p.nguoi_lap_id))
+            for rid, p in phieu.items()
+        },
+        luot=svc.luot_cua_nhieu_trip(trips),
+        giao_thang=_giao_thang_nhieu(db, trips),
+    )
+
+
+def _trips_out(db: Session, svc: DeliveryService, trips, *, tong_km: dict | None = None,
+               hang: dict | None = None) -> list[TripOut]:
+    """Nhiều chuyến một lượt: nạp gộp một lần rồi dựng từng chuyến (`tong_km`/`hang` theo request_id)."""
+    nap = _nap_chuyen(db, svc, trips)
+    return [
+        _trip_out(db, svc, t, nap=nap,
+                  tong_km=(tong_km.get(t.request_id, t.km or 0) if tong_km is not None else None),
+                  hang=(hang.get(t.request_id) if hang is not None else None))
+        for t in trips
+    ]
+
+
 def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = None,
-              canh_bao: list[str] | None = None) -> TripOut:
-    req = svc.deliveries.get_request(trip.request_id)
-    order = OrderRepository(db).get_by_id(req.order_id) if req is not None else None
-    emp = EmployeeRepository(db).get_by_id(trip.employee_id)
-    khach = None
-    if req is not None and req.customer_id is not None:
-        kh = CustomerRepository(db).get_by_id(req.customer_id)
-        khach = getattr(kh, "name", None) if kh is not None else None
-    yc_kho = svc.yeu_cau_kho_cua_trip(trip.id)
-    yc_tra = svc.deliveries.yeu_cau_kho_cua_chuyen(trip.id, "NHAP")
+              canh_bao: list[str] | None = None,
+              hang: list[DeliveryRequestLineOut] | None = None,
+              nap: _NapChuyen | None = None) -> TripOut:
+    if nap is None:
+        nap = _nap_chuyen(db, svc, [trip])
+    req = trip.request
+    order = nap.don.get(req.order_id) if req is not None else None
+    emp = nap.nhan_vien.get(trip.employee_id)
+    kh = nap.khach.get(req.customer_id) if req is not None and req.customer_id is not None else None
+    khach = getattr(kh, "name", None) if kh is not None else None
     # Cùng luật `kho_da_lap_phieu` (yêu cầu còn sống ⇒ phiếu chưa huỷ), đọc một lần cho cả hai.
-    yc_xuat = svc.deliveries.yeu_cau_kho_cua_chuyen(trip.id, "XUAT")
-    phieu_xuat = _phieu_kho_out(db, svc, yc_xuat)
+    yc_xuat = nap.yc_xuat.get(trip.id)
+    yc_tra = nap.yc_tra.get(trip.id)
+    # `yeu_cau_kho_cua_trip`: không nối service kho thì coi như chưa gửi.
+    yc_kho = yc_xuat if svc.stock_requests is not None else None
+    phieu_xuat = nap.phieu.get(yc_xuat.id) if yc_xuat is not None else None
+    xe = nap.xe.get(trip.vehicle_id)
     return TripOut(
         id=trip.id,
         request_id=trip.request_id,
@@ -340,12 +464,10 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         employee_id=trip.employee_id,
         employee_name=getattr(emp, "full_name", None),
         phu_xe_employee_id=trip.phu_xe_employee_id,
-        phu_xe_name=getattr(
-            svc.employees.get_by_id(trip.phu_xe_employee_id) if trip.phu_xe_employee_id else None,
-            "full_name", None),
+        phu_xe_name=getattr(nap.nhan_vien.get(trip.phu_xe_employee_id), "full_name", None),
         vehicle_id=trip.vehicle_id,
-        xe_bien_so=getattr(_xe_cua(svc, trip.vehicle_id), "ma", None),
-        xe_ten=getattr(_xe_cua(svc, trip.vehicle_id), "ten", None),
+        xe_bien_so=getattr(xe, "ma", None),
+        xe_ten=getattr(xe, "ten", None),
         gio_lay_hang=trip.gio_lay_hang,
         gio_du_kien_giao=trip.gio_du_kien_giao,
         ghi_chu_phan_cong=trip.ghi_chu_phan_cong,
@@ -364,7 +486,7 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         kho_da_lap_phieu=phieu_xuat is not None,
         tra_hang_ma=getattr(yc_tra, "ma", None),
         tra_hang_trang_thai=getattr(yc_tra, "trang_thai", None),
-        luot=_luot_out(svc.luot_cua_trip(trip)),
+        luot=_luot_out(nap.luot.get(trip.id)),
         canh_bao=list(canh_bao or []),
         created_at=trip.created_at,
         dia_chi=getattr(req, "dia_chi", None),
@@ -374,40 +496,41 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         luu_y_giao=getattr(req, "ghi_chu", None),
         customer_po_no=getattr(order, "customer_po_no", None),
         phieu_xuat=phieu_xuat,
-        phieu_tra=_phieu_kho_out(db, svc, yc_tra),
-        giao_thang=_giao_thang_out(db, trip),
+        phieu_tra=nap.phieu.get(yc_tra.id) if yc_tra is not None else None,
+        giao_thang=nap.giao_thang.get(trip.id),
+        hang=hang or [],
     )
-
-
-def _phieu_kho_out(db: Session, svc: DeliveryService, yc) -> PhieuKhoOut | None:
-    """Phiếu kho thật lập theo yêu cầu kho `yc` (None khi chưa có yêu cầu / kho chưa lập)."""
-    if yc is None:
-        return None
-    p = svc.deliveries.phieu_kho_cua_yeu_cau(yc.id)
-    if p is None:
-        return None
-    ai = db.get(User, p.nguoi_ghi_so_id or p.nguoi_lap_id) if (p.nguoi_ghi_so_id or p.nguoi_lap_id) else None
-    return PhieuKhoOut(ma=p.ma, trang_thai=p.trang_thai, luc=p.ghi_so_luc or p.created_at,
-                       boi_ten=getattr(ai, "name", None))
 
 
 def _giao_thang_out(db: Session, trip) -> GiaoThangOut | None:
     """Chuyến do lần gia công ngoài ghi (nhà gia công giao thẳng) — SĐT đọc sống từ danh mục NCC."""
-    if not trip.gia_cong_ngoai_id:
-        return None
+    return _giao_thang_nhieu(db, [trip]).get(trip.id)
+
+
+def _giao_thang_nhieu(db: Session, trips) -> dict[int, GiaoThangOut]:
+    """`_giao_thang_out` cho nhiều chuyến: ba truy vấn (lần gia công, NCC, lệnh) khi trang có chuyến
+    giao thẳng, không truy vấn nào khi không có."""
     from ..models.gia_cong_ngoai import GiaCongNgoai
     from ..models.lsx import Lsx
     from ..models.purchase import Supplier
 
-    gcn = db.get(GiaCongNgoai, trip.gia_cong_ngoai_id)
-    if gcn is None:
-        return None
-    ncc = db.get(Supplier, gcn.nha_cung_cap_id) if gcn.nha_cung_cap_id else None
-    lsx = db.get(Lsx, gcn.lsx_id) if gcn.lsx_id else None
-    return GiaoThangOut(
-        gia_cong_ngoai_id=gcn.id, nha_cung_cap_ten=gcn.nha_cung_cap_ten or getattr(ncc, "name", None),
-        nha_cung_cap_sdt=getattr(ncc, "phone", None), lsx_id=gcn.lsx_id, lsx_ma=getattr(lsx, "ma", None),
-    )
+    gcn = _theo_id(db, GiaCongNgoai, {t.gia_cong_ngoai_id for t in trips if t.gia_cong_ngoai_id})
+    if not gcn:
+        return {}
+    ncc = _theo_id(db, Supplier, {g.nha_cung_cap_id for g in gcn.values() if g.nha_cung_cap_id})
+    lsx = _theo_id(db, Lsx, {g.lsx_id for g in gcn.values() if g.lsx_id})
+    ra: dict[int, GiaoThangOut] = {}
+    for t in trips:
+        g = gcn.get(t.gia_cong_ngoai_id) if t.gia_cong_ngoai_id else None
+        if g is None:
+            continue
+        n = ncc.get(g.nha_cung_cap_id) if g.nha_cung_cap_id else None
+        l = lsx.get(g.lsx_id) if g.lsx_id else None
+        ra[t.id] = GiaoThangOut(
+            gia_cong_ngoai_id=g.id, nha_cung_cap_ten=g.nha_cung_cap_ten or getattr(n, "name", None),
+            nha_cung_cap_sdt=getattr(n, "phone", None), lsx_id=g.lsx_id, lsx_ma=getattr(l, "ma", None),
+        )
+    return ra
 
 
 def _luot_out(d: dict | None) -> LuotXeTrongChuyenOut | None:
@@ -446,6 +569,7 @@ def danh_sach_yeu_cau(
     den_ngay: date | None = Query(None),
     moc: str = Query("tao", pattern="^(tao|can)$"),
     khach: int | None = Query(None),
+    han: str | None = Query(None, pattern="^(qua_han|hom_nay|ngay_mai|sau)$"),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=200),
 ):
@@ -456,7 +580,7 @@ def danh_sach_yeu_cau(
     # `cho_len_ke_hoach=True` (tab Yêu cầu giao) lọc ĐÚNG trạng thái tính "chờ lên kế hoạch" bằng
     # SQL (NOT EXISTS chuyến — xem `_dk_yeu_cau`) nên trang hoá thật, `total` khớp số dòng.
     # `order_id` đứng một mình (drawer đơn / màn Tạo yêu cầu, phạm vi 1 đơn) vẫn lấy TRỌN như cũ.
-    loc = LocYeuCau(q=q, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach)
+    loc = LocYeuCau(q=q, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach, han=han)
     phan_trang = order_id is None or cho_len_ke_hoach
     dk = dict(order_id=order_id, department_ids=dept_ids, created_by=nguoi_tao,
               chi_cho_len_ke_hoach=cho_len_ke_hoach, loc=loc)
@@ -467,7 +591,11 @@ def danh_sach_yeu_cau(
     )
     items = [_request_out(db, svc, r) for r in reqs]
     total = svc.deliveries.count_requests(**dk) if phan_trang else len(items)
-    return DeliveryRequestPage(items=items, total=total)
+    dem_han: dict[str, int] = {}
+    if cho_len_ke_hoach:
+        for h in HAN_YEU_CAU:
+            dem_han[h] = svc.deliveries.count_requests(**{**dk, "loc": replace(loc, han=h)})
+    return DeliveryRequestPage(items=items, total=total, dem_han=dem_han)
 
 
 def _pham_vi_yeu_cau(svc: DeliveryService, authz: AuthorizationService, user: User) -> dict:
@@ -503,15 +631,19 @@ def chi_tiet_yeu_cau(request_id: int, svc: Service, db: Db, authz: Authz, user: 
     except DeliveryError as e:
         raise _err(e)
     trips = svc.deliveries.trips_cua_yeu_cau(request_id)
-    lich_su: list[HistoryOut] = []
-    for t in trips:
-        for h in svc.deliveries.lich_su_cua_trip(t.id):
-            lich_su.append(HistoryOut(
-                id=h.id, tu_trang_thai=h.tu_trang_thai, den_trang_thai=h.den_trang_thai,
-                nguoi_thao_tac_id=h.nguoi_thao_tac_id,
-                nguoi_thao_tac_name=_ten_nguoi(db, h.nguoi_thao_tac_id),
-                luc=h.luc, ghi_chu=h.ghi_chu, ly_do=h.ly_do,
-            ))
+    # Lịch sử mọi chuyến + tên người thao tác: hai truy vấn cho cả yêu cầu (07/10/2026) — trước đây
+    # mỗi chuyến một truy vấn lịch sử, mỗi dòng lịch sử một truy vấn tên (N+1).
+    ls = svc.deliveries.lich_su_cua_cac_trip([t.id for t in trips])
+    ten = _ten_nguoi_nhieu(db, {h.nguoi_thao_tac_id for h in ls})
+    lich_su: list[HistoryOut] = [
+        HistoryOut(
+            id=h.id, tu_trang_thai=h.tu_trang_thai, den_trang_thai=h.den_trang_thai,
+            nguoi_thao_tac_id=h.nguoi_thao_tac_id,
+            nguoi_thao_tac_name=ten.get(h.nguoi_thao_tac_id) if h.nguoi_thao_tac_id is not None else None,
+            luc=h.luc, ghi_chu=h.ghi_chu, ly_do=h.ly_do,
+        )
+        for h in ls
+    ]
     # MỚI NHẤT LÊN ĐẦU (chủ chốt 20/08/2026). Vòng lặp trên gom theo TỪNG CHUYẾN rồi mới theo
     # thời gian, nên yêu cầu giao hai lần thì toàn bộ chuyến 1 nằm trên toàn bộ chuyến 2 — không
     # phải dòng thời gian thật, và việc vừa xảy ra lại bị chôn ở giữa.
@@ -520,8 +652,8 @@ def chi_tiet_yeu_cau(request_id: int, svc: Service, db: Db, authz: Authz, user: 
     # `id` thì hai dòng cùng giây đảo chỗ nhau mỗi lần mở màn.
     lich_su.sort(key=lambda h: (h.luc, h.id), reverse=True)
     return RequestDetailOut(
-        request=_request_out(db, svc, req),
-        trips=[_trip_out(db, svc, t) for t in trips],
+        request=_request_out(db, svc, req, so_lan_giao=len(trips)),
+        trips=_trips_out(db, svc, trips),
         lich_su=lich_su,
     )
 
@@ -698,8 +830,7 @@ def danh_sach_chuyen(svc: Service, db: Db, authz: Authz, user: Reader,
     )
     tong_km_map = svc.deliveries.tong_km_theo_yeu_cau([t.request_id for t in trips])
     return TripPage(
-        items=[_trip_out(db, svc, t, tong_km=tong_km_map.get(t.request_id, t.km or 0))
-               for t in trips],
+        items=_trips_out(db, svc, trips, tong_km=tong_km_map),
         total=total,
     )
 
@@ -793,15 +924,22 @@ def len_luot(body: LenLuotIn, svc: Service, db: Db, authz: Authz, user: Planner)
         db.rollback()
         raise _err(e)
     db.commit()
+    nap = svc.deliveries.trips_theo_ids([t.id for t in kq["trips"]])
     return LenLuotOut(
         luot_id=kq["luot"].id, code=kq["luot"].code, canh_bao=kq["canh_bao"],
-        trips=[_trip_out(db, svc, svc.deliveries.get_trip(t.id)) for t in kq["trips"]],
+        trips=_trips_out(db, svc, [nap[t.id] for t in kq["trips"] if t.id in nap]),
     )
 
 
-def _luot_chi_tiet_out(db: Session, svc: DeliveryService, kq: dict) -> LuotXeChiTietOut:
+def _luot_chi_tiet_out(db: Session, svc: DeliveryService, kq: dict,
+                       hang: dict[int, list[DeliveryRequestLineOut]] | None = None,
+                       nap: _NapChuyen | None = None) -> LuotXeChiTietOut:
     luot = kq["luot"]
-    xe = _xe_cua(svc, luot.vehicle_id)
+    if hang is None:
+        hang = _hang_theo_yeu_cau(db, svc, [t.request_id for t in kq["trips"]])
+    if nap is None:
+        nap = _nap_chuyen(db, svc, kq["trips"])
+    xe = nap.xe.get(luot.vehicle_id) or _xe_cua(svc, luot.vehicle_id)
     return LuotXeChiTietOut(
         id=luot.id, code=luot.code, ngay=luot.ngay, vehicle_id=luot.vehicle_id,
         xe_bien_so=getattr(xe, "ma", None), xe_ten=getattr(xe, "ten", None),
@@ -809,7 +947,7 @@ def _luot_chi_tiet_out(db: Session, svc: DeliveryService, kq: dict) -> LuotXeChi
         so_dong_ho_ve_kho=luot.so_dong_ho_ve_kho, ve_kho_luc=luot.ve_kho_luc,
         km_ve_kho=luot.km_ve_kho, goi_y_xuat_phat=kq["goi_y_xuat_phat"],
         so_dong_ho_gan_nhat=kq["so_dong_ho_gan_nhat"], cho_ve_kho=kq["cho_ve_kho"],
-        tong_km=kq["tong_km"], diem=[_trip_out(db, svc, t) for t in kq["trips"]],
+        tong_km=kq["tong_km"], diem=[_trip_out(db, svc, t, hang=hang.get(t.request_id), nap=nap) for t in kq["trips"]],
         so_cho_gui_kho=kq["so_cho_gui_kho"], so_cho_lay_hang=kq["so_cho_lay_hang"],
         so_cho_bat_dau=kq["so_cho_bat_dau"], so_dang_giao=kq["so_dang_giao"],
         created_at=luot.created_at,
@@ -851,6 +989,17 @@ def loc_tai_xe_bang_giao(svc: Service, authz: Authz, user: Reader) -> list[LuaCh
         "tai_xe", **_pham_vi_chuyen(svc, authz, user))]
 
 
+# Hàng lọc nhanh của tab Đơn giao hàng (07/10/2026): mỗi nhóm là một TẬP trạng thái chuyến — bấm
+# nhóm là đặt đúng tập đó vào ô "Trạng thái" của nút Lọc (một state lọc, không đẻ cái thứ hai).
+NHOM_TINH_TRANG: dict[str, tuple[str, ...]] = {
+    "chuan_bi": ("da_len_ke_hoach", "dang_chuan_bi", "da_lay_hang"),
+    "dang_giao": ("dang_giao",),
+    "da_giao": ("thanh_cong",),
+    "giao_thieu": ("giao_thieu",),
+    "that_bai": ("that_bai", "dang_tra_hang", "da_tra_hang"),
+}
+
+
 @router.get("/bang-giao", response_model=BangGiaoPage)
 def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
               q: str | None = Query(None, max_length=100),
@@ -875,22 +1024,31 @@ def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
         **pv, loc=loc, limit=size, offset=(page - 1) * size,
     )
     so_don = svc.deliveries.count_trips(**pv, loc=loc, latest_per_request=True)
-    le = [svc.deliveries.get_trip(i) for loai, i in khoi if loai == "chuyen"]
-    tong_km_map = svc.deliveries.tong_km_theo_yeu_cau([t.request_id for t in le if t is not None])
+    dem_tinh_trang = {
+        nhom: svc.deliveries.count_trips(**pv, loc=replace(loc, trang_thai=list(tts)), latest_per_request=True)
+        for nhom, tts in NHOM_TINH_TRANG.items()
+    }
+    le = svc.deliveries.trips_theo_ids([i for loai, i in khoi if loai == "chuyen"])
+    tong_km_map = svc.deliveries.tong_km_theo_yeu_cau([t.request_id for t in le.values()])
+    # Lượt vừa bị xoá giữa hai truy vấn / ngoài phạm vi thì vắng mặt — bỏ, đừng làm vỡ cả trang.
+    luot_kq = svc.chi_tiet_cac_luot([i for loai, i in khoi if loai == "luot"], actor=user, scope=scope)
+    # MỌI chuyến trên trang (lẻ + điểm của lượt) nạp gộp một lần: dòng hàng — để ngăn chi tiết có
+    # bảng hàng ngay lúc mở — và mọi thứ `_trip_out` cần. Số truy vấn không tăng theo số chuyến.
+    ca_trang = list(le.values()) + [t for kq in luot_kq.values() for t in kq["trips"]]
+    hang = _hang_theo_yeu_cau(db, svc, [t.request_id for t in ca_trang])
+    nap = _nap_chuyen(db, svc, ca_trang)
     items: list[BangGiaoItem] = []
     for loai, i in khoi:
         if loai == "luot":
-            try:
-                kq = svc.chi_tiet_luot(i, actor=user, scope=scope)
-            except DeliveryError:
-                continue   # lượt vừa bị xoá giữa hai truy vấn — bỏ, đừng làm vỡ cả trang
-            items.append(BangGiaoItem(luot=_luot_chi_tiet_out(db, svc, kq)))
+            if i in luot_kq:
+                items.append(BangGiaoItem(luot=_luot_chi_tiet_out(db, svc, luot_kq[i], hang, nap)))
         else:
-            t = svc.deliveries.get_trip(i)
+            t = le.get(i)
             if t is not None:
                 items.append(BangGiaoItem(
-                    trip=_trip_out(db, svc, t, tong_km=tong_km_map.get(t.request_id, t.km or 0))))
-    return BangGiaoPage(items=items, total=total, so_don=so_don)
+                    trip=_trip_out(db, svc, t, tong_km=tong_km_map.get(t.request_id, t.km or 0),
+                                   hang=hang.get(t.request_id), nap=nap)))
+    return BangGiaoPage(items=items, total=total, so_don=so_don, dem_tinh_trang=dem_tinh_trang)
 
 
 @router.post("/luot-xe/{luot_id}/yeu-cau-xuat-kho", response_model=CaLuotOut)

@@ -360,7 +360,6 @@ export function XepLichPage({
         <div className="xl__tieu-cum">
           <div className="xl__tieu">
             <h1>Xếp lịch</h1>
-            <p>Điều độ và lập tiến độ sản xuất lệnh</p>
           </div>
 
           <div className="xl-kpi-bar">

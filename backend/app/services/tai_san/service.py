@@ -43,7 +43,8 @@ from ...models.tai_san import (
     TaiSanChiPhi,
     TaiSanMoc,
 )
-from ...repositories.tai_san_repo import TaiSanRepository
+from ...repositories.loc_danh_sach import hom_nay_vn
+from ...repositories.tai_san_repo import NHOM_BO_PHAN, NHOM_LOAI, LocTaiSan, TaiSanRepository
 from ..bien_che import TRANG_THAI_DANG_LAM
 from .khau_hao import DongThang, Moc, lich_khau_hao, luy_ke_den, muc_thang, thang_truoc
 
@@ -140,6 +141,13 @@ def thang_da_tinh(hom_nay: date | None = None) -> tuple[int, int]:
     return thang_truoc(h.year, h.month)
 
 
+def thang_hien_tai(hom_nay: date | None = None) -> tuple[int, int]:
+    """Tháng ĐANG CHẠY theo giờ Việt Nam — cột "Mức trích tháng này". Khác `thang_da_tinh` (tháng
+    đã khép, dùng cho lũy kế): ở đây là tháng kế toán sắp ghi khấu hao."""
+    h = hom_nay or hom_nay_vn()
+    return h.year, h.month
+
+
 def _dau_thang(d: date) -> date:
     return date(d.year, d.month, 1)
 
@@ -192,6 +200,64 @@ class TaiSanService:
     def hao_mon_den(self, t: TaiSan, nam: int, thang: int) -> int:
         """Hao mòn lũy kế tính đến HẾT tháng (năm, tháng)."""
         return luy_ke_den(mocs_cua(t), nam, thang, ngay_giam=ngay_giam_cua(t))
+
+    def hao_mon_va_con_lai(self, t: TaiSan, nam: int, thang: int) -> tuple[int, int]:
+        """(hao mòn lũy kế, còn lại) của một dòng sổ. Đã thôi dùng: lũy kế chốt ở tháng thôi dùng
+        và còn lại = 0 (món đã ra khỏi xưởng); còn lại thì lũy kế tới hết (nam, thang)."""
+        if t.trang_thai == TT_DA_GIAM and t.ngay_giam is not None:
+            return self.hao_mon_den(t, t.ngay_giam.year, t.ngay_giam.month), 0
+        hao_mon = self.hao_mon_den(t, nam, thang)
+        return hao_mon, int(t.nguyen_gia or 0) - hao_mon
+
+    def muc_thang_nay(self, t: TaiSan, nam: int, thang: int) -> int:
+        """Mức trích của tháng (nam, thang) — 0 khi đã thôi dùng hoặc đã khấu hao hết."""
+        if t.trang_thai == TT_DA_GIAM:
+            return 0
+        return int(self.muc_thang(t, nam, thang)[0])
+
+    def tong_hop(
+        self, loc: LocTaiSan, nhom_theo: str, *, den_thang: tuple[int, int],
+        thang_nay: tuple[int, int],
+    ) -> dict:
+        """Dải số đầu màn + tổng theo nhóm, cộng trên CẢ bộ lọc (không chỉ trang đang xem).
+        `den_thang`: tháng cuối của lũy kế; `thang_nay`: tháng tính "mức trích tháng này".
+        Nhóm ra theo thứ tự của `nhom_theo` (repo đã sắp), `[]` khi không nhóm."""
+        tong = {"tong_gia": 0, "tong_hao_mon": 0, "tong_con_lai": 0, "tong_muc_thang": 0}
+        rows = self.repo.tat_ca_theo_loc(loc, nhom_theo)
+        ten_bp = (
+            self.repo.ten_cac_bo_phan({t.bo_phan_id for t in rows})
+            if nhom_theo == NHOM_BO_PHAN else {}
+        )
+        nhom: dict[str, dict] = {}
+        for t in rows:
+            gia = int(t.nguyen_gia or 0)
+            hao_mon, con_lai = self.hao_mon_va_con_lai(t, *den_thang)
+            muc = self.muc_thang_nay(t, *thang_nay)
+            tong["tong_gia"] += gia
+            tong["tong_hao_mon"] += hao_mon
+            tong["tong_con_lai"] += con_lai
+            tong["tong_muc_thang"] += muc
+            if nhom_theo == NHOM_LOAI:
+                khoa, ten = (
+                    (LOAI_CCDC, "Công cụ dụng cụ") if t.loai == LOAI_CCDC
+                    else (LOAI_TSCD, "Tài sản cố định")
+                )
+            elif nhom_theo == NHOM_BO_PHAN:
+                ten = ten_bp.get(t.bo_phan_id)
+                khoa = str(t.bo_phan_id) if ten else "chua_gan"
+                ten = ten or "Chưa gán bộ phận"
+            else:
+                continue
+            g = nhom.setdefault(khoa, {
+                "khoa": khoa, "ten": ten, "so": 0, "nguyen_gia": 0, "hao_mon": 0,
+                "con_lai": 0, "muc_thang": 0,
+            })
+            g["so"] += 1
+            g["nguyen_gia"] += gia
+            g["hao_mon"] += hao_mon
+            g["con_lai"] += con_lai
+            g["muc_thang"] += muc
+        return {**tong, "nhom": list(nhom.values())}
 
     def hao_mon_hien_tai(self, t: TaiSan, hom_nay: date | None = None) -> int:
         """Hao mòn lũy kế tới nay = tới hết tháng trước."""

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -33,12 +34,35 @@ class SupplierItemIn(BaseModel):
     unit_price: int = Field(gt=0)
     vat_percent: float = Field(default=0, ge=0, le=100)
     note: str | None = Field(default=None, max_length=2000)
+    # DẠNG BÁN giấy (07/10/2026): `to` + đủ hai cạnh khổ, hoặc `cuon` (khổ rộng tuỳ chọn, 0 = mọi
+    # khổ). Bắt buộc với dòng giấy; vật tư khác bị ép None · 0 · 0.
+    dang_ban: Literal["to", "cuon"] | None = None
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def _dang_giay(self):
+        if self.hang_loai == "giay":
+            if self.dang_ban is None:
+                raise ValueError("Dòng giá giấy phải chọn dạng bán: Tờ hoặc Cuộn.")
+            if self.dang_ban == "to":
+                if not (self.kho_rong and self.kho_dai):
+                    raise ValueError("Giấy bán tờ phải đủ hai cạnh khổ.")
+                self.kho_rong, self.kho_dai = chuan_kho(self.kho_rong, self.kho_dai)
+            else:
+                self.kho_rong, self.kho_dai = chuan_kho(self.kho_rong or self.kho_dai, 0)
+        else:
+            self.dang_ban, self.kho_rong, self.kho_dai = None, 0, 0
+        return self
 
 
 class SupplierItemImportRow(BaseModel):
     """Một mặt hàng ĐỌC ĐƯỢC từ file — chưa vào DB, mới chỉ nạp vào form."""
 
     item_name: str
+    dang_ban: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     unit: str
     unit_price: int
     vat_percent: float
@@ -93,6 +117,9 @@ class SupplierItemRow(BaseModel):
     hang_loai: str | None = None
     hang_id: int | None = None
     item_name: str
+    dang_ban: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     unit: str
     unit_price: int
     vat_percent: float
@@ -185,6 +212,9 @@ class SoGiaRow(BaseModel):
     supplier_id: int
     supplier_name: str
     supplier_item_id: int
+    dang_ban: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
     unit: str                 # MÃ đơn vị NCC bán (ram, thung, cai…)
     unit_ten: str | None = None  # TÊN có dấu để hiển thị ("thùng", "cái"); None = trùng mã / không tra được
     unit_price: int           # giá theo đơn vị đó
@@ -268,6 +298,9 @@ class YeuCauMuaNguonLenhIn(BaseModel):
     lsx_id: int | None = Field(default=None, gt=0)
     bai_ghep_id: int | None = Field(default=None, gt=0)
     buoc_id: int | None = Field(default=None, gt=0)
+    #: Số đề nghị cho dòng này, đơn vị gốc của mặt hàng (mg 0378). Đơn mua lập từ yêu cầu chia
+    #: "phần đặt cho lệnh" theo số này. Thiếu ⇒ chia theo số cần hiện tại của ô.
+    so_luong: float | None = Field(default=None, ge=0)
 
 
 class DepartmentPurchaseRequestIn(BaseModel):
@@ -284,6 +317,8 @@ class DepartmentPurchaseRequestIn(BaseModel):
     # Chỉ đọc lúc TẠO (mg 0325). Form sửa không gửi, và có gửi thì cũng bỏ qua: "mua cho lệnh nào"
     # là sự thật lúc lập, sửa số lượng không đổi nó.
     nguon_lenh: list[YeuCauMuaNguonLenhIn] = Field(default_factory=list, max_length=500)
+    #: Loại mua (08/10/2026): theo_yeu_cau | mua_ton. `cho_lsx` máy chủ tự đặt khi có `nguon_lenh`.
+    loai_mua: str | None = Field(default=None, max_length=16)
 
 
 class PurchaseRequestIn(BaseModel):
@@ -354,6 +389,16 @@ class PurchaseActivityOut(BaseModel):
     created_at: datetime
 
 
+class MuaChoLenhOut(BaseModel):
+    """Một lệnh (hoặc bài ghép) mà món / dòng đơn mua này mua cho — cột "Mua cho" (08/10/2026)."""
+
+    loai: str  # lsx | bai
+    id: int
+    ma: str
+    #: Số đề nghị cho lệnh này, đơn vị gốc của dòng yêu cầu. None = liên kết lập trước mg 0378.
+    so_luong: float | None = None
+
+
 class PurchaseRequestLineOut(BaseModel):
     id: int
     item_name: str
@@ -382,9 +427,10 @@ class PurchaseRequestLineOut(BaseModel):
     #: Khổ MUA (mm) — giấy tờ; vật tư khác 0 · 0. Nhập kho từ đợt giao chép sang yêu cầu nhập.
     kho_rong: int = 0
     kho_dai: int = 0
-    # Dòng YCMH đẻ ra dòng này. Form SỬA đơn dựng lại payload từ chính bản trả về, nên thiếu nó ở
-    # đây là sửa đơn một cái làm ĐỨT liên kết mặt hàng (server hết đường kế thừa lại).
-    department_request_line_id: int | None = None
+    #: Mua cho: loại mua + yêu cầu của món mà dòng trỏ tới, và các lệnh. None = dòng không nối món.
+    loai_mua: str | None = None
+    yeu_cau_ma: str | None = None
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
 
 
 class LineFulfilmentOut(BaseModel):
@@ -428,6 +474,8 @@ class DepartmentPurchaseRequestLineOut(BaseModel):
     # ⇒ giao diện vẫn BÀY nút, chỉ khoá lại và in đúng câu này (đừng ẩn nút — khoá và nói lý do).
     can_cancel: bool = False
     cancel_block_reason: str | None = None
+    #: Các lệnh mà món này mua cho (rỗng với Mua tồn / Theo yêu cầu).
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
 
 
 class DepartmentRequestPurchaseOut(BaseModel):
@@ -451,6 +499,9 @@ class DepartmentPurchaseRequestOut(BaseModel):
     cancelled_line_count: int = 0
     active_line_count: int = 0
     source_type: str
+    loai_mua: str = "theo_yeu_cau"
+    #: Gộp lệnh của mọi món còn sống.
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
     requesting_department_id: int | None = None
     requesting_department_name: str | None = None
     requested_by_user_id: int | None = None
@@ -481,6 +532,56 @@ class DepartmentPurchaseRequestListOut(BaseModel):
     dem_theo_tab: dict[str, int] | None = None
 
 
+class YeuCauMonOut(BaseModel):
+    """Một MÓN của yêu cầu mua hàng — dòng của chế độ "Xem theo: Từng món" (phương án 3, 07/10/2026).
+
+    `tinh_trang`: cho_lap | nhap | cho_duyet | tra_lai | cho_hang | mot_phan | du | nhap_kho | huy.
+    `tien_do`: 0 → 5 nấc (có đơn, duyệt, đặt NCC, hàng về, nhập kho); 3.5 = về một phần.
+    `chon_duoc`: tick được để lập đơn — yêu cầu còn chờ lập đơn, món còn sống, chưa vào đơn nào
+    còn sống. Chỉ nói về tình trạng MÓN; quyền lập đơn của người xem thì giao diện tự AND thêm."""
+
+    line_id: int
+    request_id: int
+    request_code: str
+    request_status: str
+    content: str | None = None
+    requesting_department_name: str | None = None
+    requested_by_name: str | None = None
+    created_at: datetime
+    needed_date: date
+    hang_loai: str | None = None
+    hang_id: int | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
+    item_name: str
+    unit: str
+    quantity: float
+    note: str | None = None
+    purchase_request_id: int | None = None
+    purchase_code: str | None = None
+    purchase_status: str | None = None
+    supplier_name: str | None = None
+    ordered_quantity: float | None = None
+    received_quantity: float | None = None
+    tinh_trang: str
+    tien_do: float
+    chon_duoc: bool
+    cancel_reason: str | None = None
+    loai_mua: str = "theo_yeu_cau"
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
+
+
+class YeuCauMonListOut(BaseModel):
+    items: list[YeuCauMonOut]
+    total: int
+    page: int
+    size: int
+    # Số món theo `tinh_trang` + `tat_ca` — cùng bộ lọc, chưa lọc tình trạng.
+    dem_theo_tab: dict[str, int]
+    # Số yêu cầu khác nhau có món trong bộ lọc (chân bảng: "x món của y yêu cầu").
+    so_yeu_cau: int
+
+
 class LuaChonLocMa(BaseModel):
     """Một lựa chọn của ô lọc mà khoá không phải một id số — vd mặt hàng `giay:12` (cặp
     `hang_loai`, `hang_id`). Cùng hình với `LuaChonLoc`, chỉ đổi `id` thành `ma` kiểu chuỗi."""
@@ -496,6 +597,7 @@ class PurchaseRequestSourceOut(BaseModel):
     code: str
     status: str | None = None
     source_type: str | None = None
+    loai_mua: str | None = None
     content: str | None = None
     purpose: str | None = None
     needed_date: date | None = None
@@ -514,6 +616,11 @@ class PurchaseDeliveryLineOut(BaseModel):
     quantity_tinh_tien: float = 0
     #: Phần DƯ, giá 0đ. `quantity_tinh_tien + quantity_du == quantity`.
     quantity_du: float = 0
+    #: KHỔ THỰC NHẬN (giấy tờ): khổ lưu ở đợt, hoặc khổ đặt khi đợt không ghi. 0 · 0 với hàng khác.
+    kho_rong: int = 0
+    kho_dai: int = 0
+    #: NCC giao khác khổ đặt — hàng vào tồn theo khổ nhận.
+    khac_kho_dat: bool = False
     note: str | None = None
 
 
@@ -561,6 +668,9 @@ class PurchaseAttachmentOut(BaseModel):
 class PurchaseDeliveryLineIn(BaseModel):
     purchase_request_line_id: int
     quantity: float = Field(gt=0)
+    # Khổ thực nhận của dòng giấy tờ — bỏ trống (0 · 0) = đúng khổ đặt.
+    kho_rong: int = Field(default=0, ge=0)
+    kho_dai: int = Field(default=0, ge=0)
     note: str | None = Field(default=None, max_length=2000)
 
 
@@ -656,9 +766,13 @@ class PurchaseRequestOut(BaseModel):
     coc_da_lap: list[PurchaseDepositVoucherOut] = Field(default_factory=list)
     coc_da_chi: int = 0
     payment_status: str
+    nhom_tien: str | None = None
     payment_voucher_count: int
     sources: list[PurchaseRequestSourceOut]
     lines: list[PurchaseRequestLineOut]
+    #: Mua cho của cả đơn: các loại có mặt (cho_lsx, mua_ton, theo_yeu_cau theo thứ tự đó) và lệnh gộp.
+    loai_mua_cac: list[str] = Field(default_factory=list)
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
     deliveries: list[PurchaseDeliveryOut] = Field(default_factory=list)
     attachments: list[PurchaseAttachmentOut] = Field(default_factory=list)
 
@@ -671,6 +785,9 @@ class PurchaseRequestListOut(BaseModel):
     # Số phiếu theo trạng thái (cùng bộ lọc, chưa lọc trạng thái) + `tat_ca` — chỉ hộp Đơn mua hàng
     # của Kế toán trả; nơi khác để None.
     dem_theo_tab: dict[str, int] | None = None
+    # Số đơn theo nhóm TIỀN (chua_tra | mot_phan | qua_han | da_tra) — cùng bộ lọc, trước khi lọc
+    # nhóm Hàng lẫn nhóm Tiền. Đơn chưa phát sinh nợ không vào nhóm nào.
+    dem_theo_tien: dict[str, int] | None = None
 
 
 class PurchaseNotifySummaryOut(BaseModel):

@@ -18,7 +18,7 @@ import { DetailModal } from "../../../components/DetailModal";
 import { EmptyState } from "../../../components/EmptyState";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
-import { nhanChuyen } from "../giao-hang/shared/helpers";
+import { nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
 
 // Lời gọi tiến độ bắn SẴN lúc bấm mở đơn, chạy SONG SONG với lời gọi chi tiết đơn. Trước 06/10/2026
 // ngăn đơn chỉ hỏi tiến độ sau khi chi tiết đơn về (ngăn mới mount) ⇒ ô Sản xuất / Giao hiện trễ
@@ -109,7 +109,7 @@ export function tomTatTienDo(td: DonTienDo | null) {
   const dat = cum.reduce((a, c) => a + c.dat, 0);
   const daGiao = cum.reduce((a, c) => a + Math.min(c.dat, c.da_giao), 0);
   const giaoPct = dat > 0 ? (daGiao / dat) * 100 : 0;
-  const giaoXong = cum.length > 0 && cum.every((c) => c.con_phai_giao <= 0);
+  const giaoXong = cum.length > 0 && cum.every((c) => c.khach_nhan_du ?? c.da_giao >= c.dat);
   return {
     soLenh: lenh.length,
     lenhXong: lenh.filter((l) => l.xong).length,
@@ -323,16 +323,6 @@ function homNay(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-const TONE_YC: Record<string, string> = {
-  cho_len_ke_hoach: "upcoming",
-  dang_thuc_hien: "active",
-  da_giao_du: "done",
-  giao_thieu: "active",
-  that_bai: "cancelled",
-  chuyen_da_huy: "cancelled",
-  da_huy: "cancelled",
-};
-
 /** Bước "Giao hàng": danh sách yêu cầu + chuyến, và form lập yêu cầu trần theo `giao_duoc`. */
 export function BuocGiaoHang({
   order, td, taiLai, onIn, navigate,
@@ -385,7 +375,7 @@ export function BuocGiaoHang({
             <div key={y.id} className="dhb__td-yc">
               <div className="dhb__td-yc-head">
                 <b className="dhb__mono">{y.code}</b>
-                <span className={`dhb__lifecycle-badge dhb__lifecycle-badge--${TONE_YC[y.trang_thai] ?? "upcoming"}`}>
+                <span className={`dhb__lifecycle-badge dhb__lifecycle-badge--${TONE_YC[y.trang_thai] ?? "slate"}`}>
                   {NHAN_TRANG_THAI_YC[y.trang_thai] ?? y.trang_thai}
                 </span>
                 <span className="dhb__td-yc-ngay">cần giao {fmtDate(y.ngay_can_giao)}</span>
@@ -500,7 +490,8 @@ function FormYeuCau({
     const c = nn.lien_he.find((x) => x.chinh) ?? nn.lien_he[0];
     return c ? String(c.id) : "";
   };
-  const [ngay, setNgay] = useState(sua ? sua.ngay_can_giao.slice(0, 10) : "");
+  // Yêu cầu mới mặc định giao HÔM NAY — sửa thì giữ ngày đã gửi.
+  const [ngay, setNgay] = useState(sua ? sua.ngay_can_giao.slice(0, 10) : HOM_NAY);
   const [dcId, setDcId] = useState(dcMacDinh);
   const [lhId, setLhId] = useState(lhMacDinh);
   const coHang = td.cum.filter((c) => c.giao_duoc > 0);

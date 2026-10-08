@@ -229,8 +229,8 @@ export function LichBaoTri({ thang, onDoiThang, onMoPhieu, onTaoTuDuKien, nap }:
         {/* Chú giải tương tác (bấm để bật/tắt lọc) */}
         <div className="ktm-lich__chu-giai">
           {([
-            ["cho_thuc_hien", "cho", "Chờ làm"],
-            ["hoan_thanh", "xong", "Hoàn thành"],
+            ["cho_thuc_hien", "cho", "Chưa làm"],
+            ["hoan_thanh", "xong", "Đã xong"],
             ["qua_han", "qua", "Quá hạn"],
             ["da_huy", "huy", "Đã hủy"],
             ["du_kien", "du-kien", "Dự kiến"],
@@ -521,8 +521,7 @@ function RichPhieuTooltip({ item }: { item: BaoTri }) {
     <div className="ktm-tt">
       <div className="ktm-tt__head">
         <span className="ktm-tt__code">{item.ma}</span>
-        {/* `gonNhe`: trong tooltip hẹp thì bỏ icon, giữ nguyên màu + chữ. */}
-        <BadgeBaoTri trangThai={item.trang_thai} quaHan={isQua} gonNhe />
+        <BadgeBaoTri trangThai={item.trang_thai} quaHan={isQua} />
       </div>
       <div className="ktm-tt__title">
         <span className="ktm-tt__may">{item.may_ma}</span>

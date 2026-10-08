@@ -62,26 +62,12 @@
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
-/* Số đếm nằm trong nút tab */
-.gh-seg__n {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 9999px;
-  background: #e2e8f0;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.gh-seg__btn.is-active .gh-seg__n {
-  background: #0f172a;
-  color: #ffffff;
+/* Chấm "còn việc" trong nút tab — tab không mang số đếm. */
+.gh-seg__cham {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--rust, #c5400a);
 }
 
 /* =============================================================================
@@ -116,8 +102,8 @@
   border: none;
   padding: 0;
   font: inherit;
-  font-weight: 600;
-  color: #0f172a;
+  font-weight: 400;
+  color: var(--ink);
   cursor: pointer;
   text-decoration: none;
   border-bottom: 1px dashed #94a3b8;
@@ -141,20 +127,26 @@
 /* =============================================================================
    3. Tab Đơn Giao Hàng: bảng mỗi dòng một lượt (.gh-tbl) & ngăn chi tiết (NganLuot)
    ============================================================================= */
-.gh-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 5px;
-  font-size: 12px;
-  color: #334155;
-  font-weight: 500;
-}
 
 .gh-nho { font-size: var(--fs-xs); color: var(--ash-2); }
+.gh-muc { color: var(--ink); }
+.gh-mo { color: var(--ash-3); }
+/* Pill trạng thái Giao hàng — mỗi trạng thái một sắc từ bộ chip chung --tt-* (tokens.css); đè màu
+   viền/nền mặc định của `.rc-pill`. Tông nào dùng cho trạng thái nào: GhTone trong shared/helpers.ts. */
+.gh-pill--on { background: var(--tt-la-bg); color: var(--tt-la-fg); border-color: transparent; }
+.gh-pill--off { background: var(--tt-xam-bg); color: var(--tt-xam-fg); border-color: transparent; }
+.gh-pill--warn { background: var(--tt-vang-bg); color: var(--tt-vang-fg); border-color: transparent; }
+.gh-pill--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); border-color: transparent; }
+.gh-pill--cyan { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); border-color: transparent; }
+.gh-pill--cham { background: var(--tt-cham-bg); color: var(--tt-cham-fg); border-color: transparent; }
+.gh-pill--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); border-color: transparent; }
+.gh-pill--ngoc { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); border-color: transparent; }
+.gh-pill--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); border-color: transparent; }
+.gh-pill--do { background: var(--tt-do-bg); color: var(--tt-do-fg); border-color: transparent; }
+.gh-pill--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); border-color: transparent; }
+.gh-pill--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); border-color: transparent; }
+.gh-pill--la { background: var(--tt-la-bg); color: var(--tt-la-fg); border-color: transparent; }
+.gh-pill--slate { background: var(--tt-slate-bg); color: var(--tt-slate-fg); border-color: transparent; }
 .gh-num { font-variant-numeric: tabular-nums; }
 .gh-the {
   display: inline-flex; align-items: center; height: 20px; padding: 0 7px; white-space: nowrap;
@@ -167,8 +159,11 @@
   font-size: var(--fs-xs); font-weight: 600; color: var(--plum-deep); background: var(--plum-soft);
 }
 .gh-tra { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.gh-lk { color: var(--rust); font-weight: 600; text-decoration: none; }
-.gh-lk:hover { text-decoration: underline; }
+/* Liên kết (số điện thoại, Mở bản đồ): chữ màu mực, gạch chân mảnh — không cam đậm (07/10/2026). */
+.gh-lk { color: var(--ink); font-weight: 400; text-decoration: underline; text-decoration-color: var(--rule);
+  text-underline-offset: 3px; }
+.gh-lk:hover { text-decoration-color: var(--ink); }
+.gh-lk--nho, .gh-lk.gh-nho { font-size: var(--fs-xs); color: var(--ash); }
 .gh-so {
   display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; flex: none;
   font-size: 11px; color: var(--ash); background: var(--rule-hair); border: 1px solid var(--rule-soft);
@@ -212,8 +207,45 @@
 .gh-vach i.d { background: var(--amber); }
 
 /* --- Ngăn chi tiết --- */
-.kt-ngan__su b:has(.gh-tom-phu) { display: grid; gap: 1px; }
-.gh-tom-phu { font-size: var(--fs-xs); font-weight: 400; color: var(--ash-2); overflow: hidden; text-overflow: ellipsis; }
+/* Dải tóm tắt dưới tiêu đề: chữ thường, không khối nền — ô dữ liệu không đóng hộp. */
+.gh-kv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 20px; margin: 6px 0 0; width: 100%; }
+.gh-kv > div { min-width: 0; display: grid; gap: 1px; align-content: start; }
+.gh-kv dt { font-size: var(--fs-xs); color: var(--ash-2); }
+.gh-kv dd { margin: 0; font-size: var(--fs-sm); color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.gh-tom-phu { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--ash-2); overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { .gh-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* --- Trang chi tiết MỘT đơn / một yêu cầu — phương án A (khuôn Stripe, 07/10/2026,
+   docs/mockups/giao-hang-chi-tiet-3-phuong-an.html): nhóm có tiêu đề nhỏ, nhãn trái giá trị phải,
+   vạch mảnh ngăn nhóm, không hộp, không chữ đậm. --- */
+.gh-a-nhom { max-width: 880px; display: grid; gap: 10px; }
+.gh-a-nhom + .gh-a-nhom { padding-top: 16px; border-top: 1px solid var(--rule-soft); }
+.gh-a-nhom > h3 { margin: 0; font-size: var(--fs-sm); font-weight: 500; color: var(--ink); }
+.gh-a-rows { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 9px 16px; margin: 0; font-size: var(--fs-sm); }
+.gh-a-rows dt { color: var(--ash-2); }
+.gh-a-rows dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; overflow-wrap: anywhere; }
+.gh-a-hang { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.gh-a-hang th { font-size: var(--fs-xs); font-weight: 400; color: var(--ash-2); text-align: left; padding: 6px 0; border-bottom: 1px solid var(--rule-soft); }
+.gh-a-hang td { padding: 9px 0; border-bottom: 1px solid var(--rule-hair); }
+.gh-a-hang tr:last-child td { border-bottom: 0; }
+.gh-a-hang .r { text-align: right; padding-left: 24px; white-space: nowrap; }
+.gh-a-chuyen { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: var(--fs-sm); }
+.gh-a-chuyen li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.gh-a-nhom--tep .gh-dinhkem { border: 0; margin: 0; padding: 0; }
+@container (max-width: 640px) { .gh-a-rows { grid-template-columns: minmax(0, 1fr); gap: 2px 0; } .gh-a-rows dd { margin-bottom: 8px; } }
+/* --- Ngăn MỘT đơn kiểu 3 (08/10/2026, khuôn ngăn Phiếu thu): tên khách chữ lớn như "Lý do nộp", thẻ
+   mã đơn / PO đứng sau cách 8px; lưu ý khi giao chữ thường 14px. --- */
+.gh-k3-khach { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.gh-k3-khach > span:first-child { margin-right: 4px; }
+.gh-k3-luu { margin: 1px 0 14px; font-size: var(--fs-sm); color: var(--ink); white-space: pre-line; }
+/* Huỷ yêu cầu: nút phụ chữ đỏ ở đầu ngăn; bấm mới mở ô lý do ngay trên thân — không đứng sẵn khối đỏ. */
+.gh-nut-do.btn { color: var(--tt-do-fg); }
+.gh-nut-do--vien.btn { border-color: var(--tt-do-fg); }
+.gh-huy { max-width: 880px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--r-5); background: var(--canvas); }
+.gh-huy > label { display: block; font-size: var(--fs-xs); color: var(--ash-2); margin-bottom: 4px; }
+.gh-huy__dong { display: flex; gap: 8px; flex-wrap: wrap; }
+.gh-huy__dong .input { flex: 1 1 260px; min-width: 0; height: 34px; padding: 6px 10px; font-size: var(--fs-sm); }
+.gh-huy__goi { margin: 6px 0 0; font-size: var(--fs-xs); color: var(--ash-2); }
+
 .gh-o-luot { border: 1px solid var(--rule-soft); border-radius: var(--r-5); padding: 14px 16px; background: var(--paper); }
 .gh-goi-y { margin: 0; }
 
@@ -228,14 +260,14 @@
 .gh-lt__moc.is-xong { background: var(--moss); border-color: var(--moss); color: #fff; }
 .gh-lt__moc.is-dang { border-color: var(--amber); color: var(--amber-deep); }
 .gh-lt__kho { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 12px 0; }
-.gh-lt__kho b { font-weight: 600; }
+.gh-lt__kho b { font-weight: 500; }
 .gh-lt__kho.is-cho b { color: var(--ash); }
 
 .gh-dt { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: hidden; }
 .gh-dt.is-dang { border-color: var(--amber); }
 .gh-dt__dau { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 10px 12px; padding: 12px 16px; border-bottom: 1px solid var(--rule-hair); }
 .gh-dt__ten { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 260px; }
-.gh-dt__ten b { font-size: var(--fs-md); }
+.gh-dt__ten b { font-size: var(--fs-sm); font-weight: 500; }
 .gh-dt__the { display: flex; flex-wrap: wrap; gap: 6px; }
 .gh-dt__nut { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .gh-dt__luoi { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); margin: 0; }
@@ -243,10 +275,9 @@
 .gh-dt__luoi > div:last-child { border-right: 0; }
 .gh-dt__luoi dt { font-size: var(--fs-xs); color: var(--ash-2); }
 .gh-dt__luoi dd { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; overflow-wrap: anywhere; }
-.gh-dt__luu {
-  margin: 0 16px 10px; padding: 8px 10px; border-radius: var(--r-3);
-  background: var(--amber-soft); color: var(--amber-deep); font-size: var(--fs-sm);
-}
+/* Lưu ý khi giao: một dòng chữ có nhãn — không dải nền vàng (ô dữ liệu không tô nền). */
+.gh-dt__luu { margin: 0; padding: 0 16px 10px; font-size: var(--fs-sm); color: var(--ink); overflow-wrap: anywhere; }
+.gh-dt__luu .gh-nho { margin-right: 6px; }
 .gh-dt__hang { border-top: 1px solid var(--rule-hair); padding: 8px 16px 12px; }
 .gh-dt__hang table, .gh-hop__bang { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .gh-dt__hang th { font-size: var(--fs-xs); font-weight: 500; color: var(--ash-2); text-align: left; padding: 4px 0; }
@@ -256,7 +287,7 @@
   border-top: 1px solid var(--rule-hair); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 6px 18px;
   align-items: center; background: var(--paper); font-size: var(--fs-sm);
 }
-.gh-dt__kq b { font-weight: 600; }
+.gh-dt__kq .gh-muc { overflow-wrap: anywhere; }
 
 .gh-ctd { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
 .gh-ctd__ray { display: flex; flex-direction: column; gap: 6px; }
@@ -307,22 +338,49 @@
 }
 
 /* =============================================================================
-   4. Tab Yêu Cầu Giao: Bảng & Thanh Chọn Nhiều (.gh-chon-bar)
+   4. Tab Yêu Cầu Giao: bảng một dòng (.gh-yc) & thanh chọn nổi (.gh-chon-noi)
    ============================================================================= */
-.gh-chon-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-  padding: 10px 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 13px;
-  color: #334155;
-  font-weight: 500;
+/* `.rc__table` mặc định table-layout: fixed ⇒ ô nowrap tràn chữ đè sang ô bên (tên dài đè thẻ
+   trạng thái). Bảng một-dòng của Giao hàng để trình duyệt tự chia cột theo nội dung. */
+.gh-yc { table-layout: auto; }
+/* Bảng Yêu cầu giao VỪA KHUNG, không cuộn ngang (07/10/2026 — nút "Lên đơn giao" từng bị đẩy ra
+   ngoài): cột ngắn (`__co`) co đúng bằng nội dung; ba cột chữ dài Khách / Hàng / Giao tới chia phần
+   còn lại theo tỷ lệ và cắt "…" (`max-width: 0` là mẹo để ô bảng chịu co dưới bề rộng chữ). Khung
+   hẹp hơn `min-width` mới cuộn ngang — lúc đó cột nút ghim mép phải. Đặt `.rc__table.gh-yc` vì
+   luật chung `.rc__table thead th` (white-space: normal) đè `.gh-yc th`. */
+.rc__table.gh-yc { min-width: 900px; }
+.rc__table.gh-yc th, .rc__table.gh-yc td { white-space: nowrap; vertical-align: middle; }
+.rc__table.gh-yc th, .rc__table.gh-yc td { padding-left: 8px; padding-right: 8px; }
+.rc__table.gh-yc td { padding-top: 7px; padding-bottom: 7px; }
+.gh-yc .gh-yc__co { width: 1%; }
+.gh-yc .gh-yc__chk { width: 1%; padding-left: 16px; padding-right: 4px; }
+.gh-yc .gh-yc__chk input { display: block; margin: 0; }
+.gh-yc tr.is-chon > td { background: var(--paper-contrast, #f8fafc); }
+/* Ô chữ dài một dòng: cắt bằng "…" và đủ chữ ở tooltip — xuống dòng là hàng cao gấp ba. */
+.gh-yc__cat { overflow: hidden; text-overflow: ellipsis; }
+.gh-yc td.gh-yc__khach, .gh-yc td.gh-yc__hang, .gh-yc td.gh-yc__dc { max-width: 0; }
+.gh-yc .gh-yc__khach { width: 34%; color: var(--ink); }
+.gh-yc .gh-yc__hang { width: 30%; }
+.gh-yc .gh-yc__dc { width: 36%; }
+.gh-yc__hang-o { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.gh-yc__hang-o > .gh-yc__cat { min-width: 0; white-space: nowrap; }
+.gh-yc__hang-o > .gh-the { flex: none; }
+.gh-yc .gh-yc__nut { text-align: right; position: sticky; right: 0; background: var(--canvas); }
+.gh-yc thead .gh-yc__nut { background: var(--paper); }
+.gh-yc td.gh-yc__nut { padding-right: 12px; }
+.gh-yc td.gh-yc__nut .btn { padding: 5px 10px; font-size: var(--fs-sm); }
+.gh-the--bam { cursor: pointer; font: inherit; font-size: 12px; }
+.gh-the--bam:hover { background: var(--rule-hair); }
+/* Các món sổ ra dưới hàng: tên trái, số phải — thẳng cột với cột Hàng. */
+.gh-yc tr.gh-yc__so > td { padding: 2px 14px 10px; background: var(--canvas); }
+.gh-yc__so ul { list-style: none; margin: 0; padding: 0 0 0 calc(36px + 14px); display: grid; gap: 3px; max-width: 640px; }
+.gh-yc__so li { display: flex; justify-content: space-between; gap: 24px; color: var(--ash); }
+/* Thanh hành động hàng loạt NỔI ở đáy màn: hiện/ẩn không đẩy bảng (cú bấm sau không trượt). */
+.gh-chon-noi {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 10px 8px 16px; background: var(--canvas); border: 1px solid var(--ink);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16); font-size: var(--fs-sm);
 }
 
 /* Danh sách yêu cầu trong form lên lượt */
@@ -339,37 +397,12 @@
 }
 
 /* =============================================================================
-   5. Tab Nhân Viên Giao Hàng (.gh-nvbar)
+   5. Tab Nhân Viên Giao Hàng — lưới lds (bảng tổng theo tháng, không phân trang)
    ============================================================================= */
-.gh-nvbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin: 0 0 14px;
-  padding: 12px 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.gh-nvbar__thang {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.gh-nvbar__thang .input {
-  width: 160px;
-  height: 36px;
-  padding: 4px 10px;
-  font-size: 13px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-}
+.gh-nv-thang { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+.gh-nv-thang .input { width: 150px; height: 32px; padding: 0 10px; font-size: 13px; border-radius: 7px; }
+/* Dòng chỉ để đọc (không mở ngăn) — lớp `lds-dong` giữ lại cho cột ghim, nên bỏ tay trỏ. */
+.lds-g tbody tr.lds-dong.gh-nv-dong { cursor: default; }
 
 /* =============================================================================
    6. Form, Chọn Hàng Giao (.gh-pick) & Minh Chứng (.gh-dinhkem)
@@ -619,4 +652,82 @@
   .gh-c-km:has(.gh-nho), .gh-c-tao { display: none !important; }
   .gh-c-nut .btn { width: 100%; justify-content: center; min-height: 44px; }
   .gh-kip { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+}
+
+/* =============================================================================
+   Ngăn LÊN ĐƠN GIAO HÀNG (.gh-ld) — phương án B bản chỉnh (07/10/2026,
+   docs/mockups/giao-hang-len-don-phuong-an-B.html): trái chọn xe + người, phải yêu cầu + giờ.
+   Không chữ đậm; chọn = viền đủ bốn cạnh; hover nền xám nhạt.
+   ============================================================================= */
+.gh-ld { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.gh-ld__phai { position: sticky; top: 0; display: grid; gap: 0; padding-left: 24px; border-left: 1px solid var(--rule-soft); }
+.gh-ld__dau { display: flex; align-items: center; gap: 10px; margin: 18px 0 8px; }
+.gh-ld__dau:first-child { margin-top: 0; }
+.gh-ld__dau h3, .gh-ld__tieu { margin: 0; font-size: var(--fs-sm); font-weight: 500; color: var(--ink); }
+.gh-ld__tim { height: 30px; width: 300px; max-width: 100%; font-size: var(--fs-sm); }
+.gh-ld__ds { border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: hidden; }
+.gh-ld__hang {
+  display: grid; align-items: center; gap: 10px; width: 100%; padding: 6px 12px; min-height: 38px;
+  border: 0; border-bottom: 1px solid var(--rule-hair); background: var(--canvas); color: var(--ink);
+  font: inherit; font-size: var(--fs-sm); text-align: left;
+}
+.gh-ld__ds > .gh-ld__hang:last-child { border-bottom: 0; }
+.gh-ld__hang:hover { background: var(--rule-hair); }
+.gh-ld__hang.is-chon { box-shadow: inset 0 0 0 1.5px var(--ink); border-radius: var(--r-4, 8px); }
+.gh-ld__hang.is-mo { color: var(--ash-3); }
+.gh-ld__hang--xe { grid-template-columns: 16px 100px minmax(0, 1fr) 64px minmax(0, 1.2fr) auto; cursor: pointer; }
+.gh-ld__hang--nv { grid-template-columns: 26px minmax(0, 1fr) auto auto 64px auto; }
+/* Hàng giữ chỗ: ba vạch xám, cao đúng một hàng thật. */
+.gh-ld__hang--cho { grid-template-columns: 100px minmax(0, 1fr) 80px; pointer-events: none; }
+.gh-ld__hang--cho i { height: 10px; border-radius: 5px; background: var(--rule-hair); animation: gh-ld-nhap 1.2s ease-in-out infinite; }
+@keyframes gh-ld-nhap { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .gh-ld__hang--cho i { animation: none; } }
+.gh-ld__rad { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--rule); }
+.gh-ld__rad.is-chon { border: 4px solid var(--ink); }
+.gh-ld__av {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--rule-hair); color: var(--ash-2);
+  display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px;
+}
+.gh-ld__cat { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-ld__vai { display: inline-flex; gap: 4px; }
+.gh-ld__vai button {
+  height: 24px; padding: 0 9px; border: 1px solid var(--rule-soft); border-radius: 6px; background: var(--canvas);
+  color: var(--ash-2); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.gh-ld__vai button:hover { background: var(--rule-hair); }
+.gh-ld__vai button.is-chon { border-color: var(--ink); color: var(--ink); }
+.gh-ld__ngan { padding: 3px 12px; font-size: var(--fs-xs); color: var(--ash-3); background: var(--paper); border-bottom: 1px solid var(--rule-hair); }
+.gh-ld__khong { padding: 16px 12px; text-align: center; color: var(--ash-2); font-size: var(--fs-sm); }
+.gh-ld__rong { margin: 0; }
+.gh-ld__goi { margin: 6px 0 0; font-size: var(--fs-xs); color: var(--ash-2); }
+.gh-ld__kv { display: grid; gap: 10px; margin: 0; }
+.gh-ld__kv dt { font-size: var(--fs-xs); color: var(--ash-2); }
+.gh-ld__kv dd { margin: 1px 0 0; font-size: var(--fs-sm); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gh-ld__mon { justify-content: space-between; }
+.gh-ld__yc { list-style: none; margin: 0; padding: 0; border: 1px solid var(--rule-soft); border-radius: var(--r-5); }
+.gh-ld__yc li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 12px; border-bottom: 1px solid var(--rule-hair); font-size: var(--fs-sm); }
+.gh-ld__yc li:last-child { border-bottom: 0; }
+.gh-ld__dong { display: flex; align-items: center; gap: 6px; }
+/* Cột phải: các NHÓM cùng một khuôn — tiêu đề nhỏ, vạch mảnh ngăn nhóm, ô nhập cùng cỡ chữ và
+   chiều cao với ô tìm bên trái. Banner/gợi ý theo sau cách nhóm trên một nhịp. */
+.gh-ld__nhom { display: grid; gap: 8px; padding: 14px 0; border-top: 1px solid var(--rule-hair); min-width: 0; }
+.gh-ld__nhom:first-child { padding-top: 0; border-top: 0; }
+.gh-ld__phai > .banner, .gh-ld__phai > .gh-ld__goi { margin: 0 0 10px !important; }
+.gh-ld label.gh-ld__tieu { display: block; }
+.gh-ld__nhap { min-width: 0; width: 100%; box-sizing: border-box; padding: 6px 10px; font-size: var(--fs-sm); }
+input.gh-ld__nhap, select.gh-ld__nhap { height: 34px; }
+textarea.gh-ld__nhap { font-family: inherit; line-height: 1.45; resize: vertical; min-height: 68px; }
+.gh-ld__dong-o { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 10px; }
+.gh-ld__dong-o > label { font-size: var(--fs-sm); color: var(--ash); }
+.gh-ld .gh-bat-buoc { font-weight: 400; margin-left: 1px; }
+/* Ngăn hẹp (kéo nhỏ, điện thoại): một cột, cột phải xuống dưới, bỏ cột mức khoán của xe. */
+@container (max-width: 760px) {
+  .gh-ld { grid-template-columns: 1fr; }
+  .gh-ld__phai { position: static; padding-left: 0; border-left: 0; border-top: 1px solid var(--rule-soft); padding-top: 16px; }
+  .gh-ld__hang--xe { grid-template-columns: 16px 96px minmax(0, 1fr) auto; }
+  .gh-ld__hang--xe > :nth-child(4), .gh-ld__hang--xe > :nth-child(5) { display: none; }
+  .gh-ld__hang--nv { grid-template-columns: 26px minmax(0, 1fr) auto auto; }
+  .gh-ld__hang--nv > :nth-child(4), .gh-ld__hang--nv > :nth-child(5) { display: none; }
+  .gh-ld__dau { flex-wrap: wrap; }
+  .gh-ld__tim { width: 100%; }
 }

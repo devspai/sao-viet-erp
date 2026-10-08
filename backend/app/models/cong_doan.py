@@ -202,8 +202,8 @@ class CongDoan(Base):
 class CongDoanTo(Base):
     """Một TỔ phụ trách một công đoạn — bảng nối `cong_doan` ↔ `departments`.
 
-    `department_id` soft-ref như mọi cột tổ khác: tổ bị xoá khỏi cây tổ chức thì dòng nối ở lại, form
-    hiện "(không còn là tổ)" để người khai tự gỡ. `thu_tu` giữ thứ tự chọn — tổ đầu là mặc định.
+    `department_id` soft-ref như mọi cột tổ khác: tổ bị xoá khỏi cây tổ chức (hoặc có tổ con nên thôi
+    là nút lá) thì dòng nối ở lại, form hiện chip "không còn trong danh sách" để người khai tự gỡ. `thu_tu` giữ thứ tự chọn — tổ đầu là mặc định.
     """
 
     __tablename__ = "cong_doan_to"

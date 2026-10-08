@@ -1,0 +1,244 @@
+/* Lưới danh sách kiểu bảng tính — khuôn chung của Tính giá, Báo giá, Đơn hàng bán, Giao hàng
+   (phương án A, docs/mockups/danh-sach-kinh-doanh-gon-3-phuong-an.html, chốt 07/10/2026).
+   Dòng 34px chữ 13px một dòng, cột kẻ mảnh, chữ dài cắt "…" (rê chuột xem đủ qua title).
+   Thứ tự cột: Mã, Ngày tạo, Khách, Hàng, Số lượng, Tiền, Trạng thái, các khâu theo luồng, chứng từ
+   kế tiếp, Người, Ghi chú cuối. */
+
+.lds { --lds-mo: #94a3b8; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* Đầu trang: tên màn bên trái, nút chính bên phải — một hàng riêng, không chen ô lọc. */
+.lds-dau { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; min-height: 36px; }
+.lds-dau__ten { font-size: 20px; font-weight: 500; margin: 0; letter-spacing: -.015em; white-space: nowrap; color: var(--ink); }
+.lds-dau__nut { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* Khung lọc gắn liền mép trên của lưới (một tấm thẻ): hàng lọc nhanh trạng thái, rồi hàng tìm + kỳ +
+   Lọc + người + Cột. Bố cục theo bảng chỉ mục của Shopify Polaris / Linear. */
+.lds-loc { background: var(--canvas, #fff); border: 1px solid var(--rule-soft); border-radius: 10px; min-width: 0; }
+.lds-loc:has(+ .lds-sheet) { border-bottom: 0; border-radius: 10px 10px 0 0; }
+.lds-loc + .lds-sheet { margin-top: -10px; border-top-left-radius: 0; border-top-right-radius: 0; }
+
+/* Hàng lọc nhanh: nằm gọn trong dải đầu thẻ; màn hẹp thì xuống dòng ngay trong dải (không cuộn
+   ngang giấu mục, không cắt chữ ở mép). */
+.lds-flt { display: flex; gap: 4px 2px; flex-wrap: wrap; }
+.lds-loc > .lds-flt { padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); }
+.lds-flt button { flex: none; border: 1px solid transparent; background: transparent; border-radius: 7px; height: 30px; padding: 0 11px;
+  font: inherit; font-size: 13px; color: var(--ash); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.lds-flt button:hover { background: var(--rule-hair); color: var(--ink); }
+.lds-flt button.on { border-color: var(--rule); background: var(--paper); color: var(--ink); }
+.lds-flt button.z { color: var(--lds-mo); }
+.lds-flt__so { color: var(--lds-mo); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lds-flt button.on .lds-flt__so { color: var(--ash-2); }
+.lds-flt__cham { position: relative; }
+.lds-flt__cham::after { content: ""; position: absolute; top: -2px; right: -6px; width: 6px; height: 6px; border-radius: 50%; background: var(--tt-do-dot); }
+
+/* Hàng công cụ: mọi ô cao 32px, góc 7px, chữ thường — ô tìm giãn, "Cột" luôn dạt mép phải. */
+.lds-loc__thanh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; min-width: 0; }
+.lds-loc__thanh > .lds-cot { margin-left: auto; flex: none; }
+/* Nhóm nút dạt phải của hàng công cụ (vd Lịch hẹn + kiểu xem + Cột). */
+.lds-loc__phai { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+/* Hàng công cụ lúc đang tick chọn dòng: số đã chọn + thao tác hàng loạt, cùng chiều cao. */
+.lds-loc__chon { min-height: 48px; font-size: 13px; color: var(--ink); }
+.lds-loc__chon .btn { height: 32px; min-height: 32px; }
+.lds-btn.is-on { border-color: var(--ink); }
+.lds-tim { display: flex; align-items: center; gap: 7px; border: 1px solid var(--rule); background: var(--canvas, #fff);
+  border-radius: 7px; padding: 0 10px; height: 32px; flex: 1 1 220px; max-width: 340px; min-width: 180px; color: var(--lds-mo); }
+.lds-tim input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; color: var(--ink); flex: 1; min-width: 0; }
+.lds-tim:focus-within { border-color: var(--ash-2); }
+.lds-tim__xoa { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border: 0; border-radius: 4px; background: transparent; color: var(--ash-2); cursor: pointer; padding: 0; }
+.lds-tim__xoa:hover { background: var(--rule-hair); color: var(--ink); }
+.lds-loc__thanh .tl-nut { height: 32px; padding: 0 11px; border-radius: 7px; font-size: 13px; font-weight: 400; }
+.lds-loc__thanh .tl-dk { height: 32px; border-radius: 7px; font-size: 13px; }
+.lds-loc__thanh .loc-nguoi { align-self: center; height: 32px; min-width: 190px; }
+.lds-loc__thanh .loc-nguoi .sel__trigger { min-height: 32px; height: 32px; padding: 0 10px; border-radius: 7px; }
+@media (max-width: 760px) {
+  .lds-tim { max-width: none; flex-basis: 100%; }
+  .lds-loc__thanh .loc-nguoi { flex: 1 1 160px; min-width: 0; }
+}
+
+.lds-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: none; }
+.lds-dot--vang { background: var(--tt-vang-dot); } .lds-dot--cam { background: var(--tt-cam-dot); }
+.lds-dot--xanh { background: var(--tt-xanh-dot); } .lds-dot--cyan { background: var(--tt-cyan-dot); }
+.lds-dot--cham { background: var(--tt-cham-dot); } .lds-dot--tim { background: var(--tt-tim-dot); }
+.lds-dot--ngoc { background: var(--tt-ngoc-dot); } .lds-dot--la { background: var(--tt-la-dot); }
+.lds-dot--do { background: var(--tt-do-dot); } .lds-dot--xam { background: var(--tt-xam-dot); }
+.lds-dot--slate { background: var(--tt-slate-dot); }
+
+/* Nút nhỏ viền mảnh (Cột, Tải lại…). */
+.lds-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); background: var(--canvas, #fff);
+  border-radius: 7px; padding: 0 11px; height: 32px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--ink); }
+.lds-btn:hover { background: var(--rule-hair); }
+.lds-btn--xs { height: 24px; padding: 0 8px; font-size: 12px; }
+.lds-btn:disabled { opacity: .5; cursor: default; }
+
+/* Hộp chọn cột. */
+.lds-cot { position: relative; }
+.lds-cot__hop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; background: var(--canvas, #fff);
+  border: 1px solid var(--rule); border-radius: 9px; box-shadow: 0 10px 30px rgba(15, 23, 42, .14); padding: 6px; min-width: 200px; }
+.lds-cot__hop--trai { right: auto; left: 0; }
+.lds-cot__goi { padding: 4px 8px 6px; font-size: 12px; color: var(--ash-2); }
+/* Một dòng = tay nắm kéo + ô tick. Dòng đang kéo mờ đi; các dòng khác dạt chỗ ngay khi rê qua. */
+.lds-cot__dong { display: flex; align-items: center; border-radius: 6px; }
+.lds-cot__dong:hover { background: var(--rule-hair); }
+.lds-cot__dong[draggable="true"] { cursor: grab; }
+.lds-cot__dong.is-keo { opacity: .45; }
+.lds-cot__nam { flex: none; display: inline-grid; place-items: center; width: 22px; height: 28px; margin-left: 2px; border: 0;
+  background: transparent; color: var(--lds-mo); border-radius: 5px; cursor: grab; padding: 0; }
+.lds-cot__nam:hover, .lds-cot__nam:focus-visible { color: var(--ink); }
+.lds-cot__hop label { flex: 1; display: flex; align-items: center; gap: 8px; padding: 5px 8px 5px 4px; font-size: 13px;
+  cursor: pointer; white-space: nowrap; }
+.lds-cot__hop input { accent-color: var(--ink); margin: 0; }
+.lds-cot__hop .lds-cot__lai { border-top: 1px solid var(--rule-hair); margin-top: 4px; padding-top: 4px; }
+
+/* Lưới. */
+.lds-sheet { background: var(--canvas, #fff); border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
+.lds-cuon { overflow-x: auto; }
+.lds-g { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.lds-g th, .lds-g td { border-right: 1px solid var(--rule-hair); border-bottom: 1px solid var(--rule-hair); padding: 6px 10px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; height: 34px; text-align: left;
+  font-weight: 400; color: var(--ink); vertical-align: middle; }
+.lds-g th:last-child, .lds-g td:last-child { border-right: 0; }
+.lds-g th { background: var(--paper); color: var(--ash-2); font-weight: 500; font-size: 12px; border-bottom: 1px solid var(--rule-soft); height: 32px; }
+.lds-g th.n, .lds-g td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.lds-g th.c, .lds-g td.c { text-align: center; }
+.lds-g tbody tr.lds-dong { cursor: pointer; }
+.lds-g tbody tr.lds-dong:hover td { background: var(--rule-hair); }
+.lds-g tbody tr.lds-dong:focus-visible td { background: var(--rule-hair); outline: none; }
+.lds-g tr.lds-cong td { background: var(--paper); color: var(--ink); border-bottom: 0; }
+.lds-g tr.lds-cong td.lead { overflow: visible; color: var(--ash-2); }
+.lds-g td.lds-trong { text-align: center; color: var(--ash-2); height: 72px; white-space: normal; }
+
+/* Nút sắp xếp trong tiêu đề. */
+.lds-sx { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; gap: 3px; }
+.lds-sx.on { color: var(--ink); }
+th.n .lds-sx { flex-direction: row-reverse; }
+
+/* Mẩu nhỏ trong ô. */
+.lds-u { color: var(--ash-2); font-size: 11.5px; margin-left: 4px; }
+.lds-mu { color: var(--ash-2); }
+.lds-mu3 { color: var(--lds-mo); }
+.lds-tag { white-space: nowrap; display: inline-block; background: var(--rule-hair); border-radius: 4px; padding: 0 6px;
+  font-size: 12px; color: var(--ink); margin-left: 6px; }
+.lds-lk { color: var(--tt-xanh-fg); text-decoration: none; background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.lds-lk:hover { text-decoration: underline; }
+.lds-do { color: var(--tt-do-fg); } .lds-cam { color: var(--tt-cam-fg); } .lds-la { color: var(--tt-la-fg); } .lds-vang { color: var(--tt-vang-fg); }
+/* Lớp màu đặt thẳng lên ô (`<td className="lds-do">`) cũng phải ăn — `.lds-g td` tô --ink nặng hơn lớp trần. */
+.lds-g td.lds-do { color: var(--tt-do-fg); } .lds-g td.lds-cam { color: var(--tt-cam-fg); } .lds-g td.lds-la { color: var(--tt-la-fg); }
+.lds-g td.lds-vang { color: var(--tt-vang-fg); } .lds-g td.lds-mu { color: var(--ash-2); } .lds-g td.lds-mu3 { color: var(--lds-mo); }
+
+/* Chip trạng thái (tròn) và chip khâu (góc vuông). */
+.lds-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 1px 9px 1px 7px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lds-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.lds-chip--vuong { border-radius: 5px; }
+.lds-chip--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.lds-chip--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.lds-chip--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.lds-chip--cyan { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.lds-chip--cham { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.lds-chip--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.lds-chip--ngoc { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.lds-chip--la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.lds-chip--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.lds-chip--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.lds-chip--slate { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+
+.lds-cb { width: 14px; height: 14px; margin: 0; accent-color: var(--ink); cursor: pointer; vertical-align: -2px; }
+
+/* Dòng đang mở ở ngăn: viền đủ bốn cạnh. Dòng vừa lập: nền vàng nhạt một lúc rồi thôi. */
+.lds-g tbody tr.is-chon { outline: 2px solid var(--charcoal); outline-offset: -2px; }
+.lds-g tbody tr.is-moi td { background: var(--amber-soft); transition: background 1s var(--easing-standard); }
+.lds-g tbody tr.is-tick td { background: var(--paper-contrast, #f8fafc); }
+/* Ô nút bước kế tiếp: nút thấp cho vừa dòng 34px. */
+.lds-g td.lds-nut { overflow: visible; padding: 2px 8px; text-align: right; }
+.lds-g td.lds-nut button { height: 26px; min-height: 26px; padding: 0 10px; font-size: 12.5px; white-space: nowrap; }
+/* Hàng sổ thêm dưới một dòng (vd đủ các món của yêu cầu). */
+.lds-g tr.lds-so td { height: auto; white-space: normal; background: var(--paper); }
+.lds-g tr.lds-so ul { margin: 0; padding: 2px 0 2px 18px; display: grid; gap: 2px; }
+.lds-g tr.lds-so li { display: flex; gap: 16px; justify-content: space-between; max-width: 560px; }
+.lds-tag--bam { border: 0; font: inherit; font-size: 12px; cursor: pointer; }
+.lds-tag--bam:hover { background: var(--rule); }
+
+/* Đè bảng cũ của từng màn (vd `.rdx-quote thead th` chữ hoa giãn, `.rdx-quote tbody td` đệm 12px):
+   lưới A phải giống nhau ở mọi màn, nên nâng độ ưu tiên lên `.lds .lds-g`. */
+:is(.lds, .lds-bang) .lds-g thead th { font-size: 12px; letter-spacing: normal; text-transform: none; color: var(--ash-2); font-weight: 500;
+  padding: 6px 10px; background: var(--paper); border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
+:is(.lds, .lds-bang) .lds-g tbody td { padding: 6px 10px; border-bottom: 1px solid var(--rule-hair); }
+:is(.lds, .lds-bang) .lds-g tbody tr.lds-cong td { border-bottom: 0; }
+:is(.lds, .lds-bang) .lds-g tbody td.lds-nut { padding: 2px 8px; }
+
+/* Ô thẻ "Sản xuất" của Đơn hàng bán (SanXuatO) nằm trong lưới: thẻ + chi tiết trên MỘT hàng. */
+.lds-g .sxm-o { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; max-width: 100%; white-space: nowrap; overflow: hidden; }
+.lds-g .sxm-o__the { flex: none; font-weight: 500; padding-top: 0; padding-bottom: 0; }
+.lds-g .sxm-o__ct { overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; white-space: nowrap; min-width: 0; }
+
+/* "Cố định khung" kiểu Excel (CuonLuoi). Hàng tiêu đề: đẩy xuống theo vị trí cuộn trang (biến
+   --lds-tieu-de do JS đặt), nổi trên các dòng. Viền dưới vẽ bằng bóng vì viền gộp của bảng không đi
+   theo transform. */
+.lds-cuon thead th { position: relative; z-index: 2; transform: translateY(var(--lds-tieu-de, 0px)); }
+.lds-cuon.is-ghim-tren thead th { box-shadow: inset 0 -1px 0 var(--rule-soft), 0 6px 10px -8px rgba(15, 23, 42, .28); }
+
+/* Cột ghim bên trái (data-ghim = số cột): đứng yên khi cuộn ngang. Nền đặc theo trạng thái dòng
+   (biến --lds-nen-ghim) để chữ cột khác trượt qua không lộ ra dưới. */
+.lds-g tbody tr.lds-dong:hover { --lds-nen-ghim: var(--rule-hair); }
+.lds-g tbody tr.lds-dong:focus-visible { --lds-nen-ghim: var(--rule-hair); }
+.lds-g tbody tr.is-tick { --lds-nen-ghim: var(--paper-contrast, #f8fafc); }
+.lds-g tbody tr.is-moi { --lds-nen-ghim: var(--amber-soft); }
+.lds-cuon[data-ghim] tr > :nth-child(1) { --lds-trai: var(--lds-g1); }
+.lds-cuon[data-ghim] tr > :nth-child(2) { --lds-trai: var(--lds-g2); }
+.lds-cuon[data-ghim] tr > :nth-child(3) { --lds-trai: var(--lds-g3); }
+.lds-cuon[data-ghim] tr > :nth-child(4) { --lds-trai: var(--lds-g4); }
+.lds-cuon[data-ghim="1"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+1),
+.lds-cuon[data-ghim="2"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+2),
+.lds-cuon[data-ghim="3"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+3),
+.lds-cuon[data-ghim="4"] :is(thead tr, tbody tr.lds-dong) > :nth-child(-n+4) {
+  position: sticky; left: var(--lds-trai); z-index: 1; background: var(--lds-nen-ghim, var(--canvas, #fff));
+}
+/* Lặp .lds-cuon để thắng quy tắc sticky chung ở trên (nó mang cả `tbody tr.lds-dong` nên nặng hơn). */
+.lds-cuon.lds-cuon[data-ghim="1"] thead tr > :nth-child(-n+1),
+.lds-cuon.lds-cuon[data-ghim="2"] thead tr > :nth-child(-n+2),
+.lds-cuon.lds-cuon[data-ghim="3"] thead tr > :nth-child(-n+3),
+.lds-cuon.lds-cuon[data-ghim="4"] thead tr > :nth-child(-n+4) { z-index: 3; background: var(--paper); }
+/* Mép phải cột ghim cuối: có bóng khi lưới đã cuộn ngang (biết là còn cột khuất bên dưới). */
+.lds-cuon[data-ghim="1"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(1),
+.lds-cuon[data-ghim="2"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(2),
+.lds-cuon[data-ghim="3"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(3),
+.lds-cuon[data-ghim="4"].is-cuon-ngang :is(thead tr, tbody tr.lds-dong) > :nth-child(4) {
+  box-shadow: inset -1px 0 0 var(--rule-soft), 6px 0 8px -6px rgba(15, 23, 42, .22);
+}
+
+/* Dòng nhóm trải ngang (td colSpan, vd tên lệnh trên các dòng mặt hàng): bọc nhãn trong `.lds-dinh-trai`
+   để nhãn đứng yên bên trái khi cuộn ngang. Ô phải `overflow: visible` — ô `overflow: hidden` thành khung
+   cuộn của sticky nên nhãn sẽ bám ô chứ không bám lưới. */
+.lds-g tr.lds-nhom > td { overflow: visible; }
+.lds-cuon .lds-dinh-trai { position: sticky; left: 10px; display: inline-flex; align-items: center; gap: 8px; max-width: calc(100vw - 80px); }
+
+/* Bong bóng rê chuột của lưới (GoiYLuoi trong CuonLuoi) — dùng khuôn `.hover-tip`; nội dung là chữ
+   đầy đủ của ô nên để màu mực, mỗi dòng một đoạn, mã dài không có dấu cách vẫn xuống dòng. */
+.hover-tip .lds-goi-y__dong { color: var(--ink); overflow-wrap: anywhere; }
+.hover-tip .lds-goi-y__dong + .lds-goi-y__dong { margin-top: 4px; }
+/* Thẻ của lưới nhận chuột (khác `.hover-tip` gốc) để bôi đen + Ctrl C được chữ đầy đủ. */
+.hover-tip.lds-goi-y { pointer-events: auto; user-select: text; cursor: text; }
+.hover-tip.lds-goi-y:not(.hover-tip--hien) { pointer-events: none; }
+
+/* Bảng trong NGĂN / trang chi tiết (08/10/2026): cùng lưới `lds-g` với danh sách, khung thẻ bo góc,
+   không ghim/bám tiêu đề (bảng ngắn). `<div className="lds-bang"><table className="lds-g">` + `<colgroup>`
+   cho cột cố định, cột chữ chính để trống co giãn. Chỉ đặt `minWidth` khi tổng cột cố định thật sự vượt
+   bề ngang ngăn — đừng để thanh cuộn ngang mọc ra chỉ vì một cột chữ dài (ô bị cắt "…" đã có bong bóng). */
+.lds-bang { --lds-mo: #94a3b8; background: var(--canvas, #fff); border: 1px solid var(--rule-soft); border-radius: 10px; overflow-x: auto; overflow-y: hidden; }
+.lds-bang > .lds-g tbody tr:last-child > td { border-bottom: 0; }
+.lds-bang + .lds-bang { margin-top: 12px; }
+/* Bảng lồng trong một ô (vd hàng của từng đợt): bỏ khung, lùi vào, nền nhạt để tách khỏi bảng mẹ. */
+.lds-g td > .lds-bang--long { border: 0; border-radius: 0; background: var(--paper); margin: -6px -10px; padding-left: 32px; }
+/* Dòng Cộng / số dư nằm GIỮA bảng (vd "Số dư đầu kỳ" ở đầu sao kê) vẫn cần vạch dưới để tách dòng sau. */
+.lds-bang .lds-g tbody tr.lds-cong:not(:last-child) > td { border-bottom: 1px solid var(--rule-hair); }
+
+/* Bảng có Ô NHẬP trong form lập / sửa (08/10/2026): cùng tiêu đề + vạch kẻ với lưới, nhưng dòng cao theo
+   nội dung, chữ xuống dòng, KHÔNG cắt ô (ô nhập, ô chọn, viền focus, gợi ý dưới ô phải hiện đủ) và khung
+   không cuộn (menu thả xuống của ô chọn không bị khung cắt). `<div className="lds-bang lds-bang--nhap">`. */
+.lds-bang.lds-bang--nhap { overflow: visible; }
+.lds-bang.lds-bang--nhap .lds-g tbody td { white-space: normal; overflow: visible; text-overflow: clip; height: auto;
+  padding: 8px 8px; vertical-align: middle; }
+.lds-bang.lds-bang--nhap .lds-g thead th { padding: 6px 8px; }
+.lds-bang.lds-bang--nhap .lds-g tbody td :is(input, select, textarea) { max-width: 100%; box-sizing: border-box; }
+/* Ô tick chọn / bỏ đầu dòng: căn giữa, đệm hẹp. */
+.lds-bang.lds-bang--nhap .lds-g td.lds-tick, .lds-bang.lds-bang--nhap .lds-g th.lds-tick { text-align: center; padding: 6px 4px; }

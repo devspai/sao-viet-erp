@@ -11,6 +11,12 @@ import { DinhKemTep } from "../components/DinhKemTep";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
 import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
+import {
+  CuonLuoi,
+  soCotGhim,
+  ChipTT, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, TieuDeSapXep, ngayVN, soVN, tenKhachGon, useCotAn, useThuTuCot, xepCot,
+  type CotLuoi, type MauTT,
+} from "../components/LuoiDs";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import {
@@ -47,16 +53,6 @@ function fmtDate(s: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
   return d.toLocaleDateString("vi-VN");
-}
-/** Ngày trên DANH SÁCH: bỏ năm khi là năm nay ("5/10") — 10 cột phải vừa khung 992px (phương án A,
- *  `docs/mockups/don-hang-cot-san-xuat-3-phuong-an.html`). Ngày thuần "YYYY-MM-DD" đọc theo giờ máy,
- *  không qua UTC, để khỏi lùi một ngày. */
-function ngayGon(s: string | null): string {
-  if (!s) return "—";
-  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00` : s);
-  if (Number.isNaN(d.getTime())) return s;
-  const ng = `${d.getDate()}/${d.getMonth() + 1}`;
-  return d.getFullYear() === new Date().getFullYear() ? ng : `${ng}/${d.getFullYear()}`;
 }
 /** Tên gọi của người Việt là chữ cuối ("Nguyễn Thị Huyên" → "Huyên"); họ tên đủ để ở `title`. */
 const tenGoi = (ten: string) => ten.trim().split(/\s+/).pop() ?? ten;
@@ -141,35 +137,6 @@ function RowFlags({ o }: { o: OrderRow }) {
   );
 }
 
-// Ngày giao còn bao xa — chỉ cho đơn ĐÃ CHỐT. Chỉ nói "còn N ngày"/"hôm nay"; KHÔNG kết luận
-// "trễ" vì danh sách chưa biết đơn đã giao hay chưa.
-function HanGiao({ o }: { o: OrderRow }) {
-  if (o.status !== "ordered" || !o.delivery_committed_date) return null;
-  // Khách đã nhận đủ mọi mặt hàng thì hạn giao hết nghĩa — thôi đếm ngày (cùng luật "Đã giao đủ").
-  if (o.san_xuat_mon.length > 0 && o.san_xuat_mon.every((m) => m.con_phai_giao <= 0)) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const d = new Date(o.delivery_committed_date);
-  d.setHours(0, 0, 0, 0);
-  const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
-  if (days < 0) return null;
-  return (
-    <div className={`dhb__row-sub${days <= 3 ? " dhb__row-sub--warn" : ""}`}>
-      {days === 0 ? "hôm nay" : `còn ${days} ngày`}
-    </div>
-  );
-}
-
-// Đơn đã chốt: chưa đủ cọc thì còn nằm ở Kinh doanh; đã xuống sản xuất thì thẻ món chậm nhất đang ở
-// đâu (07/10/2026, phương án A) — bấm ra bảng nổi, bấm mặt hàng mở hồ sơ lệnh.
-function SanXuatCell({ o, onMoLenh, onMoDon }: {
-  o: OrderRow; onMoLenh?: (lsxId: number) => void; onMoDon: () => void;
-}) {
-  if (o.status !== "ordered") return <span className="dhb__sx">—</span>;
-  if (!o.san_xuat_released_at) return <span className="dhb__sx">Chờ đủ cọc</span>;
-  return <SanXuatO maDon={o.order_no} mons={o.san_xuat_mon} onMoLenh={onMoLenh} onMoDon={onMoDon} />;
-}
-
 interface Props {
   navigate?: (id: string, params?: Record<string, unknown>) => void;
   openOrderId?: number | null;   // deep-link từ Báo giá ("Xem đơn") → mở drawer đơn vừa tạo
@@ -198,6 +165,10 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
   const [size, setSize] = useState(PAGE_SIZE);
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [tong, setTong] = useState({ giaTri: 0, coc: 0 });
+  const [sort, setSort] = useState("-created_at");
+  const [cotAn, setCotAn] = useCotAn("don-hang-ban");
+  const [thuTu, setThuTu] = useThuTuCot("don-hang-ban");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // `/enums` không còn được nạp ở đây: nó chỉ phục vụ hộp thoại tạo đơn (đã xoá). Nhãn trạng thái
@@ -228,11 +199,12 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
     api.orders
       .list(token, {
         q: q || undefined, status: tabDangMo.status, nguoi,
-        sort: "-created_at", page, size, loc: JSON.parse(khoaLoc),
+        sort, page, size, loc: JSON.parse(khoaLoc),
       })
       .then((r) => {
         setRows(r.items);
         setTotal(r.total);
+        setTong({ giaTri: r.tong_gia_tri ?? 0, coc: r.tong_coc ?? 0 });
       })
       .catch((e) => setErr(String(e?.message ?? e)))
       .finally(() => setLoading(false));
@@ -241,7 +213,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
       .stats(token, undefined, nguoi, { q: q || undefined, ...JSON.parse(khoaLoc) })
       .then(setStats)
       .catch(() => {});
-  }, [token, q, tabDangMo.status, page, size, nguoi, khoaLoc]);
+  }, [token, q, tabDangMo.status, sort, page, size, nguoi, khoaLoc]);
 
   useEffect(() => {
     load();
@@ -270,149 +242,120 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, openOrderId]);
 
+  // Cột ngày thứ hai theo mốc kỳ: Ngày tạo / Ngày chốt (mốc "Ngày giao hẹn" đã có cột Hẹn giao).
+  const mocNgay = locMan.ky.moc === "chot" ? "chot" : "tao";
+  const cotHien = xepCot(COT_DH, thuTu).filter((c) => !cotAn.has(c.key)).map((c) =>
+    c.key === "ngay" && mocNgay === "chot" ? { ...c, label: "Ngày chốt", sx: "ordered_at" } : c);
+  const viTriGia = cotHien.findIndex((c) => c.key === "gia");
+  const muc = TABS.map((t) => ({ key: t.id, label: t.label, count: stats?.[t.countKey], mau: MAU_TAB[t.id] }));
+
   return (
-    <main className="dhb-container">
-      <header className="dhb__header">
-        <div className="dhb__title-group">
-          <p className="eyebrow">Kinh doanh</p>
-          <h1 className="dhb__title">Đơn hàng bán</h1>
-        </div>
-        {/* Nút "+ Tạo đơn" đã gỡ: đơn CHỈ sinh từ màn Báo giá khi khách chốt (BaoGiaPage →
-            api.orders.create). Giữ nút ở đây là cửa thứ hai làm cùng một việc. */}
+    <main className="dhb-container lds">
+      {/* Màn này KHÔNG tạo đơn: đơn chỉ sinh từ Báo giá khi khách đồng ý — nên đầu trang không có nút chính. */}
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Đơn hàng bán</h1>
       </header>
-
-
-      {/* Tìm + kỳ + điều kiện lọc + NV */}
-      <div className="dhb__toolbar dhb__toolbar--loc tl-thanh">
-        <div className="dhb__search-wrapper">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm mã / khách / PO / hàng…"
-            className="dhb__search-input"
-            aria-label="Tìm đơn hàng"
-          />
-          <span className="dhb__search-icon">
-            <Icon name="search" size={15} />
-          </span>
-        </div>
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_DH}
-          onKy={(ky) => setLocMan({ ...locMan, ky })}
-          dieuKien={dieuKien}
-          loc={locMan.loc}
-          onLoc={(loc) => setLocMan({ ...locMan, loc })}
-        />
-        <LocNguoiPhuTrach nap={api.orders.nguoiPhuTrach} value={nguoi} onChange={setNguoi} donVi="đơn" />
-      </div>
-
-      {/* Tab trạng thái — số đếm ở máy chủ theo bộ lọc đang áp */}
-      <div className="dhb__toolbar">
-        <div className="dhb__tabs">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`dhb__tab ${tab === t.id ? "is-active" : ""}`}
-            >
-              {t.label}
-              {stats && stats[t.countKey] !== undefined && (
-                <span className="dhb__tab-count">{stats[t.countKey]}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
 
       {err && <div className="banner banner--error" role="alert">{err}</div>}
 
-      {/* Bảng */}
-      <div className="dhb__tablewrap">
-        <table className="dhb__table">
-          <thead>
-            <tr>
-              <th>Mã đơn</th>
-              <th>Khách hàng</th>
-              <th>PO</th>
-              <th className="dhb__text-right">Giá trị</th>
-              <th>Cọc</th>
-              <th>Chốt</th>
-              <th>Giao</th>
-              <th>Sản xuất</th>
-              <th>NV</th>
-              <th>Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <EmptyRow colSpan={10} trangThai="dang-tai" />}
-            {!loading && rows.length === 0 && (
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={muc} dang={tab} onChon={setTab} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={q} onChange={setQ} placeholder="Tìm mã đơn, khách, PO, hàng" ariaLabel="Tìm đơn hàng" />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_DH}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
+          <LocNguoiPhuTrach nap={api.orders.nguoiPhuTrach} value={nguoi} onChange={setNguoi} donVi="đơn" />
+          <ChonCot cot={COT_DH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+        </div>
+      </section>
+
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+              ))}
+            </colgroup>
+            <thead>
               <tr>
-                <td colSpan={10} className="text-center" style={{ padding: 24, color: "var(--ash)" }}>
-                  {coLoc ? "Không có đơn nào khớp điều kiện đang lọc." : "Chưa có đơn hàng."}
-                </td>
+                {cotHien.map((c) => (
+                  <th key={c.key} className={c.n ? "n" : undefined}>
+                    {c.sx ? <TieuDeSapXep label={c.label} cot={c.sx} sort={sort} onSort={setSort} /> : c.label}
+                  </th>
+                ))}
               </tr>
-            )}
-            {!loading &&
-              rows.map((o) => (
-                <tr
-                  key={o.id}
-                  onClick={() => openDetail(o.id, o.status)}
-                  className="dhb__row"
-                >
-                  <td>
-                    <span className="dhb__order-code">{o.order_no}</span>
-                    <div style={{ marginTop: 4 }}>
-                      <RowFlags o={o} />
-                    </div>
-                  </td>
-                  <td>
-                    <div>{o.customer_name ?? "—"}</div>
-                    {o.first_line_desc && (
-                      <div className="dhb__row-sub" title={o.first_line_desc}>
-                        {o.first_line_desc}
-                        {o.line_count > 1 && <span className="dhb__row-more"> +{o.line_count - 1} món</span>}
-                      </div>
-                    )}
-                  </td>
-                  <td className="dhb__mono">{o.customer_po_no ?? "—"}</td>
-                  <td className="dhb__val">{vnd(o.total_with_vat)}</td>
-                  <td>
-                    <DepositBar o={o} />
-                  </td>
-                  <td className="dhb__mono">{ngayGon(o.ordered_at)}</td>
-                  <td>
-                    <div className="dhb__mono">{ngayGon(o.delivery_committed_date)}</div>
-                    <HanGiao o={o} />
-                  </td>
-                  <td>
-                    <SanXuatCell o={o} onMoLenh={moLenh} onMoDon={() => openDetail(o.id, o.status)} />
-                  </td>
-                  <td className="dhb__nw" title={o.sale_name ?? undefined}>{o.sale_name ? tenGoi(o.sale_name) : "—"}</td>
-                  <td>
-                    <StatusBadge status={o.status === "ordered" && o.dang_cho.length === 1 && o.dang_cho[0] === "xong" ? "hoan_tat" : o.status} />
+            </thead>
+            <tbody>
+              {loading && rows.length === 0 && <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {coLoc ? "Không có đơn nào khớp điều kiện đang lọc." : "Chưa có đơn hàng."}
                   </td>
                 </tr>
+              )}
+              {rows.map((o) => (
+                <tr
+                  key={o.id}
+                  className="lds-dong"
+                  tabIndex={0}
+                  onClick={() => openDetail(o.id, o.status)}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      openDetail(o.id, o.status);
+                    }
+                  }}
+                >
+                  {cotHien.map((c) => (
+                    <ODon key={c.key} cot={c.key} o={o} mocNgay={mocNgay} onMoLenh={moLenh} onMoDon={() => openDetail(o.id, o.status)} />
+                  ))}
+                </tr>
               ))}
-          </tbody>
-        </table>
+              {/* Dòng Cộng: Σ giá trị và Σ cọc đã thu của MỌI đơn khớp bộ lọc (máy chủ cộng). */}
+              {rows.length > 0 && viTriGia > 0 ? (
+                <tr className="lds-cong lds-nhom">
+                  <td className="lead" colSpan={viTriGia}>
+                    <span className="lds-dinh-trai">Cộng {total.toLocaleString("vi-VN")} đơn</span>
+                  </td>
+                  {cotHien.slice(viTriGia).map((c) =>
+                    c.key === "gia" ? (
+                      <td key={c.key} className="n">{soVN(tong.giaTri)}</td>
+                    ) : c.key === "coc" ? (
+                      <td key={c.key} title="Tổng cọc đã thu">{soVN(tong.coc)}</td>
+                    ) : (
+                      <td key={c.key} />
+                    ),
+                  )}
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {!err && total > 0 && (
+          <PhanTrangDayDu
+            trang={page}
+            size={size}
+            tong={total}
+            soDong={rows.length}
+            onTrang={setPage}
+            onSize={(n) => {
+              setSize(n);
+              setPage(1);
+            }}
+            loading={loading}
+            donVi="đơn"
+            ariaLabel="Phân trang đơn hàng bán"
+          />
+        )}
       </div>
-      {!err && total > 0 && (
-        <PhanTrangDayDu
-          trang={page}
-          size={size}
-          tong={total}
-          soDong={rows.length}
-          onTrang={setPage}
-          onSize={(n) => {
-            setSize(n);
-            setPage(1);
-          }}
-          loading={loading}
-          donVi="đơn"
-          ariaLabel="Phân trang đơn hàng bán"
-        />
-      )}
 
       {selected && (
         <OrderDrawer
@@ -432,6 +375,137 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
       )}
     </main>
   );
+}
+
+// --- Lưới danh sách (phương án A, 07/10/2026) --------------------------------------------------
+// Thứ tự: Mã, Ngày tạo, Khách, Hàng, PO khách, Giá trị, Trạng thái, rồi các khâu theo luồng (Hẹn giao,
+// Cọc, Sản xuất, Giao khách), cuối là Phụ trách.
+const COT_DH: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
+  { key: "ma", label: "Mã đơn", coDinh: true, w: 105, sx: "order_no" },
+  { key: "ngay", label: "Ngày tạo", w: 100, sx: "created_at" },
+  { key: "khach", label: "Khách hàng", w: 190 },
+  { key: "hang", label: "Hàng", w: 190 },
+  { key: "po", label: "PO khách", w: 95 },
+  { key: "gia", label: "Giá trị", w: 115, n: true },
+  { key: "tt", label: "Trạng thái", w: 105, sx: "status" },
+  { key: "hen", label: "Hẹn giao", w: 165, sx: "delivery_committed_date" },
+  { key: "coc", label: "Cọc", w: 125 },
+  { key: "sx", label: "Sản xuất", w: 230 },
+  { key: "giao", label: "Giao khách", w: 120 },
+  { key: "nv", label: "Phụ trách" },
+];
+
+// Chấm màu hàng lọc nhanh = sắc chip trạng thái trên dòng.
+const MAU_TAB: Record<string, MauTT | undefined> = {
+  draft: "slate",
+  san_sang: "cham",
+  cho_coc: "vang",
+  ordered: "xanh",
+  hoan_tat: "la",
+  cancelled: "xam",
+};
+
+/** Trạng thái trên dòng: đơn đã chốt tách thêm "Chờ cọc" (chưa xuống sản xuất) và "Hoàn tất". */
+function trangThaiDong(o: OrderRow): { nhan: string; mau: MauTT } {
+  if (o.status === "ordered") {
+    if (o.dang_cho.length === 1 && o.dang_cho[0] === "xong") return { nhan: "Hoàn tất", mau: "la" };
+    if (!o.san_xuat_released_at) return { nhan: "Chờ cọc", mau: "vang" };
+    return { nhan: "Đã chốt", mau: "xanh" };
+  }
+  if (o.status === "draft") return { nhan: "Nháp", mau: "slate" };
+  if (o.status === "cancelled") return { nhan: "Hủy", mau: "xam" };
+  return { nhan: STATUS_META[o.status]?.label ?? o.status, mau: "cam" };
+}
+
+/** Còn bao nhiêu ngày tới hẹn giao — chỉ đơn đã chốt, chưa giao đủ. Không kết luận "trễ". */
+function conNgayGiao(o: OrderRow): number | null {
+  if (o.status !== "ordered" || !o.delivery_committed_date) return null;
+  if (o.san_xuat_mon.length > 0 && o.san_xuat_mon.every((m) => m.khach_nhan_du ?? m.da_giao >= m.dat)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(`${o.delivery_committed_date}T00:00:00`);
+  const days = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+  return days < 0 ? null : days;
+}
+
+function ODon({ cot, o, mocNgay, onMoLenh, onMoDon }: {
+  cot: string; o: OrderRow; mocNgay: "tao" | "chot"; onMoLenh?: (lsxId: number) => void; onMoDon: () => void;
+}) {
+  const mu = <span className="lds-mu3">—</span>;
+  switch (cot) {
+    case "ma":
+      return (
+        <td title={o.quotation_code ? `Từ báo giá ${o.quotation_code}` : undefined}>
+          {o.order_no}
+          {o.is_rush ? <span className="lds-tag lds-do">Gấp</span> : null}
+        </td>
+      );
+    case "ngay":
+      return <td>{ngayVN(mocNgay === "chot" ? o.ordered_at : o.created_at)}</td>;
+    case "khach":
+      return o.customer_name ? <td title={o.customer_name}>{tenKhachGon(o.customer_name)}</td> : <td>{mu}</td>;
+    case "hang":
+      return (
+        <td title={o.first_line_desc ?? undefined}>
+          {o.first_line_desc ?? mu}
+          {o.line_count > 1 ? <span className="lds-tag">+{o.line_count - 1}</span> : null}
+        </td>
+      );
+    case "po":
+      return <td title={o.customer_po_no ?? undefined}>{o.customer_po_no ?? mu}</td>;
+    case "gia":
+      return <td className="n">{soVN(o.total_with_vat)}</td>;
+    case "tt": {
+      const t = trangThaiDong(o);
+      return <td><ChipTT mau={t.mau}>{t.nhan}</ChipTT></td>;
+    }
+    case "hen": {
+      const con = conNgayGiao(o);
+      return (
+        <td>
+          {o.delivery_committed_date ? ngayVN(o.delivery_committed_date) : mu}
+          {con != null ? (
+            <span className={`lds-u${con <= 3 ? " lds-cam" : ""}`}>{con === 0 ? "hôm nay" : `còn ${con} ngày`}</span>
+          ) : null}
+        </td>
+      );
+    }
+    case "coc":
+      if (!o.deposit_required) return <td>{o.status === "draft" ? mu : <span className="lds-mu3">Không cọc</span>}</td>;
+      return o.deposit_ok ? (
+        <td title={`Đã thu ${vnd(o.deposit_received)}`}><ChipTT mau="la" vuong>Đủ cọc</ChipTT></td>
+      ) : (
+        <td title={`Cần cọc ${vnd(o.deposit_required)}`}>
+          <span className="lds-vang">{soVN(o.deposit_received)}</span>
+          <span className="lds-u">/ {soVN(o.deposit_required)}</span>
+        </td>
+      );
+    case "sx":
+      return (
+        <td>
+          {o.status !== "ordered" ? mu : !o.san_xuat_released_at ? (
+            <span className="lds-mu">Chờ đủ cọc</span>
+          ) : (
+            <SanXuatO maDon={o.order_no} mons={o.san_xuat_mon} onMoLenh={onMoLenh} onMoDon={onMoDon} />
+          )}
+        </td>
+      );
+    case "giao": {
+      // Giao khách: suy từ số đã giao của từng mặt hàng (cùng nguồn với tiến độ đơn).
+      if (o.status !== "ordered" || !o.san_xuat_released_at || o.san_xuat_mon.length === 0) return <td>{mu}</td>;
+      const du = o.san_xuat_mon.every((m) => m.khach_nhan_du ?? m.da_giao >= m.dat);
+      const mot = o.san_xuat_mon.some((m) => m.da_giao > 0);
+      return (
+        <td>
+          <ChipTT vuong mau={du ? "la" : mot ? "cyan" : "slate"}>{du ? "Khách đã nhận" : mot ? "Giao một phần" : "Chưa giao"}</ChipTT>
+        </td>
+      );
+    }
+    case "nv":
+      return <td title={o.sale_name ?? undefined}>{o.sale_name ? tenGoi(o.sale_name) : mu}</td>;
+    default:
+      return <td />;
+  }
 }
 
 function DepositBar({ o }: { o: OrderRow }) {
@@ -465,7 +539,7 @@ function DepositBar({ o }: { o: OrderRow }) {
 
 // --- Drawer chi tiết ----------------------------------------------------------
 /** Thanh kéo mép trái của ngăn đơn — dùng CHUNG độ rộng `--kt-ngan-w` với mọi ngăn mở từ bên phải
- *  (mặc định 920px, nhớ trong localStorage): kéo ngăn này thì ngăn Kế toán cũng theo và ngược lại.
+ *  (mặc định 1180px, nhớ trong localStorage): kéo ngăn này thì ngăn Kế toán cũng theo và ngược lại.
  *  Bấm đúp bật/tắt rộng hết. (06/10/2026 — trước đó ngăn đơn cố định 50vw.) */
 function ThanhKeoNgan() {
   const dangKeo = useRef(false);
@@ -606,7 +680,7 @@ function OrderDrawer({
     : td ? `kho đủ ${tt.soMonDuHang}/${tt.soMon} món` : "…";
   const giaoText = giaoDone ? "đã giao đủ" : td && tt.giaoPct > 0 ? `giao ${Math.round(tt.giaoPct)}%`
     : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} yêu cầu mở` : "—";
-  const soMonGiaoDu = (td?.cum ?? []).filter((c) => c.con_phai_giao <= 0).length;
+  const soMonGiaoDu = (td?.cum ?? []).filter((c) => c.khach_nhan_du ?? c.da_giao >= c.dat).length;
   const ngayNgan = (v: string | null | undefined) => fmtDate(v ?? null).replace(/\/\d{4}$/, "");
   const giaoSub = !isChotDone ? "—"
     : giaoDone ? "đã giao đủ"
@@ -1053,6 +1127,7 @@ function OrderDrawer({
                     <tr>
                       <th>Mô tả</th>
                       <th className="dhb__text-right">SL</th>
+                      <th>ĐVT</th>
                       <th className="dhb__text-right">Đơn giá</th>
                       <th className="dhb__text-right">VAT</th>
                       <th className="dhb__text-right">Thành tiền</th>
@@ -1081,7 +1156,8 @@ function OrderDrawer({
                               <span className="dhb__comm-nhomSub">{g.goc.length} phần</span>
                             )}
                           </td>
-                          <td className="dhb__mono dhb__text-right">{g.soLuong.toLocaleString("vi-VN")}{g.donViTinh ? ` ${g.donViTinh}` : ""}</td>
+                          <td className="dhb__mono dhb__text-right">{g.soLuong.toLocaleString("vi-VN")}</td>
+                          <td>{g.donViTinh || "—"}</td>
                           <td className="dhb__mono dhb__text-right">{vnd(g.donGia)}</td>
                           <td className="dhb__mono dhb__text-right">{g.vatPct === null ? "—" : `${g.vatPct}%`}</td>
                           <td className="dhb__mono dhb__text-right">{vnd(g.thanhTien)}</td>
@@ -1096,7 +1172,8 @@ function OrderDrawer({
                                 className={`dhb__comm-con${k === g.goc.length - 1 ? " dhb__comm-conCuoi" : ""}`}
                               >
                                 <td>{l.description}</td>
-                                <td className="dhb__mono dhb__text-right">{l.qty.toLocaleString("vi-VN")}{l.don_vi_tinh ? ` ${l.don_vi_tinh}` : ""}</td>
+                                <td className="dhb__mono dhb__text-right">{l.qty.toLocaleString("vi-VN")}</td>
+                                <td>{l.don_vi_tinh || "—"}</td>
                                 <td className="dhb__mono dhb__text-right">{vnd(l.unit_price_snapshot)}</td>
                                 <td className="dhb__mono dhb__text-right">{l.vat_pct_estimate}%</td>
                                 <td className="dhb__mono dhb__text-right">{vnd(l.line_total)}</td>

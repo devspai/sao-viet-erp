@@ -115,6 +115,8 @@ class TaiSanRow(BaseModel):
     #: Phần nguyên giá đến từ SỬA CHỮA LỚN (= nguyên giá − nguyên giá của mốc đầu). Màn hiện dòng
     #: phụ "gồm sửa chữa lớn …" dưới ô Giá mua để con số không làm người đọc tưởng giá mua đổi.
     tien_sua_chua_lon: int = 0
+    #: Mức trích của THÁNG HIỆN TẠI (giờ Việt Nam). 0 nếu đã khấu hao hết hoặc đã thôi dùng.
+    muc_thang_nay: int = 0
 
 
 class BienDongOut(BaseModel):
@@ -150,6 +152,22 @@ class TaiSanDetailOut(TaiSanRow):
     khau_hao: list[KhauHaoDongOut] = []
 
 
+class NhomTaiSanOut(BaseModel):
+    """Một nhóm của danh sách (theo loại hoặc theo bộ phận) — số cộng trên MỌI dòng khớp bộ lọc,
+    không chỉ trang đang xem. `hao_mon` / `con_lai` là tổng cột Đã khấu hao / Còn lại của dòng
+    (món đã thôi dùng: còn lại 0)."""
+
+    #: `tscd` | `ccdc` (nhóm theo loại), id bộ phận dạng chuỗi, hoặc `chua_gan`.
+    khoa: str
+    ten: str
+    so: int
+    nguyen_gia: int
+    hao_mon: int
+    con_lai: int
+    #: Tổng mức trích của tháng hiện tại.
+    muc_thang: int
+
+
 class TaiSanListOut(BaseModel):
     items: list[TaiSanRow]
     total: int
@@ -161,6 +179,11 @@ class TaiSanListOut(BaseModel):
     tong_gia: int = 0
     #: Tài sản đã thôi dùng tính 0 — đã ra khỏi xưởng (khớp `con_lai` từng dòng).
     tong_con_lai: int = 0
+    #: Tổng cột Đã khấu hao (khớp `hao_mon_luy_ke` từng dòng) và tổng mức trích tháng này, theo bộ lọc.
+    tong_hao_mon: int = 0
+    tong_muc_thang: int = 0
+    #: Tổng theo nhóm, đúng thứ tự nhóm của `nhom_theo`; `[]` khi `nhom_theo=khong`.
+    nhom: list[NhomTaiSanOut] = []
 
 
 class SuKienOut(BaseModel):

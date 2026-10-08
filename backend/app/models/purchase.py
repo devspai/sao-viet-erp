@@ -109,6 +109,14 @@ DEPARTMENT_PURCHASE_SOURCE_TYPES = (
     SOURCE_KHAC,
 )
 
+# LOẠI MUA của yêu cầu mua (08/10/2026) — mua vì đâu, KHÁC `source_type` (phòng ban người lập).
+# Máy chủ chốt: có liên kết lệnh (`nguon_lenh`) ⇒ Cho lệnh SX; còn lại người lập chọn Theo yêu cầu
+# hoặc Mua tồn. Xem docs/spec-mua-hang-ba-loai-yeu-cau.md.
+LOAI_MUA_THEO_YEU_CAU = "theo_yeu_cau"
+LOAI_MUA_CHO_LSX = "cho_lsx"
+LOAI_MUA_TON = "mua_ton"
+LOAI_MUA = (LOAI_MUA_THEO_YEU_CAU, LOAI_MUA_CHO_LSX, LOAI_MUA_TON)
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -187,6 +195,12 @@ class SupplierItem(Base):
     # "Couché 150 79×109" là trượt, mà trượt thì im lặng — không báo lỗi, chỉ là mãi không so được giá.
     hang_loai: Mapped[str | None] = mapped_column(String(8), nullable=True)
     hang_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # DẠNG BÁN của dòng giá GIẤY (chủ chốt 07/10/2026): `to` = bán tờ đúng khổ (kho_rong ×
+    # kho_dai, cạnh ngắn trước), `cuon` = bán cuộn (kho_rong = khổ cuộn, 0 = mọi khổ). Dạng quyết
+    # đơn vị gốc để so giá: tờ so đ/tờ CÙNG khổ, cuộn so đ/kg. NULL cho vật tư không phải giấy. mg 0376.
+    dang_ban: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     item_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     # Đơn vị NCC BÁN theo — phải nằm trong tập đổi được của mặt hàng (nếu đã gắn), để quy giá về
     # đơn vị gốc mà so ngang giữa các NCC.
@@ -484,6 +498,10 @@ class PurchaseDeliveryLine(Base):
         nullable=False,
     )
     quantity: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    # KHỔ THỰC NHẬN của dòng giấy tờ (mm, cạnh ngắn trước). 0×0 = đúng khổ đặt. NCC giao khác khổ
+    # thì hàng vào tồn theo khổ này (kho so khổ bằng nhau tuyệt đối). mg 0377.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     delivery: Mapped[PurchaseDelivery] = relationship("PurchaseDelivery", back_populates="lines")
@@ -536,6 +554,10 @@ class DepartmentPurchaseRequest(Base):
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default=DPR_OPEN, index=True)
     source_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    loai_mua: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=LOAI_MUA_THEO_YEU_CAU,
+        server_default=LOAI_MUA_THEO_YEU_CAU, index=True,
+    )
     requesting_department_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("departments.id", ondelete="SET NULL"), index=True, nullable=True
     )
@@ -651,6 +673,12 @@ class YeuCauMuaNguonLenh(Base):
     # Bước đã tick lúc lập (id bước lệnh hoặc bước chung của bài) — chỉ để truy vết, không dùng để
     # khớp: ngày cần là của LỆNH, bước có thể bị sửa/xoá sau đó.
     buoc_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Khổ của ô (giấy tờ; hàng khác 0 · 0) và SỐ đề nghị cho ô này, đơn vị gốc (mg 0378). Một dòng
+    # yêu cầu gộp nhiều lệnh thì đơn mua lập từ nó chia "phần đặt cho lệnh" theo đúng số này.
+    # NULL = liên kết lập trước 07/10/2026 ⇒ coi bằng số cần hiện tại của ô.
+    kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    so_luong: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
 
     request: Mapped[DepartmentPurchaseRequest] = relationship(
         "DepartmentPurchaseRequest", back_populates="nguon_lenh"

@@ -20,11 +20,6 @@ export const KHOA_ACTIVE = "active";
 /** Trên URL: bỏ điều kiện "Trạng thái" (xem cả đang dùng lẫn đã ngừng). Vắng khoá = mặc định. */
 const ACTIVE_TAT_CA = "tat_ca";
 
-export const TRANG_THAI_DM: Option[] = [
-  { value: "true", label: "Đang dùng" },
-  { value: "false", label: "Đã ngừng" },
-];
-
 export function locMacDinh(config: Pick<CatalogConfig, "softDelete">): LocManDM {
   return { ky: { loai: "tat_ca", moc: "tao" }, loc: config.softDelete ? { [KHOA_ACTIVE]: "true" } : {} };
 }

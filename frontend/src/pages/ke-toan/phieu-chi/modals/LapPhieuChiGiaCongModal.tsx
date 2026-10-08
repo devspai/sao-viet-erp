@@ -46,6 +46,8 @@ export function LapPhieuChiGiaCongModal({
     currency: "VND",
     exchange_rate: 1,
     content: `Gia công ${row.ten_viec} — ${row.nhan_nguon || row.lsx_ma} — ${row.nha_cung_cap_ten}`,
+    // Chứng từ gốc thường mang ngày hôm nay — điền sẵn, chỉ gửi đi khi có Số chứng từ.
+    invoice_date: homNayVN(),
     note: null,
     cash_recipient_name: row.nha_cung_cap_ten,
     cash_recipient_address: null,
@@ -142,7 +144,7 @@ export function LapPhieuChiGiaCongModal({
         content: form.content.trim(),
         note: optional(form.note),
         invoice_number: optional(form.invoice_number),
-        invoice_date: optional(form.invoice_date),
+        invoice_date: optional(form.invoice_number) ? optional(form.invoice_date) : null,
         cash_recipient_name: (form.cash_recipient_name ?? "").trim(),
         cash_recipient_address: chuyenKhoan ? null : optional(form.cash_recipient_address),
         cash_recipient_identity: chuyenKhoan ? null : optional(form.cash_recipient_identity),

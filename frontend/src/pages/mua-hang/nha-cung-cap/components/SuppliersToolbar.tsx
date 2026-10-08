@@ -1,87 +1,75 @@
-// Đầu màn Nhà cung cấp: thanh tiêu đề + tìm + thanh lọc chung (kỳ + điều kiện) + nút thêm.
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+// Đầu màn Nhà cung cấp — khuôn danh sách Kinh doanh đã duyệt (`lds-dau` + `lds-loc` dính mép trên
+// lưới, 07/10/2026): hàng tên màn + nút thêm; thẻ lọc có dải lọc nhanh trạng thái hợp tác (số đếm ở
+// máy chủ, toàn danh mục) rồi hàng ô tìm + `ThanhLoc` (kỳ + Nhóm / Số sao / Nhận gia công).
+// Trạng thái chỉ chọn ở dải lọc nhanh — không lặp thành ô "Trạng thái" trong nút Lọc.
+import type { ReactNode } from "react";
 import { Button } from "../../../../components/Button";
-import { Icon } from "../../../../components/Icons";
+import { LocNhanhTrangThai, OTim } from "../../../../components/LuoiDs";
+
+export type TrangThaiNcc = "" | "active" | "inactive";
 
 export function SuppliersToolbar({
   q,
-  setQ,
+  onQ,
   boLoc,
-  setPage,
-  load,
+  chonCot,
+  trangThai,
+  onTrangThai,
+  dem,
   canCreate,
   openCreate,
-  stats,
+  banner,
 }: {
   q: string;
-  setQ: Dispatch<SetStateAction<string>>;
-  /** Thanh lọc chung (`ThanhLoc`) — đặt ngay sau ô tìm. Trạng thái, nhóm, sao, nhận gia công nay là
-   *  điều kiện trong đó (06/10/2026), thay hai ô chọn rời trước đây. */
+  onQ: (v: string) => void;
+  /** Thanh lọc chung (`ThanhLoc`) — đặt ngay sau ô tìm. */
   boLoc: ReactNode;
-  setPage: Dispatch<SetStateAction<number>>;
-  load: () => void;
+  /** Nút "Cột" (`ChonCot`) — đứng cuối hàng ô tìm. */
+  chonCot: ReactNode;
+  trangThai: TrangThaiNcc;
+  onTrangThai: (v: TrangThaiNcc) => void;
+  /** Số đếm toàn danh mục (`/api/suppliers/tong-quan`); null = chưa tải. */
+  dem: { tong: number; dangHopTac: number; tamNgung: number } | null;
   canCreate: boolean;
   openCreate: () => void;
-  stats: { totalCount: number; activeCount: number; inactiveCount: number };
+  /** Lời báo lỗi: giữa đầu màn và thẻ lọc — chen giữa thẻ lọc và lưới là gãy tấm. */
+  banner?: ReactNode;
 }) {
   return (
     <>
-      {/* Đầu màn gọn 1 HÀNG tiêu đề + badge đếm trái, ô tìm + lọc giữa, nút "+ Thêm NCC" phải */}
-      <div className="purchase__topbar-unified">
-        <div className="purchase__topbar-left">
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <h1 className="purchase__topbar-title">Nhà cung cấp</h1>
-            <span className="supplier__title-count">{stats.totalCount} NCC</span>
-          </div>
-        </div>
-        <div className="purchase__topbar-controls tl-thanh">
-          <form
-            className="purchase__search-wrap"
-            style={{ position: "relative" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPage(1);
-              load();
-            }}
-          >
-            <span className="purchase__search-icon">
-              <Icon name="search" size={16} />
-            </span>
-            <input
-              className="input purchase__search-input"
-              placeholder="Tìm Tên NCC, MST, SĐT, liên hệ, mặt hàng..."
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-              style={{ paddingRight: q ? "30px" : undefined }}
-            />
-            {q && (
-              <button
-                type="button"
-                className="purchase__search-clear"
-                onClick={() => {
-                  setQ("");
-                  setPage(1);
-                }}
-                title="Xóa tìm kiếm"
-              >
-                <Icon name="x" size={13} />
-              </button>
-            )}
-          </form>
-          {boLoc}
-        </div>
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Nhà cung cấp</h1>
         {canCreate && (
-          <div className="purchase__topbar-actions">
+          <div className="lds-dau__nut">
             <Button variant="accent" onClick={openCreate}>
-              + Thêm NCC
+              + Thêm nhà cung cấp
             </Button>
           </div>
         )}
-      </div>
-
+      </header>
+      {banner}
+      <section className="lds-loc">
+        <LocNhanhTrangThai
+          muc={[
+            { key: "", label: "Tất cả", count: dem?.tong },
+            { key: "active", label: "Đang hợp tác", mau: "la", count: dem?.dangHopTac },
+            { key: "inactive", label: "Tạm ngừng", mau: "xam", count: dem?.tamNgung },
+          ]}
+          dang={trangThai}
+          onChon={(k) => onTrangThai(k as TrangThaiNcc)}
+          ariaLabel="Lọc nhanh theo trạng thái hợp tác"
+        />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim
+            value={q}
+            onChange={onQ}
+            placeholder="Tìm tên, mã số thuế, điện thoại, người liên hệ, vật tư"
+            ariaLabel="Tìm nhà cung cấp"
+          />
+          {boLoc}
+          {chonCot}
+        </div>
+      </section>
     </>
   );
 }

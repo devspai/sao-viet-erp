@@ -341,18 +341,12 @@ export function BaoCaoCongNoPage({
         .sort((a, b) => a.den_ngay.localeCompare(b.den_ngay))[0]
     : undefined;
 
-  const kyHienTai = nhanKy(ky);
-
   return (
     <main className="bccn">
       {/* Header */}
       <header className="bccn__head">
         <div className="bccn__head-chu">
           <h1 className="bccn__title">{tieuDeMan(data?.tieu_de, ben)}</h1>
-          <p className="bccn__sub">
-            Tài khoản Sổ theo kỳ đối chiếu với MISA
-            {kyHienTai ? ` · ${kyHienTai}` : ""}
-          </p>
         </div>
         <div className="bccn__head-actions">
           {/* Tạm thời ẩn nút In báo cáo theo yêu cầu */}

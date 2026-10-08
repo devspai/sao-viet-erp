@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import and_, case, func, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from .document_sequence_repo import DocumentSequenceRepository
@@ -340,6 +340,119 @@ class StockLotRepository:
             stmt = stmt.where(StockLot.sl_con_lai > 0)
         return list(self.db.execute(stmt.order_by(StockLot.ngay_nhap.asc(), StockLot.id.asc())).scalars())
 
+    def ton_theo_khoa(self, hang: Hang) -> list[tuple[str | None, int, int, float]]:
+        """Tồn TOÀN XƯỞNG của MỘT mặt hàng tách theo khoá dạng + khổ: `[(dang, rộng, dài, sl)]`,
+        chỉ khoá còn hàng. Nguồn cột Tồn và gợi ý khổ ở form yêu cầu mua / yêu cầu nhập xuất."""
+        stmt = (
+            select(StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai,
+                   func.sum(StockLot.sl_con_lai))
+            .where(StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1],
+                   StockLot.sl_con_lai > 0)
+            .group_by(StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai)
+            .order_by(StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai)
+        )
+        return [(d, int(r or 0), int(k or 0), float(sl or 0))
+                for d, r, k, sl in self.db.execute(stmt).all()]
+
+    def _stmt_lo_mat_hang(self, cols, hang: Hang, kho_id: int, *, tab: str, dang: str | None,
+                          kho_rong: int, kho_dai: int):
+        """Lô của MỘT dòng tồn tại MỘT kho, lọc theo tab ngăn mặt hàng:
+        `lo_ton` = còn hàng · `nhap` = lô nhập thường (không sinh từ phiếu điều chuyển, kể cả lô đã
+        hết) · `nhan_ve` = lô sinh từ phiếu điều chuyển."""
+        stmt = self._loc_dang_kho(select(*cols), dang, kho_rong, kho_dai).where(
+            StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1], StockLot.kho_id == kho_id)
+        dc = select(StockVoucher.id).where(StockVoucher.dieu_chuyen.is_(True))
+        if tab == "lo_ton":
+            return stmt.where(StockLot.sl_con_lai > 0)
+        if tab == "nhap":
+            return stmt.where(or_(StockLot.voucher_id.is_(None), StockLot.voucher_id.not_in(dc)))
+        return stmt.where(StockLot.voucher_id.in_(dc))
+
+    def dem_lo_theo_tab(self, hang: Hang, kho_id: int, *, dang: str | None = None,
+                        kho_rong: int = 0, kho_dai: int = 0) -> dict[str, int]:
+        """Số lô của ba tab (`lo_ton`, `nhap`, `nhan_ve`) trong MỘT câu."""
+        dc = select(StockVoucher.id).where(StockVoucher.dieu_chuyen.is_(True))
+        la_dc = and_(StockLot.voucher_id.is_not(None), StockLot.voucher_id.in_(dc))
+        stmt = self._loc_dang_kho(select(
+            func.coalesce(func.sum(case((StockLot.sl_con_lai > 0, 1), else_=0)), 0),
+            func.coalesce(func.sum(case((la_dc, 0), else_=1)), 0),
+            func.coalesce(func.sum(case((la_dc, 1), else_=0)), 0),
+        ), dang, kho_rong, kho_dai).where(
+            StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1], StockLot.kho_id == kho_id)
+        ton, nhap, nhan_ve = self.db.execute(stmt).one()
+        return {"lo_ton": int(ton), "nhap": int(nhap), "nhan_ve": int(nhan_ve)}
+
+    def trang_lo_mat_hang(self, hang: Hang, kho_id: int, *, tab: str, offset: int, limit: int,
+                          dang: str | None = None, kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
+        """Một trang lô theo tab — Lô tồn nhập trước đứng trước (FIFO, thứ tự lĩnh), lịch sử thì mới
+        nhất trước để trang đầu là việc gần đây."""
+        stmt = self._stmt_lo_mat_hang((StockLot,), hang, kho_id, tab=tab, dang=dang,
+                                      kho_rong=kho_rong, kho_dai=kho_dai)
+        thu_tu = ((StockLot.ngay_nhap.asc(), StockLot.id.asc()) if tab == "lo_ton"
+                  else (StockLot.ngay_nhap.desc(), StockLot.id.desc()))
+        return list(self.db.execute(stmt.order_by(*thu_tu).offset(offset).limit(limit)).scalars())
+
+    #: Cột khoá tồn của một lô — giấy tờ tách theo khổ, mọi hàng khác các cột khổ/dạng bằng nhau.
+    _COT_KHOA = (StockLot.hang_loai, StockLot.hang_id, StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai)
+
+    def list_lots_gon(self, *, kho_id: int, hangs: list[Hang] | None = None) -> list[StockLot]:
+        """Lô CÒN HÀNG của kho + MỘT lô gần nhất cho mỗi khoá đã xuất hết.
+
+        Màn Tồn kho cần lô đã hết chỉ để mặt hàng tồn 0 vẫn có dòng ("Hết"). Nạp mọi lô từng có
+        (`con_hang=False`) thì danh sách phình mãi theo năm tháng trong khi phần hiển thị bỏ hết lô
+        rỗng — lọc ở DB bằng cửa sổ: giữ lô > 0, hoặc lô mới nhất của khoá mà cả khoá đã về 0."""
+        khoa = list(self._COT_KHOA)
+        rn = func.row_number().over(partition_by=khoa,
+                                    order_by=(StockLot.ngay_nhap.desc(), StockLot.id.desc())).label("rn")
+        con = func.max(StockLot.sl_con_lai).over(partition_by=khoa).label("con")
+        loc = select(StockLot.id.label("lot_id"), StockLot.sl_con_lai.label("sl"), rn, con).where(
+            StockLot.kho_id == kho_id)
+        if hangs is not None:
+            # Chỉ các mặt hàng của trang đang xem (màn Tồn kho phân trang ở máy chủ).
+            if not hangs:
+                return []
+            loc = loc.where(tuple_(StockLot.hang_loai, StockLot.hang_id).in_(sorted(set(hangs))))
+        sub = loc.subquery()
+        ids = select(sub.c.lot_id).where(or_(sub.c.sl > 0, and_(sub.c.rn == 1, sub.c.con <= 0)))
+        stmt = select(StockLot).where(StockLot.id.in_(ids))
+        return list(self.db.execute(stmt.order_by(StockLot.ngay_nhap.asc(), StockLot.id.asc())).scalars())
+
+    def tong_hop_ton_theo_khoa(self, kho_id: int) -> list:
+        """Mỗi khoá tồn thô (hàng, dạng, khổ rộng, khổ dài) từng có lô trong kho MỘT dòng cộng sẵn:
+        `tong` = Σ sl_con_lai lô khả dụng · `gia_tri` = Σ sl_con_lai × đơn giá nhập (lô khả dụng) ·
+        `hsd_som` = hạn sớm nhất của lô CÒN hàng · `co_hsd` = có lô còn hàng khai hạn.
+
+        Màn Tồn kho lọc/đếm/cắt trang trên các dòng này (vài nghìn mã) rồi mới nạp lô của đúng trang —
+        không kéo mọi lô về. Cuộn khác khổ vẫn là một khoá thô mỗi khổ; người gọi gộp theo `khoa_ton_cua`."""
+        kha_dung = StockLot.trang_thai == LOT_AVAILABLE
+        con = StockLot.sl_con_lai > 0
+        stmt = (
+            select(
+                *self._COT_KHOA,
+                func.coalesce(func.sum(case((kha_dung, StockLot.sl_con_lai), else_=0)), 0).label("tong"),
+                func.coalesce(func.sum(case(
+                    (kha_dung, StockLot.sl_con_lai * func.coalesce(StockLot.don_gia_nhap, 0)),
+                    else_=0)), 0).label("gia_tri"),
+                func.min(case((and_(con, StockLot.hsd.is_not(None)), StockLot.hsd), else_=None)).label("hsd_som"),
+            )
+            .where(StockLot.kho_id == kho_id)
+            .group_by(*self._COT_KHOA)
+        )
+        return list(self.db.execute(stmt).all())
+
+    def khoa_co_lo_nhap_trong(self, kho_id: int, tu: date | None, den: date | None) -> set[tuple]:
+        """Khoá tồn thô có ÍT NHẤT MỘT lô còn hàng nhập trong [tu, den] (bộ lọc "Nhập gần nhất")."""
+        stmt = select(*self._COT_KHOA).where(StockLot.kho_id == kho_id, StockLot.sl_con_lai > 0)
+        if tu is not None:
+            stmt = stmt.where(StockLot.ngay_nhap >= tu)
+        if den is not None:
+            stmt = stmt.where(StockLot.ngay_nhap <= den)
+        return {tuple(r) for r in self.db.execute(stmt.distinct()).all()}
+
+    def khoa_trong_kho(self, kho_id: int) -> list:
+        """Các bộ cột khoá tồn (DISTINCT) từng có lô trong kho — đủ cho `khoa_ton_cua`, khỏi nạp lô."""
+        return list(self.db.execute(select(*self._COT_KHOA).where(StockLot.kho_id == kho_id).distinct()))
+
 
 class StockThresholdRepository:
     def __init__(self, db: Session) -> None:
@@ -382,11 +495,13 @@ class StockThresholdRepository:
                 out[k] = r
         return out
 
-    def list_active(self) -> list[StockThreshold]:
-        """Mọi ngưỡng đang bật cảnh báo — nguồn quét để đẩy nhắc realtime (spec §8)."""
-        return list(self.db.execute(
-            select(StockThreshold).where(StockThreshold.canh_bao.is_(True))
-        ).scalars())
+    def list_active(self, kho_id: int | None = None) -> list[StockThreshold]:
+        """Mọi ngưỡng đang bật cảnh báo — nguồn quét để đẩy nhắc realtime (spec §8). `kho_id` = chỉ
+        ngưỡng của một kho (màn Tồn kho của kho đó)."""
+        stmt = select(StockThreshold).where(StockThreshold.canh_bao.is_(True))
+        if kho_id is not None:
+            stmt = stmt.where(StockThreshold.kho_id == kho_id)
+        return list(self.db.execute(stmt).scalars())
 
     def upsert(self, *, hang: tuple, kho_id: int, **data) -> StockThreshold:
         obj = self.get_for(hang, kho_id)

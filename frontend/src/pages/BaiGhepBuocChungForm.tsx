@@ -187,21 +187,23 @@ export function BuocChungForm({
 
   const mayId = val("may_id", g.may_id) ?? null;
   // Ô TỔ của lượt chung: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026),
-  // đúng thứ tự khai. Công đoạn chưa khai tổ ⇒ mời mọi tổ, y như server không chặn. Tổ ĐANG gán mà
-  // không còn phụ trách vẫn phải hiện, nếu không select nhảy về "— chọn tổ —" rồi lưu là mất tổ.
+  // đúng thứ tự khai. Công đoạn chưa khai tổ ⇒ mời mọi tổ, y như server không chặn.
+  // CHỈ nút lá (07/10/2026): `toRefs` = tổ là nút lá khối Sản xuất; nút cha / tổ đã xoá không bày ra.
+  // Tổ ĐANG gán là tổ thật nhưng không còn phụ trách thì vẫn hiện (gắn nhãn). Đang gán nút cha thì
+  // select đứng ở "— chọn tổ —"; form chỉ gửi ô đã sửa (`val`) nên không đụng thì không mất gì.
   const toChon = (() => {
     const ds = toRefs ?? [];
-    const ids = g.to_chon_duoc ?? [];
+    const ids = (g.to_chon_duoc ?? []).filter((id) => ds.some((t) => t.id === id));
     const items = ids.length
-      ? ids.map((id) => ({ id, ten: ds.find((t) => t.id === id)?.ten ?? `Tổ #${id} (đã xoá)` }))
+      ? ids.map((id) => ({ id, ten: ds.find((t) => t.id === id)!.ten }))
       : ds.map((t) => ({ id: t.id, ten: t.ten }));
-    const dangGan = val("department_id", g.department_id) ?? null;
-    if (dangGan != null && !items.some((t) => t.id === dangGan)) {
-      const ten = ds.find((t) => t.id === dangGan)?.ten ?? g.to_ten ?? `Tổ #${dangGan}`;
-      items.push({ id: dangGan, ten: `${ten} (không còn phụ trách công đoạn)` });
+    const dangGan = ds.find((t) => t.id === (val("department_id", g.department_id) ?? null));
+    if (dangGan && !items.some((t) => t.id === dangGan.id)) {
+      items.push({ id: dangGan.id, ten: `${dangGan.ten} (không còn phụ trách công đoạn)` });
     }
     return items;
   })();
+  const toDangGan = val("department_id", g.department_id) ?? null;
   const mayDaChon = (mayRefs ?? []).find((m) => m.id === mayId) ?? null;
 
   // Thời lượng tính LẠI TẠI CHỖ bằng đúng công thức của bước lệnh: đổi máy / số lượt / thời gian
@@ -490,7 +492,7 @@ export function BuocChungForm({
                   <span className="khsx-field__label">TỔ PHỤ TRÁCH</span>
                   <select
                     className="khsx-select-std"
-                    value={val("department_id", g.department_id) ?? ""}
+                    value={toDangGan != null && toChon.some((t) => t.id === toDangGan) ? toDangGan : ""}
                     disabled={!canUpdate || !toRefs}
                     onChange={(e) => setF({ ...f, department_id: e.target.value ? Number(e.target.value) : null })}
                   >

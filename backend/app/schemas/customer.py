@@ -128,6 +128,10 @@ class CustomerListOut(BaseModel):
     page: int
     size: int
     kpis: CustomerKpis
+    # Hàng lọc nhanh "Trạng thái mua hàng": đếm trên tập đang lọc (mọi điều kiện TRỪ chính ô mua).
+    dem_mua: dict[str, int] = {}
+    # Dòng "Cộng" của lưới: tổng mua 12 tháng của CẢ tập lọc (không riêng trang đang xem).
+    tong_mua_12m: int = 0
 
 
 class CustomerCreateOut(BaseModel):

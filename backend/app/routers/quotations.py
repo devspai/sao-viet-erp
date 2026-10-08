@@ -101,7 +101,7 @@ STATUS_LABELS = {
     "pending_approval": "Chờ duyệt",   # đặc thù đã "Trình duyệt", chờ Giám đốc Kinh doanh
     "approved": "Đã duyệt",             # GĐ KD duyệt xong, CHỜ sale gửi khách (tách duyệt/gửi)
     "sent": "Đã gửi khách",             # sale tự gửi (tách khỏi "duyệt")
-    "accepted": "Khách hàng đồng ý",
+    "accepted": "Khách đồng ý",   # một tên cho cả chip lẫn tab (07/10/2026, trước là "Khách chốt"/"Khách hàng đồng ý")
     "rejected": "Bị từ chối",   # khách từ chối HOẶC GĐ/TP từ chối đặc thù (phân biệt bằng banner/nhật ký)
     "expired": "Hết hiệu lực",
     "converted_to_order": "Đã lên đơn",
@@ -134,6 +134,7 @@ def _row(
     customer_name: str | None,
     user_names: dict[int, str] | None = None,
     duyet: dict | None = None,
+    don_hang: tuple[int, str, str] | None = None,
 ) -> QuotationRow:
     active_version = None
     for v in q.versions:
@@ -151,6 +152,11 @@ def _row(
             if it.product_name not in names_seen:
                 names_seen.append(it.product_name)
         product_summary = names_seen[0] + (f" + {len(names_seen) - 1} SP khác" if len(names_seen) > 1 else "")
+        san_pham, so_sp_khac = names_seen[0], len(names_seen) - 1
+    else:
+        san_pham, so_sp_khac = None, 0
+    # Cột "Số lượng": số lượng + đơn vị của dòng đầu (cùng dòng với tên sản phẩm hiện ngoài bảng).
+    dau = min(items, key=lambda it: it.line_no) if items else None
 
     return QuotationRow(
         id=q.id,
@@ -169,6 +175,13 @@ def _row(
         salesperson_name=(user_names or {}).get(q.salesperson_id),
         created_at=q.created_at,
         duyet=DuyetTomTat(**duyet) if duyet else None,
+        san_pham=san_pham,
+        so_sp_khac=so_sp_khac,
+        so_luong=int(dau.quantity) if dau else None,
+        don_vi=dau.unit if dau else None,
+        don_hang_id=don_hang[0] if don_hang else None,
+        don_hang_ma=don_hang[1] if don_hang else None,
+        don_hang_trang_thai=don_hang[2] if don_hang else None,
     )
 
 
@@ -363,7 +376,7 @@ def list_quotations(
     nguoi: int | None = Query(default=None),
 ) -> QuotationListOut:
     scope = _scope_for(authz, user)
-    rows, total, names = svc.list_quotations(
+    rows, total, names, tong_gia_ban = svc.list_quotations(
         scope=scope, actor=user, q=q, status=status_filter, sort=sort, page=page, size=size,
         nguoi=nguoi, loc=loc,
     )
@@ -372,10 +385,12 @@ def list_quotations(
     user_ids: set[int] = {r.salesperson_id for r in rows if r.salesperson_id}
     user_names = svc.user_names(user_ids)
     duyet = svc.tom_tat_duyet(rows)
+    don_hang = svc.don_hang_cua(rows)
 
     return QuotationListOut(
-        items=[_row(r, names.get(r.id), user_names, duyet.get(r.id)) for r in rows],
+        items=[_row(r, names.get(r.id), user_names, duyet.get(r.id), don_hang.get(r.id)) for r in rows],
         total=total,
+        tong_gia_ban=tong_gia_ban,
         page=page,
         size=size,
     )

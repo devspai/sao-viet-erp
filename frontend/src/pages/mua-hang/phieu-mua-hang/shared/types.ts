@@ -2,6 +2,8 @@
 import type {
   DepartmentPurchaseWorkflowStatus,
   HangLoai,
+  LoaiMua,
+  MuaChoLenh,
   PurchaseDeliveryRow,
   PurchaseRequestInput,
   PurchaseRequestLineInput,
@@ -36,6 +38,10 @@ export type FormLine = PurchaseRequestLineInput & {
   /** Lúc TẠO đơn từ yêu cầu: dòng có được đưa vào đơn này không. `false` = bỏ tick ⇒ không gửi,
    *  dòng yêu cầu vẫn mở (muốn đóng hẳn thì huỷ dòng ở phiếu yêu cầu). Vắng = có. */
   chon?: boolean;
+  /** Chỉ để HIỆN trên form (không gửi): món của yêu cầu nào, mua cho lệnh nào / tồn kho. */
+  yeu_cau_ma?: string | null;
+  loai_mua?: LoaiMua | null;
+  mua_cho?: MuaChoLenh[];
 };
 
 /** Dòng có vào đơn đang lập không (vắng cờ = có). */
@@ -52,6 +58,11 @@ export type ChaoGia = {
   /** Đơn giá quy về đ/đơn-vị-gốc. `null` = chưa quy đổi được — xếp cuối, và lúc chọn thì KHÔNG
    *  được lấy đại `unit_price` vì dòng đơn tính theo đơn vị gốc. */
   gia_quy_doi: number | null;
+  /** NCC bán đúng mã này nhưng KHÁC dạng bán hoặc khác khổ (07/10/2026): không so giá được, chọn
+   *  thì đơn giá để trống cho người lập gõ. Luôn đứng sau nhóm cùng dạng + khổ. */
+  khac_kho?: boolean;
+  /** Nhãn dạng + khổ NCC đang bán, vd "Tờ 650 × 860" — hiện ở nhóm khác khổ. */
+  nhan_dang?: string;
 };
 
 /** Một file hoá đơn ĐANG CHỜ tải lên. `url` là `blob:` để xem trước — rỗng với PDF (thẻ `<img>`

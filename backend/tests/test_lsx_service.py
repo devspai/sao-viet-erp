@@ -811,6 +811,8 @@ def test_san_sang_bi_chan_khi_con_thieu_va_mo_khi_du(db, orders, lsx_svc, admin,
     db.commit()
     hop = lsx_svc.get(hop.id)
     assert "thieu_to_may" in lsx_svc.thieu_cua(hop)
+    # Màn lệnh gọi đích danh bước nào thiếu — id bước đi kèm mã, ra tới API chi tiết.
+    assert buoc.id in lsx_svc.detail_dict(hop)["thieu_buoc"]["thieu_to_may"]
     with pytest.raises(LsxConflict):
         lsx_svc.set_trang_thai(lsx_id=hop.id, trang_thai=TT_SAN_SANG, actor=admin)
 

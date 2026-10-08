@@ -114,6 +114,7 @@ import {
   type NavItem,
 } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { GoiYBang } from "./LuoiDs";
 import { coQuyenBanTo, khoaBanTo } from "./appShellRealtime";
 import { khoaTonKho, xemKhoNao } from "../auth/quyenKho";
 import { docDeepLinkLsx } from "./appShellDeepLink";
@@ -139,6 +140,9 @@ export interface NavParams {
   chamCongTab?: "khai-ca";
   /** Liên thông: mở màn Yêu cầu mua hàng (YCMH) lọc + tô sáng đúng mã phiếu này. */
   focusRequestCode?: string;
+  /** Kèm `focusRequestCode` mã YCMH (07/10/2026): màn Mua hàng mở luôn form lập đơn cho yêu cầu đó
+   *  — nút "Lập đơn mua cho N món" ở chi tiết yêu cầu. */
+  lapDonTuYeuCau?: boolean;
   /** Liên thông từ 3 đèn ở Kế hoạch SX: mở Kế hoạch vật tư / Xếp lịch với ô tìm điền sẵn mã lệnh.
    *  Không có nó thì bấm chấm chỉ tới được MÀN, còn phải tự dò lệnh trong danh sách — vẫn là đổi
    *  màn, chỉ đỡ được nửa việc. */
@@ -172,6 +176,8 @@ export interface NavParams {
    *  chỉ mấy dòng vật tư. `needed_date` để trống — người lập tự gõ ngày cần hàng (18/09/2026). */
   purchaseSeedHeader?: {
     source_type?: DepartmentPurchaseSourceType | null;
+    /** Kho gửi `mua_ton`, Kế hoạch vật tư gửi `cho_lsx` (08/10/2026). */
+    loai_mua?: "theo_yeu_cau" | "cho_lsx" | "mua_ton" | null;
     needed_date?: string | null;
     related_document_type?: string | null;
     related_document_code?: string | null;
@@ -1384,6 +1390,7 @@ export function AppShell() {
       case "yeu-cau-mua-hang":
         return (
           <DepartmentPurchaseRequestsPage
+            navigate={navigate}
             eventTick={tickCua("mua_ke_toan")}
             focusRequestCode={navParams?.focusRequestCode ?? null}
             seedLines={navParams?.purchaseSeedLines ?? null}
@@ -1402,6 +1409,7 @@ export function AppShell() {
             navigate={navigate}
             eventTick={tickCua("mua_ke_toan")}
             focusRequestCode={navParams?.focusRequestCode ?? null}
+            lapDonTuYeuCau={navParams?.lapDonTuYeuCau ?? false}
             onDataRefreshed={markThuMuaNotificationsRead}
           />
         );
@@ -1480,6 +1488,8 @@ export function AppShell() {
           onClose={() => setNavOpen(false)}
         />
         <div className="shell__main">
+          {/* Bong bóng rê chuột cho ô bảng bị cắt "…" / có title — một bản cho cả app. */}
+          <GoiYBang />
           <Topbar
             onOpenProfile={() => navigate("ho-so-cua-toi")}
             onToggleNav={() => setNavOpen((v) => !v)}

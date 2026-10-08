@@ -295,6 +295,21 @@ _SORT_COLUMNS = {
 }
 
 
+def _co_thanh_phan():
+    return select(PhieuThanhPhan.id).where(PhieuThanhPhan.phieu_id == PhieuTinhGia.id).exists()
+
+
+# Trạng thái không phải cột DB — khớp đúng badge ngoài bảng (FE `PhieuTinhGiaListView`):
+# - Nháp: phiếu chưa có sản phẩm nào bên trong.
+# - Đang tính: có sản phẩm nhưng chưa ra giá (tổng giá vốn 0).
+# - Đã tính giá: có sản phẩm và đã ra giá. Trước 07/10/2026 tab này đếm cả phiếu 0 đ.
+_DK_TRANG_THAI = {
+    "draft": lambda: ~_co_thanh_phan(),
+    "dang_tinh": lambda: _co_thanh_phan() & (func.coalesce(PhieuTinhGia.tong_gia_von, 0) <= 0),
+    "calculated": lambda: _co_thanh_phan() & (PhieuTinhGia.tong_gia_von > 0),
+}
+
+
 def _loc_danh_sach(
     stmt,
     *,
@@ -370,14 +385,16 @@ def list_items(
         select(PhieuTinhGia), db=db, user=user, authz=authz, q=q, nguoi=nguoi,
         tu_ngay=tu_ngay, den_ngay=den_ngay, khach=khach, gv_tu=gv_tu, gv_den=gv_den, bao_gia=bao_gia,
     )
-    # "Nháp"/"Đã tính giá" không phải cột DB — phiếu KHÔNG có sản phẩm nào bên trong = nháp
-    # (đồng nhất với so_thanh_phan == 0 mà FE dùng để tô badge, xem vòng lặp bên dưới).
-    has_thanh_phan = select(PhieuThanhPhan.id).where(PhieuThanhPhan.phieu_id == PhieuTinhGia.id).exists()
-    if status_filter == "draft":
-        stmt = stmt.where(~has_thanh_phan)
-    elif status_filter == "calculated":
-        stmt = stmt.where(has_thanh_phan)
+    dk = _DK_TRANG_THAI.get(status_filter or "")
+    if dk is not None:
+        stmt = stmt.where(dk())
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    # Dòng "Cộng" cuối bảng: Σ tổng giá vốn của MỌI dòng khớp bộ lọc (không chỉ trang đang xem).
+    tong_gia_von = db.scalar(
+        select(func.coalesce(func.sum(PhieuTinhGia.tong_gia_von), 0)).where(
+            PhieuTinhGia.id.in_(stmt.with_only_columns(PhieuTinhGia.id).order_by(None))
+        )
+    ) or 0
 
     sort_key = sort.lstrip("-") if sort else "ngay"
     sort_col = _SORT_COLUMNS.get(sort_key, PhieuTinhGia.created_at)
@@ -390,6 +407,15 @@ def list_items(
     ).scalars().all()
     ten_khach = ptg_khach_hang_service.ten_khach(db, {r.customer_id for r in rows})
     ten_lap = _ten_nguoi_lap(db, {r.created_by for r in rows})
+    # Cột "Báo giá": một phiếu một báo giá (UNIQUE `quotes.phieu_tinh_gia_id`) — một truy vấn cho cả trang.
+    bao_gia = {
+        pid: (qid, so)
+        for qid, so, pid in db.execute(
+            select(Quote.id, Quote.quote_number, Quote.phieu_tinh_gia_id).where(
+                Quote.phieu_tinh_gia_id.in_([r.id for r in rows])
+            )
+        ).all()
+    } if rows else {}
     items = []
     for r in rows:
         it = PhieuTinhGiaListItem.model_validate(r)
@@ -406,8 +432,10 @@ def list_items(
                 int(tp.so_luong or 0) or int(r.so_luong or 0) for tp in r.thanh_phans
             )
         it.ten_thanh_phans = [tp.ten for tp in sorted(r.thanh_phans, key=lambda x: x.thu_tu) if tp.ten]
+        if r.id in bao_gia:
+            it.bao_gia_id, it.bao_gia_ma = bao_gia[r.id]
         items.append(it)
-    return PhieuTinhGiaListOut(items=items, total=total)
+    return PhieuTinhGiaListOut(items=items, total=total, tong_gia_von=float(tong_gia_von))
 
 
 @router.get("/stats", response_model=PhieuTinhGiaStatsOut)
@@ -430,10 +458,13 @@ def stats(
         select(PhieuTinhGia.id), db=db, user=user, authz=authz, q=q, nguoi=nguoi,
         tu_ngay=tu_ngay, den_ngay=den_ngay, khach=khach, gv_tu=gv_tu, gv_den=gv_den, bao_gia=bao_gia,
     )
-    has_thanh_phan = select(PhieuThanhPhan.id).where(PhieuThanhPhan.phieu_id == PhieuTinhGia.id).exists()
-    total_all = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    total_draft = db.scalar(select(func.count()).select_from(stmt.where(~has_thanh_phan).subquery())) or 0
-    return PhieuTinhGiaStatsOut(all=total_all, draft=total_draft, calculated=total_all - total_draft)
+    dem = lambda k: db.scalar(  # noqa: E731
+        select(func.count()).select_from(stmt.where(_DK_TRANG_THAI[k]()).subquery())
+    ) or 0
+    return PhieuTinhGiaStatsOut(
+        all=db.scalar(select(func.count()).select_from(stmt.subquery())) or 0,
+        draft=dem("draft"), dang_tinh=dem("dang_tinh"), calculated=dem("calculated"),
+    )
 
 
 @router.get("/khach-loc", response_model=list[LuaChonLoc])

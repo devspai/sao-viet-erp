@@ -43,10 +43,10 @@ export function TamUngCuaToiTab({
   }, [load, eventTick]);
 
   const STATUS: Record<string, [string, string]> = {
-    pending: ["Chờ duyệt", "ns-badge--muted"],
+    pending: ["Chờ duyệt", "ns-badge--warn"],
     approved: ["Đã duyệt", "ns-badge--ok"],
     rejected: ["Từ chối", "ns-badge--danger"],
-    cancelled: ["Đã hủy", "ns-badge--muted"],
+    cancelled: ["Đã hủy", "ns-badge--gray"],
   };
   const KIND: Record<string, [string, string]> = {
     tam_ung: ["Tạm ứng", "ns-badge--muted"],

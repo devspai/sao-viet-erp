@@ -28,11 +28,6 @@
 
 /* ---- Dải tiêu đề: bộ lọc báo cáo nằm cạnh nút Xuất Excel ---------------------------------
    Bộ lọc này lọc KPI + biểu đồ + file Excel, KHÔNG lọc bảng lệnh (bảng có ô tìm riêng). */
-/* Khoảng cách dưới do `gap` của `.kcs-page` lo — bỏ margin của `.rc__head` kẻo cộng dồn. */
-.rc__head.kcs-page__head {
-  margin-bottom: 0;
-}
-
 .kcs-loc {
   display: flex;
   align-items: center;
@@ -272,19 +267,12 @@
   color: var(--ash-2);
 }
 
-/* ---- Thẻ bảng lệnh: đầu thẻ (tiêu đề · tìm · chip phạm vi) + bảng + chân phân trang -------- */
+/* ---- Khối lệnh: tiêu đề + lưới theo khuôn chuẩn (components/LuoiDs, 08/10/2026) -------------
+   Thanh tìm + lọc + nút "Cột" là `.lds-loc`, lưới là `.lds-sheet` (có chân phân trang). Khối này nằm
+   trong cột trái của dashboard nên không bọc thẻ `.kcs-the`; KHÔNG `overflow: hidden` — hộp lọc và
+   hộp chọn cột mở ra ngoài mép khối. */
 .kcs-lenh {
-  padding: 0;
-  overflow: hidden;
-}
-/* Đầu thẻ: tiêu đề · ô tìm · thanh lọc chung (kỳ + điều kiện, 06/10/2026) — xuống dòng được. */
-.kcs-lenh__dau {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom: 1px solid var(--rule-soft);
+  min-width: 0;
 }
 .kcs-lenh__tieu {
   display: flex;
@@ -292,127 +280,13 @@
   gap: var(--sp-2);
   margin: 0;
   font-size: 15px;
-  font-weight: var(--fw-bold);
+  font-weight: 500;
   color: var(--ink);
   white-space: nowrap;
 }
-.kcs-lenh__tim {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1 1 220px;
-  min-width: 160px;
-}
-.kcs-lenh__tim-ic {
-  position: absolute;
-  left: 11px;
-  color: var(--ash-2);
-  pointer-events: none;
-}
-.kcs-lenh__tim input[type="search"] {
-  width: 100%;
-  height: 34px;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-pill);
-  padding: 0 var(--sp-3) 0 32px;
-  font-family: var(--ff-sans);
-  font-size: 13px;
-  background: var(--canvas);
-  color: var(--ink);
-  transition: border-color var(--duration-fast) var(--easing-standard),
-    box-shadow var(--duration-fast) var(--easing-standard);
-}
-.kcs-lenh__tim input[type="search"]:focus {
-  outline: none;
-  border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rule-hair);
-}
-
-/* Bảng nằm TRONG thẻ: bỏ khung riêng của `.rc__tablewrap`, chân phân trang dính đáy thẻ. */
-.kcs-lenh .rc__tablewrap {
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
-/* Thẻ `.kcs-lenh` đã có viền + bo góc: chân nằm trong thẻ nên bỏ khung nối mà
-   `.rc__tablewrap + .ptdd` (rebuild-catalog.css) gắn cho bảng đứng riêng. */
-.kcs-lenh .rc__tablewrap + .ptdd {
-  border: none;
-  border-top: 1px solid var(--rule-soft);
-  border-radius: 0;
-  box-shadow: none;
-}
-.kcs-lenh__trong {
-  margin: 0;
-  padding: var(--sp-8) var(--sp-4);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-2);
-  text-align: center;
-}
-
-.kcs-col--lenh { width: 24%; }
-.kcs-col--khach { width: 19%; }
-.kcs-col--nhom { width: 14%; }
-.kcs-col--ngay { width: 11%; }
-.kcs-col--kiem { width: 13%; }
-.kcs-col--loi { width: 8%; }
-
-.kcs-lenh .kcs-table--lenh thead th {
-  padding: 10px var(--sp-4);
-}
-.kcs-lenh .kcs-table--lenh td {
-  padding: var(--sp-3) var(--sp-4);
-  border-bottom-color: var(--rule-hair);
-}
-.kcs-table--lenh :is(th, td).num {
-  text-align: right;
-}
-.kcs-table--lenh .rc__sub {
-  font-size: 12px;
-  color: var(--ash-2);
-  margin-top: 2px;
-}
-
-.kcs-code {
-  font-family: var(--ff-sans);
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-
-.kcs-row--clickable {
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--easing-standard);
-}
-.kcs-row--clickable:hover {
-  background: var(--rule-hair);
-}
-.kcs-row--clickable:focus-visible {
-  outline: 2px solid var(--rust);
-  outline-offset: -2px;
-}
-
-/* Pill có chấm — liều màu nhỏ, trạng thái luôn kèm chữ. */
-.kcs-dot-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-  font-size: 12px;
-  font-weight: var(--fw-bold);
-  white-space: nowrap;
-}
-.kcs-dot-pill__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.kcs-dot-pill--moss { background: var(--moss-soft); color: var(--moss-deep); }
-.kcs-dot-pill--amber { background: var(--amber-soft); color: var(--amber-deep); }
-.kcs-dot-pill--signal { background: var(--signal-soft); color: var(--signal); }
+/* Bộ lọc báo cáo (kỳ, công đoạn, mã) đứng sát tiêu đề trang, nút Xuất Excel dồn phải. */
+.kcs-page > .lds-dau > .kcs-loc { margin-left: auto; }
+.kcs-page > .lds-dau > .kcs-loc + .lds-dau__nut { margin-left: 0; }
 
 /* ---- Màn hẹp ------------------------------------------------------------------------------ */
 /* Dưới 1100px: cột phải xuống dưới, hai biểu đồ đứng cạnh nhau. */
@@ -442,9 +316,7 @@
 }
 @media (max-width: 640px) {
   .kcs-dash__phai { grid-template-columns: minmax(0, 1fr); }
-  .kcs-lenh__tim { flex-basis: 100%; }
   .kcs-the { padding: var(--sp-3) var(--sp-4); }
-  .kcs-lenh { padding: 0; }
 }
 
 /* ---- Drawer ghi kết quả: 4 khối xếp dọc -------------------------------------------------- */

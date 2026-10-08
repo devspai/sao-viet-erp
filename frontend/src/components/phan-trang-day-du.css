@@ -13,6 +13,10 @@
   flex-wrap: wrap;
 }
 
+.ptdd__phan {
+  margin-left: 16px;
+}
+
 .ptdd__ghichu {
   margin-left: 8px;
   opacity: 0.85;

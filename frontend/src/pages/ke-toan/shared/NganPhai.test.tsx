@@ -24,9 +24,9 @@ afterEach(() => {
 });
 
 describe("độ rộng chung", () => {
-  it("mặc định 920px, kéo mép trái đổi độ rộng chung và nhớ", () => {
+  it("mặc định 1180px, kéo mép trái đổi độ rộng chung và nhớ", () => {
     render(<NganPhai tieuDe="Phiếu" onDong={() => {}}>x</NganPhai>);
-    expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe("920px");
+    expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe("1180px");
     const keo = screen.getByRole("separator", { name: "Kéo để đổi độ rộng" });
     fireEvent.pointerDown(keo, { clientX: 680, pointerId: 1 });
     fireEvent.pointerMove(keo, { clientX: 500, pointerId: 1 });
@@ -54,13 +54,13 @@ describe("độ rộng chung", () => {
     fireEvent.doubleClick(keo);
     expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe(`${window.innerWidth - 232}px`);
     fireEvent.doubleClick(keo);
-    expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe("920px");
+    expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe("1180px");
   });
 
-  it("số lưu hỏng thì về 920px", () => {
+  it("số lưu hỏng thì về 1180px", () => {
     localStorage.setItem(KHOA_LUU, "rác");
     render(<NganPhai tieuDe="P" onDong={() => {}}>x</NganPhai>);
-    expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe("920px");
+    expect(document.documentElement.style.getPropertyValue("--kt-ngan-w")).toBe("1180px");
   });
 
   it("màn 1024px: mặc định kẹp sát thanh bên, nút Mở rộng không bao giờ làm ngăn hẹp lại", () => {
@@ -92,7 +92,7 @@ describe("độ rộng chung", () => {
       throw new Error("bị chặn");
     });
     const { unmount } = render(<NganPhai tieuDe="P" onDong={() => {}}>x</NganPhai>);
-    expect(doRong()).toBe("920px");
+    expect(doRong()).toBe("1180px");
     const keo = screen.getByRole("separator", { name: "Kéo để đổi độ rộng" });
     fireEvent.pointerDown(keo, { clientX: 680, pointerId: 1 });
     fireEvent.pointerMove(keo, { clientX: 500, pointerId: 1 });

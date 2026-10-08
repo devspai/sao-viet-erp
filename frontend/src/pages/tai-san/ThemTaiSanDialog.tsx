@@ -595,50 +595,64 @@ export function ThemTaiSanDialog({
                     <div className="rc-field ts-o--ca">
                       <span className="rc-field__label">Giá mua gồm những khoản</span>
                       {chiPhi.length > 0 && (
-                        <table className="ts-chiphi">
-                          <tbody>
-                            {chiPhi.map((d, i) => (
-                              <tr key={i}>
-                                <td>
-                                  <input className="rc-input" value={d.dien_giai} maxLength={255}
-                                    disabled={khoaSo} placeholder="Vận chuyển, lắp đặt…"
-                                    aria-label={`Khoản ${i + 1}`}
-                                    onChange={(e) => {
-                                      setChiPhi((ds) => ds.map((x, j) => (j === i ? { ...x, dien_giai: e.target.value } : x)));
-                                      setDaDoiSo(true);
-                                    }} />
-                                </td>
-                                <td className="ts-chiphi__tien">
-                                  <OTien value={d.so_tien} disabled={khoaSo} placeholder="Số tiền"
-                                    ariaLabel={`Số tiền khoản ${i + 1}`}
-                                    onChange={(v) => {
-                                      setChiPhi((ds) => ds.map((x, j) => (j === i ? { ...x, so_tien: v } : x)));
-                                      setDaDoiSo(true);
-                                      xoaLoi("ts-them-gia");
-                                    }} />
-                                </td>
-                                <td>
-                                  <button type="button" className="ts-chiphi__x" disabled={khoaSo}
-                                    aria-label={`Bỏ khoản ${i + 1}`}
-                                    onClick={() => {
-                                      setChiPhi((ds) => {
-                                        const con = ds.filter((_, j) => j !== i);
-                                        // Còn một khoản thì gộp về ô Giá mua cho gọn.
-                                        if (con.length <= 1) {
-                                          setGia(con[0]?.so_tien ?? 0);
-                                          return [];
-                                        }
-                                        return con;
-                                      });
-                                      setDaDoiSo(true);
-                                    }}>
-                                    <Icon name="trash" size={15} />
-                                  </button>
-                                </td>
+                        <div className="lds-bang lds-bang--nhap ts-chiphi">
+                          <table className="lds-g">
+                            <colgroup>
+                              <col />
+                              <col className="ts-chiphi__tien" />
+                              <col className="ts-chiphi__x-cot" />
+                            </colgroup>
+                            <thead>
+                              <tr>
+                                <th>Khoản</th>
+                                <th className="n">Số tiền</th>
+                                <th className="lds-tick"><span className="ts-an-chu">Bỏ khoản</span></th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {chiPhi.map((d, i) => (
+                                <tr key={i}>
+                                  <td>
+                                    <input className="rc-input" value={d.dien_giai} maxLength={255}
+                                      disabled={khoaSo} placeholder="Vận chuyển, lắp đặt…"
+                                      aria-label={`Khoản ${i + 1}`}
+                                      onChange={(e) => {
+                                        setChiPhi((ds) => ds.map((x, j) => (j === i ? { ...x, dien_giai: e.target.value } : x)));
+                                        setDaDoiSo(true);
+                                      }} />
+                                  </td>
+                                  <td className="n">
+                                    <OTien value={d.so_tien} disabled={khoaSo} placeholder="Số tiền"
+                                      ariaLabel={`Số tiền khoản ${i + 1}`}
+                                      onChange={(v) => {
+                                        setChiPhi((ds) => ds.map((x, j) => (j === i ? { ...x, so_tien: v } : x)));
+                                        setDaDoiSo(true);
+                                        xoaLoi("ts-them-gia");
+                                      }} />
+                                  </td>
+                                  <td className="lds-tick">
+                                    <button type="button" className="ts-chiphi__x" disabled={khoaSo}
+                                      aria-label={`Bỏ khoản ${i + 1}`}
+                                      onClick={() => {
+                                        setChiPhi((ds) => {
+                                          const con = ds.filter((_, j) => j !== i);
+                                          // Còn một khoản thì gộp về ô Giá mua cho gọn.
+                                          if (con.length <= 1) {
+                                            setGia(con[0]?.so_tien ?? 0);
+                                            return [];
+                                          }
+                                          return con;
+                                        });
+                                        setDaDoiSo(true);
+                                      }}>
+                                      <Icon name="trash" size={15} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                       <button type="button" className="btn btn--ghost ts-them-khoan" disabled={khoaSo}
                         onClick={() => {
@@ -740,14 +754,21 @@ export function LichKhauHao({ lich, denThang }: { lich: DongDuKien[]; denThang?:
   });
 
   return (
-    <div className="ts-dukien">
-      <table>
+    <div className="lds-bang ts-dukien">
+      <table className="lds-g" style={{ minWidth: 560 }}>
+        <colgroup>
+          <col style={{ width: 120 }} />
+          <col style={{ width: 120 }} />
+          <col style={{ width: 130 }} />
+          <col style={{ width: 130 }} />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             <th>Tháng</th>
-            <th className="ts-num">Khấu hao</th>
-            <th className="ts-num">Đã khấu hao</th>
-            <th className="ts-num">Còn lại</th>
+            <th className="n">Khấu hao</th>
+            <th className="n">Đã khấu hao</th>
+            <th className="n">Còn lại</th>
             <th>Ghi chú</th>
           </tr>
         </thead>
@@ -765,9 +786,9 @@ export function LichKhauHao({ lich, denThang }: { lich: DongDuKien[]; denThang?:
                       {nam}
                     </button>
                   </td>
-                  <td className="ts-num">{tien(ds.reduce((t, d) => t + d.muc_trich, 0))}</td>
-                  <td className="ts-num">{tien(cuoi.luy_ke)}</td>
-                  <td className="ts-num">{tien(cuoi.con_lai)}</td>
+                  <td className="n">{tien(ds.reduce((t, d) => t + d.muc_trich, 0))}</td>
+                  <td className="n">{tien(cuoi.luy_ke)}</td>
+                  <td className="n">{tien(cuoi.con_lai)}</td>
                   <td className="ts-mo">{ds.length} tháng</td>
                 </tr>
                 {dangMo && ds.map((d) => {
@@ -779,9 +800,9 @@ export function LichKhauHao({ lich, denThang }: { lich: DongDuKien[]; denThang?:
                   return (
                     <tr key={khoa} className={lop || undefined}>
                       <td className="ts-dukien__thang">{thangNhan(khoa)}</td>
-                      <td className="ts-num">{tien(d.muc_trich)}</td>
-                      <td className="ts-num">{tien(d.luy_ke)}</td>
-                      <td className="ts-num">{tien(d.con_lai)}</td>
+                      <td className="n">{tien(d.muc_trich)}</td>
+                      <td className="n">{tien(d.luy_ke)}</td>
+                      <td className="n">{tien(d.con_lai)}</td>
                       <td>
                         <div className="ts-chips">
                           {d.su_kien.map((s, i) => (

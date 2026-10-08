@@ -111,11 +111,11 @@ _SUA_CHUA = [
     ("CM-01", "Bơm đèn UV số 2", "nghiem_trong",
      "Chạy được 20 phút thì đèn UV số 2 tắt, mực không khô, tờ ra dính mặt sau.",
      "Bơm cấp nguồn đèn tụt áp, nghi tụ lọc phồng. Đã gọi hãng mang tụ sang thay.",
-     "CN Phạm Văn Nam", -2, "dang_sua"),
+     "CN Phạm Văn Nam", -2, "cho_sua"),
     ("BE-01", "Bộ dao bế", "trung_binh",
      "Dao bế gãy một cạnh giữa ca đêm, tờ bế ra bị rách góc.",
      "Dao mòn quá hạn thay. Đã đặt set dao mới, chờ về.",
-     "CN Lê Văn Tuấn", -4, "cho_vat_tu"),
+     "CN Lê Văn Tuấn", -4, "cho_sua"),
     ("IN-02", "Lô nước số 3", "trung_binh",
      "In lem nhẹ ở đơn Catalogue, canh màu mãi không đều ở vùng giữa tờ.",
      None, "TT Bùi Tổ Trưởng", -1, "cho_sua"),
@@ -224,7 +224,7 @@ def _seed_sua_chua(db: Session, may: dict[str, MayThietBi], tho_id: int | None) 
             nguyen_nhan_phuong_an=nguyen_nhan, trang_thai=tt,
             created_at=thoi_diem, updated_at=thoi_diem,
         )
-        if tt == "cho_vat_tu":
+        if bo_phan == "Bộ dao bế":
             p.ghi_chu = "Chờ set dao bế mới của Bobst VN, hẹn 3 ngày nữa về kho."
         if tt == "da_sua_xong":
             p.hoan_thanh_at = thoi_diem + timedelta(days=1)

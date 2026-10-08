@@ -102,11 +102,21 @@ class QuotationRow(BaseModel):
     salesperson_name: str | None = None
     created_at: datetime | None = None
     duyet: DuyetTomTat | None = None
+    # Lưới danh sách (07/10/2026): tên sản phẩm đầu + số sản phẩm khác (thẻ "+N"), số lượng + đơn vị
+    # của dòng đầu, đơn hàng đã lên từ báo giá.
+    san_pham: str | None = None
+    so_sp_khac: int = 0
+    so_luong: int | None = None
+    don_vi: str | None = None
+    don_hang_id: int | None = None
+    don_hang_ma: str | None = None
+    don_hang_trang_thai: str | None = None
 
 
 class QuotationListOut(BaseModel):
     items: list[QuotationRow]
     total: int
+    tong_gia_ban: float = 0   # Σ giá bán gồm VAT của mọi dòng khớp bộ lọc — dòng "Cộng" cuối bảng
     page: int
     size: int
 

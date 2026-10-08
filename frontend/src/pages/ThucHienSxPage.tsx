@@ -22,12 +22,13 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Icon } from "../components/Icons";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
+import { ChonCot, OTim, useCotAn, useThuTuCot } from "../components/LuoiDs";
 import "../components/empty-state.css";
 import { BangLoi, EmptyState, ngay, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { useNapTenDonVi } from "./tenDonVi";
 import { ngayToWall, wallMinutes } from "./gantt-time";
 import { ThsxLichNgay } from "./ThsxLichNgay";
-import { ThsxDanhSach } from "./ThsxDanhSach";
+import { COT_THSX, ThsxDanhSach } from "./ThsxDanhSach";
 import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import { ThsxDrawer, type ThsxDrawerTab } from "./ThsxDrawer";
 import { type ThsxExec } from "./ThsxExecPanels";
@@ -183,6 +184,9 @@ export function ThucHienSxPage({
 
   const [q, setQ] = useState("");
   const qd = useDebounced(q, 200);
+  // Cột của lưới bước (view Bảng): ẩn / đổi chỗ nhớ theo máy người xem, dùng chung mọi lệnh.
+  const [cotAn, setCotAn] = useCotAn("thsx-ds");
+  const [thuTuCot, setThuTuCot] = useThuTuCot("thsx-ds");
   const choMap = useMemo(() => choTheoViec(choXn), [choXn]);
   const soChoXn = tongCho(choXn);
   const dieuKienBan = useMemo(() => dieuKienBanTo(soChoXn), [soChoXn]);
@@ -664,27 +668,25 @@ export function ThucHienSxPage({
     <div className="thsx">
       {/* Thanh trên */}
       <div className="thsx-top">
-        <div className="thsx-top__hang">
-          <div className="thsx-top__title">
-            <Icon name="users" size={20} />
-            <span>Bàn tổ · {tenTo ?? `#${teamId}`}</span>
+        <header className="lds-dau">
+          <h1 className="lds-dau__ten">Bàn tổ<span className="thsx-top__to">{tenTo ?? `#${teamId}`}</span></h1>
+          <div className="lds-dau__nut">
+            <div className="thsx-seg" role="group" aria-label="Kiểu xem">
+              <button type="button" className="thsx-seg__btn" title="Xem danh sách bản ghi (Bảng)"
+                aria-pressed={view === "danh_sach"} onClick={() => setView("danh_sach")}>
+                <Icon name="table" size={13} /> Bảng
+              </button>
+              <button type="button" className="thsx-seg__btn" title="Xem theo lịch (Gantt)"
+                aria-pressed={view === "lich"} onClick={() => setView("lich")}>
+                <Icon name="layout" size={13} /> Lịch
+              </button>
+              <button type="button" className="thsx-seg__btn" title="Sản lượng theo lệnh, công đoạn, người"
+                aria-pressed={view === "san_luong"} onClick={() => { setSelectedId(null); setView("san_luong"); }}>
+                <Icon name="activity" size={13} /> Sản lượng
+              </button>
+            </div>
           </div>
-          <div className="thsx-top__spacer" />
-          <div className="thsx-seg" role="group" aria-label="Kiểu xem">
-            <button type="button" className="thsx-seg__btn" title="Xem danh sách bản ghi (Bảng)"
-              aria-pressed={view === "danh_sach"} onClick={() => setView("danh_sach")}>
-              <Icon name="table" size={13} /> Bảng
-            </button>
-            <button type="button" className="thsx-seg__btn" title="Xem theo lịch (Gantt)"
-              aria-pressed={view === "lich"} onClick={() => setView("lich")}>
-              <Icon name="layout" size={13} /> Lịch
-            </button>
-            <button type="button" className="thsx-seg__btn" title="Sản lượng theo lệnh, công đoạn, người"
-              aria-pressed={view === "san_luong"} onClick={() => { setSelectedId(null); setView("san_luong"); }}>
-              <Icon name="activity" size={13} /> Sản lượng
-            </button>
-          </div>
-        </div>
+        </header>
         {/* Hàng 2 — CHỈ view Lịch: điều hướng ngày bên trái (đọc trước), số liệu bên phải. */}
         {view === "lich" && (
           <div className="thsx-top__hang">
@@ -740,39 +742,7 @@ export function ThucHienSxPage({
       {view === "san_luong" ? (
         <ThsxSanLuongTab teamId={teamId} eventTick={eventTick} />
       ) : (<>
-      {/* Thanh phụ: tìm + digest — CHỈ view Bảng. View Lịch để số liệu trên thanh trên và ô tìm ở
-          đầu cột Hàng chờ, như bàn Xếp lịch. */}
-      {view === "danh_sach" && <div className="thsx-subbar tl-thanh tl--xuong">
-        <div className="thsx-search">
-          <Icon name="search" size={15} className="thsx-search__ic" />
-          <input type="search" className="thsx-search__in" value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm mã / khách / công đoạn / máy…" aria-label="Tìm trong việc của tổ" />
-          {q && (
-            <button type="button" className="thsx-search__clear" aria-label="Xoá tìm" onClick={() => setQ("")}>
-              <Icon name="x" size={13} />
-            </button>
-          )}
-        </div>
-        <ThanhLoc ky={locMan.ky} moc={MOC_BAN_TO} onKy={(ky) => setLocMan({ ...locMan, ky })}
-          dieuKien={dieuKienBan} loc={locMan.loc} onLoc={(loc) => setLocMan({ ...locMan, loc })} />
-        <div className="thsx-subbar__spacer" />
-        <label className="thsx-sapxep">
-          <span className="thsx-sapxep__nhan">Sắp xếp</span>
-          <select className="thsx-sapxep__o" value={sapXep}
-            onChange={(e) => setLocMan({ ...locMan, sapXep: e.target.value as ThsxSapXep })}>
-            {SAP_XEP_BAN_TO.map(([v, nhan]) => <option key={v} value={v}>{nhan}</option>)}
-          </select>
-        </label>
-        <div className="thsx-digest" aria-label="Tổng quan việc của tổ">
-          <span className="thsx-digest__chip thsx-digest__chip--tong"><Icon name="clipboard" size={12} /> <b className="thsx-num">{digest.tong}</b> việc</span>
-          <span className="thsx-digest__chip thsx-digest__chip--run"><Icon name="play" size={12} /> <b className="thsx-num">{digest.running}</b> đang chạy</span>
-          <span className="thsx-digest__chip thsx-digest__chip--pause"><Icon name="pause" size={12} /> <b className="thsx-num">{digest.paused}</b> tạm dừng</span>
-          <span className="thsx-digest__chip thsx-digest__chip--released"><Icon name="clock" size={12} /> <b className="thsx-num">{digest.released}</b> chờ làm</span>
-          <span className="thsx-digest__chip thsx-digest__chip--done"><Icon name="check" size={12} /> <b className="thsx-num">{digest.completed}</b> hoàn thành</span>
-        </div>
-      </div>}
-
+      {/* Khối cảnh báo / việc chờ nằm TRÊN thanh lọc (khuôn lưới). */}
       {view === "danh_sach" && laToCat && (
         <ThsxChotGiay teamId={teamId} eventTick={eventTick} onDaGhi={() => { loadItems(); onBadgeStale?.(); }} />
       )}
@@ -787,6 +757,36 @@ export function ThucHienSxPage({
         onHuyHoTro={onHuyHoTroCho}
         onMoKcs={onMoKcsCho}
       />}
+
+      {/* Thanh lọc — CHỈ view Bảng. View Lịch để số liệu trên thanh trên và ô tìm ở đầu cột Hàng chờ,
+          như bàn Xếp lịch. Chip đếm bên phải là số TRANG đang xem, không phải bộ lọc. */}
+      {view === "danh_sach" && (
+        <div className="lds thsx-lds">
+          <section className="lds-loc">
+            <div className="lds-loc__thanh tl-thanh tl--xuong" role="search">
+              <OTim value={q} onChange={setQ} placeholder="Tìm mã / khách / công đoạn / máy…"
+                ariaLabel="Tìm trong việc của tổ" />
+              <ThanhLoc ky={locMan.ky} moc={MOC_BAN_TO} onKy={(ky) => setLocMan({ ...locMan, ky })}
+                dieuKien={dieuKienBan} loc={locMan.loc} onLoc={(loc) => setLocMan({ ...locMan, loc })} />
+              <label className="thsx-sapxep">
+                <span className="thsx-sapxep__nhan">Sắp xếp</span>
+                <select className="thsx-sapxep__o" value={sapXep}
+                  onChange={(e) => setLocMan({ ...locMan, sapXep: e.target.value as ThsxSapXep })}>
+                  {SAP_XEP_BAN_TO.map(([v, nhan]) => <option key={v} value={v}>{nhan}</option>)}
+                </select>
+              </label>
+              <div className="thsx-digest" aria-label="Tổng quan việc của tổ">
+                <span className="thsx-digest__chip thsx-digest__chip--tong"><Icon name="clipboard" size={12} /> <b className="thsx-num">{digest.tong}</b> việc</span>
+                <span className="thsx-digest__chip thsx-digest__chip--run"><Icon name="play" size={12} /> <b className="thsx-num">{digest.running}</b> đang chạy</span>
+                <span className="thsx-digest__chip thsx-digest__chip--pause"><Icon name="pause" size={12} /> <b className="thsx-num">{digest.paused}</b> tạm dừng</span>
+                <span className="thsx-digest__chip thsx-digest__chip--released"><Icon name="clock" size={12} /> <b className="thsx-num">{digest.released}</b> chờ làm</span>
+                <span className="thsx-digest__chip thsx-digest__chip--done"><Icon name="check" size={12} /> <b className="thsx-num">{digest.completed}</b> hoàn thành</span>
+              </div>
+              <ChonCot cot={COT_THSX} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />
+            </div>
+          </section>
+        </div>
+      )}
 
       {/* Lưới 3 cột — Tự ẩn sidebar trái khi ở chế độ Bảng để tràn 100% không gian */}
       <div className={`thsx-grid${panelOpen ? " is-panel" : ""}${view !== "lich" ? " thsx-grid--full" : " thsx-grid--lich"}${view === "lich" && choThu ? " thsx-grid--cho-thu" : ""}`}>
@@ -875,12 +875,16 @@ export function ThucHienSxPage({
                   selectedId={selectedId}
                   onPick={pickViec}
                   cho={choMap}
+                  cotAn={cotAn}
+                  thuTu={thuTuCot}
                 />
-                {/* Chân là đáy cột giữa, ngoài vùng cuộn của các thẻ lệnh — luôn trong tầm mắt. */}
+                {/* Chân phân trang theo LỆNH (máy chủ cắt trang), nằm sau các lưới của trang. */}
                 {tongLenh > 0 && (
-                  <PhanTrangDayDu trang={trang} size={coTrang} tong={tongLenh} soDong={(lenh ?? []).length}
-                    onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
-                    donVi="lệnh" ariaLabel="Phân trang lệnh của tổ" />
+                  <div className="lds-sheet thsx-lds-chan">
+                    <PhanTrangDayDu trang={trang} size={coTrang} tong={tongLenh} soDong={(lenh ?? []).length}
+                      onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
+                      donVi="lệnh" ariaLabel="Phân trang lệnh của tổ" />
+                  </div>
                 )}
               </>
             )

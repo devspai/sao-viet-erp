@@ -35,6 +35,9 @@ export function MaterialCombobox({
 }) {
   const [text, setText] = useState(hangTen ?? "");
   const [opts, setOpts] = useState<MatHangOption[]>([]);
+  // Đang chờ máy chủ trả gợi ý cho chữ vừa gõ: chưa có kết quả thì KHÔNG được báo "Không có trong
+  // danh mục" — câu đó hiện nửa giây rồi mới ra đúng hàng, người dùng tưởng hàng chưa khai.
+  const [dangTim, setDangTim] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -49,6 +52,7 @@ export function MaterialCombobox({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    setDangTim(true);
     const t = setTimeout(() => {
       api.matHang
         .tim(token, text.trim() || null, 20, chiCoNhaCungCap)
@@ -58,7 +62,10 @@ export function MaterialCombobox({
             setActive(0);
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setDangTim(false);
+        });
     }, 200);
     return () => {
       cancelled = true;
@@ -128,7 +135,9 @@ export function MaterialCombobox({
       ))}
       {opts.length === 0 && (
         <li className="kho-combo__empty" role="presentation">
-          {chiCoNhaCungCap
+          {dangTim
+            ? "Đang tìm…"
+            : chiCoNhaCungCap
             ? "Chưa có NCC nào khai bán mặt hàng này. Hãy khai ở Nhà cung cấp trước."
             : "Không có trong danh mục — khai ở Cấu hình danh mục → Giấy / Vật tư khác."}
         </li>
@@ -196,11 +205,12 @@ export function DonViChonTheoHang({
   chiDoc = false,
   heSoDaLuu = null,
   dang = null,
+  gon = false,
 }: {
   token: string;
   hangLoai: HangLoai | null;
   hangId: number | null;
-  /** Giấy ở KHO: dạng dòng — `to` ⇒ đơn vị gốc là tờ nguyên, `cuon` ⇒ kg. Đổi dạng thì nơi gọi
+  /** Giấy ở KHO: dạng dòng — `to` ⇒ đơn vị gốc là "tờ" (mã `to`), `cuon` ⇒ kg. Đổi dạng thì nơi gọi
    *  nên xoá `value` để ô tự điền lại đơn vị gốc của dạng mới. */
   dang?: "to" | "cuon" | null;
   value: string;
@@ -225,6 +235,9 @@ export function DonViChonTheoHang({
   /** Hệ số về gốc máy chủ đã tính cho dòng ĐÃ LƯU — chỉ để ô hiện đúng chữ (kèm "(gốc)" khi = 1)
    *  NGAY lúc mở, trong khi danh sách đơn vị còn đang nạp. */
   heSoDaLuu?: number | null;
+  /** Ô đơn vị nằm TRONG ô số lượng hẹp (form Yêu cầu nhập xuất): bỏ hậu tố "(gốc)" — chữ đó đè lên
+   *  mũi tên, còn người xin kho chỉ cần thấy "tờ", "kg". Danh sách thả xuống vẫn đủ đơn vị. */
+  gon?: boolean;
 }) {
   // Tên đơn vị cho khung hình đầu (trước khi danh sách đơn vị về) — không nạp thì hiện mã "cai".
   useNapTenDonVi();
@@ -308,6 +321,17 @@ export function DonViChonTheoHang({
       </span>
     );
   }
+  if (gon) {
+    return (
+      <DonViMenu
+        ds={ds}
+        chu={dangChon?.ten || (value ? tenDonVi(value) ?? value : "—")}
+        ma={dangChon?.ma ?? value}
+        disabled={disabled}
+        onChon={(d) => onChange(d.ma, d.he_so_ve_goc)}
+      />
+    );
+  }
   return (
     <select
       className="rc-input"
@@ -324,15 +348,119 @@ export function DonViChonTheoHang({
           để ô không nháy từ gạch sang chữ khi danh sách về. */}
       {ds.length === 0 && (
         <option value={value}>
-          {value ? `${tenDonVi(value) ?? value}${heSoDaLuu === 1 ? " (gốc)" : ""}` : "—"}
+          {value ? `${tenDonVi(value) ?? value}${heSoDaLuu === 1 && !gon ? " (gốc)" : ""}` : "—"}
         </option>
       )}
       {ds.map((d) => (
         <option key={d.ma} value={d.ma}>
           {d.ten}
-          {d.la_goc ? " (gốc)" : ""}
+          {d.la_goc && !gon ? " (gốc)" : ""}
         </option>
       ))}
     </select>
+  );
+}
+
+/** Menu đơn vị gọn nằm trong ô số lượng (form Yêu cầu nhập xuất). Hộp chọn gốc của trình duyệt thả
+ *  danh sách RỘNG BẰNG CHÍNH NÓ (vài chục px, chữ "tờ"/"ram" dính nhau) và tự vẽ thêm vòng focus
+ *  lồng trong viền ô — nên ở đây tự vẽ: nút chữ + mũi tên, danh sách đủ rộng, mỗi đơn vị kèm quy đổi
+ *  về đơn vị gốc ("ram = 500 tờ"). Chỉ một đơn vị thì chỉ hiện chữ, không có gì để chọn. */
+function DonViMenu({
+  ds,
+  chu,
+  ma,
+  disabled,
+  onChon,
+}: {
+  ds: { ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean }[];
+  chu: string;
+  ma: string;
+  disabled?: boolean;
+  onChon: (d: { ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean }) => void;
+}) {
+  const [mo, setMo] = useState(false);
+  const [viTri, setViTri] = useState<{ top: number; right: number } | null>(null);
+  const nutRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const goc = ds.find((d) => d.la_goc);
+
+  useEffect(() => {
+    if (!mo) return;
+    const neo = () => {
+      const r = nutRef.current?.getBoundingClientRect();
+      if (r) setViTri({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    };
+    neo();
+    const dong = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!nutRef.current?.contains(t) && !listRef.current?.contains(t)) setMo(false);
+    };
+    const phim = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMo(false);
+        nutRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", dong);
+    document.addEventListener("keydown", phim, true);
+    window.addEventListener("scroll", neo, true);
+    window.addEventListener("resize", neo);
+    return () => {
+      document.removeEventListener("mousedown", dong);
+      document.removeEventListener("keydown", phim, true);
+      window.removeEventListener("scroll", neo, true);
+      window.removeEventListener("resize", neo);
+    };
+  }, [mo]);
+
+  if (ds.length <= 1) return <span className="kho-dv__chu">{chu}</span>;
+  return (
+    <>
+      <button
+        ref={nutRef}
+        type="button"
+        className="kho-dv__nut"
+        aria-label="Đơn vị tính"
+        aria-haspopup="listbox"
+        aria-expanded={mo}
+        disabled={disabled}
+        onClick={() => setMo((v) => !v)}
+      >
+        {chu}
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        </svg>
+      </button>
+      {mo &&
+        createPortal(
+          <ul
+            ref={listRef}
+            className="kho-combo__list kho-dv__ds"
+            role="listbox"
+            style={viTri ? { top: viTri.top, right: viTri.right, left: "auto" } : undefined}
+          >
+            {ds.map((d) => (
+              <li
+                key={d.ma}
+                role="option"
+                aria-selected={d.ma === ma}
+                className={`kho-combo__opt${d.ma === ma ? " is-active" : ""}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChon(d);
+                  setMo(false);
+                }}
+              >
+                <span className="kho-combo__name">{d.ten}</span>
+                <span className="kho-dv__hs">
+                  {d.la_goc || !goc ? "" : `= ${d.he_so_ve_goc.toLocaleString("vi-VN")} ${goc.ten}`}
+                </span>
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
+    </>
   );
 }

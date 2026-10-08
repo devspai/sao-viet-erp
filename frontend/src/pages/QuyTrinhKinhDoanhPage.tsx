@@ -228,9 +228,6 @@ export function QuyTrinhKinhDoanhPage({
     <main className="qtkd">
       <header className="qtkd__head">
         <h1 className="qtkd__title">Quy trình kinh doanh</h1>
-        <p className="qtkd__lede">
-          Bấm một bước để xem việc cụ thể và mở màn làm. Bấm tên bộ phận để chỉ xem việc của bộ phận đó.
-        </p>
       </header>
 
       <div className="qtkd__khung" ref={khungRef}>

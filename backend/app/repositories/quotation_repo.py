@@ -19,6 +19,7 @@ from ..models.quotation import (
     QuoteItem,
     QuoteVersion,
 )
+from ..models.order import Order
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN, RolePermission
 from ..models.user import User
 from .loc_danh_sach import dk_khoang_ngay, hom_nay_vn
@@ -321,7 +322,9 @@ class QuotationRepository:
         size: int = 20,
         nguoi: int | None = None,
         loc: LocBaoGia | None = None,
-    ) -> tuple[list[Quote], int, dict[int, str]]:
+    ) -> tuple[list[Quote], int, dict[int, str], float]:
+        """(dòng của trang, tổng số dòng, tên khách theo báo giá, Σ giá bán gồm VAT của MỌI dòng khớp
+        bộ lọc — dòng "Cộng" cuối bảng)."""
         conditions = []
         scope_cond = self._scope_condition(scope=scope, actor=actor)
         if scope_cond is not None:
@@ -341,6 +344,10 @@ class QuotationRepository:
             count_stmt = count_stmt.where(c)
 
         total = self.db.execute(count_stmt).scalar_one()
+        tong_stmt = select(func.coalesce(func.sum(_GIA_BAN), 0)).select_from(Quote)
+        for c in conditions:
+            tong_stmt = tong_stmt.where(c)
+        tong_gia_ban = float(self.db.execute(tong_stmt).scalar_one() or 0)
 
         direction = asc
         key = sort or "-created_at"
@@ -370,7 +377,21 @@ class QuotationRepository:
                 .where(Quote.id.in_([r.id for r in rows]))
             ):
                 names[qid] = name
-        return rows, total, names
+        return rows, total, names, tong_gia_ban
+
+    def don_hang_cua(self, quote_ids: list[int]) -> dict[int, tuple[int, str, str]]:
+        """Đơn hàng lên từ mỗi báo giá: quote_id → (order_id, mã đơn, trạng thái đơn). Một báo giá
+        một đơn; còn sót nhiều (đơn huỷ rồi lên lại) thì lấy đơn mới nhất."""
+        if not quote_ids:
+            return {}
+        out: dict[int, tuple[int, str, str]] = {}
+        for oid, so, tt, qid in self.db.execute(
+            select(Order.id, Order.order_no, Order.status, Order.quotation_id)
+            .where(Order.quotation_id.in_(quote_ids))
+            .order_by(Order.id.asc())
+        ):
+            out[qid] = (oid, so, tt)
+        return out
 
     def stats(
         self, *, scope: str, actor, nguoi: int | None = None, q: str | None = None,

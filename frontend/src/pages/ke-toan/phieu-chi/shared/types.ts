@@ -13,6 +13,8 @@ export type LoaiPhieu = "dat_coc" | "thanh_toan";
 export interface PaymentVoucherDialogProps {
   purchase: PurchaseRequestRow;
   voucher?: PaymentVoucherRow | null;
+  /** Lập phiếu chi cho ĐÚNG một đợt (bấm tại dòng đợt) — bỏ trống thì máy gợi ý đợt còn nợ đầu tiên. */
+  dotId?: number | null;
   onClose: () => void;
   onSaved: (voucher: PaymentVoucherRow) => void;
 }

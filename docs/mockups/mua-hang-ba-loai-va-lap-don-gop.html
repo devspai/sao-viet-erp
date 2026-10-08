@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ba loại mua và lập đơn gộp</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;
+  --tt-cham-bg:#e0e7ff;--tt-cham-fg:#4338ca;--tt-la-bg:#dcfce7;--tt-la-fg:#15803d;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;--tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+.doc{max-width:1500px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1080px}
+.doc ul{padding-left:20px;margin:6px 0}.doc li{margin:4px 0}
+.h2{margin:36px 0 4px;font-size:20px;font-weight:500;padding-top:18px;border-top:1px solid var(--rule)}
+.cap{margin:26px 0 6px;font-size:16px;font-weight:500}
+.note{color:var(--ash);margin:0 0 10px;max-width:1120px}
+.pick{position:sticky;top:0;z-index:20;background:#e9edf2;padding:10px 0;margin:18px 0 0;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--rule)}
+.pa{display:none}.pa.on{display:block}
+.scroll{overflow-x:auto;padding-bottom:6px}
+
+.frame{width:1400px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative}
+.frame.h{height:640px}
+.body{padding:16px 22px 18px;position:relative;height:100%;display:flex;flex-direction:column}
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tool h2{font-size:20px;font-weight:500;margin:0 10px 0 0;white-space:nowrap}
+.sp{flex:1}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px;border:1px solid var(--rule-soft)}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 11px;border-radius:6px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.flt{display:flex;gap:2px;flex-wrap:wrap}
+.flt span{border:1px solid transparent;border-radius:7px;padding:3px 9px;font-size:13px;color:var(--ash);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.flt span.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.flt .n{color:var(--ash-3);font-size:12px}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:280px;color:var(--ash-3);font-size:13px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ash);font-weight:400}
+.btn.xs{padding:1px 8px;font-size:12px;font-weight:400}
+.sheet{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.g{border-collapse:collapse;width:100%;table-layout:fixed}
+.g th,.g td{border-right:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair);padding:5px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;height:34px}
+.g th:last-child,.g td:last-child{border-right:0}
+.g th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:30px}
+.g td.n,.g th.n{text-align:right;font-variant-numeric:tabular-nums}
+.g td.c,.g th.c{text-align:center}
+.g tr.sel td{background:#f8fafc}
+.g tr.gr td{background:#f1f5f9;color:var(--ink-2)}
+.g tr.dis td{color:var(--ash-3)}
+.mu{color:var(--ash-2)}.mu3{color:var(--ash-3)}
+.u{color:var(--ash-2);font-size:11.5px;margin-left:3px}
+a.lk{color:var(--tt-xanh-fg);text-decoration:none}
+.cb{width:14px;height:14px;border:1px solid var(--rule);border-radius:4px;display:inline-block;background:#fff;vertical-align:-2px;position:relative}
+.cb.on{background:var(--ink);border-color:var(--ink)}
+.cb.on:after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(45deg)}
+.cb.mid{background:var(--ink);border-color:var(--ink)}
+.cb.mid:after{content:"";position:absolute;left:3px;right:3px;top:5.5px;height:1.6px;background:#fff}
+.tag{white-space:nowrap;display:inline-block;background:var(--rule-hair);border-radius:4px;padding:0 6px;font-size:12px;color:var(--ink-2);margin-left:6px}
+.tag:first-child{margin-left:0}
+.tag.o{background:#fff;border:1px solid var(--rule-soft)}
+.tag.warn{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;font-weight:500;white-space:nowrap}
+.chip:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.c-xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}
+.c-cham{background:var(--tt-cham-bg);color:var(--tt-cham-fg)}
+.steps{display:inline-flex;gap:3px;vertical-align:middle}
+.steps i{width:12px;height:5px;border-radius:2px;background:var(--rule-soft)}
+.bulk{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.14);display:flex;align-items:center;gap:12px;padding:6px 8px 6px 16px;font-size:13px;white-space:nowrap;z-index:3}
+.cell{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--rule);border-radius:5px;height:24px;padding:0 7px;background:#fff;color:var(--ink);font-size:12.5px;gap:6px}
+.cell.mt{color:var(--ash-3)}
+.cell.req{border-color:#f87171;color:var(--ash-3)}
+
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.38);z-index:5}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:1120px;background:#fff;z-index:6;display:flex;flex-direction:column;box-shadow:0 14px 34px rgba(20,19,15,.22)}
+.dh{padding:16px 24px 10px;border-bottom:1px solid var(--rule-soft)}
+.dt{font-size:18px;font-weight:500;margin:0}
+.sub{color:var(--ash);font-size:13px;margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.db{flex:1;overflow:auto;padding:14px 24px}
+.two{display:grid;grid-template-columns:1fr 280px;gap:22px;align-items:start}
+.side{border-left:1px solid var(--rule-soft);padding-left:20px;font-size:13px}
+.side .row{display:flex;justify-content:space-between;gap:8px;padding:4px 0}
+.side hr{border:0;border-top:1px solid var(--rule-hair);margin:8px 0}
+.field{display:block;margin-bottom:12px}
+.field>span{display:block;font-size:12.5px;color:var(--ash-2);margin-bottom:4px}
+.inp{border:1px solid var(--rule);border-radius:7px;background:#fff;padding:5px 9px;font-size:13px;color:var(--ink)}
+.sec{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-2);margin:14px 0 6px}
+.sec:first-child{margin-top:0}
+.hint{color:var(--ash-3);font-size:12px}
+.dfoot{border-top:1px solid var(--rule-soft);padding:10px 24px;display:flex;align-items:center;gap:10px;font-size:13px}
+
+/* PA2: giỏ */
+.split{display:grid;grid-template-columns:1fr 400px;gap:14px;flex:1;min-height:0}
+.cart{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;display:flex;flex-direction:column;min-height:0}
+.cart .ch{padding:12px 16px;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;gap:8px}
+.cart .cbd{flex:1;overflow:auto;padding:6px 0}
+.cg{padding:8px 16px 4px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)}
+.ci{display:grid;grid-template-columns:1fr auto 20px;gap:4px 10px;padding:6px 16px 6px 28px;font-size:13px;border-bottom:1px solid var(--rule-hair)}
+.ci .mu{font-size:12px}
+.ci .x{color:var(--ash-3);cursor:pointer;text-align:right}
+.cart .cf{border-top:1px solid var(--rule-soft);padding:10px 16px;display:flex;align-items:center;gap:8px}
+.mc{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.mc .lsx{background:var(--tt-cham-bg);color:var(--tt-cham-fg);border-radius:4px;padding:0 6px;font-size:12px}
+.mc .ton{background:var(--tt-cyan-bg,#cffafe);color:#0e7490;border-radius:4px;padding:0 6px;font-size:12px}
+.mc .tyc{background:var(--rule-hair);color:var(--ash);border-radius:4px;padding:0 6px;font-size:12px}
+.mc .them{color:var(--ash-2);font-size:12px}
+.pop{position:absolute;background:#fff;border:1px solid var(--rule);border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:10px 12px;font-size:13px;z-index:4;width:300px}
+.pop .r{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
+.pop .t{color:var(--ash-2);font-size:12px;margin-bottom:4px}
+.menu{position:absolute;background:#fff;border:1px solid var(--rule);border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.16);padding:10px 0;font-size:13px;z-index:4;width:300px}
+.menu .gh{padding:4px 14px;color:var(--ash-2);font-size:12px}
+.menu .it{padding:4px 14px;display:flex;align-items:center;gap:8px}
+.menu hr{border:0;border-top:1px solid var(--rule-hair);margin:6px 0}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.frm{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:16px 18px}
+.frm .t{font-size:16px;font-weight:500;margin-bottom:12px}
+.ro{display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Mua hàng: ba loại mua, cột "Mua cho", lập một đơn từ nhiều yêu cầu</h1>
+<p>Bản chốt theo phương án 1. Đi cùng <code>docs/spec-mua-hang-ba-loai-yeu-cau.md</code>. Dữ liệu mẫu lấy từ màn đang chạy.</p>
+
+<div class="h2">Logic</div>
+<ul>
+  <li>Mỗi yêu cầu mua có một loại, chốt lúc lập: <b>Cho lệnh SX</b> (chỉ lập từ Kế hoạch vật tư, gắn lệnh hoặc bài ghép), <b>Mua tồn</b> (từ Tồn kho hoặc chọn ở form), <b>Theo yêu cầu</b> (mặc định của form gõ tay). Máy chủ tự chốt: có gắn lệnh thì là Cho lệnh SX, không gắn mà đòi Cho lệnh SX thì chặn.</li>
+  <li>Hàng về: phần đặt cho lệnh giữ riêng cho đúng lệnh đó, phần dư là hàng chung. Mua tồn và Theo yêu cầu đều thành tồn chung.</li>
+  <li>Thu mua tick món ở bất kỳ yêu cầu nào, khác loại cũng được, rồi lập đơn. Một đơn vẫn là một nhà cung cấp; món khác nhà cung cấp thì form tách sẵn thành nhiều đơn.</li>
+  <li>Mỗi dòng đơn trỏ về đúng một món yêu cầu, nên dòng nào cũng biết mình mua cho lệnh nào hay cho tồn kho.</li>
+  <li>Máy chủ chặn lập đơn cho món đã có đơn còn sống. Lập đơn cho một phần món thì phần còn lại vẫn tick được ngay.</li>
+  <li>Lưới Kế hoạch vật tư thôi gợi ý "nên huỷ" yêu cầu Mua tồn và Theo yêu cầu.</li>
+</ul>
+
+<div class="h2">Ô "Mua cho" có ba dạng</div>
+<p class="note">
+  <span class="mc"><span class="lsx">LSX26-0003</span></span> cho một lệnh, bấm mở lệnh.
+  &nbsp;&nbsp;<span class="mc"><span class="lsx">LSX26-0003</span><span class="them">+1</span></span> cho nhiều lệnh, trỏ chuột thấy từng lệnh và số.
+  &nbsp;&nbsp;<span class="mc"><span class="ton">Tồn kho</span></span> mua tồn.
+  &nbsp;&nbsp;<span class="mc"><span class="tyc">Theo yêu cầu</span></span> bộ phận xin (bộ phận đã có ở cột Bộ phận hoặc chú thích mã yêu cầu, không lặp).
+</p>
+
+<!-- ===== 1. Từng món ===== -->
+<div class="cap">1. Yêu cầu chờ xử lý › Từng món: tick món của nhiều yêu cầu</div>
+<div class="scroll"><div class="frame h" style="height:600px"><div class="body">
+  <div class="tool"><h2>Mua hàng</h2><div class="seg"><button class="on">Yêu cầu chờ xử lý</button><button>Đơn mua hàng</button></div></div>
+  <div class="tool flt"><span>Tất cả <span class="n">71</span></span><span class="on"><i style="background:#3b82f6"></i>Chờ lập đơn <span class="n">21</span></span><span><i style="background:#94a3b8"></i>Đơn nháp <span class="n">4</span></span><span><i style="background:#f59e0b"></i>Đơn chờ duyệt <span class="n">8</span></span><span><i style="background:#06b6d4"></i>Chờ hàng về <span class="n">5</span></span></div>
+  <div class="tool"><div class="search">Tìm mã yêu cầu, mã lệnh, vật tư…</div><button class="btn">Mọi thời gian</button><button class="btn">Lọc</button><div class="sp"></div><div class="seg"><button>Yêu cầu</button><button class="on">Từng món</button></div></div>
+  <div class="sheet"><table class="g">
+    <colgroup><col style="width:38px"><col><col style="width:120px"><col style="width:100px"><col style="width:150px"><col style="width:150px"><col style="width:140px"><col style="width:90px"><col style="width:80px"><col style="width:130px"></colgroup>
+    <thead><tr><th class="c"><span class="cb mid"></span></th><th>Vật tư</th><th>Khổ</th><th class="n">Số lượng</th><th>Mua cho</th><th>Yêu cầu</th><th>Cần hàng</th><th>Đơn mua</th><th>Tiến độ</th><th>Tình trạng</th></tr></thead>
+    <tbody>
+      <tr class="sel"><td class="c"><span class="cb on"></span></td><td>Keo nhiệt (vào gáy sách)</td><td class="mu3">Không theo khổ</td><td class="n">3<span class="u">kg</span></td><td><span class="mc"><span class="lsx">LSX26-0003</span></span></td><td><a class="lk">YCMH-261007-7TZY</a></td><td>14/10 <span class="tag">còn 7 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr class="sel"><td class="c"><span class="cb on"></span></td><td>Màng cán mờ</td><td class="mu3">Không theo khổ</td><td class="n">11.000<span class="u">m²</span></td><td><span class="mc"><span class="lsx">LSX26-0007</span><span class="them">+1</span></span></td><td><a class="lk">YCMH-261007-3QIT</a></td><td>11/10 <span class="tag">còn 4 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr><td class="c"><span class="cb"></span></td><td>DUPLEX MALAYSIA 300-450GSM</td><td>Tờ 720 × 1020</td><td class="n">4.000<span class="u">tờ</span></td><td><span class="mc"><span class="tyc">Theo yêu cầu</span></span></td><td><a class="lk">YCMH-261007-574D</a></td><td>14/10 <span class="tag">còn 7 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr class="sel"><td class="c"><span class="cb on"></span></td><td>Màng cán mờ</td><td class="mu3">Không theo khổ</td><td class="n">2.000<span class="u">m²</span></td><td><span class="mc"><span class="tyc">Theo yêu cầu</span></span></td><td><a class="lk">YCMH-261007-1BDF</a></td><td>14/10 <span class="tag">còn 7 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr><td class="c"><span class="cb"></span></td><td>GIẤY IVORY 300-400GSM</td><td>Tờ 790 × 1090</td><td class="n">5.000<span class="u">tờ</span></td><td><span class="mc"><span class="ton">Tồn kho</span></span></td><td><a class="lk">YCMH-261007-EN6N</a></td><td>19/10 <span class="tag">còn 12 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr class="sel"><td class="c"><span class="cb on"></span></td><td>Phủ UV</td><td class="mu3">Không theo khổ</td><td class="n">1.600<span class="u">kg</span></td><td><span class="mc"><span class="ton">Tồn kho</span></span></td><td><a class="lk">YCMH-261007-348V</a></td><td>11/10 <span class="tag">còn 4 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr><td class="c"><span class="cb"></span></td><td>DUPLEX 230-250GSM</td><td class="mu3">Không ghi khổ</td><td class="n">2.750<span class="u">kg</span></td><td><span class="mc"><span class="lsx">LSX26-0011</span></span></td><td><a class="lk">YCMH-261007-1565</a></td><td>14/10 <span class="tag">còn 7 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr><td class="c"><span class="cb"></span></td><td>COUCHE 80GSM</td><td class="mu3">Không ghi khổ</td><td class="n">2.850<span class="u">kg</span></td><td><span class="mc"><span class="lsx">BG26-0002</span></span></td><td><a class="lk">YCMH-261007-NJ3Q</a></td><td>30/10 <span class="tag">còn 23 ngày</span></td><td class="mu3">Chưa có</td><td><span class="steps"><i></i><i></i><i></i><i></i><i></i></span></td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="pop" style="left:560px;top:250px">
+    <div class="t">Màng cán mờ 11.000 m² mua cho 2 lệnh</div>
+    <div class="r"><a class="lk">LSX26-0007</a><span>8.000<span class="u">m²</span></span></div>
+    <div class="r"><a class="lk">LSX26-0009</a><span>3.000<span class="u">m²</span></span></div>
+  </div>
+  <div class="bulk">
+    <span>Đã chọn 4 món</span><span class="tag">từ 4 yêu cầu</span>
+    <button class="btn ghost">Chỉ xem món đã chọn</button>
+    <button class="btn ghost">Bỏ chọn</button>
+    <button class="btn pri">Lập đơn mua</button>
+  </div>
+</div></div></div>
+<p class="note">Bỏ khoá chéo yêu cầu. Món đã tick giữ nguyên khi tìm, lọc, sang trang, đổi sang xem theo Yêu cầu. Ô tìm nhận cả mã lệnh: gõ LSX26-0007 ra mọi món mua cho lệnh đó.</p>
+
+<!-- ===== 2. Yêu cầu ===== -->
+<div class="cap">2. Yêu cầu chờ xử lý › Yêu cầu (màn Yêu cầu mua hàng dùng chung bảng này)</div>
+<div class="scroll"><div class="frame" style="height:290px"><div class="body">
+  <div class="sheet"><table class="g">
+    <colgroup><col style="width:38px"><col style="width:180px"><col><col style="width:150px"><col style="width:140px"><col style="width:130px"><col style="width:140px"><col style="width:100px"><col style="width:130px"></colgroup>
+    <thead><tr><th class="c"><span class="cb mid"></span></th><th>Mã yêu cầu</th><th>Nội dung</th><th>Mua cho</th><th>Bộ phận</th><th>Người yêu cầu</th><th>Cần hàng</th><th class="n">Món có đơn</th><th>Trạng thái</th></tr></thead>
+    <tbody>
+      <tr class="sel"><td class="c"><span class="cb on"></span></td><td>YCMH-261007-7TZY</td><td>Thiếu vật tư cho LSX26-0003</td><td><span class="mc"><span class="lsx">LSX26-0003</span></span></td><td>Ban giám đốc</td><td>Admin</td><td>14/10 <span class="tag">còn 7 ngày</span></td><td class="n">0 trên 1</td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr class="sel"><td class="c"><span class="cb mid"></span></td><td>YCMH-261007-3QIT</td><td>Vật tư ép kim cho hộp quà Trung thu đợt 2</td><td><span class="mc"><span class="lsx">LSX26-0007</span><span class="them">+2</span></span></td><td>Ban giám đốc</td><td>Admin</td><td>11/10 <span class="tag">còn 4 ngày</span></td><td class="n">2 trên 3</td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr><td class="c"><span class="cb"></span></td><td>YCMH-261007-574D</td><td>Mua DUPLEX MALAYSIA 300-450GSM khổ 720×1020</td><td><span class="mc"><span class="tyc">Theo yêu cầu</span></span></td><td>Ban giám đốc</td><td>Admin</td><td>14/10 <span class="tag">còn 7 ngày</span></td><td class="n">0 trên 1</td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+      <tr class="sel"><td class="c"><span class="cb on"></span></td><td>YCMH-261007-348V</td><td>Bổ sung tồn Kho giấy dưới mức tối thiểu</td><td><span class="mc"><span class="ton">Tồn kho</span></span></td><td>Ban giám đốc</td><td>Admin</td><td>7/10 <span class="tag">hôm nay</span></td><td class="n">0 trên 1</td><td><span class="chip c-xanh">Chờ lập đơn</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" style="margin-top:10px">Tag mã lệnh trước nội dung (đang có) chuyển hẳn sang cột Mua cho. Tick yêu cầu = tick mọi món Chờ lập đơn của nó; ô gạch ngang là đang tick một phần.</p>
+</div></div></div>
+
+<!-- ===== 3. Lọc ===== -->
+<div class="cap">3. Nút Lọc có thêm mục "Mua cho"</div>
+<div class="scroll"><div class="frame" style="height:330px;width:700px"><div class="body">
+  <div class="tool"><div class="search">Tìm mã yêu cầu, mã lệnh, vật tư…</div><button class="btn">Mọi thời gian</button><button class="btn" style="border-color:var(--ink)">Lọc <span class="tag">1</span></button></div>
+  <div class="menu" style="left:330px;top:58px">
+    <div class="gh">Mua cho</div>
+    <div class="it"><span class="cb on"></span>Cho lệnh SX</div>
+    <div class="it"><span class="cb"></span>Tồn kho</div>
+    <div class="it"><span class="cb"></span>Theo yêu cầu</div>
+    <hr>
+    <div class="gh">Phòng ban</div>
+    <div class="it mu">Chọn phòng ban…</div>
+    <div class="gh">Người yêu cầu</div>
+    <div class="it mu">Chọn người…</div>
+    <div class="gh">Mặt hàng</div>
+    <div class="it mu">Chọn mặt hàng…</div>
+  </div>
+</div></div></div>
+
+<!-- ===== 4. Form lập đơn ===== -->
+<div class="cap">4. Bấm Lập đơn mua: form chia sẵn theo nhà cung cấp, dòng nào cũng có Mua cho</div>
+<div class="scroll"><div class="frame h"><div class="scrim"></div><div class="drawer">
+  <div class="dh">
+    <div class="dt">Lập đơn mua cho 4 món</div>
+    <div class="sub">Từ <span class="tag o">YCMH-261007-7TZY</span><span class="tag o">YCMH-261007-3QIT</span><span class="tag o">YCMH-261007-1BDF</span><span class="tag o">YCMH-261007-348V</span></div>
+  </div>
+  <div class="db"><div class="two">
+    <div>
+      <div class="sec">Công ty Hoá chất Minh Phát <span class="tag">3 món</span><span class="sp"></span><span class="hint">Đơn 1</span></div>
+      <div class="sheet"><table class="g">
+        <colgroup><col style="width:34px"><col><col style="width:140px"><col style="width:120px"><col style="width:110px"><col style="width:100px"><col style="width:160px"></colgroup>
+        <thead><tr><th></th><th>Vật tư</th><th>Mua cho</th><th>Yêu cầu</th><th class="n">Số lượng</th><th class="n">Đơn giá</th><th>Nhà cung cấp</th></tr></thead>
+        <tbody>
+          <tr><td class="c"><span class="cb on"></span></td><td>Màng cán mờ</td><td><span class="mc"><span class="lsx">LSX26-0007</span><span class="them">+1</span></span></td><td class="mu">3QIT</td><td><div class="cell">11.000<span class="u">m²</span></div></td><td><div class="cell">3.200</div></td><td><div class="cell">Minh Phát ▾</div></td></tr>
+          <tr><td class="c"><span class="cb on"></span></td><td>Màng cán mờ</td><td><span class="mc"><span class="tyc">Theo yêu cầu</span></span></td><td class="mu">1BDF</td><td><div class="cell">2.000<span class="u">m²</span></div></td><td><div class="cell">3.200</div></td><td><div class="cell">Minh Phát ▾</div></td></tr>
+          <tr><td class="c"><span class="cb on"></span></td><td>Phủ UV</td><td><span class="mc"><span class="ton">Tồn kho</span></span></td><td class="mu">348V</td><td><div class="cell">1.600<span class="u">kg</span></div></td><td><div class="cell">68.000</div></td><td><div class="cell">Minh Phát ▾</div></td></tr>
+        </tbody>
+      </table></div>
+      <div class="sec">Keo dán Thành Đạt <span class="tag">1 món</span><span class="sp"></span><span class="hint">Đơn 2</span></div>
+      <div class="sheet"><table class="g">
+        <colgroup><col style="width:34px"><col><col style="width:140px"><col style="width:120px"><col style="width:110px"><col style="width:100px"><col style="width:160px"></colgroup>
+        <tbody>
+          <tr><td class="c"><span class="cb on"></span></td><td>Keo nhiệt (vào gáy sách)</td><td><span class="mc"><span class="lsx">LSX26-0003</span></span></td><td class="mu">7TZY</td><td><div class="cell">3<span class="u">kg</span></div></td><td><div class="cell">95.000</div></td><td><div class="cell">Thành Đạt ▾</div></td></tr>
+        </tbody>
+      </table></div>
+      <p class="note" style="margin-top:10px">Đổi nhà cung cấp của dòng keo sang Minh Phát thì nhóm Đơn 2 biến mất, còn một đơn. Hai dòng màng cán mờ đứng riêng vì mỗi dòng mua cho một nơi khác nhau.</p>
+    </div>
+    <div class="side">
+      <label class="field"><span>Nội dung</span><div class="inp">Mua cho 4 yêu cầu: 7TZY, 3QIT, 1BDF, 348V</div></label>
+      <label class="field"><span>Ngày cần hàng</span><div class="inp">11/10/2026</div><span class="hint">Sớm nhất trong các món</span></label>
+      <hr>
+      <div class="row"><span class="mu">Sẽ lập</span><span>2 đơn</span></div>
+      <div class="row"><span class="mu">Màng cán mờ</span><span>13.000<span class="u">m²</span></span></div>
+      <div class="row"><span class="mu">Tạm tính</span><span>152.085.000</span></div>
+    </div>
+  </div></div>
+  <div class="dfoot"><span class="mu">4 món từ 4 yêu cầu</span><span class="sp"></span><button class="btn">Huỷ</button><button class="btn pri">Lưu 2 đơn nháp</button></div>
+</div></div></div>
+
+<!-- ===== 5. Đơn mua hàng ===== -->
+<div class="cap">5. Mua hàng › Đơn mua hàng (Kế toán dùng chung bảng)</div>
+<div class="scroll"><div class="frame" style="height:250px"><div class="body">
+  <div class="sheet"><table class="g">
+    <colgroup><col style="width:150px"><col style="width:200px"><col><col style="width:200px"><col style="width:120px"><col style="width:130px"><col style="width:130px"></colgroup>
+    <thead><tr><th>Mã đơn</th><th>Nhà cung cấp</th><th>Nội dung</th><th>Mua cho</th><th>Cần hàng</th><th class="n">Giá trị</th><th>Trạng thái</th></tr></thead>
+    <tbody>
+      <tr><td>DMH-261007-A1</td><td>Hoá chất Minh Phát</td><td>Mua cho 4 yêu cầu: 7TZY, 3QIT, 1BDF, 348V</td><td><span class="mc"><span class="lsx">LSX26-0007</span><span class="them">+1</span><span class="ton">Tồn kho</span><span class="tyc">Theo yêu cầu</span></span></td><td>11/10</td><td class="n">151.800.000</td><td><span class="chip" style="background:#e5e7eb;color:#374151">Đơn nháp</span></td></tr>
+      <tr><td>DMH-261007-A2</td><td>Keo dán Thành Đạt</td><td>Mua cho 4 yêu cầu: 7TZY, 3QIT, 1BDF, 348V</td><td><span class="mc"><span class="lsx">LSX26-0003</span></span></td><td>14/10</td><td class="n">285.000</td><td><span class="chip" style="background:#e5e7eb;color:#374151">Đơn nháp</span></td></tr>
+      <tr><td>DMH-261005-K7</td><td>Giấy Tân Mai</td><td>Bổ sung tồn Kho giấy</td><td><span class="mc"><span class="ton">Tồn kho</span></span></td><td>9/10</td><td class="n">96.250.000</td><td><span class="chip c-cham">Chờ hàng về</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="note" style="margin-top:10px">Ngăn đơn mua, tab Mặt hàng có cùng cột Mua cho ở từng dòng như form lập đơn.</p>
+</div></div></div>
+
+<!-- ===== 6. Form tạo yêu cầu ===== -->
+<div class="cap">6. Form tạo yêu cầu mua: chọn loại</div>
+<div class="cmp">
+  <div class="frm">
+    <div class="t">Tạo yêu cầu mua (gõ tay hoặc mở từ Tồn kho)</div>
+    <label class="field"><span>Loại mua</span><div class="seg"><button class="on">Theo yêu cầu</button><button>Mua tồn</button></div></label>
+    <div class="hint" style="margin:-6px 0 12px">Mua cho lệnh sản xuất thì lập từ Kế hoạch vật tư.</div>
+    <label class="field"><span>Ngày cần hàng</span><div class="inp">14/10/2026</div></label>
+    <label class="field"><span>Nội dung, mục đích</span><div class="inp">Mua DUPLEX MALAYSIA cho phòng mẫu</div></label>
+    <p class="note">Mở từ Tồn kho thì ô Loại mua đứng sẵn ở Mua tồn.</p>
+  </div>
+  <div class="frm">
+    <div class="t">Tạo yêu cầu mua (mở từ Kế hoạch vật tư)</div>
+    <label class="field"><span>Loại mua</span><div class="ro"><span class="mc"><span class="lsx">LSX26-0003</span><span class="lsx">LSX26-0004</span></span><span class="mu">Cho lệnh SX, không đổi được</span></div></label>
+    <label class="field"><span>Ngày cần hàng</span><div class="inp">14/10/2026</div></label>
+    <label class="field"><span>Nội dung, mục đích</span><div class="inp">Thiếu vật tư cho LSX26-0003, LSX26-0004</div></label>
+    <p class="note">Bảng món bên dưới có cột Mua cho từng món, như bảng Từng món.</p>
+  </div>
+</div>
+</div>
+</body>
+</html>

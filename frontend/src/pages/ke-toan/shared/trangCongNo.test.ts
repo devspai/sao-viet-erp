@@ -22,7 +22,6 @@ describe("useTrangCongNo — ttData", () => {
     );
     await waitFor(() => expect(cho.length).toBeGreaterThan(0));
     expect(result.current.ttData).toBeNull();
-    // Lời bảng và lời cùng kỳ (nếu đang so sánh) chạy song song — trả hết các lời của lượt A.
     await act(async () => cho.filter((c) => c.q === "A").forEach((c) => c.xong({ items: [], total: 0, page: 1 })));
     expect(result.current.ttData).toEqual({ the: "all", tuoi: null, tim: "A", loc: LOC_CONG_NO_TRONG });
 
@@ -37,26 +36,26 @@ describe("useTrangCongNo — ttData", () => {
   });
 });
 
-describe("useTrangCongNo — lời cùng kỳ và sự kiện đẩy", () => {
+describe("useTrangCongNo — một lời tải và sự kiện đẩy", () => {
   const trong = (): TomTat => ({ items: [], total: 0, page: 1 });
   const cauHinh = (goi: (t: string, p: LocCongNo) => Promise<TomTat>) => ({
     man: "man-cung", coTrang: 25, goi, chuLoi: "lỗi",
     dau: { the: "all" as const, tuoi: null, tim: "", loc: LOC_CONG_NO_TRONG },
   });
 
-  it("lời cùng kỳ gửi chi_tong, lời của bảng thì không", async () => {
+  it("mỗi lượt tải chỉ một lời của bảng — không còn lời cùng kỳ (khối tổng quan đã bỏ, 07/10/2026)", async () => {
     const goi = vi.fn(async (_t: string, _p: LocCongNo) => trong());
     window.history.replaceState(null, "", "/?man=man-cung&ky=thang");
     renderHook(() => useTrangCongNo(cauHinh(goi), "t", 0));
-    await waitFor(() => expect(goi.mock.calls.length).toBe(2));
-    const cung = goi.mock.calls.map((c) => c[1]).find((p) => p.size === 1)!;
-    const chinh = goi.mock.calls.map((c) => c[1]).find((p) => p.size === 25)!;
-    expect(cung).toMatchObject({ page: 1, size: 1, chi_tong: true });
-    expect(chinh.chi_tong).toBeUndefined();
+    await waitFor(() => expect(goi).toHaveBeenCalledTimes(1));
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    expect(goi).toHaveBeenCalledTimes(1);
+    expect(goi.mock.calls[0][1]).toMatchObject({ page: 1, size: 25 });
+    expect(goi.mock.calls[0][1].chi_tong).toBeUndefined();
     window.history.replaceState(null, "", "/");
   });
 
-  it("mở màn khi eventTick đã > 0 chỉ tải một lượt (kỳ Tất cả: không có lời cùng kỳ); tick đổi sau đó thì tải lại", async () => {
+  it("mở màn khi eventTick đã > 0 chỉ tải một lượt; tick đổi sau đó thì tải lại", async () => {
     const goi = vi.fn(async (_t: string, _p: LocCongNo) => trong());
     window.history.replaceState(null, "", "/?man=man-tick&ky=tat_ca");
     const { rerender } = renderHook(({ tick }) => useTrangCongNo({ ...cauHinh(goi), man: "man-tick" }, "t", tick), {

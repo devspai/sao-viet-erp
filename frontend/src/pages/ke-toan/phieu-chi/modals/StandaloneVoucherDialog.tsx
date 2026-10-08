@@ -41,6 +41,8 @@ export function StandaloneVoucherDialog({
     currency: "VND",
     exchange_rate: 1,
     content: "",
+    // Chứng từ gốc thường mang ngày hôm nay — điền sẵn, chỉ gửi đi khi có Số chứng từ.
+    invoice_date: isoToday(),
     cash_recipient_name: "",
     cash_recipient_address: null,
     cash_recipient_identity: null,
@@ -143,7 +145,7 @@ export function StandaloneVoucherDialog({
       debit_account: optional(form.debit_account),
       credit_account: optional(form.credit_account),
       invoice_number: optional(form.invoice_number),
-      invoice_date: optional(form.invoice_date),
+      invoice_date: optional(form.invoice_number) ? optional(form.invoice_date) : null,
       contract_number: optional(form.contract_number),
       note: optional(form.note),
     };

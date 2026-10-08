@@ -923,11 +923,12 @@ const NHOM_DON: [string, string][] = [
   ["huy", "Đã huỷ"],
 ];
 const TT_DON: Record<string, [string, string]> = {
-  ordered: ["Đã chốt", "ok"],
-  draft: ["Nháp", "warn"],
-  on_hold: ["Tạm giữ", "warn"],
-  change_order: ["Đã đổi", "warn"],
-  cancelled: ["Đã huỷ", "mute"],
+  ordered: ["Đã chốt", "xanh"],
+  hoan_tat: ["Hoàn tất", "la"],
+  draft: ["Nháp", "slate"],
+  on_hold: ["Tạm giữ", "cam"],
+  change_order: ["Đã đổi", "tim"],
+  cancelled: ["Đã huỷ", "xam"],
 };
 
 export function TabMuaHang({ sl, code }: { sl: SoLieuKhach; code: string }) {
@@ -1149,13 +1150,14 @@ const NHOM_BG: [string, string][] = [
   ["huy", "Đã huỷ"],
 ];
 const KQ_BG: Record<string, [string, string]> = {
-  cho: ["Đã gửi, chờ khách", "warn"],
-  thanh_don: ["Thành đơn", "ok"],
-  tu_choi: ["Khách từ chối", "bad"],
-  het_han: ["Hết hạn", "mute"],
-  huy: ["Đã huỷ", "mute"],
+  cho: ["Đã gửi, chờ khách", "cyan"],
+  thanh_don: ["Thành đơn", "tim"],
+  tu_choi: ["Khách từ chối", "do"],
+  het_han: ["Hết hạn", "cam"],
+  huy: ["Đã huỷ", "xam"],
 };
 const CHUA_GUI: Record<string, string> = { draft: "Nháp", pending_approval: "Chờ duyệt", approved: "Đã duyệt, chưa gửi" };
+const CHUA_GUI_SAC: Record<string, string> = { draft: "slate", pending_approval: "vang", approved: "xanh" };
 
 export function TabBaoGia({ sl, onOpenQuote }: { sl: SoLieuKhach; onOpenQuote: (id: number) => void }) {
   const khoan = sl.khoanBg;
@@ -1312,7 +1314,7 @@ function LichSuBaoGia({
                 <tbody>
                   {kq.items.map((b) => {
                     const [kqChu, tone] =
-                      b.nhom === "chua_gui" ? [CHUA_GUI[b.status] ?? "Chưa gửi", "mute"] : KQ_BG[b.nhom] ?? [b.status, "mute"];
+                      b.nhom === "chua_gui" ? [CHUA_GUI[b.status] ?? "Chưa gửi", CHUA_GUI_SAC[b.status] ?? "slate"] : KQ_BG[b.nhom] ?? [b.status, "mute"];
                     return (
                       <tr key={b.id}>
                         <td>

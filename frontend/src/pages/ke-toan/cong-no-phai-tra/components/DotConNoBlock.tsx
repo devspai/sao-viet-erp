@@ -1,18 +1,91 @@
-// Tab "Còn nợ" của ngăn Công nợ phải trả (đặc tả NPT-2): các đợt giao gom theo ĐƠN MUA.
+// Tab "Còn nợ" của ngăn Công nợ phải trả — kiểu 3 (docs/mockups/ke-toan-gon-3-phuong-an.html, 07/10/2026):
+// MỘT lưới `.lds-g` (khung `.lds-bang`) gộp mọi đơn mua, thay mỗi đơn một bảng.
 //
-// Đầu nhóm: mã đơn (link sang Đơn mua) + thẻ "Cọc …" của CHÍNH đơn đó, kèm chữ mờ "Đã trừ …",
-// "Còn …" + "còn nợ …" bên phải. Bảng: ☐ (ô đầu cột chọn mọi đợt của đơn) | Đợt | Ngày giao | Hoá đơn | Hạn trả | Giá trị | Đã trả | Trừ cọc |
-// Còn nợ. Bấm dòng mở khối "Hàng của đợt" gấp ngay dưới. Tích đợt để trả nhiều đợt một lượt — việc
-// chọn do ngăn giữ (thanh chân tối nằm ở ngăn).
-import { Fragment } from "react";
+// Hàng đầu: "Nhóm theo đơn mua, tick đợt muốn trả" + nhóm nút "Đơn mua | Hạn trả".
+// - Đơn mua: dòng nhóm (ô chọn cả đơn — tick khi mọi đợt chọn được đều đã chọn, gạch ngang khi chọn một
+//   phần; mã đơn mở Đơn mua; "N đợt" mờ; "cọc còn X" mờ khi cọc của đơn còn dư) + 4 ô tổng của đơn, rồi
+//   các dòng đợt.
+// - Hạn trả: bỏ dòng nhóm, xếp đợt theo hạn trả tăng dần, đợt chưa có hạn ở cuối; ô Đợt mang cả mã đơn.
+// Cột: ☐ | Đợt | Hoá đơn | Hạn trả | Giá trị | Trừ cọc | Đã trả | Còn nợ. Trừ cọc là cột RIÊNG (chủ chốt
+// 27/08/2026): cầm sao kê nhà cung cấp dò không ra giao dịch nào cho phần cọc chiếu xuống. Bấm dòng đợt
+// mở khối "Hàng của đợt" gấp ngay dưới (dòng con trải hết bảng). Dòng Cộng cuối bảng.
+//
+// Bề rộng: cột tiền 114px, Còn nợ 122px (tổng tỷ ở dòng Cộng không bị "…" cắt); cột co giãn có chỗ tối
+// thiểu; bảng có bề rộng tối thiểu = tổng, khung `.lds-bang` cuộn ngang khi hẹp hơn — không cột nào về 0px.
+import { FileText } from "lucide-react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 
-import type { PayableItemRow, PayablesDetail } from "../../../../api/client";
-import { Cum, TheNho } from "../../shared/Cum";
+import { assetUrl, type PayableItemRow, type PayablesDetail } from "../../../../api/client";
 import { ngay, vietSo } from "../../shared/dinhDang";
-import { so } from "../../shared/oCongNo";
+import { ChuHan, chuHanDu, HangXep, OTien } from "../../shared/NganCongNo";
 import { gomTheoDon, tenKhoan } from "../shared/helpers";
 import { HangCuaDot } from "./HangCuaDot";
-import { HanTra, HoaDon } from "./payablesCells";
+
+type Xep = "don" | "han";
+
+/** Bề rộng cột; null = cột co giãn (Hoá đơn), số kèm là chỗ tối thiểu tính vào bề rộng bảng. Tổng tối
+ *  thiểu ≤818px: vừa cột trái của ngăn ở độ rộng mặc định (~840px, trừ thanh cuộn dọc) — không cuộn ngang;
+ *  hẹp hơn (dưới 760px) thì khung cuộn. Cột tiền 114px (đủ 9,99 tỷ), Còn nợ 122px (tổng ở dòng Cộng),
+ *  Hạn trả 154px (vừa "22/10/2026 còn 14", chữ đủ ở title). Số đã tính đệm ô 10px của lds-g. */
+function cacCot(coChon: boolean, xep: Xep): { rong: (number | null)[]; toiThieu: number } {
+  // Xếp theo hạn: ô Đợt mang cả mã đơn ("PMH-0012 đợt 2") nên rộng hơn, Hoá đơn nhường lại.
+  // Đo 08/10 (Be Vietnam Pro 13px): "22/10/2026 còn 14" (ChuHan gọn) ⇒ Hạn trả 152; Trừ cọc 104 (đủ
+  // trăm triệu). Tổng ≤ 818 để vừa khung cột trái đo được 820px (824 cũ luôn hiện thanh cuộn).
+  // Xếp theo hạn: "DMH-261007-VBF4 đợt 1" đo 189px, số HĐ tới 98px — không vừa 820 nên bảng cuộn ngang
+  // (rê/kéo rộng ngăn), thà cuộn còn hơn "…" mất mã đơn.
+  // Lưới lds-g đệm ô 10px (kt-g 9px) ⇒ mọi cột cố định +2px so với số đo trên; chỗ tối thiểu của cột co
+  // giãn bớt 6px để tổng "Đơn mua" vẫn 816 ≤ 820.
+  const dot = xep === "don" ? 58 : 194;
+  const coGian = xep === "don" ? 110 : 100;
+  const rong = [...(coChon ? [38] : []), dot, null, 154, 114, 106, 114, 122];
+  return { rong, toiThieu: rong.reduce<number>((t, w) => t + (w ?? coGian), 0) };
+}
+
+/** Ô chọn cả đơn: `indeterminate` không đặt được bằng thuộc tính JSX nên gán qua ref. */
+function OChonDon({ ma, chon, mot, khoa, onDoi }: { ma: string; chon: boolean; mot: boolean; khoa: boolean; onDoi: (bat: boolean) => void }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = mot;
+  }, [mot]);
+  return (
+    <input ref={ref} type="checkbox" className="kt-ck" checked={chon} disabled={khoa}
+      aria-label={`Chọn mọi đợt còn nợ của ${ma}`} onChange={(e) => onDoi(e.target.checked)} />
+  );
+}
+
+/** Hạn trả của MỘT đợt: ngày + "trễ / còn N ngày"; đợt chưa có hạn không bao giờ vào Quá hạn nên phải nói. */
+function OHanTra({ row, homNay }: { row: PayableItemRow; homNay: string }) {
+  if (row.da_tat_toan) return <span className="lds-mu3">đã trả xong</span>;
+  if (row.chua_dat_han || !row.due_date) {
+    return <span className="lds-mu3">{row.delivery_id == null ? "không theo đợt" : "chưa đặt hạn"}</span>;
+  }
+  return (
+    <>
+      <span>{ngay(row.due_date)}</span>
+      <ChuHan han={row.due_date} homNay={homNay} gon lop={{ do: "lds-do", mo: "lds-mu", vang: "lds-vang" }} />
+    </>
+  );
+}
+
+/** Số hoá đơn của đợt + tệp hoá đơn đính lúc ghi đợt giao bên Thu mua (chỉ đọc, mở tab mới). */
+function OHoaDon({ row }: { row: PayableItemRow }) {
+  const tep = row.hoa_don_files ?? [];
+  return (
+    <>
+      {row.invoice_number ? <span>{row.invoice_number}</span> : <span className="lds-mu3">chưa có</span>}
+      {tep.length > 0 && (
+        <a className="kt-lk kt-ncn-ben" href={assetUrl(tep[0].file_url) ?? "#"} target="_blank" rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label={tep.length > 1 ? `Xem ${tep[0].file_name} và ${tep.length - 1} tệp khác` : `Xem ${tep[0].file_name}`}>
+          <FileText size={13} aria-hidden="true" />
+          {tep.length > 1 && <span>{tep.length}</span>}
+        </a>
+      )}
+    </>
+  );
+}
+
+const cong = (ds: PayableItemRow[], k: "amount" | "coc_bu" | "paid" | "con_no") => ds.reduce((s, r) => s + r[k], 0);
 
 export function DotConNoBlock({
   detail,
@@ -27,9 +100,9 @@ export function DotConNoBlock({
   onMoDon,
 }: {
   detail: PayablesDetail;
-  /** Các đợt đang hiện (đã lọc theo mốc tuổi), giữ thứ tự máy chủ đã sắp. */
+  /** Các đợt đang hiện (đã lọc), giữ thứ tự máy chủ đã sắp. */
   khoanNo: PayableItemRow[];
-  /** Đang lọc theo mốc ⇒ câu "rỗng" nói về bộ lọc, không nói "không còn nợ". */
+  /** Đang lọc ⇒ câu "rỗng" nói về bộ lọc, không nói "không còn nợ". */
   dangLoc: boolean;
   /** Có quyền lập phiếu chi ⇒ có cột ô chọn. */
   coChon: boolean;
@@ -42,8 +115,18 @@ export function DotConNoBlock({
   /** Không có = không có quyền xem Đơn mua ⇒ mã đơn là chữ thường. */
   onMoDon?: (code: string) => void;
 }) {
-  const chuaDatHan = detail.items.filter((x) => x.chua_dat_han && !x.da_tat_toan).length;
-  const soCot = coChon ? 9 : 8;
+  const [xep, setXep] = useState<Xep>("don");
+
+  if (khoanNo.length === 0) {
+    return (
+      <p className="kt-mo">
+        {dangLoc ? "Không có đợt nào còn nợ ở mục này." : "Không còn đợt nào nợ nhà cung cấp này."}
+      </p>
+    );
+  }
+
+  const { rong, toiThieu } = cacCot(coChon, xep);
+  const soCot = rong.length;
 
   function dao(ids: number[], bat: boolean) {
     const next = new Set(chon);
@@ -54,135 +137,158 @@ export function DotConNoBlock({
     onChon(next);
   }
 
-  if (khoanNo.length === 0) {
+  function dongDot(row: PayableItemRow, coMaDon: boolean) {
+    const khoa = `${row.purchase_request_id}:${row.delivery_id ?? "don"}`;
+    // Dòng "cả đơn" (phiếu CŨ) không có hàng nào quy về được ⇒ không mở khối hàng.
+    const coHang = row.lines.length > 0;
+    const mo = coHang && moHang === khoa;
+    const daTich = row.delivery_id != null && chon.has(row.delivery_id);
+    const lop = [coHang ? "lds-dong" : "", row.da_tat_toan ? "kt-xong" : ""].filter(Boolean).join(" ");
+    const bam = () => coHang && onMoHang(mo ? null : khoa);
     return (
-      <p className="kt-mo">
-        {dangLoc ? "Không có đợt nào còn nợ ở mục này." : "Không còn đợt nào nợ nhà cung cấp này."}
-      </p>
+      <Fragment key={khoa}>
+        <tr className={lop || undefined} tabIndex={coHang ? 0 : undefined} aria-expanded={coHang ? mo : undefined}
+          title={coHang ? "Bấm để xem hàng của đợt" : undefined}
+          onClick={bam}
+          onKeyDown={(e) => {
+            if (e.target !== e.currentTarget) return;
+            // Esc trên dòng đang mở: gấp khối hàng, KHÔNG đóng ngăn (ngăn bỏ qua phím đã
+            // preventDefault). Esc lần nữa mới tới ngăn.
+            if (e.key === "Escape" && mo) {
+              e.preventDefault();
+              onMoHang(null);
+              return;
+            }
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              bam();
+            }
+          }}>
+          {coChon && (
+            <td className="c" onClick={(e) => e.stopPropagation()}>
+              {row.delivery_id == null ? (
+                // Đơn cũ không theo đợt: ô mờ + lời giải thích, không giấu đi — giấu thì người dùng
+                // tưởng dòng này trả gộp được mà không ra.
+                <input type="checkbox" className="kt-ck" disabled
+                  aria-label={`Chọn ${tenKhoan(row)} của ${row.code}`}
+                  title="Đơn cũ không theo đợt giao. Lập phiếu chi cho đơn này ở màn Đơn mua hàng." />
+              ) : chonDuoc(row) ? (
+                <input type="checkbox" className="kt-ck" checked={daTich}
+                  aria-label={`Chọn ${tenKhoan(row)} của ${row.code}`}
+                  onChange={(e) => dao([row.delivery_id as number], e.target.checked)} />
+              ) : null}
+            </td>
+          )}
+          {coMaDon ? (
+            <td title={`${row.code} ${tenKhoan(row).toLowerCase()}`}>
+              {row.code}
+              <span className="lds-mu kt-ncn-ben">{tenKhoan(row).toLowerCase()}</span>
+            </td>
+          ) : (
+            <td>{tenKhoan(row)}</td>
+          )}
+          <td title={row.invoice_number ?? undefined}>
+            <OHoaDon row={row} />
+          </td>
+          <td title={!row.da_tat_toan && !row.chua_dat_han && row.due_date ? chuHanDu(row.due_date, detail.as_of) : undefined}>
+            <OHanTra row={row} homNay={detail.as_of} />
+          </td>
+          <td className="n">{vietSo(row.amount)}</td>
+          <td className="n"><OTien so={row.coc_bu} /></td>
+          <td className="n"><OTien so={row.paid} /></td>
+          <td className="n"><OTien so={row.con_no} /></td>
+        </tr>
+        {mo && <HangCuaDot item={row} soCot={soCot} />}
+      </Fragment>
     );
+  }
+
+  let than: ReactNode;
+  if (xep === "han") {
+    // Hạn tăng dần, đợt chưa có hạn sau, đợt đã trả xong (chỉ để dò cọc) cuối cùng; cùng hạn giữ thứ tự
+    // máy chủ (sort ổn định).
+    const ds = [...khoanNo].sort((a, b) =>
+      a.da_tat_toan !== b.da_tat_toan ? (a.da_tat_toan ? 1 : -1)
+        : a.due_date === b.due_date ? 0 : a.due_date == null ? 1 : b.due_date == null ? -1 : a.due_date < b.due_date ? -1 : 1);
+    than = ds.map((row) => dongDot(row, true));
+  } else {
+    than = gomTheoDon(khoanNo, detail.coc_chung).map((don) => {
+      const idChon = don.items.filter(chonDuoc).map((r) => r.delivery_id as number);
+      const soDaChon = idChon.filter((id) => chon.has(id)).length;
+      const tenNhom = `${don.code} ${vietSo(don.items.length)} đợt${don.coc && don.coc.con_du > 0 ? ` cọc còn ${vietSo(don.coc.con_du)}` : ""}`;
+      return (
+        <Fragment key={don.purchase_request_id}>
+          <tr className="lds-cong lds-nhom">
+            {coChon && (
+              <td className="c">
+                <OChonDon ma={don.code} chon={idChon.length > 0 && soDaChon === idChon.length}
+                  mot={soDaChon > 0 && soDaChon < idChon.length} khoa={idChon.length === 0}
+                  onDoi={(bat) => dao(idChon, bat)} />
+              </td>
+            )}
+            <td colSpan={3} title={tenNhom}>
+              <span className="lds-dinh-trai">
+                {onMoDon ? (
+                  <button type="button" className="kt-lk" onClick={() => onMoDon(don.code)}>{don.code}</button>
+                ) : (
+                  <span>{don.code}</span>
+                )}
+                <span className="lds-mu kt-ncn-ben">{`${vietSo(don.items.length)} đợt`}</span>
+                {/* Cọc của CHÍNH đơn này còn dư (chưa chiếu hết xuống các đợt). */}
+                {don.coc && don.coc.con_du > 0 && (
+                  <span className="lds-mu kt-ncn-ben">{`cọc còn ${vietSo(don.coc.con_du)}`}</span>
+                )}
+              </span>
+            </td>
+            <td className="n">{vietSo(cong(don.items, "amount"))}</td>
+            <td className="n"><OTien so={cong(don.items, "coc_bu")} /></td>
+            <td className="n"><OTien so={cong(don.items, "paid")} /></td>
+            <td className="n"><OTien so={don.con_no} /></td>
+          </tr>
+          {don.items.map((row) => dongDot(row, false))}
+        </Fragment>
+      );
+    });
   }
 
   return (
     <>
-      {chuaDatHan > 0 && (
-        <p className="kt-bang-xam">
-          {`Có ${chuaDatHan} khoản chưa có hạn trả nên không bao giờ vào Quá hạn — chúng được đẩy lên đầu. Khai Số ngày cho nợ ở hồ sơ nhà cung cấp để hết ca này.`}
-        </p>
-      )}
-      {gomTheoDon(khoanNo, detail.coc_chung).map((don) => {
-        // Đỏ chỉ khi CHÍNH đơn này có đợt đang trễ — `overdue_days` máy chủ đã tính sẵn.
-        const dangTre = don.items.some((it) => it.overdue_days > 0);
-        const idChon = don.items.filter(chonDuoc).map((r) => r.delivery_id as number);
-        const daChonHet = idChon.length > 0 && idChon.every((id) => chon.has(id));
-        return (
-          <section key={don.purchase_request_id} className="kt-nhom" role="group" aria-label={`Đơn ${don.code}`}>
-            <div className="kt-nhom__dau">
-              <Cum>
-                {onMoDon ? (
-                  <button type="button" className="kt-lk" onClick={() => onMoDon(don.code)}>{don.code}</button>
-                ) : (
-                  <b>{don.code}</b>
-                )}
-                {/* Cọc của CHÍNH đơn này: "Cọc" là thẻ, hai số theo sau là chữ mờ — tách bằng khoảng
-                    trống của `Cum`, không chắp thành câu "a · đã trừ b". */}
-                {don.coc && don.coc.amount > 0 && <TheNho>{`Cọc ${vietSo(don.coc.amount)}`}</TheNho>}
-                {don.coc && don.coc.da_dung > 0 && <span className="kt-mo">{`Đã trừ ${vietSo(don.coc.da_dung)}`}</span>}
-                {don.coc && don.coc.con_du > 0 && <span className="kt-mo">{`Còn ${vietSo(don.coc.con_du)}`}</span>}
-              </Cum>
-              <span className="kt-phai">
-                {"còn nợ "}
-                <span className={dangTre ? "kt-do" : undefined}>{vietSo(don.con_no)}</span>
-              </span>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  {coChon && (
-                    <th>
-                      <input type="checkbox" className="kt-ck" checked={daChonHet} disabled={idChon.length === 0}
-                        aria-label={`Chọn mọi đợt còn nợ của ${don.code}`}
-                        onChange={(e) => dao(idChon, e.target.checked)} />
-                    </th>
-                  )}
-                  <th>Đợt</th>
-                  <th>Ngày giao</th>
-                  <th>Hoá đơn</th>
-                  <th>Hạn trả</th>
-                  <th className="kt-so">Giá trị</th>
-                  <th className="kt-so">Đã trả</th>
-                  {/* Cột RIÊNG, không gộp vào "Đã trả" (chủ chốt 27/08/2026): cầm sao kê nhà cung
-                      cấp dò không ra giao dịch nào cho phần cọc chiếu xuống. */}
-                  <th className="kt-so">Trừ cọc</th>
-                  <th className="kt-so">Còn nợ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {don.items.map((row) => {
-                  const khoa = `${don.purchase_request_id}:${row.delivery_id ?? "don"}`;
-                  // Dòng "cả đơn" (phiếu CŨ) không có hàng nào quy về được ⇒ không mở khối hàng.
-                  const coHang = row.lines.length > 0;
-                  const mo = coHang && moHang === khoa;
-                  const daTich = row.delivery_id != null && chon.has(row.delivery_id);
-                  const lop = ["kt-dong", daTich ? "kt-da-tich" : "", row.da_tat_toan ? "kt-xong" : ""].filter(Boolean).join(" ");
-                  const bam = () => coHang && onMoHang(mo ? null : khoa);
-                  return (
-                    <Fragment key={khoa}>
-                      <tr className={lop} tabIndex={coHang ? 0 : undefined} aria-expanded={coHang ? mo : undefined}
-                        title={coHang ? "Bấm để xem hàng của đợt" : undefined}
-                        onClick={bam}
-                        onKeyDown={(e) => {
-                          if (e.target !== e.currentTarget) return;
-                          // Esc trên dòng đang mở: gấp khối hàng, KHÔNG đóng ngăn (ngăn bỏ qua phím đã
-                          // preventDefault). Esc lần nữa mới tới ngăn.
-                          if (e.key === "Escape" && mo) {
-                            e.preventDefault();
-                            onMoHang(null);
-                            return;
-                          }
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            bam();
-                          }
-                        }}>
-                        {coChon && (
-                          <td onClick={(e) => e.stopPropagation()}>
-                            {row.delivery_id == null ? (
-                              // Đơn cũ không theo đợt: ô mờ + lời giải thích, không giấu đi — giấu thì
-                              // người dùng tưởng dòng này trả gộp được mà không ra.
-                              <input type="checkbox" className="kt-ck" disabled
-                                aria-label={`Chọn ${tenKhoan(row)} của ${don.code}`}
-                                title="Đơn cũ không theo đợt giao. Lập phiếu chi cho đơn này ở màn Đơn mua hàng." />
-                            ) : chonDuoc(row) ? (
-                              <input type="checkbox" className="kt-ck" checked={daTich}
-                                aria-label={`Chọn ${tenKhoan(row)} của ${don.code}`}
-                                onChange={(e) => dao([row.delivery_id as number], e.target.checked)} />
-                            ) : null}
-                          </td>
-                        )}
-                        <td>{tenKhoan(row)}</td>
-                        <td>{ngay(row.delivery_date)}</td>
-                        <td>
-                          <HoaDon so={row.invoice_number} ngayHd={row.invoice_date} files={row.hoa_don_files} />
-                        </td>
-                        <td>
-                          <HanTra row={row} homNay={detail.as_of} />
-                        </td>
-                        <td className="kt-so">{so(row.amount)}</td>
-                        <td className="kt-so">{so(row.paid)}</td>
-                        <td className="kt-so">{so(row.coc_bu)}</td>
-                        <td className="kt-so">
-                          <b>{vietSo(row.con_no)}</b>
-                        </td>
-                      </tr>
-                      {mo && <HangCuaDot item={row} soCot={soCot} />}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
-        );
-      })}
+      <HangXep<Xep>
+        chu={`${xep === "don" ? "Nhóm theo đơn mua" : "Xếp theo hạn trả, sớm nhất trên cùng"}${coChon ? ", tick đợt muốn trả" : ""}`}
+        giaTri={xep}
+        luaChon={[["don", "Đơn mua"], ["han", "Hạn trả"]]}
+        onDoi={setXep}
+      />
+      <div className="lds-bang">
+        <table className="lds-g" style={{ minWidth: toiThieu }} aria-label="Các đợt còn nợ">
+          <colgroup>
+            {rong.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}
+          </colgroup>
+          <thead>
+            <tr>
+              {coChon && <th aria-label="Chọn" />}
+              <th>{xep === "don" ? "Đợt" : "Đơn mua và đợt"}</th>
+              <th>Hoá đơn</th>
+              <th>Hạn trả</th>
+              <th className="n">Giá trị</th>
+              <th className="n">Trừ cọc</th>
+              <th className="n">Đã trả</th>
+              <th className="n">Còn nợ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {than}
+            <tr className="lds-cong">
+              {coChon && <td />}
+              <td colSpan={3}>{`Cộng ${vietSo(khoanNo.length)} đợt`}</td>
+              <td className="n">{vietSo(cong(khoanNo, "amount"))}</td>
+              <td className="n"><OTien so={cong(khoanNo, "coc_bu")} /></td>
+              <td className="n"><OTien so={cong(khoanNo, "paid")} /></td>
+              <td className="n"><OTien so={cong(khoanNo, "con_no")} /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

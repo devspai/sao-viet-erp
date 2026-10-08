@@ -178,18 +178,24 @@ class DeliveryService:
     def chan_ngoai_pham_vi_trip(self, trip, *, scope, actor) -> None:
         if scope is None or scope == SCOPE_ALL:
             return
+        if not self._xem_duoc_trip(
+            trip, scope=scope, actor=actor,
+            eid=self._employee_cua_user(actor) if scope == SCOPE_OWN else None,
+            phong=self._phong_duoc_xem(scope=scope, actor=actor),
+        ):
+            raise DeliveryForbidden("Bạn không có quyền xem chuyến giao này")
+
+    def _xem_duoc_trip(self, trip, *, scope, actor, eid, phong) -> bool:
+        """Luật của `chan_ngoai_pham_vi_trip` với `eid`/`phong` tính sẵn — xét cả trang chuyến mà
+        không hỏi lại nhân viên của người gọi cho từng chuyến."""
+        if scope is None or scope == SCOPE_ALL:
+            return True
+        if scope == SCOPE_OWN and eid is not None and trip.employee_id == eid:
+            return True
+        req = trip.request
         if scope == SCOPE_OWN:
-            eid = self._employee_cua_user(actor)
-            if eid is not None and trip.employee_id == eid:
-                return
-            req = self.deliveries.get_request(trip.request_id)
-            if req is not None and req.created_by == getattr(actor, "id", None):
-                return
-            raise DeliveryForbidden("Bạn không có quyền xem chuyến giao này")
-        req = self.deliveries.get_request(trip.request_id)
-        phong = self._phong_duoc_xem(scope=scope, actor=actor)
-        if req is None or (phong is not None and req.department_id not in phong):
-            raise DeliveryForbidden("Bạn không có quyền xem chuyến giao này")
+            return req is not None and req.created_by == getattr(actor, "id", None)
+        return req is not None and (phong is None or req.department_id in phong)
 
     # =====================================================================================
     # Số lượng — còn phải giao
@@ -323,6 +329,10 @@ class DeliveryService:
                 "giao_thang": int(giao_thang.get(d, 0)),
                 "dang_giu": int(dang_giu.get(d, 0)),
                 "con_phai_giao": int(con),
+                # Khách đã THỰC NHẬN đủ mọi dòng của cụm. KHÁC `con_phai_giao` = 0: số đó còn trừ
+                # phần yêu cầu giao đang giữ (= "còn phải LẬP yêu cầu"), nên lập yêu cầu xong mà chưa
+                # giao thì nó đã về 0 — từng làm danh sách đơn báo "Hoàn tất" oan (07/10/2026).
+                "khach_nhan_du": all(da_giao.get(od.id, 0) >= dat[od.id] for od in c.dong),
                 "kho_de_nghi": de_nghi.get(tp.id, 0.0) if tp is not None else 0.0,
                 "kho_da_nhan": da_nhan.get(tp.id, 0.0) if tp is not None else 0.0,
                 "ton_that": ton.get(tp.id, 0.0) if tp is not None else 0.0,
@@ -909,33 +919,49 @@ class DeliveryService:
 
     def luot_cua_trip(self, trip) -> dict | None:
         """Lượt xe nhìn từ MỘT chuyến — bảng chuyến đọc để biết hiện nút nào (None = ngoài lượt)."""
-        diem = self.deliveries.diem_cua_trip(trip.id)
-        if diem is None:
-            return None
-        luot = self.deliveries.get_luot(diem.luot_xe_id)
-        if luot is None:
-            return None
-        trips = [self.deliveries.get_trip(d.delivery_trip_id) for d in luot.diem]
-        so_da_ghi = [(int(d.so_dong_ho), d.delivery_trip_id) for d in luot.diem
-                     if d.so_dong_ho is not None]
-        cuoi = max(so_da_ghi)[1] if so_da_ghi else None
-        gan_nhat = max([s for s, _ in so_da_ghi]
-                       + ([int(luot.so_dong_ho_xuat_phat)]
-                          if luot.so_dong_ho_xuat_phat is not None else []), default=None)
-        con_chua_xong = any(t is not None and t.trang_thai in _CHUA_KET_QUA for t in trips)
-        return {
-            "id": luot.id, "code": luot.code, "vehicle_id": luot.vehicle_id, "ngay": luot.ngay,
-            "so_diem": len(luot.diem),
-            "so_dong_ho_xuat_phat": luot.so_dong_ho_xuat_phat,
-            "so_dong_ho_ve_kho": luot.so_dong_ho_ve_kho,
-            "ve_kho_luc": luot.ve_kho_luc, "km_ve_kho": luot.km_ve_kho,
-            "so_dong_ho": diem.so_dong_ho,
-            "so_dong_ho_gan_nhat": gan_nhat,
-            "goi_y_xuat_phat": (self.goi_y_xuat_phat(luot)
-                                if luot.so_dong_ho_xuat_phat is None else None),
-            "cho_ve_kho": (luot.ve_kho_luc is None and bool(so_da_ghi) and not con_chua_xong),
-            "la_diem_cuoi": cuoi == trip.id,
-        }
+        return self.luot_cua_nhieu_trip([trip]).get(trip.id)
+
+    def _goi_y_nhieu_luot(self, luots) -> dict[int, int | None]:
+        """`goi_y_xuat_phat` cho các lượt chưa ghi số xuất phát — một lần cho cả trang."""
+        chua = [l for l in luots if l.so_dong_ho_xuat_phat is None]
+        return self.deliveries.so_dong_ho_cuoi_theo_luot(chua) if chua else {}
+
+    def luot_cua_nhieu_trip(self, trips) -> dict[int, dict]:
+        """`luot_cua_trip` cho cả trang chuyến, số truy vấn cố định (07/10/2026: bảng giao từng hỏi
+        điểm → lượt → từng chuyến của lượt → số đồng hồ của xe cho MỖI chuyến). Chuyến ngoài lượt
+        vắng mặt trong kết quả."""
+        diem_map = self.deliveries.diem_theo_trip([t.id for t in trips])
+        luots = {d.luot.id: d.luot for d in diem_map.values() if d.luot is not None}
+        if not luots:
+            return {}
+        trang_thai = self.deliveries.trang_thai_theo_trip(
+            [d.delivery_trip_id for l in luots.values() for d in l.diem])
+        goi_y = self._goi_y_nhieu_luot(luots.values())
+        ra: dict[int, dict] = {}
+        for tid, diem in diem_map.items():
+            luot = luots.get(diem.luot_xe_id)
+            if luot is None:
+                continue
+            so_da_ghi = [(int(d.so_dong_ho), d.delivery_trip_id) for d in luot.diem
+                         if d.so_dong_ho is not None]
+            cuoi = max(so_da_ghi)[1] if so_da_ghi else None
+            gan_nhat = max([s for s, _ in so_da_ghi]
+                           + ([int(luot.so_dong_ho_xuat_phat)]
+                              if luot.so_dong_ho_xuat_phat is not None else []), default=None)
+            con_chua_xong = any(trang_thai.get(d.delivery_trip_id) in _CHUA_KET_QUA for d in luot.diem)
+            ra[tid] = {
+                "id": luot.id, "code": luot.code, "vehicle_id": luot.vehicle_id, "ngay": luot.ngay,
+                "so_diem": len(luot.diem),
+                "so_dong_ho_xuat_phat": luot.so_dong_ho_xuat_phat,
+                "so_dong_ho_ve_kho": luot.so_dong_ho_ve_kho,
+                "ve_kho_luc": luot.ve_kho_luc, "km_ve_kho": luot.km_ve_kho,
+                "so_dong_ho": diem.so_dong_ho,
+                "so_dong_ho_gan_nhat": gan_nhat,
+                "goi_y_xuat_phat": goi_y.get(luot.id) if luot.so_dong_ho_xuat_phat is None else None,
+                "cho_ve_kho": (luot.ve_kho_luc is None and bool(so_da_ghi) and not con_chua_xong),
+                "la_diem_cuoi": cuoi == tid,
+            }
+        return ra
 
     def ve_kho(self, luot_id, *, so_dong_ho, actor, scope=None, xac_nhan_km_lon=False) -> dict:
         """Ghi số đồng hồ VỀ KHO ⇒ đóng lượt, tính chặng về kho (PRD khoán km §14)."""
@@ -1086,33 +1112,63 @@ class DeliveryService:
         """Cả lượt nhìn một chỗ: các điểm theo THỨ TỰ CHẶNG (số đồng hồ tăng dần; điểm chưa có số
         xếp cuối theo thứ tự xếp vào lượt) + số đếm để giao diện biết bày nút nào."""
         luot = self._lay_luot(luot_id)
-        trips = {t.id: t for t in self._chan_ngoai_pham_vi_luot(luot, scope=scope, actor=actor)}
-        diem = sorted(luot.diem, key=lambda d: (d.so_dong_ho is None, int(d.so_dong_ho or 0), d.id))
-        ds = [trips[d.delivery_trip_id] for d in diem if d.delivery_trip_id in trips]
-        co_so = {d.delivery_trip_id for d in diem if d.so_dong_ho is not None}
+        kq = self.chi_tiet_cac_luot([luot.id], actor=actor, scope=scope).get(luot.id)
+        if kq is None:
+            raise DeliveryForbidden("Bạn không có quyền xem chuyến giao này" if luot.diem
+                                    else "Bạn không có quyền với lượt xe này")
+        return kq
 
-        def dem(tt) -> int:
-            return sum(1 for t in ds if t.trang_thai == tt)
+    def chi_tiet_cac_luot(self, luot_ids, *, actor, scope=None) -> dict[int, dict]:
+        """`chi_tiet_luot` cho cả trang bảng giao, số truy vấn cố định (07/10/2026 — trước đây mỗi
+        lượt nạp lại từng chuyến, hỏi yêu cầu kho từng chuyến, ba câu số đồng hồ của xe). Lượt đã
+        xoá, hoặc người gọi không xem được chuyến NÀO trong lượt (luật `_chan_ngoai_pham_vi_luot`),
+        thì vắng mặt."""
+        luots = list(self.deliveries.luot_theo_ids(luot_ids).values())
+        if not luots:
+            return {}
+        trip_map = self.deliveries.trips_theo_ids(
+            [d.delivery_trip_id for l in luots for d in l.diem])
+        eid = self._employee_cua_user(actor) if scope == SCOPE_OWN else None
+        phong = self._phong_duoc_xem(scope=scope, actor=actor)
+        xem_duoc: dict[int, tuple] = {}
+        for l in luots:
+            trips = [trip_map[d.delivery_trip_id] for d in l.diem if d.delivery_trip_id in trip_map]
+            if any(self._xem_duoc_trip(t, scope=scope, actor=actor, eid=eid, phong=phong) for t in trips):
+                xem_duoc[l.id] = (l, {t.id: t for t in trips})
+        goi_y = self._goi_y_nhieu_luot([l for l, _ in xem_duoc.values()])
+        cho_gui = [t.id for _, ts in xem_duoc.values() for t in ts.values()
+                   if t.trang_thai == LG_DA_LEN_KE_HOACH]
+        # Cùng luật `yeu_cau_kho_cua_trip`: không nối service kho thì coi như chưa gửi.
+        da_gui = (set(self.deliveries.yeu_cau_kho_cua_nhieu_chuyen(cho_gui, "XUAT"))
+                  if self.stock_requests is not None else set())
+        ra: dict[int, dict] = {}
+        for lid, (luot, trips) in xem_duoc.items():
+            diem = sorted(luot.diem, key=lambda d: (d.so_dong_ho is None, int(d.so_dong_ho or 0), d.id))
+            ds = [trips[d.delivery_trip_id] for d in diem if d.delivery_trip_id in trips]
+            co_so = {d.delivery_trip_id for d in diem if d.so_dong_ho is not None}
 
-        so_da_ghi = [int(d.so_dong_ho) for d in diem if d.so_dong_ho is not None]
-        return {
-            "luot": luot,
-            "trips": ds,
-            "goi_y_xuat_phat": (self.goi_y_xuat_phat(luot)
-                                if luot.so_dong_ho_xuat_phat is None else None),
-            "so_dong_ho_gan_nhat": max(
-                so_da_ghi + ([int(luot.so_dong_ho_xuat_phat)]
-                             if luot.so_dong_ho_xuat_phat is not None else []), default=None),
-            "cho_ve_kho": (luot.ve_kho_luc is None and bool(so_da_ghi)
-                           and not any(t.trang_thai in _CHUA_KET_QUA for t in ds)),
-            "so_cho_gui_kho": sum(1 for t in ds if t.trang_thai == LG_DA_LEN_KE_HOACH
-                                  and self.yeu_cau_kho_cua_trip(t.id) is None),
-            "so_cho_lay_hang": dem(LG_DANG_CHUAN_BI),
-            "so_cho_bat_dau": dem(LG_DA_LAY_HANG),
-            "so_dang_giao": dem(LG_DANG_GIAO),
-            # Km chặng chỉ có nghĩa khi điểm đã có số đồng hồ; + chặng về kho.
-            "tong_km": sum(int(t.km or 0) for t in ds if t.id in co_so) + int(luot.km_ve_kho or 0),
-        }
+            def dem(tt) -> int:
+                return sum(1 for t in ds if t.trang_thai == tt)
+
+            so_da_ghi = [int(d.so_dong_ho) for d in diem if d.so_dong_ho is not None]
+            ra[lid] = {
+                "luot": luot,
+                "trips": ds,
+                "goi_y_xuat_phat": goi_y.get(luot.id) if luot.so_dong_ho_xuat_phat is None else None,
+                "so_dong_ho_gan_nhat": max(
+                    so_da_ghi + ([int(luot.so_dong_ho_xuat_phat)]
+                                 if luot.so_dong_ho_xuat_phat is not None else []), default=None),
+                "cho_ve_kho": (luot.ve_kho_luc is None and bool(so_da_ghi)
+                               and not any(t.trang_thai in _CHUA_KET_QUA for t in ds)),
+                "so_cho_gui_kho": sum(1 for t in ds if t.trang_thai == LG_DA_LEN_KE_HOACH
+                                      and t.id not in da_gui),
+                "so_cho_lay_hang": dem(LG_DANG_CHUAN_BI),
+                "so_cho_bat_dau": dem(LG_DA_LAY_HANG),
+                "so_dang_giao": dem(LG_DANG_GIAO),
+                # Km chặng chỉ có nghĩa khi điểm đã có số đồng hồ; + chặng về kho.
+                "tong_km": sum(int(t.km or 0) for t in ds if t.id in co_so) + int(luot.km_ve_kho or 0),
+            }
+        return ra
 
     def _chuan_hoa_phu_xe(self, employee_id, phu_xe_employee_id):
         """Kiểm phụ xe và trả về id đã chuẩn hoá (None nếu không có).

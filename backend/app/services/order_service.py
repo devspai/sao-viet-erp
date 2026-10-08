@@ -37,7 +37,7 @@ from ..repositories.order_repo import LocDonHang, OrderRepository
 from ..repositories.org_scope import chu_cua
 from ..repositories.quotation_repo import QuotationRepository
 from . import san_pham_tai_ban_service
-from .thanh_pham_khai_bao import khai_cho_don
+from .thanh_pham_khai_bao import cum_ban, khai_cho_don, ma_don_vi
 from ..schemas.order import (
     EnumOption,
     MonSanXuatOut,
@@ -243,6 +243,18 @@ class OrderService:
         # (d) chứng cứ khách đồng ý: đơn giờ LUÔN từ báo giá accepted — chính báo giá là chứng cứ,
         #     nên cổng "thiếu đính kèm" (chỉ áp cho đơn nhập tay) đã bỏ cùng đường nhập tay.
         # (e/f) cổng "đơn đặc thù chưa được duyệt" đã bỏ cùng luồng duyệt.
+        # (g) ĐVT mỗi món bán phải có trong danh mục Đơn vị: chốt xong hệ khai Thành phẩm với
+        #     ĐVT đó (`khai_cho_don`). Không tra ra mã thì món mang đơn vị TRỐNG và chỉ lộ ra ở
+        #     tận lúc nhập kho thành phẩm — chặn ngay tại đây cho sale thấy sớm.
+        for cum in cum_ban(order):
+            dvt = (cum.dvt or "").strip()
+            if not dvt:
+                blockers.append(f"«{cum.ten}» chưa có ĐVT")
+            elif ma_don_vi(self.db, dvt) is None:
+                blockers.append(
+                    f"ĐVT «{dvt}» của «{cum.ten}» không có trong danh mục Đơn vị — thêm ở "
+                    f"Cấu hình danh mục ▸ Đơn vị & quy đổi rồi chốt lại"
+                )
         return (len(blockers) == 0), blockers
 
     def _row(self, order: Order, customer_name: str | None, sale_name: str | None,
@@ -397,7 +409,10 @@ class OrderService:
                       })
             for o in rows
         ]
-        return OrderListOut(items=items, total=total, page=page, size=size)
+        ids = self.repo.ids_khop_cuoi
+        return OrderListOut(items=items, total=total, page=page, size=size,
+                            tong_gia_tri=self.repo.tong_gia_tri(ids) if total else 0,
+                            tong_coc=self.accounting_repo.tong_coc_da_thu(ids) if total else 0)
 
     def stats(
         self, *, actor, scope: str, nguoi: int | None = None, q: str | None = None,

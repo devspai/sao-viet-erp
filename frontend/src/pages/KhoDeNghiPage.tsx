@@ -4,7 +4,7 @@
 // KHÔNG thấy lô, KHÔNG chọn kho. Yêu cầu chỉ nói "xin cái gì, bao nhiêu"; kho nào là quyết định
 // ở BƯỚC LẬP PHIẾU (thủ kho). SIẾT 2026-08-08: mặt hàng phải có sẵn trong danh mục Giấy / Vật
 // tư khác — không còn gõ tên tự do rồi kho gắn mã sau.
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ApiError,
@@ -13,20 +13,27 @@ import {
   type MatHangOption,
   type StockRequest,
   type StockRequestKind,
+  type StockRequestLine,
   type StockRequestLineInput,
   type StockRequestStatus,
-  type StockVoucher,
+  type TonKhoaRow,
 } from "../api/client";
-import { VoucherDrawer } from "./KhoYeuCauPage";
+import { KhungKho } from "../components/kho-giay/KhungKho";
+import { NganPhai } from "./ke-toan/shared/NganPhai";
+import "./ke-toan/ke-toan.css";
+import "./kho-ngan-a.css";
+import "./mua-hang/yeu-cau-mua-hang/components/yc-form-a.css";
+import "./mua-hang/yeu-cau-mua-hang/components/yc-ds-a.css";
+import "./mua-hang/phieu-mua-hang/components/don-form-a.css";
+import { InboxRequestDrawer, VoucherDrawer } from "./KhoYeuCauPage";
+import { NguonA, TienDoA, canLucCua } from "./khoNganA";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
-import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
-import { PrintSheet } from "../components/PrintSheet";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
-import { DANG_GIAY_NHAN, chuanKho, nhanDangKho, type DangGiay } from "../lib/khoGiay";
+import { chuanKho, type DangGiay } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO, fmtDateTime } from "../utils/format";
 import {
   LOC_MAN_YCK_TRONG,
@@ -43,7 +50,12 @@ import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { thamSoKy } from "./thanh-loc/ky-danh-sach";
 import { dkTheoTab, soDaAp, type DieuKien } from "./thanh-loc/thanh-loc";
 import { useLocMan } from "./thanh-loc/useLocMan";
-import { AN_IN_YEU_CAU, DecimalInput, GiaBanDong, GiaGocKcs, LoaiYeuCauChip, RequestStatusBadge, VoucherStatusBadge, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO, useHeaderTitles } from "./khoShared";
+import { REQUEST_STATUS, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO } from "./khoShared";
+import {
+  CuonLuoi, soCotGhim, ChipTT, ChonCot, LocNhanhTrangThai, OTim,
+  rongLuoi, useCotAn, useThuTuCot, xepCot, type CotLuoi, type MauTT,
+} from "../components/LuoiDs";
+import { EmptyRow } from "../components/EmptyState";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
@@ -68,8 +80,12 @@ export function KhoDeNghiPage({
   onSeen,
   openRequestId = null,
   onOpenRequestConsumed,
+  slotNut = null,
 }: {
   eventTick?: number;
+  /** Chỗ trong đầu trang chung của `KhoPage` (`lds-dau__nut`) để đặt nút "Tạo yêu cầu": nút cần
+   *  state ngăn của màn này nên được vẽ vào đó bằng portal, không nâng state lên vỏ. */
+  slotNut?: HTMLElement | null;
   /** Tab ĐIỀU CHUYỂN: chỉ hiện yêu cầu điều chuyển (dieu_chuyen=true) + ẩn nút "Tạo yêu cầu"
    *  (điều chuyển tạo từ màn Tồn kho, không tạo tay ở đây). */
   dieuChuyen?: boolean;
@@ -88,8 +104,10 @@ export function KhoDeNghiPage({
 }) {
   const { token, user } = useAuth();
   const can = useCan();
-  // Hover tiêu đề cột → hiện tên cột đầy đủ (kể cả khi bị cắt).
-  const tableRef = useHeaderTitles();
+  // Cột Tiến độ in tên đơn vị ("tờ") chứ không in mã (`to_tp`) — nạp bảng tên đơn vị cho danh sách.
+  useNapTenDonVi();
+  const [cotAn, setCotAn] = useCotAn("kho-yeu-cau");
+  const [thuTu, setThuTu] = useThuTuCot("kho-yeu-cau");
   const canRequest = can("kho", "request");
 
   const [rows, setRows] = useState<StockRequest[]>([]);
@@ -115,9 +133,11 @@ export function KhoDeNghiPage({
   // null = đóng; "new" = soạn mới; {id} = mở yêu cầu đã có; {seed} = tạo lại từ yêu cầu cũ.
   const [drawer, setDrawer] = useState<
     | null
-    | { mode: "new"; seed?: SeedLine[]; loai?: StockRequestKind; ghiChu?: string; ngayCan?: string; locked?: boolean; deliveryId?: number; donMuaMa?: string; dotSo?: number }
+    | { mode: "new"; seed?: SeedLine[]; loai?: StockRequestKind; ghiChu?: string; ngayCan?: string; locked?: boolean; deliveryId?: number; donMuaMa?: string; dotSo?: number; nccTen?: string; hoaDon?: string }
     | { mode: "open"; id: number }
   >(null);
+  // Phiếu kho mở từ ngăn yêu cầu (chồng lên trên).
+  const [openVoucher, setOpenVoucher] = useState<number | null>(null);
 
   // Mở sẵn form TẠO khi được điều hướng kèm seed (bấm "Nhập kho" ở đợt giao đơn mua). Tiêu thụ
   // một lần: báo cha xoá seed để lần remount sau (đổi chiều Nhập/Xuất) không tự bật lại form.
@@ -133,6 +153,8 @@ export function KhoDeNghiPage({
         deliveryId: initialSeed.deliveryId,
         donMuaMa: initialSeed.don_mua_ma,
         dotSo: initialSeed.dot_so,
+        nccTen: initialSeed.ncc_ten,
+        hoaDon: initialSeed.hoa_don,
       });
       onSeedConsumed?.();
     }
@@ -243,234 +265,176 @@ export function KhoDeNghiPage({
     ...dieuKien,
   ];
 
-  // Yêu cầu KHÔNG gắn kho nên không có tồn để soi → bỏ hẳn cột đèn. Cột "Người" thay vào để
-  // mỗi công đoạn hiện rõ AI yêu cầu → AI duyệt ngay trên bảng.
-  const colCount = 7;
+  // Yêu cầu KHÔNG gắn kho nên không có tồn để soi → không có cột đèn. Cột "Người yêu cầu" cho thấy
+  // AI xin ngay trên bảng; Bộ phận của người đó là cột riêng ở cuối (ẩn được qua nút Cột).
+  const cotHien = xepCot(COT_YC, thuTu)
+    .filter((c) => !cotAn.has(c.key))
+    .map((c) => (c.key === "can" ? { ...c, label: loai === "NHAP" ? "Cần nhập lúc" : "Cần lúc" } : c));
+  const muc = tabs.map((t) => ({ key: t.id, label: t.label, count: countOf(t.id), mau: MAU_TAB_YC[t.id] }));
+  const khongLoc = !coLoc && !q && tab === "all";
+  const nutTao = canRequest && !dieuChuyen ? (
+    <Button variant="accent" onClick={() => setDrawer({ mode: "new", loai })}>
+      <PlusIcon /> Tạo yêu cầu
+    </Button>
+  ) : null;
 
   return (
-    <div className="kho-list">
-      <header className="rc__head">
-        <div className="rc__headrow">
-          <h1 className="rc__title">Yêu cầu nhập xuất</h1>
-          <span className="rc__count">{totalCount} yêu cầu</span>
-        </div>
-        <p className="rc__sub">
-          Xin nhập hoặc lĩnh vật tư. Kho chỉ nhận yêu cầu đã được duyệt.
-        </p>
-      </header>
+    <>
+      {/* Tên màn + nút chính nằm ở đầu trang chung của KhoPage; nút vẽ vào chỗ đó bằng portal. */}
+      {slotNut && nutTao ? createPortal(nutTao, slotNut) : null}
 
-      <div className="rc__toolbar tl-thanh">
-        <div className="rc__search-wrapper">
-          <SearchIcon />
-          <input
-            className="rc__search"
-            placeholder="Tìm mã yêu cầu / vật tư…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={muc} dang={tab} onChon={(k) => setTab(k as TabId)} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={q} onChange={setQ} placeholder="Tìm mã yêu cầu, vật tư" ariaLabel="Tìm yêu cầu nhập xuất" />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_YEU_CAU_KHO}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dkDu}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
-          {q && (
-            <button
-              type="button"
-              className="rc__search-clear"
-              onClick={() => setQ("")}
-              aria-label="Xóa tìm kiếm"
-            >
-              <Icon name="x" size={13} />
-            </button>
-          )}
+          <ChonCot cot={COT_YC} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
         </div>
+      </section>
 
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_YEU_CAU_KHO}
-          onKy={(ky) => setLocMan({ ...locMan, ky })}
-          dieuKien={dkDu}
-          loc={locMan.loc}
-          onLoc={(loc) => setLocMan({ ...locMan, loc })}
-        />
-
-        {/* LỌC TRẠNG THÁI — Dải Filter Chips trực quan */}
-        <div className="kho-filter-chips">
-          {tabs.map((t) => {
-            const count = countOf(t.id);
-            const isActive = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={`kho-filter-chip${isActive ? " is-active" : ""}`}
-                onClick={() => setTab(t.id)}
-              >
-                <span>{t.label}</span>
-                <span className="kho-filter-chip__count">{count}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="rc__spacer" />
-        {/* Tab ĐIỀU CHUYỂN không tạo tay ở đây — điều chuyển sinh từ màn Tồn kho (nút "Chuyển kho"). */}
-        {canRequest && !dieuChuyen && (
-          <Button variant="accent" onClick={() => setDrawer({ mode: "new", loai })}>
-            <PlusIcon /> Tạo yêu cầu
-          </Button>
-        )}
-      </div>
-
-      {error && (
-        <div className="banner banner--error" role="alert" style={{ marginBottom: "var(--sp-4)" }}>
-          <span>{error}</span>
-          <button
-            type="button"
-            className="btn btn--ghost"
-            style={{ padding: "4px 12px", fontSize: "12px" }}
-            onClick={load}
-          >
-            Tải lại
-          </button>
-        </div>
-      )}
-
-      <div className="rc__tablewrap kho-table-card">
-        <table ref={tableRef} className="rc__table rc__table--fixed">
-          <thead>
-            <tr>
-              <th style={{ width: "13%" }}>Mã</th>
-              <th style={{ width: "11%" }}>Loại</th>
-              <th>Vật tư</th>
-              <th style={{ width: "17%" }}>Người yêu cầu</th>
-              <th style={{ width: "12%" }}>Ngày yêu cầu</th>
-              <th style={{ width: "12%" }}>{loai === "NHAP" ? "Ngày cần nhập" : loai === "XUAT" ? "Ngày cần xuất" : "Ngày cần"}</th>
-              <th style={{ width: "13%" }}>Trạng thái</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: colCount }).map((__, c) => (
-                    <td key={c}>
-                      <span className="rc-skel" style={{ width: c === 1 ? "80%" : "55%" }} />
-                    </td>
-                  ))}
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+            <colgroup>
+              {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+            </colgroup>
+            <thead>
+              <tr>{cotHien.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
+            </thead>
+            <tbody>
+              {loading && shown.length === 0 ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : error ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    <span className="lds-do">{error}</span>{" "}
+                    <button type="button" className="lds-lk" onClick={load}>Thử lại</button>
+                  </td>
                 </tr>
-              ))
-            ) : shown.length === 0 ? (
-              <tr>
-                <td colSpan={colCount} className="rc__empty-state-td">
-                  <div className="rc__empty-state">
-                    <EmptyIcon />
-                    <p className="rc__empty-text">
-                      {!coLoc && !q && tab === "all"
-                        ? dieuChuyen
-                          ? "Chưa có điều chuyển nào. Tạo điều chuyển ở màn Tồn kho (nút “Chuyển kho”)."
-                          : "Chưa có yêu cầu nào. Tạo yêu cầu để xin nhập hoặc lĩnh vật tư."
-                        : "Không có yêu cầu nào ở trạng thái này."}
-                    </p>
-                    {!coLoc && !q && tab === "all" ? (
-                      canRequest && !dieuChuyen && (
-                        <Button variant="ghost" onClick={() => setDrawer({ mode: "new", loai })}>
-                          <PlusIcon /> Tạo yêu cầu
-                        </Button>
+              ) : shown.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {khongLoc
+                      ? dieuChuyen
+                        ? "Chưa có điều chuyển nào. Tạo điều chuyển ở màn Tồn kho (nút “Chuyển kho”)."
+                        : "Chưa có yêu cầu nào. Tạo yêu cầu để xin nhập hoặc lĩnh vật tư."
+                      : "Không có yêu cầu nào khớp điều kiện đang lọc."}{" "}
+                    {khongLoc ? (
+                      nutTao && (
+                        <button type="button" className="lds-lk" onClick={() => setDrawer({ mode: "new", loai })}>
+                          Tạo yêu cầu
+                        </button>
                       )
                     ) : (
-                      <Button
-                        variant="ghost"
+                      <button
+                        type="button"
+                        className="lds-lk"
                         onClick={() => {
                           setQ("");
                           setTab("all");
                           setLocMan(LOC_MAN_YCK_TRONG);
                         }}
                       >
-                        Xóa bộ lọc
-                      </Button>
+                        Xoá bộ lọc
+                      </button>
                     )}
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              shown.map((r) => {
-                const overdue = isOverdue(r.ngay_can, r.trang_thai);
-                const first = r.lines[0];
-                // "Người" = người yêu cầu (dòng trên) + phản hồi: bị từ chối thì nêu người từ chối.
-                const decided = r.nguoi_duyet_ten;
-                const reply =
-                  r.trang_thai === "rejected" ? `Từ chối: ${decided ?? "—"}` : "";
-                return (
+                  </td>
+                </tr>
+              ) : (
+                shown.map((r) => (
                   <tr
                     key={r.id}
-                    className="rc__row"
+                    className={`lds-dong${drawer?.mode === "open" && drawer.id === r.id ? " is-chon" : ""}`}
+                    tabIndex={0}
                     onClick={() => openRequest(r)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openRequest(r);
+                      }
+                    }}
                   >
-                    <td className="rc__nowrap">
-                      <span className="kho-code-pill">{r.ma}</span>
-                    </td>
-                    <td>
-                      <LoaiYeuCauChip loai={r.loai} dieuChuyen={r.dieu_chuyen} />
-                    </td>
-                    <td>
-                      <div
-                        className="rc__name kho-name-clamp"
-                        title={first?.hang_ten ?? undefined}
-                      >
-                        {first?.hang_ten ?? "—"}
-                      </div>
-                      {r.lines.length > 1 && (
-                        <span className="badge-sem badge-sem--muted kho-morepill">
-                          +{r.lines.length - 1} mặt hàng
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="kho-user-cell">
-                        <div className="kho-user-avatar">
-                          {(r.nguoi_tao_ten || "U").slice(0, 1).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="rc__name">{r.nguoi_tao_ten ?? "—"}</div>
-                          {reply && <div className="rc__muted kho-hint">{reply}</div>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="rc__nowrap" title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>
-                    <td className={`rc__nowrap${overdue ? " kho-overdue" : ""}`}>
-                      {r.ngay_can ? fmtDateISO(r.ngay_can) : "—"}
-                    </td>
-                    <td>
-                      <RequestStatusBadge status={r.trang_thai} />
-                    </td>
+                    {cotHien.map((c) => <OYeuCau key={c.key} cot={c.key} r={r} />)}
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {/* Về trang 1 ngay trong cùng lượt đổi cỡ — khỏi một lượt nạp thừa (trang cũ × cỡ mới) trước
+            khi effect reset kịp chạy. */}
+        {!error && total > 0 && (
+          <PhanTrangDayDu trang={page} size={pageSize} tong={total} soDong={shown.length}
+            onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }} loading={loading} donVi="yêu cầu"
+            ariaLabel="Phân trang yêu cầu nhập xuất" />
+        )}
       </div>
 
-      {/* Về trang 1 ngay trong cùng lượt đổi cỡ — khỏi một lượt nạp thừa (trang cũ × cỡ mới) trước
-          khi effect reset kịp chạy. */}
-      {total > 0 && (
-        <PhanTrangDayDu trang={page} size={pageSize} tong={total} soDong={shown.length}
-          onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }} loading={loading} donVi="yêu cầu"
-          ariaLabel="Phân trang yêu cầu nhập xuất" />
+      {drawer?.mode === "open" && token && (
+        // Xem yêu cầu ĐÃ GỬI: cùng ngăn khuôn A với bên kho, chỉ khác nút ở đầu ngăn theo vai. Tồn chỉ
+        // hiện khi người xem có quyền xem tồn đúng kho đó (máy chủ cũng gate), giá theo `view_cost`.
+        <InboxRequestDrawer
+          key={`req-${drawer.id}`}
+          token={token}
+          khoId={null}
+          requestId={drawer.id}
+          canCreate={false}
+          canViewStock={false}
+          canViewCost={can("kho", "view_cost")}
+          onClose={() => setDrawer(null)}
+          onCreateVoucher={() => {}}
+          onOpenVoucher={setOpenVoucher}
+          thaoTac={(r) =>
+            // Bị từ chối / đã hủy: chủ yêu cầu tạo lại nhanh từ chính các dòng cũ. Điều chuyển KHÔNG tạo
+            // lại ở đây — điều chuyển chỉ sinh từ màn Tồn kho (nút "Chuyển kho").
+            (r.trang_thai === "rejected" || r.trang_thai === "cancelled") && r.nguoi_tao_id === meId
+              && canRequest && !r.dieu_chuyen ? (
+              <button type="button" className="kna-nut kna-nut--chinh"
+                onClick={() => setDrawer({ mode: "new", seed: r.lines.map(seedTuDong), loai: r.loai })}>
+                Tạo lại từ yêu cầu này
+              </button>
+            ) : null
+          }
+        />
       )}
 
-      {drawer && token && (
-        <RequestDrawer
-          key={drawer.mode === "open" ? `req-${drawer.id}` : "req-new"}
+      {/* Người TẠO xem phiếu đã cấp — cùng ngăn phiếu như bên kho, chỉ đọc. Giá theo `view_cost`. */}
+      {openVoucher != null && token && (
+        <VoucherDrawer
+          key={`v-${openVoucher}`}
           token={token}
-          meId={meId}
-          requestId={drawer.mode === "open" ? drawer.id : null}
-          seed={drawer.mode === "new" ? drawer.seed : undefined}
-          seedLoai={drawer.mode === "new" ? drawer.loai : undefined}
-          seedGhiChu={drawer.mode === "new" ? drawer.ghiChu : undefined}
-          seedNgayCan={drawer.mode === "new" ? drawer.ngayCan : undefined}
-          seedLocked={drawer.mode === "new" ? drawer.locked : undefined}
-          seedDeliveryId={drawer.mode === "new" ? drawer.deliveryId : undefined}
-          seedDonMuaMa={drawer.mode === "new" ? drawer.donMuaMa : undefined}
-          seedDotSo={drawer.mode === "new" ? drawer.dotSo : undefined}
+          voucherId={openVoucher}
+          canCreate={false}
+          canPost={false}
+          canViewCost={can("kho", "view_cost")}
+          onClose={() => setOpenVoucher(null)}
+          onChanged={() => {}}
+          tang={1}
+        />
+      )}
+
+      {drawer?.mode === "new" && token && (
+        <TaoYeuCauP2
+          key="req-new"
+          token={token}
+          seed={drawer.seed}
+          seedLoai={drawer.loai}
+          seedGhiChu={drawer.ghiChu}
+          seedNgayCan={drawer.ngayCan}
+          seedLocked={drawer.locked}
+          seedDeliveryId={drawer.deliveryId}
+          seedDonMuaMa={drawer.donMuaMa}
+          seedDotSo={drawer.dotSo}
+          seedNccTen={drawer.nccTen}
+          seedHoaDon={drawer.hoaDon}
           canRequest={canRequest}
-          onClone={(lines, loai) => setDrawer({ mode: "new", seed: lines, loai })}
           onClose={() => setDrawer(null)}
           onSaved={() => {
             setDrawer(null);
@@ -481,8 +445,98 @@ export function KhoDeNghiPage({
           }}
         />
       )}
-    </div>
+    </>
   );
+}
+
+// ── Lưới danh sách (khuôn chung 08/10/2026) ──────────────────────────────────
+// Thứ tự: Mã, Ngày tạo, Loại, Vật tư, Nguồn, Tiến độ, Cần lúc, Trạng thái, Người yêu cầu, Bộ phận.
+interface CotYC extends CotLuoi { w?: number }
+const COT_YC: CotYC[] = [
+  { key: "ma", label: "Mã yêu cầu", coDinh: true, w: 120 },
+  { key: "ngay", label: "Ngày tạo", w: 104 },
+  { key: "loai", label: "Loại", w: 104 },
+  { key: "vattu", label: "Vật tư", w: 250 },
+  { key: "nguon", label: "Nguồn", w: 180 },
+  { key: "tiendo", label: "Tiến độ", w: 170 },
+  { key: "can", label: "Cần lúc", w: 140 },
+  { key: "tt", label: "Trạng thái", w: 150 },
+  { key: "nguoi", label: "Người yêu cầu", w: 150 },
+  { key: "bophan", label: "Bộ phận" },
+];
+
+/** Chấm màu của hàng lọc nhanh (theo nhóm trạng thái). */
+const MAU_TAB_YC: Record<TabId, MauTT | undefined> = {
+  all: undefined,
+  "dang-cap": "cam",
+  done: "la",
+  "khong-thanh": "xam",
+};
+
+/** Mỗi trạng thái một sắc, không trùng nhau. */
+const MAU_TT_YC: Record<string, MauTT> = {
+  draft: "slate",
+  pending: "vang",
+  approved: "xanh",
+  received: "cyan",
+  preparing: "tim",
+  partial: "cam",
+  done: "la",
+  rejected: "do",
+  cancelled: "xam",
+};
+
+/** Chip loại yêu cầu (chip khâu, góc vuông). */
+function chipLoai(r: StockRequest): { mau: MauTT; nhan: string } {
+  if (r.dieu_chuyen) return { mau: "slate", nhan: "Điều chuyển" };
+  return r.loai === "NHAP" ? { mau: "ngoc", nhan: "Nhập" } : { mau: "cham", nhan: "Xuất" };
+}
+
+function OYeuCau({ cot, r }: { cot: string; r: StockRequest }) {
+  switch (cot) {
+    case "ma":
+      return <td title={r.ma}>{r.ma}</td>;
+    case "ngay":
+      return <td title={fmtDateTime(r.created_at)}>{fmtDate(r.created_at)}</td>;
+    case "loai": {
+      const l = chipLoai(r);
+      return <td><ChipTT mau={l.mau} vuong>{l.nhan}</ChipTT></td>;
+    }
+    case "vattu": {
+      const ten = r.lines[0]?.hang_ten ?? "—";
+      const them = r.lines.length - 1;
+      return (
+        <td title={ten}>
+          <span className="kho-vt">
+            <span className="kho-vt__ten">{ten}</span>
+            {them > 0 && <span className="lds-tag">+{them} mặt hàng</span>}
+          </span>
+        </td>
+      );
+    }
+    case "nguon":
+      return <td><NguonA r={r} /></td>;
+    case "tiendo":
+      return <td><TienDoA r={r} /></td>;
+    case "can": {
+      const canLuc = canLucCua(r);
+      const quaHan = isOverdue(r.ngay_can, r.trang_thai, r.can_luc);
+      if (!canLuc) return <td className="lds-mu">Chưa hẹn</td>;
+      return <td className={quaHan ? "lds-do" : undefined} title={quaHan ? "Quá hạn" : undefined}>{canLuc}</td>;
+    }
+    case "tt": {
+      const nhan = r.trang_thai === "partial" && r.loai === "NHAP"
+        ? "Đã nhập một phần"
+        : (REQUEST_STATUS[r.trang_thai]?.label ?? r.trang_thai);
+      return <td><ChipTT mau={MAU_TT_YC[r.trang_thai] ?? "slate"}>{nhan}</ChipTT></td>;
+    }
+    case "nguoi":
+      return <td title={r.nguoi_tao_ten ?? undefined}>{r.nguoi_tao_ten ?? "—"}</td>;
+    case "bophan":
+      return r.bo_phan_ten ? <td title={r.bo_phan_ten}>{r.bo_phan_ten}</td> : <td className="lds-mu">—</td>;
+    default:
+      return <td />;
+  }
 }
 
 // ── Ô "Cho lệnh nào" (mg 0175) ───────────────────────────────────────────────
@@ -523,6 +577,7 @@ function LenhChon({
   baiGhepId,
   nhan,
   onChange,
+  autoFocus,
 }: {
   token: string;
   lsxId: number | null;
@@ -530,6 +585,7 @@ function LenhChon({
   /** Nhãn đang chọn (mã lệnh/bài) — hiện sẵn trong ô khi mở dòng đã lưu. */
   nhan: string;
   onChange: (lsxId: number | null, baiGhepId: number | null, ma: string | null) => void;
+  autoFocus?: boolean;
 }) {
   const [text, setText] = useState(nhan);
   const [opts, setOpts] = useState<LenhOption[]>([]);
@@ -577,7 +633,7 @@ function LenhChon({
     const el = inputRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    setRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 220) });
+    setRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 320) });
   }
 
   useLayoutEffect(() => {
@@ -657,6 +713,7 @@ function LenhChon({
         placeholder="Không theo lệnh"
         aria-label="Xin cho lệnh sản xuất nào (bỏ trống nếu xin lặt vặt)"
         autoComplete="off"
+        autoFocus={autoFocus}
         onChange={(e) => {
           setText(e.target.value);
           setOpen(true);
@@ -689,6 +746,52 @@ function LenhChon({
   );
 }
 
+/** Lệnh của MỘT DÒNG trong form P2 (mockup: thẻ nhỏ dưới tên vật tư). Chưa gắn lệnh thì chỉ là chữ
+ *  mờ "Không theo lệnh"; bấm vào mới mở ô tìm lệnh, chọn xong hoặc rời ô là thu về thẻ. Vẽ sẵn ô có
+ *  viền ở mọi dòng thì trông như ô bắt buộc phải điền (user phản ánh 07/10/2026). */
+function LenhDong({
+  token,
+  lsxId,
+  baiGhepId,
+  nhan,
+  onChange,
+}: {
+  token: string;
+  lsxId: number | null;
+  baiGhepId: number | null;
+  nhan: string;
+  onChange: (lsxId: number | null, baiGhepId: number | null, ma: string | null) => void;
+}) {
+  const [sua, setSua] = useState(false);
+  if (sua) {
+    return (
+      <span className="tyc-lenh" onBlur={() => setSua(false)}>
+        <LenhChon
+          token={token}
+          lsxId={lsxId}
+          baiGhepId={baiGhepId}
+          nhan={nhan}
+          autoFocus
+          onChange={(a, b, ma) => {
+            onChange(a, b, ma);
+            setSua(false);
+          }}
+        />
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={nhan ? "kna-tag tyc-lenh-the" : "tyc-lenh-the tyc-lenh-the--rong"}
+      title={nhan ? "Đổi lệnh của dòng này" : "Gắn dòng này cho một lệnh sản xuất"}
+      onClick={() => setSua(true)}
+    >
+      {nhan || "Không theo lệnh"}
+    </button>
+  );
+}
+
 // ── DRAWER ────────────────────────────────────────────────────────────────────
 
 export interface SeedLine {
@@ -712,7 +815,7 @@ export interface SeedLine {
   lsx_ma?: string | null;
   bai_ghep_ma?: string | null;
   /** GIẤY: dạng (tờ / cuộn) + khổ mm (rộng × dài; cuộn chỉ khổ rộng). Hàng khác để trống. Dạng quyết
-   *  đơn vị gốc của dòng: tờ ⇒ tờ nguyên, cuộn ⇒ kg. */
+   *  đơn vị gốc của dòng: tờ ⇒ "tờ" (mã `to`), cuộn ⇒ kg. */
   dang_giay?: DangGiay | null;
   kho_rong?: number;
   kho_dai?: number;
@@ -734,6 +837,9 @@ export interface KhoNhapSeed {
   /** Mã đơn mua (purchase_requests.code) + số đợt giao — hiện rõ nguồn ngay ở form nhập. */
   don_mua_ma?: string;
   dot_so?: number;
+  /** Nhà cung cấp + số hoá đơn của đợt — thẻ Nguồn của form nhập (mockup P2). */
+  ncc_ten?: string;
+  hoa_don?: string;
 }
 
 interface DraftLine extends SeedLine {
@@ -786,6 +892,25 @@ function newLine(seed?: Partial<SeedLine>): DraftLine {
   };
 }
 
+/** Dòng của yêu cầu đã gửi → dòng mồi cho "Tạo lại từ yêu cầu này". */
+function seedTuDong(l: StockRequestLine): SeedLine {
+  return {
+    hang_loai: l.hang_loai,
+    hang_id: l.hang_id,
+    hang_ma: l.hang_ma,
+    hang_ten: l.hang_ten,
+    dang_giay: l.dang_giay,
+    kho_rong: l.kho_rong,
+    kho_dai: l.kho_dai,
+    dvt: l.dvt,
+    // Suy ngược từ số server đã quy đổi — khỏi gọi thêm API chỉ để lấy hệ số.
+    he_so_ve_goc: l.sl_quy_doi && l.sl_de_nghi ? l.sl_quy_doi / l.sl_de_nghi : null,
+    sl_de_nghi: l.sl_de_nghi,
+    don_gia: l.don_gia,
+    ghi_chu: l.ghi_chu,
+  };
+}
+
 interface RequestDrawerProps {
   token: string;
   meId: number;
@@ -798,16 +923,54 @@ interface RequestDrawerProps {
   seedDeliveryId?: number;
   seedDonMuaMa?: string;
   seedDotSo?: number;
+  seedNccTen?: string;
+  seedHoaDon?: string;
   canRequest: boolean;
   onClone: (lines: SeedLine[], loai: StockRequestKind) => void;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function RequestDrawer({
+// ── FORM TẠO YÊU CẦU — phương án P2 (docs/mockups/yeu-cau-nhap-xuat-3-phuong-an.html, chốt 07/10/2026)
+//
+// Khuôn "Create transfer" của Shopify, cùng khuôn form mua hàng phương án A: bảng vật tư bên trái
+// (Vật tư, Tồn, Số lượng xin), cột thuộc tính bên phải (Loại, Ngày cần + chọn nhanh, Lệnh sản xuất
+// cho dòng mới, Ghi chú). Đơn vị là chữ trong ô số lượng; chân form đếm MẶT HÀNG, không cộng số
+// khác đơn vị. Mở từ đợt giao (Nhập kho): chiều Nhập cố định, dòng + số lượng khoá, có thẻ Nguồn.
+// Ngăn XEM yêu cầu đã gửi là `InboxRequestDrawer` (KhoYeuCauPage).
+
+/** Tồn toàn xưởng của dòng theo ĐÚNG khoá mã + dạng + khổ, theo đơn vị gốc. `null` = chưa biết
+ *  (chưa chọn hàng / giấy tờ chưa đủ khổ / chưa nạp xong). */
+function tonCuaDong(l: DraftLine, rows: TonKhoaRow[] | undefined): number | null {
+  if (!rows || !l.hang_id) return null;
+  if (l.hang_loai !== "giay") return rows.reduce((s, r) => s + r.ton, 0);
+  if (l.dang_giay === "to") {
+    const [r, d] = chuanKho(l.kho_rong, l.kho_dai);
+    if (!(r && d)) return null;
+    return rows.find((x) => x.dang_giay === "to" && x.kho_rong === r && x.kho_dai === d)?.ton ?? 0;
+  }
+  if (l.dang_giay === "cuon") {
+    return rows
+      .filter((x) => x.dang_giay === "cuon" && (!l.kho_rong || x.kho_rong === l.kho_rong))
+      .reduce((s, x) => s + x.ton, 0);
+  }
+  return null;
+}
+
+const CHON_NGAY: { nhan: string; ngay: number }[] = [
+  { nhan: "Hôm nay", ngay: 0 },
+  { nhan: "Mai", ngay: 1 },
+  { nhan: "+3 ngày", ngay: 3 },
+];
+
+function cachHomNay(n: number): string {
+  const d = new Date(`${todayISO()}T00:00:00`);
+  d.setDate(d.getDate() + n);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function TaoYeuCauP2({
   token,
-  meId,
-  requestId,
   seed,
   seedLoai,
   seedGhiChu,
@@ -816,216 +979,94 @@ function RequestDrawer({
   seedDeliveryId,
   seedDonMuaMa,
   seedDotSo,
+  seedNccTen,
+  seedHoaDon,
   canRequest,
-  onClone,
   onClose,
   onSaved,
-}: RequestDrawerProps) {
-  // ĐVT hiện TÊN có dấu từ danh mục, không phải mã `dvt` lưu trong dòng — xem KhoYeuCauPage.
+}: Omit<RequestDrawerProps, "meId" | "requestId" | "onClone">) {
   useNapTenDonVi();
-  // Mọi con số TIỀN (đơn giá, ước tính, giá gốc, giá bán, giá trên phiếu) chỉ cho người có
-  // `kho:view_cost` — người tạo yêu cầu cũng không ngoại lệ (chủ 18/09/2026). Máy chủ đã xoá số khi
-  // thiếu quyền; ở đây ẩn luôn cột/ô để không còn một cột trống "—".
   const can = useCan();
   const canViewCost = can("kho", "view_cost");
-  const [req, setReq] = useState<StockRequest | null>(null);
-  const [loading, setLoading] = useState(requestId != null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const khoa = !!seedLocked;
   const [loai, setLoai] = useState<StockRequestKind>(seedLoai ?? "XUAT");
   const [ngayCan, setNgayCan] = useState(seedNgayCan ?? "");
   const [ghiChu, setGhiChu] = useState(seedGhiChu ?? "");
-  const [lines, setLines] = useState<DraftLine[]>(() =>
-    seed?.length ? seed.map((s) => newLine(s)) : [newLine()],
+  const [lines, setLines] = useState<DraftLine[]>(() => (seed?.length ? seed.map((s) => newLine(s)) : []));
+  // Lệnh mặc định cho DÒNG MỚI thêm vào — đỡ chọn lại lệnh cho từng dòng khi xin cả bộ cho một lệnh.
+  const [lenhMoi, setLenhMoi] = useState<{ lsx_id: number | null; bai_ghep_id: number | null; ma: string | null }>(
+    { lsx_id: null, bai_ghep_id: null, ma: null },
   );
-
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [askDiscard, setAskDiscard] = useState(false);
-  const [printing, setPrinting] = useState(false);
-  // Phiếu kho đã lập từ yêu cầu này — người TẠO xem lại (chống mất chức năng "xem phiếu").
-  const [vouchers, setVouchers] = useState<StockVoucher[]>([]);
-  const [openVoucher, setOpenVoucher] = useState<number | null>(null);
-
-
+  // Tồn toàn xưởng theo khoá dạng + khổ, nạp một lần mỗi mã. `null` = không có quyền xem tồn ⇒ ẩn cột.
+  const [ton, setTon] = useState<Record<string, TonKhoaRow[] | null>>({});
+  const khoaHang = [...new Set(lines.filter((l) => l.hang_loai && l.hang_id).map((l) => `${l.hang_loai}:${l.hang_id}`))];
   useEffect(() => {
-    if (requestId == null) return;
-    let cancelled = false;
-    setLoading(true);
-    api.kho.deNghi
-      .get(token, requestId)
-      .then((r) => {
-        if (cancelled) return;
-        setReq(r);
-        setLoai(r.loai);
-        setNgayCan(r.ngay_can ?? "");
-        setGhiChu(r.ghi_chu ?? "");
-        setLines(
-          r.lines.map((l) => ({
-            key: `s${l.id}`,
-            lineId: l.id,
-            hang_loai: l.hang_loai,
-            hang_id: l.hang_id,
-            hang_ma: l.hang_ma,
-            hang_ten: l.hang_ten,
-            dvt: l.dvt,
-            // Suy ngược từ số server đã quy đổi — khỏi gọi thêm API chỉ để lấy hệ số.
-            he_so_ve_goc: l.sl_quy_doi && l.sl_de_nghi ? l.sl_quy_doi / l.sl_de_nghi : null,
-            sl_de_nghi: l.sl_de_nghi,
-            don_gia: l.don_gia,
-            lsx_id: l.lsx_id,
-            bai_ghep_id: l.bai_ghep_id,
-            lsx_ma: l.lsx_ma,
-            bai_ghep_ma: l.bai_ghep_ma,
-            dang_giay: l.dang_giay,
-            kho_rong: l.kho_rong,
-            kho_dai: l.kho_dai,
-            ghi_chu: l.ghi_chu,
-            sl_duyet: l.sl_duyet,
-            sl_da_ung: l.sl_da_ung,
-            ly_do_thieu: l.ly_do_thieu,
-            tu_kcs: l.tu_kcs,
-            gia_goc: l.gia_goc,
-            tien_goc: l.tien_goc,
-            don_gia_ban: l.don_gia_ban,
-            don_ban_ma: l.don_ban_ma,
-          })),
-        );
-        setDirty(false);
-        // Phiếu đã lập từ yêu cầu này (chờ ghi sổ / đã ghi sổ) → cho người tạo xem lại.
-        api.kho.phieu
-          .list(token, { request_id: r.id, size: 50 })
-          .then((p) => { if (!cancelled) setVouchers(p.items); })
-          .catch(() => {});
-      })
-      .catch((e) =>
-        setError(e instanceof ApiError ? e.message : "Không tải được yêu cầu."),
-      )
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [token, requestId]);
+    for (const k of khoaHang) {
+      if (k in ton) continue;
+      const [hl, id] = k.split(":");
+      setTon((c) => ({ ...c, [k]: [] }));
+      api.kho.phieu
+        .tonKhoa(token, hl as HangLoai, Number(id))
+        .then((rows) => setTon((c) => ({ ...c, [k]: rows })))
+        .catch(() => setTon((c) => ({ ...c, [k]: null })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, khoaHang.join("|")]);
+  const coTon = !Object.values(ton).some((v) => v === null);
 
-  const status: StockRequestStatus = req?.trang_thai ?? "draft";
-  const isNew = requestId == null;
-  const isOwner = isNew || req?.nguoi_tao_id === meId;
-  // BỎ BƯỚC DUYỆT: chỉ yêu cầu MỚI còn sửa được; tạo xong là 'approved' = khoá (BRD §1.5).
-  // Seed từ đơn mua (locked) → khoá mọi ô dòng: số liệu phải khớp hàng đã nhận, chỉ được Tạo.
-  const editable = isNew && canRequest && !seedLocked;
-  const showReply = ["approved", "received", "preparing", "partial", "done"].includes(status);
+  const mon = lines.filter((l) => l.hang_id);
+  const tonDong = (l: DraftLine) => tonCuaDong(l, ton[`${l.hang_loai}:${l.hang_id}`] ?? undefined);
+  const slGoc = (l: DraftLine) => (Number(l.sl_de_nghi) || 0) * (l.he_so_ve_goc ?? 1);
+  // Xin quá tồn: CHỈ cảnh báo, không chặn gửi — kho trả lời cấp được bao nhiêu.
+  const quaTon = loai === "XUAT" ? mon.filter((l) => { const t = tonDong(l); return t != null && slGoc(l) > t; }) : [];
+  const coDonGia = loai === "NHAP" && canViewCost && !khoa;
+  // Đếm đúng số cột: bảng layout FIXED mà colSpan vượt số cột là trình duyệt đẻ thêm cột ảo, bảng co lại.
+  const soCot = 2 + (coTon ? 1 : 0) + (coDonGia ? 1 : 0) + (khoa ? 0 : 1);
+  const giaTri = mon.reduce((s, l) => s + (Number(l.sl_de_nghi) || 0) * (Number(l.don_gia) || 0), 0);
 
-  function touch<T>(setter: (v: T) => void) {
-    return (v: T) => {
-      setDirty(true);
-      setter(v);
-    };
-  }
-
-  function patchLine(key: string, patch: Partial<DraftLine>) {
+  function patch(key: string, p: Partial<DraftLine>) {
     setDirty(true);
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...p } : l)));
   }
 
-  function pickMaterial(key: string, m: MatHangOption) {
-    // Trùng mặt hàng: chặn ngay ở FE với ĐÚNG câu backend trả, để người dùng không gặp
-    // hai cách diễn đạt khác nhau cho cùng một luật.
-    //
-    // Khoá trùng gồm CẢ lệnh/bài (mg 0175): cùng loại giấy xin cho HAI lệnh khác nhau là hai dòng
-    // hợp lệ — gộp lại thì mất thông tin "phần nào cho lệnh nào", đúng thứ bảng cân đối cần.
-    const dong = lines.find((l) => l.key === key);
-    if (
-      lines.some(
-        (l) =>
-          l.key !== key &&
-          l.hang_loai === m.hang_loai &&
-          l.hang_id === m.hang_id &&
-          (l.lsx_id ?? null) === (dong?.lsx_id ?? null) &&
-          (l.bai_ghep_id ?? null) === (dong?.bai_ghep_id ?? null) &&
-          // Giấy: cùng mã khác dạng/khổ là hai dòng hợp lệ — dòng mới chưa chọn dạng thì chưa tính trùng.
-          (m.hang_loai !== "giay" || (!l.dang_giay && !l.kho_rong && !l.kho_dai)),
-      )
-    ) {
-      setError("Một mặt hàng cho cùng một lệnh chỉ được xuất hiện 1 dòng — gộp số lượng lại.");
-      return;
-    }
+  function themMon(m: MatHangOption) {
     setError(null);
-    // Đổi mặt hàng → XOÁ đơn vị cũ: đơn vị dùng được phụ thuộc chính mặt hàng, giữ lại đơn vị của
-    // món trước là mời một dòng không quy đổi được. `DonViChonTheoHang` sẽ tự điền đơn vị gốc.
-    patchLine(key, {
-      hang_loai: m.hang_loai,
-      hang_id: m.hang_id,
-      hang_ma: m.ma,
-      hang_ten: m.ten,
-      dvt: "",
-      he_so_ve_goc: null,
-      // Đổi mặt hàng thì dạng + khổ của món trước không còn đúng.
-      dang_giay: null,
-      kho_rong: 0,
-      kho_dai: 0,
-    });
+    setDirty(true);
+    setLines((prev) => [
+      ...prev,
+      newLine({
+        hang_loai: m.hang_loai,
+        hang_id: m.hang_id,
+        hang_ma: m.ma,
+        hang_ten: m.ten,
+        // Giấy: mặc định Tờ — kho đếm tờ theo khổ; người xin đổi sang Cuộn ngay trên khung khổ.
+        dang_giay: m.hang_loai === "giay" ? "to" : null,
+        lsx_id: lenhMoi.lsx_id,
+        bai_ghep_id: lenhMoi.bai_ghep_id,
+        lsx_ma: lenhMoi.lsx_id ? lenhMoi.ma : null,
+        bai_ghep_ma: lenhMoi.bai_ghep_id ? lenhMoi.ma : null,
+      }),
+    ]);
   }
 
-  /** Đổi dạng giấy: xoá đơn vị (gốc của dạng mới khác — tờ nguyên / kg) để ô ĐVT tự điền lại. */
-  function doiDang(key: string, dang: DangGiay | null) {
-    patchLine(key, {
-      dang_giay: dang,
-      dvt: "",
-      he_so_ve_goc: null,
-      ...(dang === "cuon" ? { kho_dai: 0 } : {}),
-    });
-  }
-
-  /** Giấy thiếu dạng, hoặc tờ thiếu một cạnh khổ ⇒ câu báo; không thì null. */
-  function loiGiay(l: DraftLine): string | null {
-    if (l.hang_loai !== "giay" || !l.hang_id || !(Number(l.sl_de_nghi) > 0)) return null;
-    const ten = l.hang_ten ?? "Giấy";
-    if (!l.dang_giay) return `“${ten}”: chọn dạng giấy (tờ hoặc cuộn).`;
-    const [r, d] = chuanKho(l.kho_rong, l.kho_dai);
-    if (l.dang_giay === "to" && !(r && d)) {
-      return `“${ten}”: giấy dạng tờ phải khai đủ khổ (hai cạnh, mm).`;
-    }
-    return null;
-  }
-
-  function payloadLines(): StockRequestLineInput[] {
-    const isNhap = loai === "NHAP";
-    return lines
-      .filter((l) => l.hang_loai && l.hang_id && l.dvt && Number(l.sl_de_nghi) > 0)
-      .map((l) => ({
-        hang_loai: l.hang_loai as HangLoai,
-        hang_id: l.hang_id as number,
-        // Giấy mang dạng + khổ (cạnh ngắn × cạnh dài); máy chủ chuẩn hoá lại.
-        ...(l.hang_loai === "giay"
-          ? {
-              dang_giay: l.dang_giay ?? null,
-              kho_rong: chuanKho(l.kho_rong, l.kho_dai)[0],
-              kho_dai: l.dang_giay === "to" ? chuanKho(l.kho_rong, l.kho_dai)[1] : 0,
-            }
-          : {}),
-        dvt: l.dvt,
-        sl_de_nghi: Number(l.sl_de_nghi),
-        // Đơn giá chỉ gửi cho yêu cầu NHẬP (người yêu cầu biết giá NCC). XUẤT lấy giá vốn từ lô.
-        don_gia: isNhap && l.don_gia != null ? Number(l.don_gia) : null,
-        lsx_id: l.lsx_id ?? null,
-        bai_ghep_id: l.bai_ghep_id ?? null,
-        ghi_chu: l.ghi_chu || null,
-      }));
-  }
-
-  // BỎ BƯỚC DUYỆT: tạo yêu cầu là 'approved' NGAY (backend tự set), không còn "trình duyệt".
-  // Chỉ có luồng TẠO MỚI; yêu cầu đã tạo là khoá nên không có nhánh update ở đây.
-  async function save() {
-    const body = payloadLines();
+  async function guiKho() {
+    const body = payloadDong(lines, loai);
     if (!body.length) {
       setError("Thêm ít nhất một dòng vật tư có số lượng lớn hơn 0.");
       return;
     }
-    const loiDongGiay = lines.map(loiGiay).find((x) => x);
-    if (loiDongGiay) {
-      setError(loiDongGiay);
+    // Trùng mặt hàng (cùng mã, cùng lệnh, cùng dạng + khổ): chặn với đúng câu máy chủ trả.
+    const khoaDong = body.map((b) => `${b.hang_loai}:${b.hang_id}:${b.lsx_id ?? ""}:${b.bai_ghep_id ?? ""}:${b.dang_giay ?? ""}:${b.kho_rong ?? 0}:${b.kho_dai ?? 0}`);
+    if (new Set(khoaDong).size !== khoaDong.length) {
+      setError("Một mặt hàng cho cùng một lệnh chỉ được xuất hiện 1 dòng — gộp số lượng lại.");
+      return;
+    }
+    const loi = lines.map(loiGiayDong).find((x) => x);
+    if (loi) {
+      setError(loi);
       return;
     }
     setBusy(true);
@@ -1033,10 +1074,9 @@ function RequestDrawer({
     try {
       await api.kho.deNghi.create(token, {
         loai,
-        // Số yêu cầu LUÔN tự sinh (DNN/DNX####) — không cho tự nhập.
         ngay_can: ngayCan || null,
         ghi_chu: ghiChu || null,
-        // Gắn nguồn đợt giao (nếu tạo từ nút "Nhập kho") → backend chặn nhập trùng đợt.
+        // Gắn nguồn đợt giao (mở từ nút "Nhập kho") — máy chủ chặn nhập lần hai cho cùng đợt (409).
         purchase_delivery_id: seedDeliveryId ?? null,
         lines: body,
       });
@@ -1049,824 +1089,365 @@ function RequestDrawer({
     }
   }
 
-  function requestClose() {
-    if (dirty) setAskDiscard(true);
-    else onClose();
-  }
-
-  // Yêu cầu điều chuyển vốn là NHẬP ở đích, nhưng hiện tên "YÊU CẦU ĐIỀU CHUYỂN" cho đúng ngữ nghĩa.
-  const kicker = req?.dieu_chuyen
-    ? "YÊU CẦU ĐIỀU CHUYỂN"
-    : loai === "NHAP"
-      ? "YÊU CẦU NHẬP"
-      : "YÊU CẦU XUẤT";
-
-  const totalSKU = lines.length;
-  const totalDeNghi = lines.reduce((acc, l) => acc + (Number(l.sl_de_nghi) || 0), 0);
-  const totalDaUng = lines.reduce((acc, l) => acc + (Number(l.sl_da_ung) || 0), 0);
-  const totalGiaTri = canViewCost
-    ? lines.reduce(
-      (acc, l) =>
-        acc + (l.tu_kcs ? Number(l.tien_goc) || 0 : (Number(l.sl_de_nghi) || 0) * (Number(l.don_gia) || 0)),
-      0,
-    )
-    : 0;
-  // Giá bán (tham khảo) là CỘT RIÊNG cạnh Đơn giá — chỉ dựng khi có dòng thành phẩm mang giá bán.
-  const hienGiaBan = loai === "NHAP" && canViewCost && lines.some((l) => l.don_gia_ban != null);
-  const percentDone = totalDeNghi > 0 ? Math.min(100, Math.round((totalDaUng / totalDeNghi) * 100)) : 0;
-
-  const showStepper = req && req.trang_thai !== "cancelled" && req.trang_thai !== "rejected";
-  const stepperSteps = [
-    {
-      label: "Yêu cầu tạo",
-      sub: req?.nguoi_tao_ten ? `${req.nguoi_tao_ten}` : "Đã tạo",
-      done: true,
-      active: false,
-    },
-    {
-      label: "Lập phiếu kho",
-      sub: vouchers.length > 0 ? `${vouchers.length} phiếu kho` : "Chờ lập phiếu",
-      done: status === "done" || vouchers.length > 0,
-      active: ["approved", "preparing", "partial"].includes(status) && vouchers.length === 0,
-    },
-    {
-      label: "Hoàn tất",
-      sub: status === "done" ? "Hoàn thành" : "Đang xử lý",
-      done: status === "done",
-      active: false,
-    },
-  ];
+  const chan = (
+    <>
+      <span className="ycf-xt">
+        <b>{mon.length} mặt hàng</b>
+        {quaTon.length > 0 && (
+          <span className="ycd-vang">
+            {quaTon.length === 1 ? `${quaTon[0].hang_ten} xin quá tồn` : `${quaTon.length} mặt hàng xin quá tồn`}
+          </span>
+        )}
+      </span>
+      <span className="rc__spacer" />
+      <Button variant="ghost" onClick={onClose} disabled={busy}>Huỷ</Button>
+      {canRequest && (
+        <Button variant="accent" onClick={() => void guiKho()} loading={busy}>
+          <Icon name="send" size={14} /> Gửi kho
+        </Button>
+      )}
+    </>
+  );
 
   return (
-    <>
-      <div className="rc-drawer__scrim" role="dialog" aria-modal="true" onClick={requestClose}>
-        <aside className="rc-drawer rc-drawer--wide" onClick={(e) => e.stopPropagation()}>
-        <header className="rc-drawer__head">
-          <div>
-            <div className="rc-drawer__kicker">{kicker}</div>
-            <h2 className="rc-drawer__title kho-drawer-title">{req?.ma ?? "Yêu cầu mới"}</h2>
-          </div>
-          <div className="kho-headside">
-            {req && <RequestStatusBadge status={req.trang_thai} />}
-            <button type="button" className="rc-drawer__x" onClick={requestClose} aria-label="Đóng">
-              <Icon name="x" size={16} />
-            </button>
-          </div>
-        </header>
-
-        {showStepper && (
-          <div className="kho-stepper">
-            {stepperSteps.map((s, idx) => {
-              const cls = s.done ? "done" : s.active ? "active" : "pending";
-              return (
-                <div key={idx} className={`kho-stepper__step kho-stepper__step--${cls}`}>
-                  <div className="kho-stepper__dot">
-                    {s.done ? <Icon name="check" size={13} /> : idx + 1}
-                  </div>
-                  <div className="kho-stepper__content">
-                    <span className="kho-stepper__label">{s.label}</span>
-                    <span className="kho-stepper__sub">{s.sub}</span>
-                  </div>
-                  {idx < stepperSteps.length - 1 && <div className="kho-stepper__line" />}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {req && (
-          <div className="kho-kpi-wrapper">
-            <div className="kho-kpi-bar">
-              <div className="kho-kpi-pill">
-                Mặt hàng: <strong>{totalSKU} loại</strong>
+    <NganPhai
+      duongDan={khoa ? "Kho > Yêu cầu nhập xuất > Nhập từ đợt giao" : "Kho > Yêu cầu nhập xuất > Tạo mới"}
+      tieuDe={loai === "NHAP" ? "Yêu cầu nhập kho" : "Yêu cầu xuất kho"}
+      // Nguồn (đơn mua, đợt) chỉ nói ở thẻ Nguồn cột phải — không lặp thành thẻ đầu ngăn hay chữ ở chân.
+      chan={chan}
+      onDong={onClose}
+      chanDong={() => dirty && !busy}
+    >
+      <div className="kna">
+        {error && <div className="kna-canh kna-canh--do" role="alert">{error}</div>}
+        <div className="kna-luoi dfa-luoi">
+          <div className="kna-cot">
+            <section className="kna-the kna-the--cat">
+              <div className="kna-the__dau">
+                <h3>Vật tư</h3>
+                <span className="kna-tag">{mon.length} mặt hàng</span>
+                {khoa && <span className="kna-mo dga-nut">Khoá theo đợt giao</span>}
               </div>
-              <div className="kho-kpi-pill">
-                Tổng YC: <strong>{fmtQty(totalDeNghi)}</strong>
-              </div>
-              {showReply && (
-                <div className={`kho-kpi-pill ${percentDone >= 100 ? "kho-kpi-pill--moss" : ""}`}>
-                  Thực nhận: <strong>{fmtQty(totalDaUng)}</strong>
-                  {totalDeNghi > 0 && <span style={{ opacity: 0.85 }}>({percentDone}%)</span>}
-                </div>
-              )}
-              {totalGiaTri > 0 && (
-                <div className="kho-kpi-pill kho-kpi-pill--rust">
-                  Ước tính: <strong>{totalGiaTri.toLocaleString("vi-VN")} đ</strong>
-                </div>
-              )}
-            </div>
-            {showReply && totalDeNghi > 0 && (
-              <div className="kho-kpi-progress-track">
-                <div
-                  className="kho-kpi-progress-fill"
-                  style={{ width: `${percentDone}%` }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {req && (
-          <div className="kho-meta">
-            <div className="kho-user-avatar" style={{ width: 22, height: 22, fontSize: 10 }}>
-              {(req.nguoi_tao_ten || "U").slice(0, 1).toUpperCase()}
-            </div>
-            <span>
-              <strong>{req.nguoi_tao_ten ?? "—"}</strong> · {fmtDate(req.created_at)}
-            </span>
-          </div>
-        )}
-
-        <div className="rc-drawer__body">
-          {req?.trang_thai === "rejected" && req.ly_do_tu_choi && (
-            <div className="banner banner--error" role="alert">
-              <span>Bị từ chối: {req.ly_do_tu_choi}</span>
-            </div>
-          )}
-          {req?.trang_thai === "cancelled" && req.ly_do_huy && (
-            <div className="banner banner--warn" role="status">
-              <span>Đã hủy: {req.ly_do_huy}</span>
-            </div>
-          )}
-          {error && (
-            <div className="banner banner--error" role="alert">
-              <span>{error}</span>
-            </div>
-          )}
-
-          {loading ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-              {Array.from({ length: 4 }).map((_, i) => (
-                <span key={i} className="rc-skel" style={{ width: `${90 - i * 12}%` }} />
-              ))}
-            </div>
-          ) : (
-            <>
-              <section className="rc-sec">
-                <h3 className="rc-sec__title">Thông tin chung</h3>
-                <div className="kho-info-grid">
-                  {/* Nhập và Xuất chung một bảng (07/10/2026) nên chiều chọn NGAY trong form tạo; yêu cầu
-                      đã gửi hoặc đổ sẵn từ đơn mua thì chiều cố định, đọc ở dòng kicker phía trên. */}
-                  {editable && (
-                    <div className="kho-info-item">
-                      <span className="kho-info-item__label" id="kho-loai-yc">Loại yêu cầu</span>
-                      <div className="kho-info-item__val">
-                        <div className="kho-shell__dirs kho-chieu" role="radiogroup" aria-labelledby="kho-loai-yc">
-                          {(["NHAP", "XUAT"] as const).map((k) => (
-                            <button
-                              key={k}
-                              type="button"
-                              role="radio"
-                              aria-checked={loai === k}
-                              className={`seg${loai === k ? " is-active" : ""}`}
-                              onClick={() => touch(setLoai)(k)}
-                            >
-                              {k === "NHAP" ? "Nhập" : "Xuất"}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {/* Điều chuyển nội bộ KHÔNG có "ngày cần" (popup Chuyển kho không nhập, ghi sổ ngay khi
-                      kho đích nhận) → ẩn cho phiếu điều chuyển, chỉ hiện với nhập/xuất thường. */}
-                  {!req?.dieu_chuyen && (
-                    <div className="kho-info-item">
-                      <span className="kho-info-item__label">
-                        {loai === "NHAP" ? "Ngày cần nhập" : "Ngày cần xuất"}
-                      </span>
-                      <div className="kho-info-item__val">
-                        {editable ? (
-                          <input
-                            id="kho-ngay-can"
-                            type="date"
-                            className="rc-input"
-                            value={ngayCan}
-                            min={todayISO()}
-                            onChange={(e) => touch(setNgayCan)(e.target.value)}
-                          />
-                        ) : (
-                          <span>{ngayCan ? fmtDateISO(ngayCan) : "—"}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {seedDonMuaMa && (
-                    <div className="kho-info-item">
-                      <span className="kho-info-item__label">Đơn mua</span>
-                      <div className="kho-info-item__val">
-                        <span className="rc__code-badge">{seedDonMuaMa}</span>
-                        {seedDotSo != null ? ` · Đợt ${seedDotSo}` : ""}
-                      </div>
-                    </div>
-                  )}
-                  {req?.bo_phan_ten && (
-                    <div className="kho-info-item">
-                      <span className="kho-info-item__label">Bộ phận</span>
-                      <div className="kho-info-item__val">{req.bo_phan_ten}</div>
-                    </div>
-                  )}
-                  {req && (req.dieu_chuyen || (req.kho_ten && req.kho_ten !== "Kho mặc định")) && (
-                    <div className="kho-info-item">
-                      <span className="kho-info-item__label">
-                        {req.dieu_chuyen ? "Đường đi kho" : "Kho tiếp nhận"}
-                      </span>
-                      <div className="kho-info-item__val">
-                        {req.dieu_chuyen
-                          ? `${req.kho_nguon_ten ?? "—"} → ${req.kho_ten ?? "Kho đích"}`
-                          : req.kho_ten}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {req?.ghi_chu && (
-                  <div className="rc-field rc-field--full" style={{ marginTop: 8 }}>
-                    <span className="rc-field__label">Ghi chú người tạo</span>
-                    <div className="kho-val-card">{req.ghi_chu}</div>
-                  </div>
-                )}
-              </section>
-
-              <section className="rc-sec">
-                <h3 className="rc-sec__title">Vật tư yêu cầu</h3>
-                <div className="kho-lines__wrap kho-lines-card">
-                  <table className="kho-lines">
-                    <thead className="kho-lines__head">
+              <div className="lds-bang lds-bang--nhap">
+                <table className="lds-g kna-tren">
+                  <colgroup>
+                    <col />
+                    {coTon && <col style={{ width: khoa ? 200 : 96 }} />}
+                    <col style={{ width: 140 }} />
+                    {loai === "NHAP" && canViewCost && !khoa && <col style={{ width: 124 }} />}
+                    {!khoa && <col style={{ width: 48 }} />}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Vật tư</th>
+                      {coTon && <th className="n">{khoa ? "Tồn khổ này sau nhập" : "Tồn"}</th>}
+                      <th className="n">{loai === "NHAP" ? "Số lượng nhập" : "Số lượng xin"}</th>
+                      {loai === "NHAP" && canViewCost && !khoa && <th className="n">Đơn giá</th>}
+                      {!khoa && <th />}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lines.length === 0 && (
                       <tr>
-                        <th style={{ width: 40, textAlign: "center" }}>STT</th>
-                        <th style={{ minWidth: 180 }}>Vật tư</th>
-                        <th style={{ width: 150 }}>Cho lệnh</th>
-                        <th style={{ width: 70, textAlign: "center" }}>ĐVT</th>
-                        <th className="kho-num" style={{ width: 95 }}>
-                          SL yêu cầu
-                        </th>
-                        {showReply && (
-                          <th className="kho-num" style={{ width: 95 }}>
-                            {loai === "NHAP" ? "SL thực nhận" : "SL thực cấp"}
-                          </th>
-                        )}
-                        {loai === "NHAP" && canViewCost && (
-                          <th className="kho-num" style={{ width: 150 }}>
-                            Đơn giá
-                          </th>
-                        )}
-                        {hienGiaBan && (
-                          <th className="kho-num" style={{ width: 120 }}>
-                            Giá bán
-                          </th>
-                        )}
-                        {editable && <th style={{ width: 32 }} aria-label="Xóa" />}
+                        <td colSpan={soCot} className="lds-trong">Chưa có vật tư. Gõ tên hoặc mã ở ô bên dưới để thêm.</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {lines.map((l, i) => (
-                        <Fragment key={l.key}>
-                          <tr>
-                            <td className="kho-lines__code" style={{ textAlign: "center" }}>{i + 1}</td>
-                            <td>
-                              {editable || (seedLocked && !l.hang_id) ? (
-                                <MaterialCombobox
-                                  token={token}
-                                  hangTen={l.hang_ten}
-                                  onPick={(m) => pickMaterial(l.key, m)}
-                                />
-                              ) : (
-                                <div>
-                                  <div
-                                    className="kho-lines__name kho-name-clamp"
-                                    title={l.hang_ten ?? undefined}
-                                  >
-                                    {l.hang_ten ?? "—"}
-                                  </div>
-                                  <div className="kho-lines__code">{l.hang_ma ?? ""}</div>
-                                </div>
-                              )}
-                              {l.hang_loai === "giay" && l.hang_id && (
-                                editable ? (
-                                  <div className="kho-giay-kho">
-                                    <select
-                                      className="rc-input"
-                                      aria-label="Dạng giấy"
-                                      value={l.dang_giay ?? ""}
-                                      onChange={(e) => doiDang(l.key, (e.target.value || null) as DangGiay | null)}
-                                    >
-                                      <option value="">Dạng…</option>
-                                      {(Object.keys(DANG_GIAY_NHAN) as DangGiay[]).map((d) => (
-                                        <option key={d} value={d}>{DANG_GIAY_NHAN[d]}</option>
-                                      ))}
-                                    </select>
-                                    {l.dang_giay && (
-                                      <>
-                                        <DecimalInput
-                                          className="rc-input kho-num"
-                                          value={l.kho_rong || null}
-                                          onChange={(n) => patchLine(l.key, { kho_rong: n ?? 0 })}
-                                          aria-label={l.dang_giay === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
-                                          placeholder={l.dang_giay === "to" ? "Rộng" : "Khổ rộng"}
-                                        />
-                                        {l.dang_giay === "to" && (
-                                          <>
-                                            <span aria-hidden="true">×</span>
-                                            <DecimalInput
-                                              className="rc-input kho-num"
-                                              value={l.kho_dai || null}
-                                              onChange={(n) => patchLine(l.key, { kho_dai: n ?? 0 })}
-                                              aria-label="Khổ giấy, cạnh thứ hai (mm)"
-                                              placeholder="Dài"
-                                            />
-                                          </>
-                                        )}
-                                        <span className="kho-lines__code">mm</span>
-                                      </>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="kho-lines__code">
-                                    {nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai) || "chưa có dạng"}
-                                  </div>
-                                )
-                              )}
-                            </td>
-                            <td>
-                              {editable ? (
-                                <LenhChon
-                                  token={token}
-                                  lsxId={l.lsx_id ?? null}
-                                  baiGhepId={l.bai_ghep_id ?? null}
-                                  nhan={l.lsx_ma ?? l.bai_ghep_ma ?? ""}
-                                  onChange={(lsxId, bgId, ma) =>
-                                    patchLine(l.key, {
-                                      lsx_id: lsxId,
-                                      bai_ghep_id: bgId,
-                                      lsx_ma: lsxId ? ma : null,
-                                      bai_ghep_ma: bgId ? ma : null,
-                                    })
-                                  }
-                                />
-                              ) : (
-                                <span className="kho-lines__code">{lenhNhan(l)}</span>
-                              )}
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              {(editable || (seedLocked && !l.dvt)) && l.hang_loai && l.hang_id
-                                && (l.hang_loai !== "giay" || l.dang_giay) ? (
-                                <DonViChonTheoHang
-                                  token={token}
-                                  hangLoai={l.hang_loai}
-                                  hangId={l.hang_id}
-                                  dang={l.hang_loai === "giay" ? l.dang_giay ?? null : null}
-                                  value={l.dvt}
-                                  onChange={(ma, hs) =>
-                                    patchLine(l.key, { dvt: ma, he_so_ve_goc: hs })
-                                  }
-                                />
-                              ) : (
-                                <span className="badge-sem badge-sem--muted" style={{ fontSize: 12 }}>
-                                  {tenDonVi(l.dvt) || l.dvt || "—"}
-                                </span>
-                              )}
-                            </td>
-                            <td className="kho-num">
-                              {editable ? (
-                                <DecimalInput
-                                  className="rc-input kho-num"
-                                  value={l.sl_de_nghi}
-                                  onChange={(n) => patchLine(l.key, { sl_de_nghi: n ?? 0 })}
-                                  aria-label="Số lượng yêu cầu"
-                                />
-                              ) : (
-                                <strong>{fmtQty(l.sl_de_nghi)}</strong>
-                              )}
-                              {l.he_so_ve_goc != null
-                                && l.he_so_ve_goc !== 1
-                                && Number(l.sl_de_nghi) > 0 && (
-                                <div className="kho-hint">
-                                  ≈ {fmtQty(Number(l.sl_de_nghi) * l.he_so_ve_goc)} (gốc)
-                                </div>
-                              )}
-                            </td>
-                            {showReply && (
-                              <td className="kho-num" style={{ color: "var(--moss-deep)", fontWeight: "var(--fw-bold)" }}>
-                                {fmtQty(l.sl_da_ung)}
-                              </td>
-                            )}
-                            {loai === "NHAP" && canViewCost && (
-                              <td className="kho-num">
-                                {l.tu_kcs ? (
-                                  <GiaGocKcs gia={l.gia_goc} />
-                                ) : editable ? (
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    step="any"
-                                    className="rc-input kho-num"
-                                    value={l.don_gia ?? ""}
-                                    onChange={(e) =>
-                                      patchLine(l.key, {
-                                        don_gia:
-                                          e.target.value === "" ? null : Number(e.target.value),
-                                      })
-                                    }
-                                    aria-label="Đơn giá"
-                                    placeholder="0"
-                                  />
-                                ) : l.don_gia != null ? (
-                                  `${l.don_gia.toLocaleString("vi-VN")} đ`
-                                ) : (
-                                  "—"
-                                )}
-                              </td>
-                            )}
-                            {hienGiaBan && (
-                              <td className="kho-num">
-                                <GiaBanDong gia={l.don_gia_ban} dvt={l.dvt} donMa={l.don_ban_ma} />
-                              </td>
-                            )}
-                            {editable && (
-                              <td>
-                                <button
-                                  type="button"
-                                  className="rc-bands__del"
-                                  aria-label="Xóa dòng"
-                                  onClick={() => {
-                                    setDirty(true);
-                                    setLines((prev) =>
-                                      prev.length > 1
-                                        ? prev.filter((x) => x.key !== l.key)
-                                        : [newLine()],
-                                    );
-                                  }}
-                                >
-                                  <Icon name="x" size={13} />
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                  {editable && (
-                    <div className="kho-live-summary-bar">
-                      <span>Đã chọn <strong>{lines.filter((l) => l.hang_id != null || l.hang_ten).length}</strong> mặt hàng</span>
-                      <span>Tổng SL: <strong>{fmtQty(totalDeNghi)}</strong></span>
-                      {canViewCost && totalGiaTri > 0 && <span>Tổng tiền ước tính: <strong>{totalGiaTri.toLocaleString("vi-VN")} đ</strong></span>}
-                    </div>
-                  )}
-                </div>
-                {editable && (
-                  <button
-                    type="button"
-                    className="rc-bands__add"
-                    onClick={() => {
-                      setDirty(true);
-                      setLines((prev) => [...prev, newLine()]);
-                    }}
-                  >
-                    + Thêm dòng
-                  </button>
-                )}
-              </section>
-
-              {showReply && (
-                <section className="rc-sec">
-                  <h3 className="rc-sec__title">Kho phản hồi</h3>
-                  <div className="kho-reply-list">
+                    )}
                     {lines.map((l) => {
-                      const done = l.sl_duyet > 0 && l.sl_da_ung >= l.sl_duyet;
-                      const none = l.sl_duyet <= 0;
-                      const cls = none ? "signal" : done ? "moss" : "amber";
+                      const t = tonDong(l);
+                      const dv = tenDonVi(l.dvt) || l.dvt;
+                      const thieu = loai === "XUAT" && t != null ? slGoc(l) - t : 0;
+                      const rowsTon = ton[`${l.hang_loai}:${l.hang_id}`] ?? [];
                       return (
-                        <div key={l.key} className={`kho-reply-card kho-reply-card--${cls}`}>
-                          <div className="kho-reply-card__head">
-                            <span className={`status-dot status-dot--${cls}`} />
-                            <strong className="kho-reply-card__name">{l.hang_ten ?? "—"}</strong>
-                            <span className="kho-reply-card__badge">
-                              Duyệt {fmtQty(l.sl_duyet)}/{fmtQty(l.sl_de_nghi)}
-                            </span>
-                          </div>
-                          <div className="kho-reply-card__status">
-                            {none
-                              ? "Kho không duyệt yêu cầu này."
-                              : l.sl_da_ung > 0
-                                ? `${loai === "NHAP" ? "Kho đã nhận" : "Kho đã cấp"} ${fmtQty(l.sl_da_ung)} ${tenDonVi(l.dvt) || l.dvt || ""}`
-                                : loai === "NHAP"
-                                  ? "Đang chờ kho nhận hàng."
-                                  : "Đang chờ kho xuất cấp hàng."}
-                          </div>
-                          {l.ly_do_thieu && (
-                            <div className="kho-reply-card__reason">Lý do: {l.ly_do_thieu}</div>
+                        <tr key={l.key}>
+                          <td>
+                            {l.hang_id ? (
+                              // Tên + lệnh của dòng chung một hàng, khổ ở hàng dưới: Nhập có thêm cột Đơn giá
+                              // nên cột này hẹp hơn Xuất — để khổ và lệnh chung hàng là bên Nhập bị đẩy xuống
+                              // dòng, hai chiều trông khác nhau (user phản ánh 07/10/2026).
+                              <div className="ycf-ten">
+                                <span className="kna-hang__ten" title={l.hang_ma ?? undefined}>{l.hang_ten}</span>
+                                {khoa ? (
+                                  (l.lsx_ma || l.bai_ghep_ma) && <span className="kna-tag">{lenhNhan(l)}</span>
+                                ) : (
+                                  <LenhDong
+                                    token={token}
+                                    lsxId={l.lsx_id ?? null}
+                                    baiGhepId={l.bai_ghep_id ?? null}
+                                    nhan={l.lsx_ma ?? l.bai_ghep_ma ?? ""}
+                                    onChange={(lsxId, bgId, ma) => patch(l.key, {
+                                      lsx_id: lsxId, bai_ghep_id: bgId,
+                                      lsx_ma: lsxId ? ma : null, bai_ghep_ma: bgId ? ma : null,
+                                    })}
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              <MaterialCombobox token={token} hangTen={l.hang_ten} onPick={(m) => patch(l.key, {
+                                hang_loai: m.hang_loai, hang_id: m.hang_id, hang_ma: m.ma, hang_ten: m.ten,
+                                dvt: "", he_so_ve_goc: null,
+                                dang_giay: m.hang_loai === "giay" ? "to" : null, kho_rong: 0, kho_dai: 0,
+                              })} />
+                            )}
+                            {l.hang_loai === "giay" && l.hang_id && (
+                              <div className="ycf-phu">
+                                <KhungKho
+                                  dang={l.dang_giay ?? "to"}
+                                  rong={l.kho_rong ?? 0}
+                                  dai={l.kho_dai ?? 0}
+                                  chiDoc={khoa}
+                                  goiY={rowsTon.map((r) => ({ rong: r.kho_rong, dai: r.kho_dai, ghiChu: `Tồn ${fmtQty(r.ton)} ${r.don_vi_goc_ten ?? ""}`.trim() }))}
+                                  onChange={(v) => patch(l.key, {
+                                    dang_giay: v.dang, kho_rong: v.rong, kho_dai: v.dai,
+                                    // Đổi dạng ⇒ đơn vị gốc khác (tờ ↔ kg): ô đơn vị tự điền lại.
+                                    ...(v.dang !== l.dang_giay ? { dvt: "", he_so_ve_goc: null } : {}),
+                                  })}
+                                />
+                              </div>
+                            )}
+                          </td>
+                          {coTon && (
+                            <td className="n">
+                              {t == null ? (
+                                <span className="kna-mo">{l.hang_loai === "giay" && l.dang_giay === "to" ? "Theo khổ" : ""}</span>
+                              ) : khoa ? (
+                                t <= 0 ? (
+                                  <><span className="kna-tag">Khổ mới trong kho</span> <b className="kna-so">{fmtQty(slGoc(l))}</b></>
+                                ) : (
+                                  <><span className="kna-so kna-mo">{fmtQty(t)}</span> <span className="kna-mo">đến</span> <b className="kna-so">{fmtQty(t + slGoc(l))}</b></>
+                                )
+                              ) : (
+                                <span className="kna-so">{fmtQty(t)}</span>
+                              )}
+                            </td>
                           )}
-                        </div>
+                          <td className="n">
+                            {khoa ? (
+                              <><b className="kna-so">{fmtQty(l.sl_de_nghi)}</b> <span className="kna-dv">{dv}</span></>
+                            ) : (
+                              <label className={`ycf-gi dfa-gi${l.hang_id && !(Number(l.sl_de_nghi) > 0) ? " loi" : ""}`}>
+                                <input
+                                  inputMode="decimal"
+                                  aria-label={`Số lượng ${l.hang_ten ?? ""}`}
+                                  value={Number(l.sl_de_nghi) > 0 ? String(l.sl_de_nghi) : ""}
+                                  onChange={(e) => patch(l.key, { sl_de_nghi: Number(e.target.value.replace(",", ".").replace(/[^\d.]/g, "")) || 0 })}
+                                />
+                                {l.hang_loai && l.hang_id && (l.hang_loai !== "giay" || l.dang_giay) ? (
+                                  <DonViChonTheoHang
+                                    token={token}
+                                    hangLoai={l.hang_loai}
+                                    hangId={l.hang_id}
+                                    dang={l.hang_loai === "giay" ? l.dang_giay ?? null : null}
+                                    gon
+                                    value={l.dvt}
+                                    onChange={(ma, hs) => patch(l.key, { dvt: ma, he_so_ve_goc: hs })}
+                                  />
+                                ) : null}
+                              </label>
+                            )}
+                            {thieu > 0 && (
+                              <div className="dfa-duoi ycd-vang">Thiếu {fmtQty(thieu)} {t != null ? (ton[`${l.hang_loai}:${l.hang_id}`]?.[0]?.don_vi_goc_ten ?? dv) : dv}</div>
+                            )}
+                          </td>
+                          {loai === "NHAP" && canViewCost && !khoa && (
+                            <td className="n">
+                              <label className="ycf-gi dfa-gi">
+                                <input
+                                  inputMode="numeric"
+                                  aria-label="Đơn giá"
+                                  value={l.don_gia != null ? l.don_gia.toLocaleString("vi-VN") : ""}
+                                  onChange={(e) => {
+                                    const so = e.target.value.replace(/\D/g, "");
+                                    patch(l.key, { don_gia: so ? Number(so) : null });
+                                  }}
+                                />
+                                <span>đ</span>
+                              </label>
+                            </td>
+                          )}
+                          {!khoa && (
+                            <td className="n">
+                              <button
+                                type="button"
+                                className="ycf-xoa"
+                                aria-label={`Xoá ${l.hang_ten ?? "dòng"}`}
+                                onClick={() => {
+                                  setDirty(true);
+                                  setLines((prev) => prev.filter((x) => x.key !== l.key));
+                                }}
+                              >
+                                <Icon name="trash" size={14} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
                       );
                     })}
-                  </div>
-                </section>
+                  </tbody>
+                </table>
+              </div>
+              {!khoa && (
+                <div className="ycf-dong-them">
+                  <MaterialCombobox
+                    key={lines.length}
+                    token={token}
+                    hangTen={null}
+                    placeholder="Thêm vật tư: gõ tên hoặc mã…"
+                    onPick={(m) => themMon(m)}
+                  />
+                </div>
               )}
+            </section>
+          </div>
 
-              {vouchers.length > 0 && (
-                <section className="rc-sec">
-                  <h3 className="rc-sec__title">
-                    {loai === "NHAP" ? "Phiếu nhập kho" : "Phiếu kho đã cấp"} ({vouchers.length})
-                  </h3>
-                  <div className="kho-vlinks">
-                    {vouchers.map((v) => (
+          <div className="kna-cot">
+            <section className="kna-the">
+              <div className="kna-the__than kna-form">
+                {!khoa && (
+                  <div className="kho-shell__dirs kho-chieu" role="radiogroup" aria-label="Loại yêu cầu">
+                    {(["NHAP", "XUAT"] as const).map((k) => (
                       <button
-                        key={v.id}
+                        key={k}
                         type="button"
-                        className="kho-vlink-card"
-                        onClick={() => setOpenVoucher(v.id)}
+                        role="radio"
+                        aria-checked={loai === k}
+                        className={`seg${loai === k ? " is-active" : ""}`}
+                        onClick={() => { setDirty(true); setLoai(k); }}
                       >
-                        <div className="kho-vlink-card__left">
-                          <span className="kho-code-pill">{v.ma}</span>
-                          <span className="kho-vlink-card__meta">
-                            {v.loai === "NHAP" ? "Phiếu nhập" : "Phiếu xuất"} · {fmtDate(v.ngay)}
-                          </span>
-                        </div>
-                        <div className="kho-vlink-card__right">
-                          <VoucherStatusBadge status={v.trang_thai} />
-                          <span className="kho-vlink-card__arrow" aria-hidden><Icon name="arrowRight" size={14} /></span>
-                        </div>
+                        {k === "NHAP" ? "Nhập" : "Xuất"}
                       </button>
                     ))}
                   </div>
-                </section>
-              )}
-            </>
-          )}
+                )}
+                <label className="kna-o-truong">
+                  <span>{loai === "NHAP" ? "Ngày cần nhập" : "Ngày cần xuất"} <em>*</em></span>
+                  <input
+                    className="kna-o"
+                    type="date"
+                    value={ngayCan}
+                    min={khoa ? undefined : todayISO()}
+                    disabled={khoa}
+                    onChange={(e) => { setDirty(true); setNgayCan(e.target.value); }}
+                  />
+                </label>
+                {!khoa && (
+                  <div className="ycf-pick" role="group" aria-label="Chọn nhanh ngày cần">
+                    {CHON_NGAY.map((c) => {
+                      const ngay = cachHomNay(c.ngay);
+                      return (
+                        <button key={c.nhan} type="button" className={ngayCan === ngay ? "on" : ""}
+                          onClick={() => { setDirty(true); setNgayCan(ngay); }}>
+                          {c.nhan}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {khoa ? (
+              <section className="kna-the">
+                <div className="kna-the__dau"><h3>Nguồn</h3></div>
+                <div className="kna-the__than">
+                  <dl className="kna-kv">
+                    {seedDonMuaMa && (<><dt>Đơn mua</dt><dd>{seedDonMuaMa}</dd></>)}
+                    {seedDotSo != null && (<><dt>Đợt giao</dt><dd>Đợt {seedDotSo}</dd></>)}
+                    {seedNccTen && (<><dt>Nhà cung cấp</dt><dd>{seedNccTen}</dd></>)}
+                    {ngayCan && (<><dt>Ngày nhận</dt><dd>{fmtDateISO(ngayCan)}</dd></>)}
+                    {seedHoaDon && (<><dt>Hoá đơn</dt><dd>{seedHoaDon}</dd></>)}
+                  </dl>
+                </div>
+              </section>
+            ) : (
+              <section className="kna-the">
+                <div className="kna-the__dau">
+                  <h3>Lệnh sản xuất</h3>
+                  <span className="kna-mo dga-nut">dòng mới lấy lệnh này</span>
+                </div>
+                <div className="kna-the__than tyc-lenh tyc-lenh--rong">
+                  <LenhChon
+                    token={token}
+                    lsxId={lenhMoi.lsx_id}
+                    baiGhepId={lenhMoi.bai_ghep_id}
+                    nhan={lenhMoi.ma ?? ""}
+                    onChange={(lsxId, bgId, ma) => setLenhMoi({ lsx_id: lsxId, bai_ghep_id: bgId, ma })}
+                  />
+                </div>
+              </section>
+            )}
+
+            {khoa && canViewCost && giaTri > 0 && (
+              <section className="kna-the">
+                <div className="kna-the__dau"><h3>Giá trị nhập</h3></div>
+                <div className="kna-the__than dfa-cs">
+                  {mon.map((l) => (
+                    <div key={l.key} className="dfa-cs__con" style={{ paddingLeft: 0 }}>
+                      <span>{l.hang_ten}</span>
+                      <span className="kna-so">{((Number(l.sl_de_nghi) || 0) * (Number(l.don_gia) || 0)).toLocaleString("vi-VN")}</span>
+                    </div>
+                  ))}
+                  <div className="dfa-cs__tong"><span>Chưa VAT</span><b className="kna-so">{giaTri.toLocaleString("vi-VN")} đ</b></div>
+                </div>
+              </section>
+            )}
+
+            <section className="kna-the">
+              <div className="kna-the__than kna-form">
+                <label className="kna-o-truong">
+                  <span>Ghi chú</span>
+                  <textarea
+                    className="kna-o ycf-ta"
+                    rows={3}
+                    value={ghiChu}
+                    placeholder="Lý do xin, ai ra nhận…"
+                    onChange={(e) => { setDirty(true); setGhiChu(e.target.value); }}
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
         </div>
-
-        <footer className="rc-drawer__foot">
-          <RequestFooter
-            status={isNew ? "draft" : status}
-            isNew={isNew}
-            isOwner={!!isOwner}
-            canRequest={canRequest}
-            dieuChuyen={!!req?.dieu_chuyen}
-            busy={busy}
-            onSave={() => save()}
-            onPrint={() => setPrinting(true)}
-            onClone={() =>
-              onClone(
-                lines.map((l) => ({
-                  hang_loai: l.hang_loai,
-                  hang_id: l.hang_id,
-                  hang_ma: l.hang_ma,
-                  hang_ten: l.hang_ten,
-                  dang_giay: l.dang_giay,
-                  kho_rong: l.kho_rong,
-                  kho_dai: l.kho_dai,
-                  dvt: l.dvt,
-                  he_so_ve_goc: l.he_so_ve_goc,
-                  sl_de_nghi: l.sl_de_nghi,
-                  don_gia: l.don_gia,
-                  ghi_chu: l.ghi_chu,
-                })),
-                loai,
-              )
-            }
-            onClose={requestClose}
-          />
-        </footer>
-        </aside>
       </div>
-
-      {/* Dialog/preview ĐỨNG NGOÀI scrim: nếu nằm trong, mọi cú click trong dialog sẽ nổi bọt
-          lên scrim và đóng luôn cả drawer phía sau. */}
-      <DiscardChangesDialog
-        open={askDiscard}
-        onDiscard={() => {
-          setAskDiscard(false);
-          onClose();
-        }}
-        onKeepEditing={() => setAskDiscard(false)}
-      />
-
-      {printing && req && (
-        <RequestPrint req={req} lines={lines} onClose={() => setPrinting(false)} />
-      )}
-
-      {/* Người TẠO xem phiếu đã cấp — cùng màn phiếu như bên kho, read-only. Giá theo đúng quyền
-          `view_cost` như mọi nơi (bỏ luật 10/08/2026 cho người tạo thấy giá — chủ 18/09/2026). */}
-      {openVoucher != null && (
-        <VoucherDrawer
-          token={token}
-          voucherId={openVoucher}
-          canCreate={false}
-          canPost={false}
-          canViewCost={canViewCost}
-          onClose={() => setOpenVoucher(null)}
-          onChanged={() => {}}
-        />
-      )}
-    </>
+    </NganPhai>
   );
 }
 
-// Footer tách riêng: bảng trạng thái × quyền dài, để lẫn trong JSX drawer thì mỗi lần đọc
-// lại phải dò xem nhánh nào ứng với trạng thái nào.
-function RequestFooter(props: {
-  status: StockRequestStatus;
-  isNew: boolean;
-  isOwner: boolean;
-  canRequest: boolean;
-  dieuChuyen: boolean;
-  busy: boolean;
-  onSave: () => void;
-  onPrint: () => void;
-  onClone: () => void;
-  onClose: () => void;
-}) {
-  const { status, isNew, isOwner, canRequest, busy } = props;
-
-  // BỎ BƯỚC DUYỆT: chỉ còn luồng TẠO. Tạo xong yêu cầu là 'approved' (khoá) — không còn nút
-  // Lưu nháp / Trình duyệt / Duyệt / Từ chối / Lưu thay đổi.
-  if (isNew && isOwner && canRequest) {
-    return (
-      <Button variant="accent" onClick={props.onSave} loading={busy}>
-        Tạo yêu cầu
-      </Button>
-    );
-  }
-
-  if ((status === "rejected" || status === "cancelled") && isOwner && canRequest) {
-    // ĐIỀU CHUYỂN: KHÔNG "Tạo lại" ở đây — điều chuyển chỉ tạo từ màn Tồn kho (nút "Chuyển kho"), để
-    // tránh đẻ trùng liên tục + để lại vế xuất nguồn treo. Yêu cầu điều chuyển đã hủy giữ làm lịch sử.
-    if (props.dieuChuyen) {
-      return (
-        <>
-          <span className="kho-hint" style={{ marginRight: "auto" }}>
-            Điều chuyển tạo lại từ màn <b>Tồn kho</b> (nút “Chuyển kho”).
-          </span>
-          <button type="button" className="btn btn--secondary" onClick={props.onClose}>
-            Đóng
-          </button>
-        </>
-      );
-    }
-    return (
-      <>
-        <Button variant="accent" onClick={props.onClone}>
-          Tạo lại từ yêu cầu này
-        </Button>
-        <button type="button" className="btn btn--ghost" onClick={props.onClose}>
-          Đóng
-        </button>
-      </>
-    );
-  }
-
-  return (
-    <>
-      {!AN_IN_YEU_CAU && !isNew && (
-        <button type="button" className="btn btn--ghost" onClick={props.onPrint}>
-          In yêu cầu
-        </button>
-      )}
-      <button type="button" className="btn btn--secondary" onClick={props.onClose}>
-        Đóng
-      </button>
-    </>
-  );
+/** Dòng gửi máy chủ — chỉ dòng đủ mặt hàng + đơn vị + số > 0. Giấy mang dạng + khổ chuẩn hoá. */
+function payloadDong(lines: DraftLine[], loai: StockRequestKind): StockRequestLineInput[] {
+  const isNhap = loai === "NHAP";
+  return lines
+    .filter((l) => l.hang_loai && l.hang_id && l.dvt && Number(l.sl_de_nghi) > 0)
+    .map((l) => ({
+      hang_loai: l.hang_loai as HangLoai,
+      hang_id: l.hang_id as number,
+      ...(l.hang_loai === "giay"
+        ? {
+            dang_giay: l.dang_giay ?? null,
+            kho_rong: chuanKho(l.kho_rong, l.kho_dai)[0],
+            kho_dai: l.dang_giay === "to" ? chuanKho(l.kho_rong, l.kho_dai)[1] : 0,
+          }
+        : {}),
+      dvt: l.dvt,
+      sl_de_nghi: Number(l.sl_de_nghi),
+      // Đơn giá chỉ gửi cho yêu cầu NHẬP (người yêu cầu biết giá NCC). XUẤT lấy giá vốn từ lô.
+      don_gia: isNhap && l.don_gia != null ? Number(l.don_gia) : null,
+      lsx_id: l.lsx_id ?? null,
+      bai_ghep_id: l.bai_ghep_id ?? null,
+      ghi_chu: l.ghi_chu || null,
+    }));
 }
 
-/** Bản in giấy yêu cầu — KHÔNG cột giá, KHÔNG cột tồn (người ký duyệt không cần và
- *  phần lớn không có quyền xem hai thứ đó). */
-function RequestPrint({
-  req,
-  lines,
-  onClose,
-}: {
-  req: StockRequest;
-  lines: DraftLine[];
-  onClose: () => void;
-}) {
-  useNapTenDonVi();
-  // Điều chuyển (dieu_chuyen) IN theo mẫu RIÊNG: nó là dịch kho nội bộ, KHÔNG phải "nhập kho" hay
-  // "lĩnh vật tư" → tiêu đề + header (đường đi kho) + cột (SL thực nhận) + chữ ký (2 thủ kho) khác.
-  const isDC = !!req.dieu_chuyen;
-  const title = isDC
-    ? "PHIẾU ĐỀ NGHỊ ĐIỀU CHUYỂN KHO"
-    : req.loai === "NHAP"
-      ? "GIẤY YÊU CẦU NHẬP KHO"
-      : "GIẤY YÊU CẦU LĨNH VẬT TƯ";
-  return (
-    <PrintSheet title={title} docNo={req.ma} docDate={fmtDate(req.created_at)} onClose={onClose}>
-      {isDC ? (
-        <>
-          <div className="kho-print__meta">
-            <span>
-              <b>Đường đi kho:</b> {req.kho_nguon_ten ?? "—"} → {req.kho_ten ?? "Kho đích"}
-            </span>
-          </div>
-          <div className="kho-print__meta">
-            <span>
-              <b>Người đề nghị:</b> {req.nguoi_tao_ten ?? "…"}
-            </span>
-            <span>
-              <b>Bộ phận:</b> {req.bo_phan_ten ?? "…"}
-            </span>
-          </div>
-          {req.ghi_chu && (
-            <div className="kho-print__meta">
-              <span>
-                <b>Lý do / Ghi chú:</b> {req.ghi_chu}
-              </span>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="kho-print__meta">
-            <span>
-              <b>Bộ phận:</b> {req.bo_phan_ten ?? "…"}
-            </span>
-            <span>
-              <b>Người yêu cầu:</b> {req.nguoi_tao_ten ?? "…"}
-            </span>
-            <span>
-              <b>Ngày cần:</b> {req.ngay_can ? fmtDateISO(req.ngay_can) : "…"}
-            </span>
-          </div>
-          {/* Trọn chuỗi trách nhiệm trên phiếu in: ai yêu cầu (trên) → ai duyệt (đây). */}
-          <div className="kho-print__meta">
-            <span>
-              <b>Người duyệt:</b>{" "}
-              {req.nguoi_duyet_ten
-                ? `${req.nguoi_duyet_ten}${req.duyet_luc ? ` · ${fmtDate(req.duyet_luc)}` : ""}`
-                : "…"}
-            </span>
-            <span>
-              <b>Lý do:</b> {req.ghi_chu ?? "…"}
-            </span>
-          </div>
-        </>
-      )}
-      <table className="kho-print__table">
-        <thead>
-          <tr>
-            <th style={{ width: 40 }}>STT</th>
-            <th style={{ width: 96 }}>Mã</th>
-            <th>Tên vật tư</th>
-            <th style={{ width: 60 }}>ĐVT</th>
-            <th style={{ width: 90 }}>SL yêu cầu</th>
-            <th style={{ width: 90 }}>{isDC ? "SL thực nhận" : "SL duyệt"}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((l, i) => (
-            <tr key={l.key}>
-              <td>{i + 1}</td>
-              <td>{l.hang_ma ?? ""}</td>
-              <td>{l.hang_ten ?? ""}</td>
-              <td>{tenDonVi(l.dvt) ?? l.dvt}</td>
-              <td style={{ textAlign: "right" }}>{fmtQty(l.sl_de_nghi)}</td>
-              <td style={{ textAlign: "right" }}>
-                {isDC
-                  ? l.sl_da_ung > 0
-                    ? fmtQty(l.sl_da_ung)
-                    : ""
-                  : l.sl_duyet > 0
-                    ? fmtQty(l.sl_duyet)
-                    : ""}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="kho-print__signs">
-        {(isDC
-          ? ["Người đề nghị", "Thủ kho xuất (nguồn)", "Thủ kho nhập (đích)"]
-          : ["Người yêu cầu", "Phụ trách bộ phận", "Thủ kho"]
-        ).map((s) => (
-          <div className="kho-print__sign" key={s}>
-            <b>{s}</b>
-            <span>(Ký, họ tên)</span>
-          </div>
-        ))}
-      </div>
-    </PrintSheet>
-  );
+/** Giấy thiếu dạng, hoặc tờ thiếu một cạnh khổ ⇒ câu báo; không thì null. */
+function loiGiayDong(l: DraftLine): string | null {
+  if (l.hang_loai !== "giay" || !l.hang_id || !(Number(l.sl_de_nghi) > 0)) return null;
+  const ten = l.hang_ten ?? "Giấy";
+  if (!l.dang_giay) return `“${ten}”: chọn dạng giấy (tờ hoặc cuộn).`;
+  const [r, d] = chuanKho(l.kho_rong, l.kho_dai);
+  if (l.dang_giay === "to" && !(r && d)) return `“${ten}”: giấy dạng tờ phải khai đủ khổ (hai cạnh, mm).`;
+  return null;
 }
 
 // ── INLINE SVG ICONS ─────────────────────────────────────────────────────────
-const SearchIcon = () => (
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="rc__search-icon"
-  >
-    <circle cx="11" cy="11" r="8" />
-    <path d="m21 21-4.3-4.3" />
-  </svg>
-);
-
 const PlusIcon = () => (
   <svg
     width="13"
@@ -1878,22 +1459,5 @@ const PlusIcon = () => (
     strokeLinecap="round"
   >
     <path d="M12 5v14M5 12h14" />
-  </svg>
-);
-
-const EmptyIcon = () => (
-  <svg
-    width="48"
-    height="48"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="rc__empty-icon"
-  >
-    <path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" />
-    <path d="M3 7.5 12 12l9-4.5M12 12v9" />
   </svg>
 );

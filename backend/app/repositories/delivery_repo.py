@@ -13,7 +13,7 @@ Hai truy vấn ở đây là XƯƠNG SỐNG của bản thiết kế, đọc k�
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
@@ -30,7 +30,9 @@ from ..models.delivery import (
     DeliveryTripAttachment,
     DeliveryTripLine,
 )
-from .loc_danh_sach import dk_khoang_ngay
+from .loc_danh_sach import dk_khoang_ngay, hom_nay_vn
+
+HAN_YEU_CAU = ("qua_han", "hom_nay", "ngay_mai", "sau")
 
 
 def _dk_tim_yeu_cau(chu: str) -> list:
@@ -54,11 +56,24 @@ class LocYeuCau:
     den_ngay: date | None = None
     moc: str = "tao"
     khach: int | None = None
+    #: Hàng lọc nhanh "Cần giao": `qua_han` / `hom_nay` / `ngay_mai` / `sau` (sau ngày mai hoặc
+    #: chưa hẹn ngày) — tính theo ngày giờ Việt Nam.
+    han: str | None = None
 
     def dieu_kien(self) -> list:
         dk: list = []
         if self.q and self.q.strip():
             dk += _dk_tim_yeu_cau(self.q)
+        if self.han in HAN_YEU_CAU:
+            nay = hom_nay_vn()
+            mai = nay + timedelta(days=1)
+            cot = DeliveryRequest.ngay_can_giao
+            dk.append({
+                "qua_han": cot < nay,
+                "hom_nay": cot == nay,
+                "ngay_mai": cot == mai,
+                "sau": or_(cot > mai, cot.is_(None)),
+            }[self.han])
         cot, la_ngay = {
             "tao": (DeliveryRequest.created_at, False),
             "can": (DeliveryRequest.ngay_can_giao, True),
@@ -297,6 +312,34 @@ class DeliveryRepository:
         ).all()
         return {int(r[0]): int(r[1] or 0) for r in rows}
 
+    def da_giao_theo_yeu_cau(self, request_ids: list[int]) -> dict[int, dict[int, int]]:
+        """`{request_id: {order_line_id: đã thực nhận}}` cho NHIỀU yêu cầu trong MỘT truy vấn —
+        cùng luật `da_giao_cua_yeu_cau`, dùng khi dựng cả trang bảng giao (gọi từng yêu cầu là N+1)."""
+        if not request_ids:
+            return {}
+        rows = self.db.execute(
+            select(DeliveryTrip.request_id, DeliveryTripLine.order_line_id,
+                   func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+            .where(DeliveryTrip.request_id.in_(set(request_ids)),
+                   DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+            .group_by(DeliveryTrip.request_id, DeliveryTripLine.order_line_id)
+        ).all()
+        ra: dict[int, dict[int, int]] = {}
+        for rid, olid, sl in rows:
+            ra.setdefault(int(rid), {})[int(olid)] = int(sl or 0)
+        return ra
+
+    def requests_theo_ids(self, request_ids: list[int]) -> list[DeliveryRequest]:
+        """Nhiều yêu cầu kèm dòng hàng trong một lượt nạp (không kéo theo chuyến như `get_request`)."""
+        if not request_ids:
+            return []
+        return list(self.db.execute(
+            select(DeliveryRequest)
+            .options(selectinload(DeliveryRequest.lines))
+            .where(DeliveryRequest.id.in_(set(request_ids)))
+        ).scalars().all())
+
     # --- Lần giao -----------------------------------------------------------------------
     def get_trip(self, trip_id: int) -> DeliveryTrip | None:
         return self.db.execute(
@@ -304,6 +347,17 @@ class DeliveryRepository:
             .options(selectinload(DeliveryTrip.lines), selectinload(DeliveryTrip.request))
             .where(DeliveryTrip.id == trip_id)
         ).scalar_one_or_none()
+
+    def trips_theo_ids(self, trip_ids) -> dict[int, DeliveryTrip]:
+        """`{trip_id: chuyến}` kèm dòng + yêu cầu như `get_trip`, một lượt cho cả trang."""
+        ids = {int(i) for i in trip_ids}
+        if not ids:
+            return {}
+        return {t.id: t for t in self.db.execute(
+            select(DeliveryTrip)
+            .options(selectinload(DeliveryTrip.lines), selectinload(DeliveryTrip.request))
+            .where(DeliveryTrip.id.in_(ids))
+        ).scalars().all()}
 
     def create_trip(self, **kw) -> DeliveryTrip:
         row = DeliveryTrip(**kw)
@@ -430,6 +484,23 @@ class DeliveryRepository:
                 StockVoucher.trang_thai != VOUCHER_CANCELLED,
             )
         ).all()}
+
+    def phieu_kho_cua_nhieu_yeu_cau(self, stock_request_ids) -> dict[int, object]:
+        """{stock_request_id: phiếu kho chưa huỷ mới nhất} — như `phieu_kho_cua_yeu_cau`; yêu cầu
+        kho chưa có phiếu thì vắng mặt."""
+        from ..models.stock_voucher import VOUCHER_CANCELLED, StockVoucher
+
+        ids = {int(i) for i in stock_request_ids}
+        ra: dict[int, object] = {}
+        if not ids:
+            return ra
+        for p in self.db.execute(
+            select(StockVoucher).where(
+                StockVoucher.request_id.in_(ids), StockVoucher.trang_thai != VOUCHER_CANCELLED,
+            ).order_by(StockVoucher.id.desc())
+        ).scalars().all():
+            ra.setdefault(int(p.request_id), p)
+        return ra
 
     def so_dinh_kem_theo_trip(self, trip_ids: list[int]) -> dict[int, int]:
         if not trip_ids:
@@ -695,6 +766,16 @@ class DeliveryRepository:
             .order_by(DeliveryStatusHistory.id)
         ).scalars().all())
 
+    def lich_su_cua_cac_trip(self, trip_ids: list[int]) -> list[DeliveryStatusHistory]:
+        """Lịch sử của NHIỀU chuyến trong một truy vấn — chi tiết yêu cầu gọi từng chuyến là N+1."""
+        if not trip_ids:
+            return []
+        return list(self.db.execute(
+            select(DeliveryStatusHistory)
+            .where(DeliveryStatusHistory.trip_id.in_(set(trip_ids)))
+            .order_by(DeliveryStatusHistory.id)
+        ).scalars().all())
+
     # --- Chuyến chưa ghi kết quả của một phòng ------------------------------------------------
     def dem_chuyen_chua_ket_qua_cua_phong(self, department_id: int) -> int:
         """Số chuyến CHƯA ghi kết quả mà TÀI XẾ đang thuộc phòng này.
@@ -727,6 +808,26 @@ class DeliveryRepository:
         return self.db.execute(
             select(LuotXe).options(selectinload(LuotXe.diem)).where(LuotXe.id == luot_id)
         ).scalar_one_or_none()
+
+    def luot_theo_ids(self, luot_ids) -> dict[int, object]:
+        """`{luot_id: lượt}` kèm các điểm — như `get_luot`, một lượt cho cả trang."""
+        from ..models.delivery import LuotXe
+
+        ids = {int(i) for i in luot_ids}
+        if not ids:
+            return {}
+        return {l.id: l for l in self.db.execute(
+            select(LuotXe).options(selectinload(LuotXe.diem)).where(LuotXe.id.in_(ids))
+        ).scalars().all()}
+
+    def trang_thai_theo_trip(self, trip_ids) -> dict[int, str]:
+        """`{trip_id: trạng thái}` — lượt chỉ cần biết điểm nào còn chạy, khỏi nạp cả chuyến."""
+        ids = {int(i) for i in trip_ids}
+        if not ids:
+            return {}
+        return {int(i): tt for i, tt in self.db.execute(
+            select(DeliveryTrip.id, DeliveryTrip.trang_thai).where(DeliveryTrip.id.in_(ids))
+        ).all()}
 
     def get_luot_by_code(self, code: str):
         from ..models.delivery import LuotXe
@@ -806,6 +907,33 @@ class DeliveryRepository:
         ).scalar()
         so = [int(x) for x in (ve_kho, xuat_phat, diem) if x is not None]
         return max(so) if so else None
+
+    def so_dong_ho_cuoi_theo_luot(self, luots) -> dict[int, int | None]:
+        """`{luot_id: so_dong_ho_cuoi_cua_xe(xe của lượt, bỏ qua chính lượt đó)}` cho nhiều lượt trong
+        hai truy vấn: lấy số lớn nhất của TỪNG lượt cùng xe, rồi mỗi lượt lấy max các lượt còn lại."""
+        from ..models.delivery import LuotXe, LuotXeDiem
+
+        xe = {int(l.vehicle_id) for l in luots if l.vehicle_id is not None}
+        if not xe:
+            return {l.id: None for l in luots}
+        moi_luot: dict[int, tuple[int, list[int]]] = {}
+        for lid, vid, ve_kho, xuat_phat in self.db.execute(
+            select(LuotXe.id, LuotXe.vehicle_id, LuotXe.so_dong_ho_ve_kho, LuotXe.so_dong_ho_xuat_phat)
+            .where(LuotXe.vehicle_id.in_(xe))
+        ).all():
+            moi_luot[int(lid)] = (int(vid), [int(x) for x in (ve_kho, xuat_phat) if x is not None])
+        for lid, so in self.db.execute(
+            select(LuotXeDiem.luot_xe_id, func.max(LuotXeDiem.so_dong_ho))
+            .join(LuotXe, LuotXe.id == LuotXeDiem.luot_xe_id)
+            .where(LuotXe.vehicle_id.in_(xe)).group_by(LuotXeDiem.luot_xe_id)
+        ).all():
+            if so is not None and int(lid) in moi_luot:
+                moi_luot[int(lid)][1].append(int(so))
+        return {
+            l.id: max((s for lid, (vid, ds) in moi_luot.items()
+                       if vid == l.vehicle_id and lid != l.id for s in ds), default=None)
+            for l in luots
+        }
 
     def luot_ve_kho_trong_khoang(self, tu: datetime, den: datetime) -> list:
         """Lượt đã về kho trong [tu, den) — nguồn tiền CHẶNG VỀ KHO của kỳ lương."""

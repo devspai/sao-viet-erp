@@ -1,6 +1,6 @@
 /** Khung chung của mọi form lập phiếu chi / phiếu thu (đặc tả PC-3, PT-3, PT-4, A.2, A.3, A.6).
  *
- *  - Vỏ `NganPhai` (cùng 920px với mọi ngăn); form đang gõ dở thì Esc / đóng hỏi trước (`chanDong`).
+ *  - Vỏ `NganPhai` (cùng độ rộng chung với mọi ngăn); form đang gõ dở thì Esc / đóng hỏi trước (`chanDong`).
  *  - Lỗi nằm TẠI Ô (chữ đỏ + biểu tượng, viền ô đỏ), con trỏ nhảy tới ô sai đầu tiên; nút lập
  *    luôn bấm được. Lỗi máy chủ hiện ngay đầu form, trong ngăn — không rơi ra sau lớp phủ.
  *  - Chân: câu xem trước bên trái — "Đóng" — nút rust ("Lập phiếu chi" / "Lập phiếu thu").

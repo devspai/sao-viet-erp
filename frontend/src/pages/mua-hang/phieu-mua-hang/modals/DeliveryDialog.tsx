@@ -12,9 +12,15 @@ import {
   type PurchaseRequestRow,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
-import { ConfirmDialog } from "../../../../components/ConfirmDialog";
+import { Button } from "../../../../components/Button";
 import { Icon } from "../../../../components/Icons";
-import { money } from "../../../../utils/format";
+import { KhungKho } from "../../../../components/kho-giay/KhungKho";
+import { NganPhai } from "../../../ke-toan/shared/NganPhai";
+import "../../../ke-toan/ke-toan.css";
+import "../../../kho-ngan-a.css";
+import "../../yeu-cau-mua-hang/components/yc-form-a.css";
+import "../../yeu-cau-mua-hang/components/yc-ds-a.css";
+import "../components/don-form-a.css";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
 import { ATTACHMENT_IMAGE_TYPES } from "../shared/constants";
@@ -30,6 +36,12 @@ import type { AnhCho } from "../shared/types";
  * Trần mỗi dòng = số đặt − những gì các đợt KHÁC đã nhận. Khai vống là bơm thẳng vào công nợ một
  * món nợ chưa từng phát sinh; server chặn, đây chặn sớm và nói rõ còn bao nhiêu.
  */
+const so = (n: number) => Math.round(n).toLocaleString("vi-VN");
+
+/** Dòng giấy TỜ (đặt đủ hai cạnh khổ) — chỉ dòng này có khổ nhận sửa được. Cuộn đếm kg theo khổ rộng. */
+const laGiayTo = (line: PurchaseRequestRow["lines"][number]) =>
+  line.hang_loai === "giay" && line.kho_rong > 0 && line.kho_dai > 0;
+
 export function DeliveryDialog({
   row,
   delivery,
@@ -92,6 +104,19 @@ export function DeliveryDialog({
         const con = line.quantity - daGiaoKhac(row, line.id, null);
         out[line.id] = con > 0 ? String(con) : "";
       }
+    }
+    return out;
+  });
+  // KHỔ THỰC NHẬN của dòng giấy tờ (07/10/2026). Mặc định = khổ đặt (sửa đợt cũ thì khổ đã ghi);
+  // NCC giao khác khổ thì sửa — hàng vào tồn theo khổ nhận vì kho so khổ bằng nhau tuyệt đối.
+  const [khoNhan, setKhoNhan] = useState<Record<number, { rong: number; dai: number }>>(() => {
+    const out: Record<number, { rong: number; dai: number }> = {};
+    for (const line of row.lines) {
+      if (!laGiayTo(line)) continue;
+      const cu = delivery?.lines.find((dl) => dl.purchase_request_line_id === line.id);
+      out[line.id] = cu && cu.kho_rong && cu.kho_dai
+        ? { rong: cu.kho_rong, dai: cu.kho_dai }
+        : { rong: line.kho_rong, dai: line.kho_dai };
     }
     return out;
   });
@@ -212,10 +237,13 @@ export function DeliveryDialog({
         const existing = delivery?.lines.find(
           (item) => item.purchase_request_line_id === line.id,
         );
+        const kho = khoNhan[line.id];
         return {
           purchase_request_line_id: line.id,
           quantity: Number(soNhan[line.id]),
           note: existing?.note ?? null,
+          // Giấy tờ: gửi khổ nhận; trùng khổ đặt thì máy chủ tự lưu 0 · 0 (= theo khổ đặt).
+          ...(kho ? { kho_rong: kho.rong, kho_dai: kho.dai } : {}),
         };
       })
       .filter((l) => Number.isFinite(l.quantity) && l.quantity > 0);
@@ -231,7 +259,12 @@ export function DeliveryDialog({
     // đúng cái bẫy đã sập một lần: ba nơi cùng canh một luật (`max` của ô nhập, khối này, và
     // service) mà chỉ sửa hai. Nay số nhận vượt KHÔNG đẻ nợ nữa, phần vượt hiện ngay dưới ô gõ.
     if (!ngayGiao) {
-      setError("Đợt giao phải có ngày giao.");
+      setError("Đợt giao phải có ngày nhận.");
+      return;
+    }
+    const thieuCanh = lines.find((l) => "kho_rong" in l && !l.kho_rong !== !l.kho_dai);
+    if (thieuCanh) {
+      setError("Khổ nhận của giấy tờ cần đủ hai cạnh.");
       return;
     }
     if (hanTra && hanTra < ngayGiao) {
@@ -252,7 +285,8 @@ export function DeliveryDialog({
           return (
             existing == null ||
             Math.abs(existing.quantity - line.quantity) > 1e-9 ||
-            (existing.note ?? null) !== (line.note ?? null)
+            (existing.note ?? null) !== (line.note ?? null) ||
+            ("kho_rong" in line && (existing.kho_rong !== line.kho_rong || existing.kho_dai !== line.kho_dai))
           );
         });
       const payload: PurchaseDeliveryInput = {
@@ -305,341 +339,362 @@ export function DeliveryDialog({
     }
   }
 
+  // Hoá đơn chung nhiều đợt (NCC giao nhiều đợt rồi xuất một hoá đơn): lối chọn nhanh "Cùng đợt N"
+  // điền lại số + ngày hoá đơn của đợt đó. Mỗi số hoá đơn một nút, lấy đợt đầu tiên mang số đó.
+  const hoaDonCu = useMemo(() => {
+    const out: { seq: number; so: string; ngay: string | null }[] = [];
+    for (const d of [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no)) {
+      if (d.id === delivery?.id || !d.invoice_number) continue;
+      if (out.some((h) => h.so === d.invoice_number)) continue;
+      out.push({ seq: d.seq_no, so: d.invoice_number, ngay: d.invoice_date });
+    }
+    return out;
+  }, [row.deliveries, delivery]);
+  const soDong = row.lines.filter((l) => (Number(soNhan[l.id]) || 0) > 0).length;
+  const coGiay = row.lines.some((l) => l.hang_loai === "giay");
+
+  const chan = (
+    <>
+      <span className="ycf-xt">
+        <b>{soDong} dòng</b> nhận đợt này
+      </span>
+      <span className="rc__spacer" />
+      <Button variant="ghost" onClick={onClose} disabled={busy}>Huỷ</Button>
+      <Button variant="accent" loading={busy} onClick={() => void submit()}>
+        Lưu đợt giao
+      </Button>
+    </>
+  );
+
   return (
-    <ConfirmDialog
-      open
-      wide
-      // Mã phiếu vào THẲNG tiêu đề. Đoạn văn dẫn nhập cũ đã bị bỏ: ba câu trong đó lặp lại đúng
-      // những gì nhãn vùng, dòng gợi ý và dải "Ghi vào công nợ" bên dưới đã nói.
-      title={
-        suaDot
-          ? `Sửa đợt ${delivery!.seq_no} · ${row.code}`
-          : `Ghi đợt giao · ${row.code}`
-      }
-      confirmLabel={suaDot ? "Lưu đợt giao" : "Ghi đợt giao"}
-      busy={busy}
-      // Lỗi tự render ở ĐẦU children (ngay dưới đây). ConfirmDialog đặt `error` SAU children, mà
-      // hộp này dài hơn một màn ⇒ báo lỗi rơi xuống đáy vùng cuộn, ngoài tầm mắt người vừa bấm Lưu.
-      error={null}
-      onConfirm={submit}
-      onCancel={onClose}
+    <NganPhai
+      tang={1}
+      duongDan={`Mua hàng > ${row.code} > ${suaDot ? `Sửa đợt ${delivery!.seq_no}` : "Ghi đợt giao"}`}
+      tieuDe={`Đợt ${suaDot ? delivery!.seq_no : row.deliveries.length + 1}`}
+      the={row.supplier_name ? <span className="kna-tag">{row.supplier_name}</span> : undefined}
+      chan={chan}
+      onDong={onClose}
+      chanDong={() => !busy && (anhMoi.length > 0 || soHoaDon !== (delivery?.invoice_number ?? ""))}
     >
-      {error && (
-        <div className="banner banner--error" role="alert">
-          {error}
-        </div>
-      )}
+      <div className="kna">
+        {error && <div className="kna-canh kna-canh--do" role="alert">{error}</div>}
+        <div className="kna-luoi">
+          <div className="kna-cot">
+            <div className="dfa-dau">
+              <h3>Hàng nhận đợt này</h3>
+              <span className="dga-nut">
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    setSoNhan(() => {
+                      const out: Record<number, string> = {};
+                      for (const line of row.lines) {
+                        const con = conLai(line.id);
+                        out[line.id] = con > 0 ? String(con) : "";
+                      }
+                      return out;
+                    })
+                  }
+                >
+                  Nhận đủ phần còn lại
+                </Button>
+              </span>
+            </div>
+            <section className="kna-the kna-the--cat">
+              <div className="lds-bang lds-bang--nhap dfa-bang">
+                <table className="lds-g kna-tren" style={{ minWidth: 558 }}>
+                  <colgroup>
+                    <col />
+                    <col style={{ width: 104 }} />
+                    <col style={{ width: 104 }} />
+                    <col style={{ width: 150 }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Vật tư</th>
+                      <th className="n">Đặt</th>
+                      <th className="n">Đã nhận</th>
+                      <th className="n">Đợt này</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {row.lines.map((line) => {
+                      const con = conLai(line.id);
+                      const daNhan = daGiaoKhac(row, line.id, delivery?.id ?? null);
+                      const dvt = tenDonVi(line.unit) ?? line.unit;
+                      const chia = chiaDong[line.id] ?? { tinhTien: 0, du: 0 };
+                      const laTo = laGiayTo(line);
+                      const kho = khoNhan[line.id] ?? { rong: line.kho_rong, dai: line.kho_dai };
+                      const khacKho = laTo && (kho.rong !== line.kho_rong || kho.dai !== line.kho_dai) && !!kho.rong && !!kho.dai;
+                      const dangGo = soNhan[line.id] ?? "";
+                      return (
+                        <tr key={line.id}>
+                          <td>
+                            <div className="kna-hang__ten">{line.item_name}</div>
+                            {coGiay && line.hang_loai === "giay" && (
+                              <div className="ycf-phu">
+                                {laTo ? (
+                                  <KhungKho
+                                    ariaLabel={`Khổ nhận ${line.item_name}`}
+                                    dang="to"
+                                    coTheDoiDang={false}
+                                    canh={khacKho}
+                                    rong={kho.rong}
+                                    dai={kho.dai}
+                                    goiY={[{ rong: line.kho_rong, dai: line.kho_dai, ghiChu: "Khổ đặt" }]}
+                                    onChange={(v) => setKhoNhan((c) => ({ ...c, [line.id]: { rong: v.rong, dai: v.dai } }))}
+                                  />
+                                ) : (
+                                  <KhungKho dang="cuon" chiDoc rong={line.kho_rong} dai={0} onChange={() => undefined} />
+                                )}
+                              </div>
+                            )}
+                            {khacKho && (
+                              <div className="ycd-phu ycd-vang">
+                                Khác khổ đặt {Math.min(line.kho_rong, line.kho_dai)} × {Math.max(line.kho_rong, line.kho_dai)}, hàng vào tồn theo khổ nhận
+                              </div>
+                            )}
+                          </td>
+                          <td className="n"><span className="kna-so">{so(line.quantity)}</span> <span className="kna-dv">{dvt}</span></td>
+                          <td className="n">
+                            <span className={`kna-so${daNhan > 0 ? "" : " kna-mo"}`}>{so(daNhan)}</span> <span className="kna-dv">{dvt}</span>
+                          </td>
+                          <td className="n">
+                            {con <= 0 && !dangGo ? (
+                              <button
+                                type="button"
+                                className="ycf-them"
+                                title="Đã nhận đủ số đặt. NCC giao thêm thì gõ số, phần vượt tính 0 đ."
+                                onClick={() => setSoNhan((c) => ({ ...c, [line.id]: "0" }))}
+                              >
+                                Đã nhận đủ
+                              </button>
+                            ) : (
+                              <label className="ycf-gi dfa-gi">
+                                {/* KHÔNG có `max`: số nhận được phép vượt số đặt, phần vượt 0 đ. */}
+                                <input
+                                  inputMode="decimal"
+                                  aria-label={`Số nhận đợt này ${line.item_name}`}
+                                  value={dangGo}
+                                  onChange={(e) =>
+                                    setSoNhan((cur) => ({
+                                      ...cur,
+                                      [line.id]: e.target.value.replace(",", ".").replace(/[^\d.]/g, ""),
+                                    }))
+                                  }
+                                />
+                                <span>{dvt}</span>
+                              </label>
+                            )}
+                            {/* PHÉP CHIA HIỆN NGAY DƯỚI Ô GÕ: chỗ duy nhất người khai còn kịp thấy
+                                phần nào tính tiền trước khi số chạy vào công nợ. */}
+                            {chia.du > 0 && (
+                              <div className="dfa-duoi">
+                                {so(chia.tinhTien)} tính tiền, <b>{so(chia.du)} dư 0 đ</b>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            {moGhiChu ? (
+              <label className="kna-o-truong">
+                <span>Ghi chú đợt</span>
+                <input
+                  className="kna-o"
+                  autoFocus={!ghiChuMoSan.current}
+                  value={ghiChu}
+                  onChange={(e) => setGhiChu(e.target.value)}
+                  placeholder="Ví dụ: giao tại kho 2, thiếu 3 ram bù sau."
+                />
+              </label>
+            ) : (
+              <span>
+                <button type="button" className="ycf-them" onClick={() => setMoGhiChu(true)}>
+                  <Icon name="plus" size={11} /> Ghi chú đợt
+                </button>
+              </span>
+            )}
+          </div>
 
-      {/* VÙNG 1 — HÀNG NHẬN. Ngày giao nằm ngay trên bảng vì nó là ngày của CHÍNH những dòng
-          hàng này, không phải một ô hành chính rời rạc. */}
-      <section className="pdot__sec">
-        <div className="pdot__sechead">
-          <span className="pdot__sectitle">Hàng nhận đợt này</span>
-          <label className="pdot__inline">
-            <span>
-              Ngày giao <span className="purchase__required-star">*</span>
-            </span>
-            {/* Chặn TƯƠNG LAI: chưa có hóa đơn thì ngày giao là mốc dự phòng tính hạn trả. Quá khứ
-                vẫn cho — hàng về hôm qua mới ghi hôm nay là chuyện thường. */}
-            <input
-              className="input"
-              type="date"
-              max={todayInputValue()}
-              value={ngayGiao}
-              onChange={(e) => setNgayGiao(e.target.value)}
-            />
-          </label>
-        </div>
-        {/* Ô "Hạn trả" TẮT có chủ ý (ưu tiên ngày hóa đơn, chưa có mới dùng ngày giao + số ngày nợ).
-            Biến `hanTra` vẫn được gửi lên — xem khai báo state ở đầu component. Giữ nguyên khối
-            dưới đây để bật lại được, đừng xoá: */}
-        {/* <label className="purchase__field">
-          <span>Hạn trả</span>
-          <input
-            className="input"
-            type="date"
-            min={ngayGiao || undefined}
-            value={hanTra}
-            onChange={(e) => setHanTra(e.target.value)}
-          />
-          <small className="pdot__hint">
-            Bỏ trống = lấy ngày giao + số ngày cho nợ của nhà cung cấp. NCC chưa
-            khai số ngày thì đợt này <strong>không vào cột Quá hạn</strong>.
-          </small>
-        </label> */}
-        <div className="pdot__tablecard">
-          <table className="pdot__linetable">
-            <colgroup>
-              <col />
-              <col className="pdot__c2" />
-              <col className="pdot__c3" />
-              <col className="pdot__c4" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Vật tư</th>
-                <th className="pdot__num">Đặt</th>
-                <th className="pdot__num">Chưa giao</th>
-                {/* KHÔNG có cột tiền theo dòng. Tiền của đợt là MỘT số ở ô "Số tiền theo hóa
-                    đơn" bên dưới — hoá đơn ghi một số tổng, không tách theo mặt hàng. Cột tiền ở đây
-                    chỉ lặp lại con số đã nằm trong dòng gợi ý dưới ô đó, và tệ hơn: nó trông như số
-                    chính thức trong khi không phải. */}
-                <th className="pdot__num">Thực nhận</th>
-              </tr>
-            </thead>
-            <tbody>
-              {row.lines.map((line) => {
-                const con = conLai(line.id);
-                // KHÔNG CÒN KHOÁ Ô NHẬP (28/08/2026). Trước đây dòng đã nhận đủ ở các đợt khác
-                // thì ô bị khoá cứng, vì gõ vượt sẽ bơm một món nợ ma vào phiếu. Nay gõ vượt KHÔNG
-                // đẻ nợ nữa — phần vượt giá 0đ — nên khoá lại chỉ còn là chặn đúng ca hợp lệ: NCC
-                // tặng thêm sau khi đã giao đủ số đặt.
-                const dvt = tenDonVi(line.unit) ?? line.unit;
-                const chia = chiaDong[line.id] ?? { tinhTien: 0, du: 0 };
-                return (
-                  <tr key={line.id}>
-                    <td>
-                      {line.item_name}
-                      <small>{money(line.expected_unit_price)}/{dvt}</small>
-                    </td>
-                    <td className="pdot__num">
-                      {line.quantity.toLocaleString("vi-VN")} {dvt}
-                    </td>
-                    <td className="pdot__num">
-                      {con > 0 ? (
-                        `${con.toLocaleString("vi-VN")} ${dvt}`
-                      ) : (
-                        <small className="pdot__muted">đã giao đủ</small>
-                      )}
-                    </td>
-                    <td className="pdot__num">
-                      <span className="pdot__qtywrap">
-                        {/* KHÔNG còn `max`: số nhận được phép vượt số đặt. */}
-                        <input
-                          className="input pdot__qty"
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={soNhan[line.id] ?? ""}
-                          onChange={(e) =>
-                            setSoNhan((cur) => ({
-                              ...cur,
-                              [line.id]: e.target.value,
-                            }))
+          <div className="kna-cot">
+            <section className="kna-the">
+              <div className="kna-the__than kna-form">
+                <label className="kna-o-truong">
+                  <span>Ngày nhận <em>*</em></span>
+                  {/* Chặn TƯƠNG LAI; quá khứ vẫn cho — hàng về hôm qua mới ghi hôm nay là thường. */}
+                  <input
+                    className="kna-o"
+                    type="date"
+                    max={todayInputValue()}
+                    value={ngayGiao}
+                    onChange={(e) => setNgayGiao(e.target.value)}
+                  />
+                </label>
+                <div className="kna-o-truong">
+                  <span>Hoá đơn</span>
+                  <div className="dgd-hd">
+                    <input
+                      className="kna-o"
+                      maxLength={64}
+                      aria-label="Số hoá đơn"
+                      value={soHoaDon}
+                      onChange={(e) => setSoHoaDon(e.target.value)}
+                      placeholder="Số hoá đơn"
+                    />
+                    <input
+                      className="kna-o"
+                      type="date"
+                      aria-label="Ngày hoá đơn"
+                      max={todayInputValue()}
+                      value={ngayHoaDon}
+                      onChange={(e) => setNgayHoaDon(e.target.value)}
+                    />
+                  </div>
+                  <div className="ycf-pick" role="group" aria-label="Chọn nhanh hoá đơn">
+                    {hoaDonCu.map((h) => (
+                      <button
+                        key={h.so}
+                        type="button"
+                        className={soHoaDon === h.so ? "on" : ""}
+                        title={`Hoá đơn ${h.so}`}
+                        onClick={() => {
+                          setSoHoaDon(h.so);
+                          setNgayHoaDon(h.ngay ?? "");
+                        }}
+                      >
+                        Cùng đợt {h.seq}
+                      </button>
+                    ))}
+                    {hoaDonCu.length > 0 && (
+                      <button
+                        type="button"
+                        className={soHoaDon && !hoaDonCu.some((h) => h.so === soHoaDon) ? "on" : ""}
+                        onClick={() => {
+                          if (hoaDonCu.some((h) => h.so === soHoaDon)) {
+                            setSoHoaDon("");
+                            setNgayHoaDon("");
                           }
-                        />
-                        <span className="pdot__unit">{dvt}</span>
-                      </span>
-                      {/* PHÉP CHIA HIỆN NGAY DƯỚI Ô GÕ, không đợi bấm Lưu. Đây là chỗ DUY NHẤT
-                          người khai còn kịp nhận ra "NCC có tính tiền 500 cái này đấy" trước khi
-                          con số chạy vào công nợ. */}
-                      {chia.du > 0 && (
-                        <small className="pdot__split">
-                          {chia.tinhTien.toLocaleString("vi-VN")} tính tiền
-                          {" · "}
-                          <em className="pdot__du">
-                            {chia.du.toLocaleString("vi-VN")} dư (0đ)
-                          </em>
-                        </small>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                        }}
+                      >
+                        Hoá đơn mới
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={!soHoaDon && !ngayHoaDon ? "on" : ""}
+                      onClick={() => {
+                        setSoHoaDon("");
+                        setNgayHoaDon("");
+                      }}
+                    >
+                      Chưa có
+                    </button>
+                  </div>
+                </div>
+                <div className="kna-o-truong">
+                  <span>Ảnh hoá đơn, biên bản giao</span>
+                  {/* Input thật ẩn; cái người dùng thấy là vùng bấm + thả. Kéo thả gọi lại đúng
+                      `themAnh` nên luật ảnh/PDF + 10 MB chỉ ở một chỗ. */}
+                  <input
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/*,application/pdf"
+                    ref={fileRef}
+                    onChange={(e) => {
+                      themAnh(e.target.files);
+                      e.target.value = "";
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={`kna-tha${dangKeo ? " is-drop" : ""}`}
+                    disabled={busy}
+                    onClick={() => fileRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (!busy) setDangKeo(true);
+                    }}
+                    onDragLeave={(e) => {
+                      if (e.target === e.currentTarget) setDangKeo(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDangKeo(false);
+                      if (!busy) themAnh(e.dataTransfer.files);
+                    }}
+                  >
+                    <Icon name="paperclip" size={14} /> Kéo ảnh hoặc PDF vào đây
+                  </button>
+                  {(anhDaCo.length > 0 || anhMoi.length > 0) && (
+                    <div className="pdot__filegrid">
+                      {anhDaCo.map((a) => (
+                        <div className="pdot__file" key={a.id}>
+                          <a href={assetUrl(a.file_url) ?? "#"} target="_blank" rel="noreferrer" title={a.file_name}>
+                            {ATTACHMENT_IMAGE_TYPES.includes(a.file_type ?? "") ? (
+                              <img className="pdot__thumb" src={anhNho(a.file_url) ?? ""} alt={a.file_name} />
+                            ) : (
+                              <span className="pdot__thumb pdot__thumb--pdf"><Icon name="fileText" size={22} /></span>
+                            )}
+                          </a>
+                          <button type="button" className="pdot__filex" aria-label={`Xoá ${a.file_name}`} disabled={busy} onClick={() => xoaAnh(a.id)}>
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {anhMoi.map((a, i) => (
+                        <div className="pdot__file" key={`${a.file.name}-${i}`}>
+                          {/* Xem trước ẢNH THẬT để soát con số trên hoá đơn TRƯỚC khi lưu. */}
+                          {a.url ? (
+                            <img className="pdot__thumb pdot__thumb--cho" src={a.url} alt={a.file.name} title={a.file.name} />
+                          ) : (
+                            <span className="pdot__thumb pdot__thumb--pdf pdot__thumb--cho" title={a.file.name}>
+                              <Icon name="fileText" size={22} />
+                            </span>
+                          )}
+                          <span className="pdot__tilebadge">chờ tải lên</span>
+                          <button type="button" className="pdot__filex" aria-label={`Bỏ ${a.file.name}`} disabled={busy} onClick={() => boAnhCho(i)}>
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <small className="kna-mo">Ảnh hoặc PDF, tối đa 10 MB mỗi tệp.</small>
+                </div>
+              </div>
+            </section>
 
-      {/* VÙNG 2 — TIỀN. CHỈ ĐỌC: tiền của đợt do máy tính từ số lượng × đơn giá đã chốt trên
-          phiếu, không ai gõ tay. Vẫn để nó thành một dải riêng cỡ lớn vì đây là con số ĐI VÀO
-          CÔNG NỢ — người khai phải thấy ngay hậu quả của số lượng mình vừa gõ. */}
-      <div className="pdot__moneybar pdot__moneybar--auto">
-        <span className="pdot__moneynote">
-          Tính theo số lượng thực nhận × đơn giá đã chốt trên phiếu mua. Phần nhận
-          vượt số đặt tính 0đ.
-        </span>
-        <div className="pdot__result">
-          <span className="pdot__resultlabel">Ghi vào công nợ</span>
-          <span className="pdot__resultrow">
-            <span className="pdot__resultnum">{money(tienDot)}</span>
-          </span>
+            {/* TIỀN ĐỢT — CHỈ ĐỌC: máy tính từ phần TÍNH TIỀN × đơn giá/CK/VAT đã chốt trên đơn,
+                không ai gõ tay (chủ chốt 07/08/2026). */}
+            <section className="kna-the">
+              <div className="kna-the__dau"><h3>Tiền đợt này</h3></div>
+              <div className="kna-the__than dfa-cs">
+                {row.lines.map((line) => {
+                  const t = chiaDong[line.id]?.tinhTien ?? 0;
+                  if (t <= 0) return null;
+                  return (
+                    <div key={line.id} className="dfa-cs__con" style={{ paddingLeft: 0 }}>
+                      <span>{line.item_name}</span>
+                      <span className="kna-so">{so(tienTheoSoLuong(line, t))}</span>
+                    </div>
+                  );
+                })}
+                <div className="dfa-cs__tong">
+                  <span>Cộng đợt {suaDot ? delivery!.seq_no : row.deliveries.length + 1}</span>
+                  <b className="kna-so">{so(tienDot)} đ</b>
+                </div>
+                <small className="kna-mo">Đã gồm chiết khấu và VAT của đơn. Phần nhận vượt số đặt tính 0 đ.</small>
+              </div>
+            </section>
+          </div>
         </div>
       </div>
-
-      {/* VÙNG 3 — HÓA ĐƠN: số, ngày và ẢNH là MỘT nhóm. Ảnh chụp ngay lúc nhận hàng — đó là lúc
-          tờ hoá đơn đang cầm trên tay. Bắt quay lại phiếu tìm nút đính kèm là kiểu người ta quên. */}
-      <section className="pdot__sec">
-        <div className="pdot__sechead">
-          <span className="pdot__sectitle">Hóa đơn</span>
-          <span className="pdot__secnote">có thể bổ sung sau</span>
-        </div>
-        <div className="pdot__invgrid">
-          <label className="purchase__field">
-            <span>Số hóa đơn</span>
-            <input
-              className="input"
-              maxLength={64}
-              value={soHoaDon}
-              onChange={(e) => setSoHoaDon(e.target.value)}
-              placeholder="Chưa có thì để trống"
-            />
-          </label>
-          <label className="purchase__field">
-            <span>Ngày hóa đơn</span>
-            <input
-              className="input"
-              type="date"
-              max={todayInputValue()}
-              value={ngayHoaDon}
-              onChange={(e) => setNgayHoaDon(e.target.value)}
-            />
-          </label>
-          {/* Ô chọn file dựng theo mẫu `.nqr-picker` của màn Nội quy: input thật ẩn đi, cái người
-              dùng thấy là một nút — và nút đó CŨNG là vùng thả. Kéo thả gọi lại đúng `themAnh` nên
-              luật ảnh/PDF + 10 MB chỉ tồn tại ở một chỗ. */}
-          <input
-            type="file"
-            hidden
-            multiple
-            accept="image/*,application/pdf"
-            ref={fileRef}
-            onChange={(e) => {
-              themAnh(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <button
-            type="button"
-            className={`pdot__pick${dangKeo ? " is-drop" : ""}`}
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              if (!busy) setDangKeo(true);
-            }}
-            onDragLeave={(e) => {
-              if (e.target === e.currentTarget) setDangKeo(false);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDangKeo(false);
-              if (!busy) themAnh(e.dataTransfer.files);
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.75}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <path d="M17 8l-5-5-5 5" />
-              <path d="M12 3v12" />
-            </svg>
-            {anhDaCo.length + anhMoi.length > 0
-              ? "Thêm ảnh"
-              : "Chọn ảnh hóa đơn / kéo vào đây"}
-          </button>
-        </div>
-        <small className="pdot__hint">Ảnh hoặc PDF, tối đa 10 MB mỗi file.</small>
-        {(anhDaCo.length > 0 || anhMoi.length > 0) && (
-          <div className="pdot__filegrid">
-            {anhDaCo.map((a) => (
-              <div className="pdot__file" key={a.id}>
-                <a
-                  href={assetUrl(a.file_url) ?? "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={a.file_name}
-                >
-                  {ATTACHMENT_IMAGE_TYPES.includes(a.file_type ?? "") ? (
-                    <img
-                      className="pdot__thumb"
-                      src={anhNho(a.file_url) ?? ""}
-                      alt={a.file_name}
-                    />
-                  ) : (
-                    <span className="pdot__thumb pdot__thumb--pdf">
-                      <Icon name="fileText" size={22} />
-                    </span>
-                  )}
-                </a>
-                <button
-                  type="button"
-                  className="pdot__filex"
-                  aria-label={`Xóa ${a.file_name}`}
-                  disabled={busy}
-                  onClick={() => xoaAnh(a.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-            {anhMoi.map((a, i) => (
-              <div className="pdot__file" key={`${a.file.name}-${i}`}>
-                {/* Xem trước ẢNH THẬT, không phải tên file: người nhận hàng cần soát con số trên
-                    tờ hoá đơn có đọc nổi không TRƯỚC khi lưu. Viền đứt + pill để không ai nhầm
-                    tấm chờ tải với tấm đã nằm trên máy chủ. */}
-                {a.url ? (
-                  <img
-                    className="pdot__thumb pdot__thumb--cho"
-                    src={a.url}
-                    alt={a.file.name}
-                    title={a.file.name}
-                  />
-                ) : (
-                  <span
-                    className="pdot__thumb pdot__thumb--pdf pdot__thumb--cho"
-                    title={a.file.name}
-                  >
-                    <Icon name="fileText" size={22} />
-                  </span>
-                )}
-                <span className="pdot__tilebadge">chờ tải lên</span>
-                <button
-                  type="button"
-                  className="pdot__filex"
-                  aria-label={`Bỏ ${a.file.name}`}
-                  disabled={busy}
-                  onClick={() => boAnhCho(i)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* VÙNG 4 — GHI CHÚ: ô hiếm dùng nên mặc định thu về một nút chữ, đừng chiếm chỗ của thứ
-          ngày nào cũng phải gõ. */}
-      {moGhiChu ? (
-        <label className="pdot__notewrap">
-          <span>Ghi chú đợt</span>
-          <input
-            className="input"
-            autoFocus={!ghiChuMoSan.current}
-            value={ghiChu}
-            onChange={(e) => setGhiChu(e.target.value)}
-            placeholder="Ví dụ: giao tại kho 2, thiếu 3 ram bù sau."
-          />
-        </label>
-      ) : (
-        <button
-          type="button"
-          className="pdot__notebtn"
-          onClick={() => setMoGhiChu(true)}
-        >
-          + Ghi chú đợt
-        </button>
-      )}
-    </ConfirmDialog>
+    </NganPhai>
   );
 }

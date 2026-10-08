@@ -429,26 +429,13 @@
 }
 
 /* Status variants */
-.status--draft {
-  background: var(--steel-soft);
-  color: var(--steel);
-}
-.status--ordered {
-  background: var(--moss-soft);
-  color: var(--moss-deep);
-}
-.status--hoan_tat {
-  background: var(--steel-soft);
-  color: var(--ink);
-}
-.status--cancelled {
-  background: var(--signal-soft);
-  color: var(--signal);
-}
-.status--on_hold, .status--change_order {
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-}
+/* Màu từ bộ chip trạng thái chung --tt-* (tokens.css) — mỗi trạng thái một sắc. */
+.status--draft { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.status--ordered { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.status--hoan_tat { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.status--cancelled { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.status--on_hold { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.status--change_order { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
 
 /* Chip tone variants */
 .tone--warn {
@@ -491,11 +478,11 @@
      (6 cột tiền) bị cắt và phải cuộn ngang mới đọc hết — đọc số tiền mà phải kéo ngang là mời
      đọc nhầm dòng.
      `min-width` giữ sàn để trên laptop 13" (1280px) ô vẫn là 640px chứ không bóp lại. */
-  /* 06/10/2026: thôi 50vw — dùng CHUNG độ rộng mọi ngăn bên phải (`--kt-ngan-w`, mặc định 920px,
+  /* 06/10/2026: thôi 50vw — dùng CHUNG độ rộng mọi ngăn bên phải (`--kt-ngan-w`, mặc định 1180px,
      kéo mép trái để đổi, xem `ThanhKeoNgan`). 50vw trên màn 1.470px chỉ còn ~735px, bảng hoá đơn
      vẫn phải cuộn ngang. */
   position: relative;
-  width: var(--kt-ngan-w, 920px);
+  width: var(--kt-ngan-w, 1180px);
   max-width: 100vw;
   height: 100%;
   background: var(--canvas);
@@ -665,6 +652,11 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Tiêu đề cột số căn phải theo số — `.dhb__comm-table th` ép trái. */
+.dhb__comm-table th.dhb__text-right {
+  text-align: right;
 }
 
 .dhb__comm-table td {
@@ -911,25 +903,23 @@
   letter-spacing: 0.04em;
 }
 
-.dhb__lifecycle-badge--done {
-  background: var(--moss-soft);
-  color: var(--moss-deep);
-}
-
-.dhb__lifecycle-badge--active {
-  background: var(--amber-soft);
-  color: var(--amber-deep);
-}
-
-.dhb__lifecycle-badge--upcoming {
-  background: var(--steel-soft);
-  color: var(--steel);
-}
-
-.dhb__lifecycle-badge--cancelled {
-  background: var(--signal-soft);
-  color: var(--signal);
-}
+/* Màu từ bộ chip trạng thái chung --tt-* (tokens.css): xong lá · đang làm xanh · chưa tới slate · huỷ đỏ. */
+.dhb__lifecycle-badge--done { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.dhb__lifecycle-badge--active { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.dhb__lifecycle-badge--upcoming { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
+.dhb__lifecycle-badge--cancelled { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+/* Theo sắc — cho bảng trạng thái nhiều nấc (vd yêu cầu giao ở Tiến độ đơn, `TONE_YC`). */
+.dhb__lifecycle-badge--xanh { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.dhb__lifecycle-badge--cyan { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.dhb__lifecycle-badge--cham { background: var(--tt-cham-bg); color: var(--tt-cham-fg); }
+.dhb__lifecycle-badge--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }
+.dhb__lifecycle-badge--ngoc { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.dhb__lifecycle-badge--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.dhb__lifecycle-badge--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.dhb__lifecycle-badge--vang { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.dhb__lifecycle-badge--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.dhb__lifecycle-badge--la { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.dhb__lifecycle-badge--slate { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
 
 /* Bước Hóa đơn — sổ hóa đơn nằm ngay trong vòng đời đơn, không tách thành màn riêng. */
 .dhb__invoice-panel {

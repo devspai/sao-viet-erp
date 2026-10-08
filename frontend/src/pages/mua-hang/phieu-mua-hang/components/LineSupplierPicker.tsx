@@ -19,10 +19,18 @@ export function LineSupplierPicker({
   suppliers: SupplierRow[];
   onPick: (chao: ChaoGia | null) => void;
 }) {
-  const chaoGia = chaoGiaChoMatHang(line.item_name, suppliers);
-  const chuaGoTen = !normalizeItemName(line.item_name);
+  const tatCa = chaoGiaChoMatHang(line, suppliers);
+  const chaoGia = tatCa.filter((c) => !c.khac_kho);
+  const khacKho = tatCa.filter((c) => c.khac_kho);
+  const chuaGoTen = !normalizeItemName(line.item_name) && !line.hang_id;
+  const laGiay = line.hang_loai === "giay";
+  const nhanNhom = laGiay
+    ? line.kho_rong && line.kho_dai
+      ? `Bán tờ ${Math.min(line.kho_rong, line.kho_dai)} × ${Math.max(line.kho_rong, line.kho_dai)}`
+      : "Bán cuộn"
+    : "Nhà cung cấp";
 
-  if (chuaGoTen || chaoGia.length === 0) {
+  if (chuaGoTen || tatCa.length === 0) {
     return (
       <select className="input" disabled aria-label="Nhà cung cấp của dòng">
         <option>{chuaGoTen ? "Nhập vật tư trước" : "Chưa có NCC nào bán"}</option>
@@ -37,7 +45,7 @@ export function LineSupplierPicker({
       value={line.supplier_id ?? ""}
       onChange={(e) =>
         onPick(
-          chaoGia.find((c) => c.supplier_id === Number(e.target.value)) ?? null,
+          tatCa.find((c) => c.supplier_id === Number(e.target.value)) ?? null,
         )
       }
     >
@@ -45,6 +53,7 @@ export function LineSupplierPicker({
       {/* Nhãn "· rẻ nhất" đang TẮT (dòng comment bên dưới). Bật lại thì thêm `, i` vào tham số
           map — bỏ đi ở đây chỉ vì để lại là TypeScript báo "khai mà không dùng", chứ không phải
           tôi gỡ ý đó. Danh sách vẫn xếp giá tăng dần nên dòng đầu vẫn là rẻ nhất. */}
+      {chaoGia.length > 0 && <optgroup label={nhanNhom}>
       {chaoGia.map((c) => (
         <option key={c.supplier_id} value={c.supplier_id}>
           {/* Hiện GIÁ ĐÃ QUY ĐỔI (đ/đơn-vị-gốc) — đó mới là con số so ngang được và cũng là
@@ -58,6 +67,18 @@ export function LineSupplierPicker({
           {/* {i === 0 && chaoGia.length > 1 ? " · rẻ nhất" : ""} */}
         </option>
       ))}
+      </optgroup>}
+      {/* Giấy (07/10/2026): NCC bán đúng mã nhưng khác dạng hoặc khác khổ — không so giá được nên
+          không hiện giá; chọn thì đơn giá để trống cho người lập gõ theo báo giá. */}
+      {khacKho.length > 0 && (
+        <optgroup label="Bán dạng hoặc khổ khác, tự gõ giá">
+          {khacKho.map((c) => (
+            <option key={c.supplier_id} value={c.supplier_id}>
+              {c.supplier_name} ({c.nhan_dang})
+            </option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }

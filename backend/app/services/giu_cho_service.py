@@ -190,10 +190,9 @@ class GiuChoService:
                                           bool] | None = None) -> dict:
         """Kết quả sau khi bấm — ba trạng thái người dùng thấy.
 
-        `du` = giữ đủ 100% (đèn, không còn là cửa xếp lịch). `xep_som_nhat` = ngày sớm nhất được xếp bước tiêu
-        thụ: `None` khi mọi phần đều giữ CHẮC (hàng trong kho ⇒ ngày tháng vô nghĩa), là ngày về
-        MUỘN NHẤT trong các phần giữ HỨA khi có — phải chờ đủ MỌI món mới chạy được, không phải
-        món đầu tiên.
+        `du` = giữ đủ 100% (đèn, không còn là cửa xếp lịch). "Ngày sớm nhất được xếp" (`xep_som_nhat`)
+        ĐÃ BỎ 07/10/2026 (spec một ô một phiếu §6): ai cần biết hàng về ngày nào thì xem cột Ngày có
+        hàng ở Kế hoạch vật tư.
 
         `bang` = bảng cân đối DÙNG LẠI. Nơi gọi nào cũng hỏi nhiều chủ thể một lượt (`nhat_them`,
         `theo_chu_the`), mà `can_doi()` chạy cả engine quy đổi + con trỏ tồn cho TOÀN BỘ kế hoạch —
@@ -257,7 +256,6 @@ class GiuChoService:
             if con > EPS_GIU:
                 thieu[h] = con
 
-        ngay_ve = [r.ngay_ve for r in dang if r.nguon == NGUON_DANG_VE and r.ngay_ve]
         return {
             "bat": (bat_theo_chu_the[chu] if bat_theo_chu_the is not None and chu in bat_theo_chu_the
                     else self._co_bat(lsx_id=lsx_id, bai_ghep_id=bai_ghep_id)),
@@ -279,7 +277,6 @@ class GiuChoService:
             # Dòng PMH cụ thể đang góp cho phần hứa — CHƯA có mã PMH (tra gộp ở tầng gọi, xem
             # `giu_theo_chu_the_hang`/`gan_giu_cho_vao_bang`, Task 7/8).
             "nguon_dang_ve": nguon_dang_ve,
-            "xep_som_nhat": max(ngay_ve) if ngay_ve else None,
             # Dòng giữ chỗ CŨ NHẤT — mốc đếm "giữ bao lâu rồi". Lấy min chứ không lấy max: nhặt
             # thêm khi hàng về đẻ dòng mới, lấy max là mỗi lần bù hàng lại reset đồng hồ về 0 và
             # chỗ giữ lâu nhất thì không bao giờ nổi lên danh sách.
@@ -343,7 +340,6 @@ class GiuChoService:
                 "bat": tt["bat"],
                 "du": tt["du"],
                 "khong_ro": tt["khong_ro"],
-                "xep_som_nhat": tt["xep_som_nhat"],
                 "da_xep_lich": da_xep,
                 "giu_tu": giu_tu,
                 "so_ngay_giu": so_ngay_giu,
@@ -719,6 +715,9 @@ class GiuChoService:
         Thứ tự nhặt = thứ tự dòng của `can_doi()`, tức **theo hạn sản xuất**: lệnh phải xong sớm
         ăn trước.
         Không sắp lại ở đây — sắp lại là đẻ luật ưu tiên thứ hai, và hai luật sẽ lệch nhau.
+
+        Trong MỘT ô (07/10/2026, spec một ô một phiếu): phần ĐẶT CHO CHÍNH Ô trên đơn đang về trước,
+        rồi tồn tự do, rồi phần dư đang về (sớm trước). Phần đặt cho ô khác không ai lấy được.
         """
         if bang is None:
             bang = self.kh.can_doi()
@@ -730,7 +729,7 @@ class GiuChoService:
         hangs = sorted({h for m in nhu_cau.values() for h in m})
         self._khoa_nguon(hangs)
         tu_do = self.ton_tu_do(hangs)
-        ve = self._lo_dang_ve(bang, hangs)
+        ve, rieng = self._lo_dang_ve(bang, hangs)
 
         moi: list[VatTuGiuCho] = []
         # Cờ công tắc đã có sẵn ở `dang_bat()` ngay trên — đưa thẳng xuống `trang_thai()`, không
@@ -751,6 +750,18 @@ class GiuChoService:
             tt = self.trang_thai(lsx_id=lsx_id, bai_ghep_id=bg_id, bang=bang,
                                  bat_theo_chu_the=bat_theo_chu_the)
             for hang, con in tt["thieu"].items():
+                # 0) Phần đặt cho CHÍNH ô này trên đơn đang về — của nó, không ai khác lấy được.
+                for i, (ngay, sl, line_id) in enumerate(rieng.get((hang, chu), [])):
+                    lay = round(min(con, sl), 2)
+                    if lay <= 0:
+                        continue
+                    rieng[(hang, chu)][i] = (ngay, sl - lay, line_id)
+                    con -= lay
+                    moi.append(self._dong(chu, hang, lay, NGUON_DANG_VE, ngay, line_id))
+                    if con <= EPS_GIU:
+                        break
+                if con <= EPS_GIU:
+                    continue
                 # 1) Hàng CÓ THẬT trong kho.
                 # `thieu` đếm tới 4 số lẻ nhưng chỗ giữ lưu Numeric(14,2). Làm tròn `lay` về 2 số
                 # NGAY ĐÂY rồi mới xét: dư dấu-phẩy-động (vd 0.003) làm tròn thành 0.00 sẽ đẻ dòng
@@ -783,8 +794,8 @@ class GiuChoService:
 
     def chuyen_dang_ve_sang_kho(self, hang: Hang, so_luong: float, *, commit: bool = True) -> None:
         """Hàng NHẬP KHO xong: phần đang giữ HỨA (`dang_ve`) của CHÍNH mặt hàng đó phải chuyển
-        thành giữ THẬT (`kho`) — không thì chủ thể vẫn bị `xep_som_nhat` khoá tới một `ngay_ve`
-        đã lỗi thời, dù hàng nó bám vào đang nằm ngay trong kho.
+        thành giữ THẬT (`kho`) — không thì dòng vẫn báo "Chờ hàng về" theo một `ngay_ve` đã lỗi
+        thời, dù hàng nó bám vào đang nằm ngay trong kho.
 
         `nhat_them()` KHÔNG tự làm việc này: nó chỉ ĐẺ THÊM dòng cho phần còn `thieu`, không đụng
         tới dòng CŨ đã đủ — một chủ thể đã giữ đủ từ `dang_ve` thì `nhat_them()` không bao giờ
@@ -922,35 +933,63 @@ class GiuChoService:
             model = GiayNguyen if hang_loai == "giay" else VatTuInAn
             self.db.execute(_select(model.id).where(model.id == hang_id).with_for_update())
 
-    def _lo_dang_ve(self, bang: dict, hangs: list[Hang]) -> dict[Hang, list[tuple[date, float, int]]]:
-        """Lô đang về CÒN TRỐNG chỗ = số đang về − phần đã có chủ (`nguon='dang_ve'`).
+    def _lo_dang_ve(
+        self, bang: dict, hangs: list[Hang],
+    ) -> tuple[dict[Hang, list[tuple[date, float, int]]],
+               dict[tuple[Hang, tuple], list[tuple[date, float, int]]]]:
+        """Hàng đang về CÒN TRỐNG chỗ, tách hai phần (07/10/2026, spec một ô một phiếu):
 
-        Trừ phần đã giữ hứa, không thì hai lệnh cùng bám một lô và cả hai đều tưởng mình có hàng.
-        Đơn giản hoá có chủ ý: trừ theo TỔNG rồi cắt dần từ lô sớm nhất, không truy từng lô ai giữ
-        — bảng giữ chỗ cố ý không neo lô nào (xem docstring model).
+        * `chung[hang]` — phần DƯ của từng dòng đơn (đặt hơn số các ô, đơn không gắn lệnh) trừ đi
+          phần người khác đã giữ trên đó. Ai cũng giữ được, theo hạn sản xuất.
+        * `rieng[(hang, chủ thể)]` — phần ĐẶT CHO CHÍNH ô đó trên dòng đơn, trừ phần ô đã giữ. Chỉ
+          ô đó giữ được. Ô không còn trên bảng (lệnh xong, huỷ) thì phần của nó trả về `chung`.
 
-        Mang theo `line_id` của CHÍNH dòng phiếu còn lại đó — `nhat_them()` cần nó để ghi đúng
-        `purchase_request_line_id` lên dòng giữ chỗ mới, cho đối soát sau này bám đúng dòng.
+        Mang theo `line_id` của dòng đơn — `nhat_them()` ghi đúng `purchase_request_line_id` lên dòng
+        giữ chỗ mới cho đối soát bám đúng dòng. Dòng giữ hứa cũ không mang dòng đơn thì trừ vào
+        phần chung từ lô sớm nhất.
         """
-        ra: dict[Hang, list[tuple[date, float, int]]] = {}
-        da_hua = {h: 0.0 for h in hangs}
+        hang_set = set(hangs)
+        peg = (getattr(self.kh, "mach", None) or {}).get("peg", {})
+        co_mat = {(h, chu) for chu, m in self._nhu_cau_theo_chu_the(bang).items() for h in m}
+        giu_dong: dict[int, dict[tuple, float]] = {}
+        giu_le: dict[Hang, float] = {}
         for r in self.db.query(VatTuGiuCho).filter(VatTuGiuCho.nguon == NGUON_DANG_VE).all():
             h = _k_dong(r)
-            if h in da_hua:
-                da_hua[h] += _f(r.so_luong)
+            if h not in hang_set:
+                continue
+            if r.purchase_request_line_id is None:
+                giu_le[h] = giu_le.get(h, 0.0) + _f(r.so_luong)
+                continue
+            o = giu_dong.setdefault(int(r.purchase_request_line_id), {})
+            chu = (r.lsx_id, r.bai_ghep_id)
+            o[chu] = o.get(chu, 0.0) + _f(r.so_luong)
+
+        chung: dict[Hang, list[tuple[date, float, int]]] = {}
+        rieng: dict[tuple[Hang, tuple], list[tuple[date, float, int]]] = {}
         # Hàng đang về đã khoá theo (mã, khổ MUA) và sắp theo ngày ở `_hang_dang_ve`.
         for hang, ds in self.kh._hang_dang_ve().items():
-            if hang not in da_hua:
+            if hang not in hang_set:
                 continue
-            con_hua = da_hua.get(hang, 0.0)
+            con_le = giu_le.get(hang, 0.0)
             con_lai: list[tuple[date, float, int]] = []
             for ngay, sl, _ma, line_id in ds:
-                bot = min(con_hua, sl)
-                con_hua -= bot
-                if sl - bot > 0:
-                    con_lai.append((ngay, sl - bot, line_id))
-            ra[hang] = con_lai
-        return ra
+                dat = {(l, b): p for (h, l, b), p in peg.get(line_id, {}).items()
+                       if h == hang and (hang, (l, b)) in co_mat}
+                giu = giu_dong.get(line_id, {})
+                # Ô giữ quá phần đặt cho nó (giữ từ trước khi có luật này) ⇒ phần quá ăn vào chung.
+                an_chung = sum(max(0.0, g - dat.get(chu, 0.0)) for chu, g in giu.items())
+                for chu, p in dat.items():
+                    con = p - giu.get(chu, 0.0)
+                    if con > EPS_GIU:
+                        rieng.setdefault((hang, chu), []).append((ngay, con, line_id))
+                tu_do = sl - sum(dat.values()) - an_chung
+                bot = min(con_le, max(0.0, tu_do))
+                con_le -= bot
+                tu_do -= bot
+                if tu_do > 0:
+                    con_lai.append((ngay, tu_do, line_id))
+            chung[hang] = con_lai
+        return chung, rieng
 
     @staticmethod
     def _thu_tu_chu_the(bang: dict) -> list[tuple]:
@@ -1015,9 +1054,9 @@ class GiuChoService:
             gom = self._gom_theo_chu_the(bang)
         hangs = sorted({h for o in gom.values() for h in o["hang"]})
         tu_do = self.ton_tu_do(hangs)
-        ve_tong: dict[Hang, float] = {
-            h: sum(sl for _, sl, _lid in ds) for h, ds in self._lo_dang_ve(bang, hangs).items()
-        }
+        chung, rieng = self._lo_dang_ve(bang, hangs)
+        ve_tong: dict[Hang, float] = {h: sum(sl for _, sl, _lid in ds) for h, ds in chung.items()}
+        ve_rieng: dict[tuple, float] = {k: sum(sl for _, sl, _lid in ds) for k, ds in rieng.items()}
         tt_by_chu: dict[tuple, dict] = {}
         line_ids: set[int] = set()
         dang_by_chu = self.repo.cua_nhieu_chu_the(list(gom.keys()))
@@ -1060,8 +1099,10 @@ class GiuChoService:
                 con = max(0.0, round(_f(h["can"]) - da_kho - da_ve, 4))
                 if con <= EPS_GIU:   # dư dưới biên Numeric(14,2) — không ai giữ thêm được nữa
                     con = 0.0
-                co_kho = round(min(con, _f(tu_do.get(hang))), 4)
-                co_ve = round(min(con - co_kho, _f(ve_tong.get(hang))), 4)
+                # Cùng thứ tự `nhat_them`: phần đặt cho chính ô → tồn tự do → phần dư đang về.
+                co_rieng = min(con, _f(ve_rieng.get((hang, chu))))
+                co_kho = round(min(con - co_rieng, _f(tu_do.get(hang))), 4)
+                co_ve = round(co_rieng + min(con - co_rieng - co_kho, _f(ve_tong.get(hang))), 4)
                 h["co_the_giu_kho"] = co_kho
                 h["co_the_giu_dang_ve"] = co_ve
                 h["trang_thai_giu"] = self._mau_giu(h["trang_thai"], da_kho, da_ve, h["can"])

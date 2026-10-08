@@ -21,16 +21,25 @@ import {
   MaterialCombobox,
 } from "../../../../components/MaterialCombobox";
 import { emptySupplierItem } from "../shared/helpers";
+import { KhungKho } from "../../../../components/kho-giay/KhungKho";
 import { money } from "../../../../utils/format";
 // Đơn vị lưu bằng MÃ (`mm`), tên hiển thị ("mm"/"mét") nằm ở danh mục — xem pages/tenDonVi.ts.
 import { tenDonVi, useNapTenDonVi } from "../../../tenDonVi";
 import type { FormItemRow, NhapKetQua, QuyDoiDongInfo } from "../shared/types";
 import "./ncc-form.css";
 
-/** Lưới cột. `minmax(0,…)` để số tiền dài không đẩy tràn khung. */
-const LUOI = "minmax(200px, 2fr) minmax(110px, 0.8fr) minmax(130px, 0.9fr) 32px";
-const LUOI_CO_GOC =
-  "minmax(200px, 2fr) minmax(110px, 0.8fr) minmax(130px, 0.9fr) minmax(120px, 0.8fr) 32px";
+/** Lưới cột. `minmax(0,…)` để số tiền dài không đẩy tràn khung. Cột Dạng bán (Tờ + khổ / Cuộn,
+ *  07/10/2026) chỉ có khi bảng giá có dòng giấy; cột So giá theo chỉ khi có dòng khác đơn vị gốc. */
+function luoiCot(coDang: boolean, coGoc: boolean): string {
+  return [
+    "minmax(200px, 2fr)",
+    coDang ? "214px" : null,
+    "minmax(110px, 0.8fr)",
+    "minmax(130px, 0.9fr)",
+    coGoc ? "minmax(120px, 0.8fr)" : null,
+    "32px",
+  ].filter(Boolean).join(" ");
+}
 
 export function SupplierItemsTab({
   mode,
@@ -92,7 +101,8 @@ export function SupplierItemsTab({
     return { item, originalIndex, quyDoi, heSo, giaVeGoc, khacGoc: daChonDonVi && heSo !== 1 };
   });
   const coCotGoc = dong.some((d) => d.khacGoc);
-  const luoi = coCotGoc ? LUOI_CO_GOC : LUOI;
+  const coCotDang = dong.some((d) => d.item.hang_loai === "giay");
+  const luoi = luoiCot(coCotDang, coCotGoc);
   const dangTim = itemSearchQ.trim() !== "";
 
   return (
@@ -194,14 +204,15 @@ export function SupplierItemsTab({
         {/* Không gắn dấu * lên tiêu đề: cả ba cột đều bắt buộc, sao ở mọi cột là không nói gì. */}
         <div className="ncc-bg__dong ncc-bg__dong--dau" aria-hidden="true" style={{ gridTemplateColumns: luoi }}>
           <span>Vật tư</span>
+          {coCotDang && <span>Dạng bán</span>}
           <span>Đơn vị</span>
-          <span className="ncc-bg__phai">Đơn giá</span>
+          <span className="ncc-bg__phai ncc-bg__gia-dau">Đơn giá</span>
           {coCotGoc && (
             <span
               className="ncc-bg__phai"
-              title="Giá quy về đơn vị gốc của mặt hàng — con số so ngang được giữa các nhà cung cấp báo theo đơn vị khác nhau (1.020.000 đ/ram với 24.500 đ/kg)."
+              title="Giá quy về đơn vị gốc của dạng bán — giấy tờ so giá một tờ cùng khổ, giấy cuộn so giá một kg."
             >
-              Theo đơn vị gốc
+              So giá theo
             </span>
           )}
           <span />
@@ -220,12 +231,39 @@ export function SupplierItemsTab({
                   hang_loai: m.hang_loai,
                   hang_id: m.hang_id,
                   item_name: m.ten,
+                  // Giấy bắt buộc dạng bán: mặc định Tờ, khổ để trống cho người khai.
+                  dang_ban: m.hang_loai === "giay" ? "to" : null,
+                  kho_rong: 0,
+                  kho_dai: 0,
                   unit: "",
                   he_so_ve_goc: null,
                 })
               }
               placeholder="Gõ tên vật tư…"
             />
+            {coCotDang &&
+              (item.hang_loai === "giay" ? (
+                <div>
+                  <span className="ncc-bg__nhan-o">Dạng bán</span>
+                  <KhungKho
+                    ariaLabel="Dạng bán và khổ"
+                    dang={item.dang_ban ?? "to"}
+                    rong={item.kho_rong ?? 0}
+                    dai={item.kho_dai ?? 0}
+                    onChange={(v) =>
+                      setSupplierItem(originalIndex, {
+                        dang_ban: v.dang,
+                        kho_rong: v.rong,
+                        kho_dai: v.dai,
+                        // Đổi dạng ⇒ đơn vị gốc khác (tờ ↔ kg): xoá đơn vị để chọn lại.
+                        ...(v.dang !== (item.dang_ban ?? "to") ? { unit: "", he_so_ve_goc: null } : {}),
+                      })
+                    }
+                  />
+                </div>
+              ) : (
+                <span />
+              ))}
             <div>
               <span className="ncc-bg__nhan-o">Đơn vị</span>
               {item.hang_loai && item.hang_id ? (
@@ -233,6 +271,7 @@ export function SupplierItemsTab({
                   token={token ?? ""}
                   hangLoai={item.hang_loai}
                   hangId={item.hang_id}
+                  dang={item.hang_loai === "giay" ? (item.dang_ban ?? "to") : null}
                   value={item.unit}
                   onChange={(ma) => setSupplierItem(originalIndex, { unit: ma })}
                   onQuyDoi={(info) => ghiQuyDoiDong(originalIndex, info)}

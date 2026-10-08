@@ -91,6 +91,9 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
     expect(screen.getByText(/Chưa có hàng trong kho: Tờ hướng dẫn/)).toBeInTheDocument();
 
     const ngay = document.querySelector("input[type=date]") as HTMLInputElement;
+    // Yêu cầu mới điền sẵn HÔM NAY — đổi ngày thì xoá rồi gõ.
+    expect(ngay.value).not.toBe("");
+    await userEvent.clear(ngay);
     await userEvent.type(ngay, ngayMai());
     await userEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
     await waitFor(() => expect(posts).toHaveLength(1));
@@ -108,6 +111,9 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Kho Bắc Ninh" }));
     await userEvent.click(screen.getByRole("radio", { name: "Anh Tùng" }));
     const ngay = document.querySelector("input[type=date]") as HTMLInputElement;
+    // Yêu cầu mới điền sẵn HÔM NAY — đổi ngày thì xoá rồi gõ.
+    expect(ngay.value).not.toBe("");
+    await userEvent.clear(ngay);
     await userEvent.type(ngay, ngayMai());
     await userEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
     await waitFor(() => expect(posts).toHaveLength(1));

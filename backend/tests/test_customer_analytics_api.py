@@ -116,6 +116,27 @@ def test_list_returns_kpis_and_derived_tier(client):
     assert kpis["avg_order_value"] >= 0
 
 
+def test_list_dem_mua_va_tong_mua_tren_ca_tap_loc(client):
+    """Hàng lọc nhanh đếm theo trạng thái mua trên tập lọc (bỏ qua chính ô mua); dòng Cộng cộng
+    mua 12 tháng của CẢ tập lọc chứ không riêng trang đang xem."""
+    _seed_staff_customers()
+    token = _admin_token(client)
+    cid = _customer_id_by_name("An Phát")
+    _add_orders(cid, "sale1")
+
+    tat_ca = client.get("/api/customers?size=1", headers=_h(token)).json()
+    dem = tat_ca["dem_mua"]
+    assert dem["dang_mua"] == 1
+    assert sum(dem.values()) == tat_ca["total"]
+    assert tat_ca["tong_mua_12m"] == 2 * 12_000_000 + 5000 * 900
+
+    # Chọn một trạng thái: số đếm các mục khác vẫn giữ, tổng chỉ còn tập đã lọc.
+    chua = client.get("/api/customers?mua=chua_don&size=200", headers=_h(token)).json()
+    assert chua["dem_mua"] == dem
+    assert chua["total"] == dem["chua_don"]
+    assert chua["tong_mua_12m"] == 0
+
+
 # Redesign spec-06 v2: tier (loyal/partner) đã BỎ → test phân hạng gỡ; giữ test sort doanh số thật.
 
 

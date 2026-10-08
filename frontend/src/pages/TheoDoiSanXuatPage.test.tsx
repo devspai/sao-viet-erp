@@ -1,6 +1,6 @@
 // Khung màn Theo dõi sản xuất (làm gọn 05/10/2026, đặc tả 3): đổi góc nhớ trong localStorage, mỗi
-// lượt chỉ gọi ĐÚNG góc đang xem, dải bất thường lọc bảng (một mục một lúc, 0 thì không bấm được),
-// 403 nói đúng tên màn, lọc rỗng có nút Bỏ lọc.
+// lượt chỉ gọi ĐÚNG góc đang xem, thẻ lọc bất thường lọc bảng (một mục một lúc, bấm lại để bỏ),
+// 403 nói đúng tên màn, lọc rỗng có nút Xoá bộ lọc. Lên lưới chung 08/10/2026.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -119,24 +119,28 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(screen.queryByRole("menuitem", { name: /^Máy/ })).toBeNull();
   });
 
-  it("⭐ dải bất thường: số + chữ, mục 0 không bấm được, bấm lọc rồi bấm lại để bỏ", async () => {
+  it("⭐ thẻ lọc bất thường: chữ + số máy chủ đếm, mục 0 chữ nhạt, bấm lọc rồi bấm lại để bỏ", async () => {
     const goi = stubApi();
     ve();
-    const tre = await screen.findByRole("button", { name: "2 lệnh trễ hạn" });
-    await waitFor(() => expect(tre).toBeEnabled());
-    expect(screen.getByRole("button", { name: "0 sự cố đang mở" })).toBeDisabled();
+    const tre = await screen.findByRole("button", { name: /^Lệnh trễ hạn/ });
+    await waitFor(() => expect(tre.textContent).toBe("Lệnh trễ hạn2"));
+    const suCo = screen.getByRole("button", { name: /^Sự cố đang mở/ });
+    expect(suCo.textContent).toBe("Sự cố đang mở0");
+    expect(suCo.className).toContain("z");
+    expect(screen.getByRole("button", { name: "Tất cả" })).toHaveAttribute("aria-pressed", "true");
 
     await userEvent.click(tre);
     expect(tre).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(goiToi(goi, "bat_thuong=tre_han")).toHaveLength(1));
 
     // Một mục một lúc: chọn "máy hỏng" thì "trễ hạn" nhả.
-    await userEvent.click(screen.getByRole("button", { name: "1 máy hỏng" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Máy hỏng/ }));
     expect(tre).toHaveAttribute("aria-pressed", "false");
     await waitFor(() => expect(goiToi(goi, "bat_thuong=may_hong")).toHaveLength(1));
 
-    await userEvent.click(screen.getByRole("button", { name: "1 máy hỏng" }));
-    expect(screen.getByRole("button", { name: "1 máy hỏng" })).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(screen.getByRole("button", { name: /^Máy hỏng/ }));
+    expect(screen.getByRole("button", { name: /^Máy hỏng/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Tất cả" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("⭐ đổi sang Theo lệnh: gọi /theo-lenh, nhớ vào localStorage, có điều kiện Máy gửi may_id", async () => {
@@ -164,17 +168,29 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(goiToi(goi, "/theo-may")).toHaveLength(0);
   });
 
-  it("⭐ điều kiện Khách gửi khach_hang_id; lọc rỗng ⇒ 'Bộ lọc không ra kết quả nào.' + Bỏ lọc", async () => {
+  it("⭐ điều kiện Khách gửi khach_hang_id; lọc rỗng ⇒ 'Bộ lọc không ra kết quả nào.' + Xoá bộ lọc", async () => {
     const goi = stubApi({ theoMay: { nhom: [], may_trong: [], bat_thuong: DEM } });
     ve();
     await userEvent.click(await screen.findByRole("button", { name: "Lọc" }));
     await userEvent.click(screen.getByRole("menuitem", { name: /Khách hàng/ }));
     await userEvent.click(await screen.findByRole("radio", { name: /Công ty Sao/ }));
     await waitFor(() => expect(goiToi(goi, "khach_hang_id=9")).toHaveLength(1));
-    expect(await screen.findByText("Bộ lọc không ra kết quả nào.")).toBeInTheDocument();
+    expect(await screen.findByText(/Không có việc nào khớp điều kiện đang lọc/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Khách hàng: Công ty Sao. Bấm để sửa" })).toBeInTheDocument();
-    await userEvent.click(screen.getAllByRole("button", { name: "Bỏ lọc" })[0]);
+    await userEvent.click(screen.getAllByRole("button", { name: "Xoá bộ lọc" })[0]);
     expect(screen.queryByRole("button", { name: /Khách hàng: Công ty Sao/ })).toBeNull();
+  });
+
+  it("ô tìm: giới hạn 120 ký tự như máy chủ, một nút xoá duy nhất, Ctrl K đưa tiêu điểm vào ô", async () => {
+    stubApi();
+    ve();
+    const o = await screen.findByRole("textbox", { name: "Tìm mã lệnh, sản phẩm, số đơn, khách" });
+    expect(o).toHaveAttribute("maxlength", "120");
+    expect(o).not.toHaveFocus();
+    await userEvent.keyboard("{Control>}k{/Control}");
+    expect(o).toHaveFocus();
+    await userEvent.type(o, "abc");
+    expect(screen.getAllByRole("button", { name: "Xoá ô tìm" })).toHaveLength(1);
   });
 
   it("⭐ 403 ⇒ nói đúng thiếu quyền Theo dõi sản xuất, không nút Thử lại", async () => {

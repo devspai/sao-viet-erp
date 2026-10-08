@@ -9,7 +9,6 @@ import { ArrowLeftRight, Banknote, Landmark, Layers, Paperclip } from "lucide-re
 
 import type { CompanyBankAccountRow, LocPhieu, TheLoc as SoTheLoc } from "../../../api/client";
 import { dkTheoTab, type DieuKien, type GiaTriDK } from "../../thanh-loc/thanh-loc";
-import type { TheLocMuc } from "./TheLoc";
 
 /** Bộ lọc ĐÃ ÁP. `nguon` là khoá GIAO DIỆN — một khoá có thể gom nhiều `source_type` (xem `nguonGui`
  *  của từng màn). */
@@ -113,7 +112,8 @@ export function dieuKienPhieu(ch: CauHinhLocPhieu, taiKhoan: CompanyBankAccountR
  *  chọn, không state thứ hai. `muc` là các thẻ CÓ BẢNG (Phiếu chi bỏ "Gia công chờ chi" — thẻ đó
  *  thay cả bảng lẫn thanh lọc). Số đếm lấy từ `the_loc` máy chủ trả. */
 export function dkTrangThaiPhieu(o: {
-  muc: TheLocMuc[];
+  /** Chỉ cần mã + nhãn của mục dải tab (`MucTab`). */
+  muc: { id: string; nhan: string }[];
   n: SoTheLoc | null;
   dang: string;
   dat: (id: string) => void;

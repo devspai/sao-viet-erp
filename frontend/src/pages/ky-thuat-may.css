@@ -4,21 +4,9 @@
    không có bên đó: ảnh, checklist, dải bước, hộp kết quả sinh phiếu. */
 
 .ktm { max-width: var(--page-max-w); }
-
-/* Dòng phụ dưới ô chính trong bảng (tên máy, chu kỳ, thời điểm báo) */
-.ktm-phu {
-  font-size: 11.5px;
-  color: var(--ash-2, var(--ash-2));
-  margin-top: 2px;
-  font-weight: var(--fw-regular);
-}
-/* Mô tả dài trong bảng: cắt 1 dòng — bảng là nơi LƯỚT, đọc kỹ thì mở drawer. */
-.ktm-phu--cat {
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
+/* Gốc màn KHÔNG mang `.rc`: hiệu ứng trượt của `.rc` dùng transform ⇒ ngăn/hộp thoại `position: fixed`
+   bên trong bị neo vào khung màn thay vì cửa sổ (ngăn chỉ cao bằng nửa màn). */
+.ktm.lds { margin: 0 auto; padding: var(--sp-5) var(--page-pad-x) 40px; }
 
 /* --- Badge trạng thái / mức độ (2026 Modern ERP Design) ------------------- */
 .ktm-badge {
@@ -32,60 +20,6 @@
   white-space: nowrap;
   letter-spacing: 0.01em;
   transition: all 0.15s ease;
-}
-
-/* Mức độ sự cố — Màu sắc dịu nhẹ & tương phản cao */
-.ktm-badge--muc-nhe {
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
-.ktm-badge--muc-trung_binh,
-.ktm-badge--muc-vua {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-}
-.ktm-badge--muc-nghiem_trong,
-.ktm-badge--muc-nang {
-  color: #b91c1c;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-}
-
-/* Trạng thái xử lý */
-.ktm-badge--tt-cho_sua,
-.ktm-badge--tt-cho_thuc_hien {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-}
-.ktm-badge--tt-dang_sua {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
-}
-.ktm-badge--tt-cho_vat_tu {
-  color: #c2410c;
-  background: #ffedd5;
-  border: 1px solid #fed7aa;
-}
-.ktm-badge--tt-da_sua_xong,
-.ktm-badge--tt-hoan_thanh {
-  color: #047857;
-  background: #d1fae5;
-  border: 1px solid #a7f3d0;
-}
-.ktm-badge--tt-qua_han {
-  color: #b91c1c;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
-}
-.ktm-badge--tt-da_huy {
-  color: #64748b;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  text-decoration: line-through;
 }
 
 /* Machine Badge & Code Badge Refinement */
@@ -144,34 +78,8 @@
   color: #b91c1c;
 }
 
-/* Chip cảnh báo cạnh tiêu đề */
-.ktm-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: var(--fw-medium, 500);
-}
-.ktm-chip--canh-bao { color: var(--signal-deep, #6b1717); background: var(--signal-soft, #efd5d5); }
-
-
-/* Số ảnh: trả lời "phiếu đủ bằng chứng để đóng chưa" */
-.ktm-anhdem {
-  font-family: var(--ff-sans);
-  font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--rule-hair, #f1f5f9);
-  color: var(--ash, #475569);
-}
-.ktm-anhdem.is-du { color: var(--moss, #2f5d3a); background: color-mix(in srgb, #2f5d3a 12%, transparent); }
-.ktm-anhdem.is-trong { color: var(--ash-2, #94a3b8); background: transparent; }
-
 /* --- Drawer ------------------------------------------------------------------ */
 .ktm-drawer .rc-drawer__body { padding-bottom: var(--sp-6, 32px); }
-.ktm-meta {
-  display: flex; flex-wrap: wrap; gap: 4px 14px;
-  margin-top: 6px; font-size: 12.5px; color: var(--ash, #475569);
-}
 .ktm-hint {
   display: block; margin-top: 4px;
   font-size: 11.5px; line-height: 1.45; color: var(--ash-2, var(--ash-2));
@@ -183,105 +91,10 @@
   margin-left: 4px; padding: 0; border: 0; background: none;
   font: inherit; color: var(--rust, #c5400a); text-decoration: underline; cursor: pointer;
 }
-.ktm-actions { display: flex; align-items: center; gap: 12px; margin-top: var(--sp-3, 12px); }
 
 /* Drawer bọc FORM: body cuộn, chân drawer dính đáy. Không có khối này thì `.rc-drawer__foot` trôi
    theo nội dung và nút Lưu lại biến mất khi cuộn — đúng lỗi vừa sửa. */
 .ktm-drawer__form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-
-.ktm-thongbao {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: var(--sp-4, 16px); padding: 9px 12px;
-  border-radius: var(--r-3, 6px);
-  font-size: 12.5px; line-height: 1.5;
-  color: var(--ash, #475569); background: var(--rule-hair, #f1f5f9);
-}
-.ktm-thongbao--xong { color: var(--moss, #2f5d3a); background: color-mix(in srgb, #2f5d3a 10%, transparent); }
-
-/* --- Dải bước xử lý ---------------------------------------------------------- */
-.ktm-buoc { display: flex; flex-wrap: wrap; gap: 8px; }
-.ktm-buoc__nut {
-  padding: 7px 14px;
-  border: 1px solid var(--rule-soft, #e2e8f0);
-  border-radius: 999px;
-  background: var(--paper, #fff);
-  font: inherit; font-size: 12.5px; color: var(--ink, #0f172a);
-  cursor: pointer;
-  transition: background .15s ease, border-color .15s ease;
-}
-.ktm-buoc__nut:hover:not(:disabled) { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); }
-.ktm-buoc__nut.is-active {
-  background: var(--rule-hair);
-  border-color: var(--rust, #c5400a);
-  color: var(--rust-deep, #8a3208);
-  font-weight: var(--fw-medium, 500);
-}
-/* Nút khoá vì THIẾU ẢNH — phải nhìn ra là "chưa đủ điều kiện", không phải "hỏng". Lý do cụ thể
-   nằm ở `title` + dòng nhắc ngay dưới. */
-.ktm-buoc__nut:disabled { opacity: .45; cursor: not-allowed; }
-
-.ktm-ngayxong { max-width: 260px; margin-top: var(--sp-3, 12px); }
-.ktm-buoc__da-xong {
-  display: inline-flex; align-items: center;
-  font-size: 12.5px; color: var(--moss, #2f5d3a);
-}
-
-/* --- Khối XÁC NHẬN đóng phiếu ---------------------------------------------------
-   Tách hẳn khỏi dải "Bước xử lý": đây là hành động một chiều, có điều kiện (phải có ảnh), nên nó
-   phải nhìn ra là một CÁI NÚT chứ không phải một pill giống hai pill đi lại giữa các bước. */
-.ktm-xacnhan {
-  margin-top: var(--sp-5, 24px);
-  padding: 14px;
-  border: 1px solid var(--rule-soft, #e2e8f0);
-  border-radius: var(--r-3, 6px);
-  background: var(--rule-hair, #f8fafc);
-}
-.ktm-xacnhan__title {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--ash, #475569); margin-bottom: 8px;
-}
-.ktm-xacnhan__chan {
-  display: flex; align-items: center; gap: 6px;
-  margin: 0 0 10px; font-size: 12px; color: var(--rust-deep, #8a3208);
-}
-.ktm-xacnhan__nut {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%; margin-top: var(--sp-3, 12px); padding: 11px 16px;
-  border: 0; border-radius: var(--r-3, 6px); cursor: pointer;
-  background: var(--rust, #c5400a); color: #fff;
-  font: inherit; font-size: 13.5px; font-weight: var(--fw-medium, 500);
-}
-.ktm-xacnhan__nut:hover:not(:disabled) { background: var(--rust-deep, #8a3208); }
-/* Khoá vì THIẾU ẢNH — xám hẳn, và lý do nằm ngay dòng trên chứ không giấu trong tooltip. */
-.ktm-xacnhan__nut:disabled {
-  background: var(--ash-2, #94a3b8); cursor: not-allowed; opacity: .7;
-}
-
-/* Người nhận việc — ô ĐỌC, không phải input. Trình bày khác hẳn ô nhập để không ai bấm vào chờ gõ. */
-.ktm-nguoinhan {
-  display: flex; align-items: center; gap: 7px;
-  min-height: 36px; padding: 6px 0;
-  font-size: 13.5px; color: var(--ink, #0f172a);
-}
-
-/* --- Tab trong drawer: Chi tiết | Lịch sử thao tác ------------------------------ */
-.ktm-tab {
-  display: flex; gap: 2px;
-  padding: 0 var(--sp-5, 24px);
-  border-bottom: 1px solid var(--rule-soft, #e2e8f0);
-  background: var(--paper, #fff);
-}
-.ktm-tab__nut {
-  padding: 10px 14px; border: 0; border-bottom: 2px solid transparent;
-  background: transparent; cursor: pointer;
-  font: inherit; font-size: 13px; color: var(--ash, #475569);
-}
-.ktm-tab__nut:hover { color: var(--ink, #0f172a); }
-.ktm-tab__nut.is-active {
-  color: var(--rust-deep, #8a3208);
-  border-bottom-color: var(--rust, #c5400a);
-  font-weight: var(--fw-medium, 500);
-}
 
 /* --- Lịch sử thao tác ----------------------------------------------------------
    Mới nhất trên cùng. Đây là chỗ DUY NHẤT đọc được lý do của TỪNG lần dời lịch — cột `ly_do_doi`
@@ -306,71 +119,6 @@
 .ktm-nk__gio { font-variant-numeric: tabular-nums; }
 .ktm-nk__ai { color: var(--ash, #475569); font-weight: var(--fw-medium, 500); }
 .ktm-nk__viec { margin-top: 3px; font-size: 13px; line-height: 1.5; color: var(--ink, #0f172a); }
-
-/* --- Hủy phiếu ---------------------------------------------------------------- */
-/* Nút mở dialog hủy: để đỏ nhạt cho đúng tính chất "phá" của việc, nhưng vẫn là link chứ không phải
-   nút to — hành động thật (kèm lý do + xác nhận) nằm trong dialog. */
-.ktm-link-huy { color: var(--signal-deep, #6b1717); }
-/* Băng "Đã hủy" trong phiếu: neutral + viền trái đậm, KHÔNG đỏ chói — hủy đảo được, không phải lỗi. */
-.ktm-thongbao--huy { border-left: 3px solid var(--ash-2, var(--ash-2)); }
-.ktm-thongbao--huy strong { color: var(--ink, #0f172a); }
-.ktm-thongbao__nut { margin-left: auto; white-space: nowrap; }
-
-/* Checklist dạng danh sách `.ktm-check` ĐÃ GỠ 14/08/2026 — JSX chuyển sang thẻ
-   (`.ktm-check-grid` / `.ktm-check-card` bên dưới) từ lúc thêm đường "không áp dụng kèm lý do",
-   bộ class cũ nằm lại không ai dùng. */
-
-/* --- Khối ảnh ----------------------------------------------------------------- */
-.ktm-anh {
-  margin-top: var(--sp-5, 24px);
-  padding: 14px;
-  border: 1px solid var(--rule-soft, #e2e8f0);
-  border-radius: var(--r-3, 6px);
-  background: var(--paper, #fff);
-}
-/* Ảnh chứng thực là CỬA đóng phiếu ⇒ viền nhấn để không ai lướt qua. */
-.ktm-anh--batbuoc { border-color: var(--rust, #c5400a); }
-.ktm-anh__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.ktm-anh__title {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--ash, #475569);
-}
-.ktm-anh__mota { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--ash-2, var(--ash-2)); }
-
-.ktm-anh__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-.ktm-anh__o { position: relative; margin: 0; }
-.ktm-anh__o img {
-  width: 100%; height: 96px; object-fit: cover;
-  border-radius: var(--r-3, 6px);
-  border: 1px solid var(--rule-soft, #e2e8f0);
-  display: block;
-}
-.ktm-anh__o figcaption {
-  margin-top: 3px; font-size: 10.5px; color: var(--ash-2, #94a3b8);
-  font-variant-numeric: tabular-nums;
-}
-.ktm-anh__them {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  height: 96px;
-  border: 1px dashed var(--rule, #cbd5e1);
-  border-radius: var(--r-3, 6px);
-  background: transparent; cursor: pointer;
-  font: inherit; font-size: 12px; color: var(--ash, #475569);
-}
-.ktm-anh.is-dragging {
-  border-radius: 10px;
-  outline: 2px dashed var(--rust, #c5400a);
-  outline-offset: 4px;
-}
-.ktm-anh__them:hover:not(:disabled), .ktm-anh__them.is-dragging { border-color: var(--rust, #c5400a); color: var(--rust-deep, #8a3208); background: var(--paper); }
-.ktm-anh__them:disabled { opacity: .6; cursor: progress; }
-.ktm-anh__loi { margin: 8px 0 0; font-size: 12px; color: var(--signal-deep, #6b1717); }
-
 
 /* Thanh phân trang riêng `.ktm-trang` ĐÃ GỠ 14/08/2026 cùng component `PhanTrang`. Từ 05/10/2026 hai
    màn dùng chân chung `components/PhanTrangDayDu.tsx`; khung `.rc__tablewrap` + chân đã có luật nối
@@ -677,51 +425,12 @@
   color: var(--ash, #475569);
 }
 
-.ktm-tag-dotxuat {
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 1px 7px; border-radius: 999px;
-  font-size: 10.5px; font-weight: 600; background: #fff7ed; color: #c5400a;
-  border: 1px solid #ffedd5; margin-top: 2px;
-}
-
 .ktm-may-badge {
   display: inline-block; font-family: var(--ff-sans);
   font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
   background: var(--rule-hair, #f1f5f9); color: var(--ink, #0f172a);
   border: 1px solid var(--rule-soft, #e2e8f0);
 }
-
-.ktm-goi-title { font-size: 13px; color: var(--ink, #0f172a); font-weight: 600; }
-.ktm-phu-sub { font-size: 11px; color: var(--ash-2, #94a3b8); margin-top: 2px; }
-
-.ktm-progress-wrap {
-  display: flex; align-items: center; gap: 8px; margin-top: 3px;
-}
-.ktm-progress-bar {
-  flex: 1; max-width: 100px; height: 6px; border-radius: 999px;
-  background: #e2e8f0; overflow: hidden;
-}
-.ktm-progress-fill {
-  height: 100%; background: #f97316; border-radius: 999px;
-  transition: width .2s ease;
-}
-.ktm-progress-fill.is-full { background: #16a34a; }
-.ktm-progress-text {
-  font-size: 11px; font-weight: 600; font-family: var(--ff-sans);
-  color: var(--ash, #475569); font-variant-numeric: tabular-nums;
-}
-
-.ktm-ngay-kh { font-size: 13px; font-weight: 500; color: var(--ink, #0f172a); }
-.ktm-doi-chip {
-  font-size: 11px; color: #c5400a; font-weight: 500; margin-top: 2px;
-  display: inline-flex; align-items: center; gap: 3px;
-}
-
-.ktm-user-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 12.5px; font-weight: 500; color: var(--ink, #0f172a);
-}
-.ktm-phu-cho { font-size: 12px; color: var(--ash-2, #94a3b8); font-style: italic; }
 
 .ktm-anhchip {
   display: inline-flex; align-items: center; gap: 4px;
@@ -734,37 +443,11 @@
 .ktm-anhchip.is-thieu {
   background: #fff1f2; color: #9f1239; border: 1px solid #fecdd3;
 }
-
-/* --- Drawer Hero & Workstation Upgrade ------------------------------------------ */
-.ktm-drawer-hero {
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-  border-bottom: 1px solid var(--rule-soft, #e2e8f0);
-  padding: 18px 24px;
-}
-.ktm-drawer-hero__status { margin-bottom: 6px; }
-.ktm-drawer-hero__title {
-  font-size: 20px; font-weight: 700; color: var(--ink, #0f172a);
-  margin: 2px 0 8px; letter-spacing: -.01em;
-}
-.ktm-drawer-hero__meta {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
-  font-size: 12.5px; color: var(--ash, #475569);
-}
-.ktm-drawer-hero__mayten { font-weight: 500; color: var(--ink, #0f172a); }
 .ktm-meta-chip {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 12px; color: var(--ash-2, var(--ash-2));
   padding: 2px 8px; border-radius: 4px; background: var(--rule-hair, #f1f5f9);
 }
-
-.ktm-form-banner {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 12px 14px; margin-bottom: 16px; border-radius: 8px;
-  background: #fff7ed; border: 1px solid #ffedd5;
-  color: #c5400a; font-size: 12.5px; line-height: 1.45;
-}
-.ktm-form-banner strong { display: block; font-size: 13px; font-weight: 700; color: #9a3412; margin-bottom: 2px; }
-.ktm-form-banner p { margin: 0; color: #7c2d12; opacity: .9; }
 
 /* Confirm Dialog Upgrade */
 .ktm-dialog-title {
@@ -782,154 +465,6 @@
   font-size: 12px; color: var(--ash-2, var(--ash-2)); margin: 8px 0 0; line-height: 1.45;
   padding-top: 8px; border-top: 1px dashed var(--rule, #cbd5e1);
 }
-
-.ktm-check-head {
-  display: flex; align-items: center; justify-content: space-between;
-}
-.ktm-check-grid {
-  display: flex; flex-direction: column; gap: 8px; margin-top: 10px;
-}
-.ktm-check-hint { margin: 8px 0 0; }
-.ktm-check-card {
-  display: flex; flex-direction: column; gap: 4px;
-  padding: 10px 14px; border: 1px solid var(--rule-soft, #e2e8f0);
-  border-radius: 8px; background: var(--paper, #fff);
-  transition: all .15s ease;
-  user-select: none;
-}
-.ktm-check-card__main {
-  display: flex; align-items: center; gap: 10px; cursor: pointer;
-  min-height: 32px;                      /* vùng chạm đủ rộng cho ngón tay */
-}
-.ktm-check-card:hover {
-  border-color: var(--rust, #c5400a); background: var(--paper);
-}
-.ktm-check-card input[type="checkbox"] { display: none; }
-.ktm-check-card__box {
-  width: 18px; height: 18px; border: 2px solid var(--rule, #cbd5e1);
-  border-radius: 4px; display: grid; place-items: center;
-  color: transparent; transition: all .15s ease; flex-shrink: 0;
-}
-.ktm-check-card.is-checked {
-  background: #f0fdf4; border-color: #bbf7d0;
-}
-.ktm-check-card.is-checked .ktm-check-card__box {
-  background: #16a34a; border-color: #16a34a; color: #ffffff;
-}
-.ktm-check-card.is-checked .ktm-check-card__title {
-  text-decoration: line-through; color: var(--ash-2, var(--ash-2));
-}
-.ktm-check-card__title { font-size: 13.5px; color: var(--ink, #0f172a); flex: 1; }
-.ktm-check-card__status {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-size: 11.5px; font-weight: 600; color: #166534;
-}
-
-/* "Không áp dụng lần này" — vẫn mở được cửa đóng phiếu nên KHÔNG tô đỏ như lỗi, nhưng phải khác
-   hẳn màu "đã làm" để nhìn một cái là biết việc đó không có ai đụng vào. */
-.ktm-check-card.is-boqua { background: #fffbeb; border-color: #fde68a; }
-.ktm-check-card.is-boqua .ktm-check-card__box { border-color: #d97706; color: #d97706; }
-.ktm-check-card.is-boqua .ktm-check-card__title { color: var(--ash-2, var(--ash-2)); }
-.ktm-check-card__status.is-boqua { color: #92400e; }
-.ktm-check-card__lydo {
-  margin: 0 0 0 28px; font-size: 11.5px; color: #92400e; line-height: 1.45;
-}
-.ktm-check-card__phu {
-  align-self: flex-start; margin-left: 28px; padding: 2px 0;
-  border: 0; background: none; cursor: pointer;
-  font-size: 11.5px; font-weight: 600; color: var(--ash-2, var(--ash-2));
-  text-decoration: underline; text-underline-offset: 2px;
-}
-.ktm-check-card__phu:hover { color: var(--rust-deep, #8a3208); }
-
-/* Gatekeeper Box */
-.ktm-gatekeeper {
-  margin-top: 24px; padding: 16px; border-radius: 10px;
-  background: #f8fafc; border: 1px solid #e2e8f0;
-  transition: all .2s ease;
-}
-.ktm-gatekeeper.is-ready {
-  background: #f0fdf4; border-color: #bbf7d0;
-}
-.ktm-gatekeeper__head {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; font-weight: 700; color: var(--ink, #0f172a);
-  margin-bottom: 12px; text-transform: uppercase; letter-spacing: .04em;
-}
-.ktm-gatekeeper__conds {
-  display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
-}
-.ktm-gate-cond {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500;
-  background: #ffffff; border: 1px solid #e2e8f0;
-}
-.ktm-gate-cond.is-pass { color: #166534; border-color: #bbf7d0; background: #ffffff; }
-.ktm-gate-cond.is-fail { color: #9f1239; border-color: #fecdd3; background: #fff1f2; }
-
-.ktm-gatekeeper__action { display: flex; flex-direction: column; gap: 12px; }
-.ktm-gatekeeper.is-ready .ktm-xacnhan__nut {
-  background: #16a34a;
-}
-.ktm-gatekeeper.is-ready .ktm-xacnhan__nut:hover {
-  background: #15803d;
-}
-
-/* --- Drag & Drop Zone & Photo Gallery ------------------------------------------ */
-.ktm-dropzone {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; padding: 24px 16px; margin-top: 8px;
-  border: 2px dashed var(--rule, #cbd5e1); border-radius: 10px;
-  background: var(--rule-hair, #f8fafc); cursor: pointer;
-  transition: all .2s ease; text-align: center;
-}
-.ktm-dropzone:hover, .ktm-dropzone.is-dragging {
-  border-color: var(--rust, #c5400a); background: var(--paper);
-}
-.ktm-dropzone.is-batbuoc {
-  border-color: #fecdd3; background: #fff1f2;
-}
-.ktm-dropzone.is-batbuoc:hover {
-  border-color: var(--rust, #c5400a); background: var(--paper);
-}
-.ktm-dropzone__icon {
-  width: 48px; height: 48px; border-radius: 999px;
-  background: #ffffff; color: var(--rust, #c5400a);
-  display: grid; place-items: center;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, .06);
-}
-.ktm-dropzone__main {
-  font-size: 13px; font-weight: 600; color: var(--ink, #0f172a); margin-top: 4px;
-}
-.ktm-dropzone__sub {
-  font-size: 11.5px; color: var(--ash-2, var(--ash-2));
-}
-.ktm-dropzone__tag {
-  display: inline-flex; align-items: center; gap: 4px;
-  margin-top: 6px; padding: 3px 10px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; color: #9f1239; background: #ffe4e6;
-  border: 1px solid #fecdd3;
-}
-
-/* Image Thumbnail Overlay */
-.ktm-anh__o { position: relative; overflow: hidden; border-radius: 8px; }
-.ktm-anh__o img { cursor: pointer; transition: transform .2s ease; }
-.ktm-anh__o:hover img { transform: scale(1.04); }
-.ktm-anh__overlay {
-  position: absolute; inset: 0; background: rgba(15, 23, 42, .5);
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  opacity: 0; transition: opacity .15s ease;
-}
-.ktm-anh__o:hover .ktm-anh__overlay { opacity: 1; }
-.ktm-anh__btn-view, .ktm-anh__btn-del {
-  width: 30px; height: 30px; border-radius: 999px; border: 0;
-  display: grid; place-items: center; cursor: pointer; color: #ffffff;
-  transition: transform .12s ease;
-}
-.ktm-anh__btn-view { background: rgba(255, 255, 255, .25); }
-.ktm-anh__btn-view:hover { background: rgba(255, 255, 255, .4); transform: scale(1.1); }
-.ktm-anh__btn-del { background: #ef4444; }
-.ktm-anh__btn-del:hover { background: #dc2626; transform: scale(1.1); }
 
 /* Photo Lightbox Modal */
 .ktm-lightbox-overlay {
@@ -953,34 +488,6 @@
 .ktm-lightbox__body { display: grid; place-items: center; overflow: auto; padding: 12px; }
 .ktm-lightbox__body img { max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 6px; }
 .ktm-lightbox__foot { padding: 8px 16px; font-size: 11.5px; color: var(--ash-2); text-align: center; }
-
-/* ── Dải "việc cần làm" đầu màn ─────────────────────────────────────────────────────────────
-   Ba con số toàn xưởng, bấm được. Câu hỏi đầu tiên mỗi sáng là "hôm nay làm gì", không phải
-   "có bao nhiêu phiếu" — nên nó đứng trên cả thanh lọc. */
-.ktm-tomtat {
-  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;
-}
-.ktm-tomtat__o {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 14px; min-height: 44px;
-  border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 10px;
-  background: var(--paper, #fff); cursor: pointer;
-  transition: border-color .15s ease, background .15s ease;
-}
-.ktm-tomtat__o:hover { border-color: var(--rust, #c5400a); background: var(--paper); }
-.ktm-tomtat__so {
-  font-size: 20px; font-weight: 700; line-height: 1; color: var(--ink, #0f172a);
-  font-variant-numeric: tabular-nums;
-}
-.ktm-tomtat__nhan {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 12px; font-weight: 600; color: var(--ash-2, var(--ash-2));
-}
-.ktm-tomtat__o.is-co-viec { border-color: #fed7aa; background: #fff7ed; }
-.ktm-tomtat__o.is-co-viec .ktm-tomtat__so { color: var(--rust-deep, #8a3208); }
-.ktm-tomtat__o.is-tre { border-color: #fecdd3; background: #fff1f2; }
-.ktm-tomtat__o.is-tre .ktm-tomtat__so,
-.ktm-tomtat__o.is-tre .ktm-tomtat__nhan { color: #9f1239; }
 
 .ktm-lich__may-loc { height: 30px; padding: 0 8px; font-size: 12px; max-width: 190px; }
 
@@ -1046,30 +553,15 @@
   border-radius: 10px; background: var(--paper, #fff);
 }
 .ktm-the:active { background: var(--rule-hair, #f8fafc); }
-.ktm-the--cho_thuc_hien { border-left-color: var(--rust, #c5400a); }
-.ktm-the--hoan_thanh { border-left-color: var(--moss, #2f5d3a); }
-.ktm-the--qua { border-left-color: var(--signal-deep, #6b1717); background: #fff5f5; }
 .ktm-the.is-skel { gap: 8px; cursor: default; }
 .ktm-the__dau { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ktm-the__than { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ktm-the__goi { font-size: 13.5px; color: var(--ink, #0f172a); }
-.ktm-the--hoan_thanh .ktm-the__goi {
-  text-decoration: line-through; color: var(--ash-2, var(--ash-2));
-}
 .ktm-the__meta {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   font-size: 11.5px; color: var(--ash-2, var(--ash-2));
 }
 .ktm-the__meta > span { display: inline-flex; align-items: center; gap: 4px; }
-
-/* Dòng "đã nén 6,2 MB → 380 KB" dưới khối ảnh */
-.ktm-anh__nen {
-  display: flex; align-items: center; gap: 5px; margin: 8px 0 0;
-  font-size: 11.5px; font-weight: 600; color: var(--moss, #2f5d3a);
-}
-
-/* Nút trên đầu drawer (In · Đóng) */
-.ktm-drawer-hero__nut { display: flex; align-items: flex-start; gap: 6px; }
 
 .ktm-boqua-form__viec { margin: 0 0 10px; font-size: 13.5px; color: var(--ink, #0f172a); }
 
@@ -1078,251 +570,42 @@
 }
 
 @media (max-width: 820px) {
-  /* Lịch đã chuyển sang bản danh sách (component tự đổi theo `matchMedia`) — phần còn lại chỉ
-     cần nới cho vừa ngón tay. */
-  .ktm-tomtat__o { flex: 1 1 auto; justify-content: center; }
-  /* Đây là lối lùi DUY NHẤT khi một việc không phải làm — nút quá bé thì thợ bấm trượt rồi tick
-     bừa cho xong, đúng thứ cửa chặn checklist sinh ra để tránh. */
-  .ktm-check-card__phu { min-height: 44px; padding: 8px 0; font-size: 12.5px; }
-  .ktm-anh__grid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); }
   .ktm-lich__bar { flex-direction: column; align-items: stretch; gap: 10px; }
   .ktm-lich__may-loc { max-width: none; width: 100%; height: 38px; }
   .ktm-nhom-chip, .ktm-cg-btn { min-height: 34px; }
-  /* Nút xác nhận dính đáy: thợ vừa tick vừa chụp ảnh, cuộn lên cuộn xuống mãi mới bấm được. */
-  .ktm-gatekeeper__action {
-    position: sticky; bottom: 0; z-index: 2;
-    padding: 10px 0 2px; margin: 0 -4px;
-    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, var(--canvas, #fff) 22%);
-  }
-  .ktm-xacnhan__nut { min-height: 48px; font-size: 14px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ktm-buoc__nut { transition: none; }
-  .ktm-tomtat__o, .ktm-check-card { transition: none; }
-}
+/* ── Bản IN phiếu bảo trì: một tờ mang xuống xưởng ───────────────────────────────────────────
+   In chính cái ngăn đang mở, bỏ hết vỏ ứng dụng. Không dựng endpoint PDF cho việc này.
 
-/* ── Bản IN: một tờ mang xuống xưởng ────────────────────────────────────────────────────────
-   In chính cái drawer đang mở, bỏ hết vỏ ứng dụng. Không dựng endpoint PDF cho việc này.
-
-   ⚠️ MỌI selector dưới đây PHẢI khoá trong `body:has(.ktm-drawer)` — sửa 16/08/2026.
-   Bản trước để `body * { visibility: hidden }` TRẦN, tức nó ẩn sạch mọi thứ khi in ở MỌI MÀN, chỉ
-   chừa `.rc-drawer__scrim`. Vào Phiếu tính giá bấm In: trang đó không có scrim nào ⇒ không còn gì
-   hiện ⇒ **bản in ra trắng tinh** (và vẫn đủ số trang, vì `visibility` giữ chỗ trong bố cục).
-   Đây là lỗi LẶP LẠI: `luong.css` từng y hệt, comment ở đó ghi rõ "trước đây `body *` global → ẩn
-   sạch bản in của MỌI màn khác (vd Phiếu tính giá bị trắng)". Ba màn in kia đều đã khoá phạm vi
-   (`body:has(.qpdf)` · `body:has(.tg-page)` · `body:has(.lg-payslip-print)`).
-
-   Khoá CẢ KHỐI chứ không riêng dòng `body *`: `.rc-drawer__scrim` là class DÙNG CHUNG — Kho đề
-   nghị · Kho tồn · Kho yêu cầu · drawer danh mục đều mang nó. Để mấy dòng `position: static` ở
-   ngoài phạm vi thì in trong lúc mở drawer của những màn ấy sẽ bị dí phẳng vô cớ.
-
-   Neo theo `.ktm-drawer` (có ở cả `PhieuBaoTriPage` lẫn `SuaChuaMayPage`), KHÔNG neo theo
-   `.rc-drawer__scrim` — neo vào class dùng chung là quay lại đúng cái bẫy vừa gỡ. */
+   ⚠️ MỌI selector dưới đây PHẢI khoá trong `body:has(.ktm-pbt)` (thân ngăn phiếu bảo trì). Để
+   `body * { visibility: hidden }` TRẦN là ẩn sạch bản in của MỌI màn khác — Phiếu tính giá từng in
+   ra trang trắng vì đúng lỗi này (16/08/2026). `.kt-ngan` là vỏ ngăn DÙNG CHUNG với Kế toán, Giao
+   hàng — neo thẳng vào nó là quay lại cái bẫy đó. */
 @media print {
-  body:has(.ktm-drawer) * { visibility: hidden; }
-  body:has(.ktm-drawer) .rc-drawer__scrim,
-  body:has(.ktm-drawer) .rc-drawer__scrim * { visibility: visible; }
-  body:has(.ktm-drawer) .rc-drawer__scrim {
-    position: static; display: block; background: none; padding: 0;
+  body:has(.ktm-pbt) * { visibility: hidden; }
+  body:has(.ktm-pbt) .kt-ngan,
+  body:has(.ktm-pbt) .kt-ngan * { visibility: visible; }
+  body:has(.ktm-pbt) .kt-man { position: static; background: none; }
+  body:has(.ktm-pbt) .kt-ngan {
+    position: static; width: 100%; max-width: none; height: auto; box-shadow: none; animation: none;
   }
-  body:has(.ktm-drawer) .rc-drawer,
-  body:has(.ktm-drawer) .ktm-drawer {
-    position: static; width: 100%; max-width: none; height: auto;
-    box-shadow: none; border: 0; border-radius: 0; animation: none;
-  }
-  body:has(.ktm-drawer) .rc-drawer__body { overflow: visible; height: auto; }
-  /* Thứ chỉ có nghĩa khi bấm được thì không in: nút, dropzone, thanh tab, ô ngày, cửa xác nhận. */
-  body:has(.ktm-drawer) .rc-drawer__x,
-  body:has(.ktm-drawer) .ktm-in-nut,
-  body:has(.ktm-drawer) .ktm-tab,
-  body:has(.ktm-drawer) .ktm-actions,
-  body:has(.ktm-drawer) .ktm-dropzone,
-  body:has(.ktm-drawer) .ktm-anh__them,
-  body:has(.ktm-drawer) .ktm-anh__overlay,
-  body:has(.ktm-drawer) .ktm-gatekeeper__action,
-  body:has(.ktm-drawer) .ktm-check-card__phu,
-  body:has(.ktm-drawer) .ktm-thongbao__nut { display: none !important; }
-  body:has(.ktm-drawer) .ktm-check-grid { break-inside: avoid; }
-  body:has(.ktm-drawer) .ktm-anh__grid { grid-template-columns: repeat(3, 1fr); }
+  body:has(.ktm-pbt) .kt-ngan__than--hai { display: block; overflow: visible; }
+  body:has(.ktm-pbt) .kt-ngan__chinh,
+  body:has(.ktm-pbt) .kt-ngan__cot { overflow: visible; border: 0; background: none; }
+  /* Thứ chỉ có nghĩa khi bấm được thì không in: nút, thanh tab, ô thêm ảnh, khối xác nhận. */
+  body:has(.ktm-pbt) .kt-ngan__dong1,
+  body:has(.ktm-pbt) .kt-ngan__keo,
+  body:has(.ktm-pbt) .kt-ngan__tab,
+  body:has(.ktm-pbt) .kt-ngan__chan,
+  body:has(.ktm-pbt) .ktm-in-nut,
+  body:has(.ktm-pbt) .ktm-cot__cuoi,
+  body:has(.ktm-pbt) .ktm-anh__them,
+  body:has(.ktm-pbt) .ktm-anh__xoa,
+  body:has(.ktm-pbt) .ktm-lk-nhat { display: none !important; }
 }
-
-
-
-/* ================================================================================
-   Yêu cầu báo hỏng (20/08/2026) — khung thứ hai của màn Sửa chữa máy.
-   Dùng lại nguyên bộ `.ktm-*` của phiếu; chỉ thêm đúng những gì phiếu không có.
-   ================================================================================ */
-
-/* --- Trạng thái yêu cầu --------------------------------------------------------
-   "Chờ tiếp nhận" để TRUNG TÍNH, không tô cam: nó là trạng thái ĐÔNG NHẤT trong bảng, mà tô màu
-   cả cột thì màu hết nghĩa. Thứ đáng ăn màu ở đây là `.ktm-chip--dung` (máy đang nằm) — số ít và
-   là thứ phải xử trước. */
-.ktm-badge--tt-cho_tiep_nhan { color: var(--ash, #475569); background: var(--rule-hair, #f1f5f9); }
-.ktm-badge--tt-da_tao_phieu { color: var(--moss, #2f5d3a); }
-/* Từ chối KHÔNG gạch ngang (khác `--tt-da_huy`): lời báo vẫn là một sự kiện có thật của cái máy
-   đó, chỉ là không thành phiếu — gạch đi đọc như "xoá rồi". */
-.ktm-badge--tt-tu_choi { color: var(--ash-2, var(--ash-2)); background: var(--rule-hair, #f1f5f9); }
-
-/* Máy đang dừng: dấu hiệu DUY NHẤT được ăn màu tín hiệu ở bảng yêu cầu. */
-.ktm-chip--dung { color: var(--signal-deep, #6b1717); background: var(--signal-soft, #efd5d5); }
-
-/* Số việc chờ ngay trên công tắc đổi khung — người ở khung phiếu vẫn thấy hàng chờ đang dày lên. */
-.ktm-xem__so {
-  min-width: 18px; padding: 0 5px; border-radius: 999px;
-  font-family: var(--ff-sans); font-variant-numeric: tabular-nums;
-  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
-  color: #fff; background: var(--rust, #c5400a);
-}
-
-/* Bộ phận hỏng + mức độ trên MỘT dòng: hai mẩu thông tin luôn đọc cùng nhau. */
-.ktm-hong { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-
-/* Ô tick "máy đang dừng" — ô này quyết định thứ tự hàng chờ nên trình bày to hơn checkbox thường,
-   nhãn phụ nói thẳng hậu quả của việc tick. */
-.ktm-tick { flex-direction: row; align-items: flex-start; gap: 10px; }
-.ktm-tick input[type="checkbox"] {
-  width: 17px; height: 17px; margin-top: 2px; flex: none;
-  accent-color: var(--rust, #c5400a); cursor: pointer;
-}
-.ktm-tick > span { display: flex; flex-direction: column; gap: 2px; }
-.ktm-tick strong { font-size: 13.5px; font-weight: var(--fw-medium, 500); color: var(--ink, #0f172a); }
-
-/* "Từ YC-0007 · Tổ in" trên đầu phiếu — nguồn của phiếu, để tổ sửa chữa biết hỏi ai. */
-.ktm-tuyc { display: inline-flex; align-items: center; gap: 4px; color: var(--rust-deep, #8a3208); }
-
-.ktm-xacnhan__mo-ta { margin: 0 0 12px; font-size: 12.5px; line-height: 1.55; color: var(--ash, #475569); }
-/* Đường lùi "từ chối kèm lý do" nằm dưới nút chính, cỡ chữ nhỏ hơn: có mặt đủ rõ để dùng, không
-   tranh chỗ với việc nên làm là lập phiếu. */
-.ktm-xacnhan .ktm-link-huy { display: block; margin: 10px auto 0; font-size: 12.5px; }
-
-/* Băng kết quả có thêm nút "Mở phiếu" ⇒ chữ co giãn, nút đứng cuối. */
-.ktm-thongbao > span { flex: 1; }
-.ktm-thongbao .rc__link-btn { flex: none; }
 
 .ktm-boqua-form p { margin: 0 0 12px; font-size: 13px; line-height: 1.55; color: var(--ash, #475569); }
-
-/* Ô "Người báo" của MỌI phiếu sửa chữa (từ 14/09/2026; trước đó chỉ phiếu sinh từ yêu cầu) —
-   KHOÁ TẠI CHỖ, không giấu (20/08/2026).
-   Trước đây là ô chữ trắng gõ đè được: sửa một cái là mất dấu tài khoản đã bấm gửi lời báo, mà
-   đó lại là người duy nhất trả lời được "hỏng thế nào" khi phiếu thiếu chi tiết. Nền giấy + gờ
-   trái xám để mắt đọc ra "đây là DỮ LIỆU, không phải ô nhập" từ xa — khỏi bấm vào mới biết.
-   Xám chứ không đỏ: khoá này là chuyện bình thường, không phải lỗi cần báo động. */
-.ktm-nguon {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  /* Cùng bo góc + cùng padding với `.rc-input` đứng cạnh trong `.rc-grid`: lệch bo góc giữa hai
-     ô nằm sát nhau là khối trông vá víu. Nền `--rule-hair` để KHÁC hẳn nền ô nhập (`--canvas`). */
-  padding: 8px 12px;
-  border: 1px solid var(--rule-soft, #e2e8f0);
-  border-left: 2px solid var(--ash-2, var(--ash-2));
-  border-radius: 8px;
-  background: var(--rule-hair, #f1f5f9);
-}
-.ktm-nguon__ten {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13.5px;
-  font-weight: var(--fw-medium, 500);
-  color: var(--ink, #0f172a);
-}
-.ktm-nguon__ten em { font-style: normal; font-weight: 400; color: var(--ash, #475569); }
-.ktm-nguon__vi {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--ash, #475569);
-}
-.ktm-nguon__vi svg { flex: none; transform: translateY(1px); }
-
-/* Nhãn "Nặng" cạnh nhan đề ô Mức độ — chỉ hiện với `nghiem_trong`. */
-.ktm-nhan-muc { margin-left: 6px; vertical-align: middle; }
-
-/* ==========================================================================
-   NÂNG CẤP UI/UX DRAWER PHIẾU SỬA CHỮA MÁY (OVERHAUL - NO SIDE BORDER)
-   ========================================================================== */
-
-/* 1. Header Badges & Status */
-.ktm-header-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.ktm-header-status-badge--cho_sua {
-  background: #fef3c7;
-  color: #b45309;
-  border: 1px solid #fde68a;
-}
-.ktm-header-status-badge--dang_sua {
-  background: #dbeafe;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-}
-.ktm-header-status-badge--da_sua_xong {
-  background: #d1fae5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-}
-
-/* 2. Hero Context Card — KHÔNG BORDER CẠNH, NỀN MỜ NHẸ GỌN GÀNG */
-.ktm-hero-card {
-  margin: 12px 0 20px 0;
-  padding: 10px 14px;
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ktm-hero-card__row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  font-size: 12.5px;
-}
-
-.ktm-hero-card__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #475569;
-  font-weight: 500;
-}
-
-.ktm-hero-card__item svg {
-  color: #64748b;
-  flex-shrink: 0;
-}
-
-.ktm-hero-card__item strong {
-  color: #0f172a;
-  font-weight: 600;
-}
-
-.ktm-hero-card__tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  background: #ffedd5;
-  color: #c2410c;
-  border-radius: 6px;
-  font-size: 11.5px;
-  font-weight: 500;
-}
 
 /* 3. Section Form — BỎ KHUNG VIỀN NGOÀI (BỎ BOX IN BOX), DÙNG SECTION TITLE THANH LỊCH */
 .ktm-form-card {
@@ -1561,7 +844,162 @@ textarea.ktm-input-modern,
 .ktm-emergency-card.is-active .ktm-emergency-card__desc {
   color: #7f1d1d;
 }
+.ktm-xem__cham {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--rust, #c5400a); display: inline-block;
+}
 
+.ktm-mucdo { display: inline-flex; align-items: center; gap: 6px; }
+.ktm-mucdo .ktm-priority-dot { width: 7px; height: 7px; box-shadow: none; }
 
+.ktm-han--tre { color: var(--tt-do-fg, #b91c1c); }
+.ktm-han--nay { color: var(--tt-cam-fg, #c2410c); }
+.ktm-han--con,
+.ktm-han--nhat { color: var(--ash-2, #64748b); }
 
+.ktm-viec {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--ash, #475569); font-variant-numeric: tabular-nums;
+}
+.ktm-viec__vach {
+  position: relative; width: 40px; height: 4px; border-radius: 2px;
+  background: var(--rule-soft, #e2e8f0); overflow: hidden;
+}
+.ktm-viec__vach > span {
+  position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--tt-la-dot, #22c55e);
+}
+.ktm-hoi { margin: 0; color: var(--ash, #475569); }
 
+/* ── Điện thoại cho phương án A (07/10/2026) ───────────────────────────────────────────────
+   Sửa chữa + Yêu cầu dùng chung thẻ `ktm-the` với Phiếu bảo trì. Thẻ không có tiêu đề cột nên
+   mô tả đi dòng riêng, chữ được xuống dòng (mã/tên trên điện thoại nuốt đuôi là mất chỗ phân biệt). */
+.ktm-the__mota {
+  font-size: 12.5px; color: var(--ash, #475569); overflow-wrap: anywhere;
+}
+.ktm-the.is-xong .ktm-the__goi { color: var(--ash-2, #64748b); }
+.ktm-the .badge { font-weight: 400; }
+.ktm-the__nut { display: flex; gap: 8px; margin-top: 4px; }
+.ktm-the__nut .btn { flex: 1 1 0; min-height: 40px; justify-content: center; }
+
+/* ================================================================================
+   Khuôn 07/10/2026 — danh sách theo lưới chung `luoi-ds.css` (như Báo giá), ngăn chi tiết phương
+   án A (docs/mockups/ky-thuat-may-ngan-3-phuong-an.html): hai cột kiểu Linear, form lập mới là hộp
+   thoại giữa màn. Chữ không đậm, chip màu `--tt-*`, không viền một cạnh.
+   ================================================================================ */
+
+/* Lưới + đầu trang */
+.ktm-phu { margin-left: 8px; color: var(--ash-2); }
+.lds-g .lds-tag { margin-left: 8px; }
+.ktm-mucdo { display: inline-flex; align-items: center; gap: 7px; }
+.lds-dau .ktm-xem { flex: none; }
+.ktm-xem__nut.is-active { font-weight: 400; }
+.ktm-nut-dong { display: inline-flex; gap: 6px; }
+.lds-g td:has(> .ktm-nut-dong) { overflow: visible; padding-top: 2px; padding-bottom: 2px; }
+.ktm-nut-dong .btn { height: 26px; min-height: 26px; padding: 0 10px; font-size: 12.5px; }
+.ktm-the-rong { margin: 0; padding: 24px 12px; text-align: center; color: var(--ash-2); }
+.ktm .ktm-ma { font-family: inherit; font-weight: 400; font-size: 13px; color: var(--ash); border: 1px solid var(--rule-soft);
+  border-radius: 5px; padding: 0 6px; background: var(--canvas, #fff); }
+.ktm-the .ktm-may-badge { font-family: inherit; font-weight: 400; }
+.ktm-viec__vach--dai { width: 80px; }
+
+/* Ngăn: mã nhỏ đóng khung cạnh tên, cột phải 320px */
+.ktm-ngan-ma { display: inline-block; vertical-align: 3px; margin-right: 10px; padding: 1px 7px; border: 1px solid var(--rule-soft);
+  border-radius: 5px; font-size: 13px; font-weight: 400; color: var(--ash); letter-spacing: 0; }
+.kt-ngan__tieu h2:has(.ktm-ngan-ma) { font-weight: 500; font-size: 18px; }
+.kt-ngan__than.kt-ngan__than--hai:has(.ktm-cot) { grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: minmax(0, 1fr);
+  grid-auto-rows: auto; align-content: stretch; }
+.kt-ngan__cot:has(.ktm-cot) { padding: 10px 18px 16px; display: flex; flex-direction: column; }
+.ktm-cot { display: flex; flex-direction: column; flex: 1; min-height: 100%; }
+.ktm-tc { margin: 0; }
+.ktm-tc__o { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 34px;
+  padding: 4px 0; font-size: 13px; }
+.ktm-tc__o + .ktm-tc__o { border-top: 1px solid var(--rule-hair); }
+.ktm-tc__o dt { color: var(--ash-2); font-size: 12.5px; }
+.ktm-tc__o dd { margin: 0; min-width: 0; overflow-wrap: anywhere; display: flex; align-items: center; flex-wrap: wrap; gap: 0 2px; }
+.ktm-tc__o dd .ktm-phu { margin-left: 6px; }
+.ktm-tc__o dd .lds-tag { margin-left: 6px; }
+.ktm-cot__cuoi { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--rule-soft); display: flex; flex-direction: column; gap: 8px; }
+.ktm-cot__cuoi > .btn { width: 100%; justify-content: center; min-height: 36px; }
+.ktm-ly { font-size: 12px; color: var(--tt-do-fg); }
+.btn.ktm-nut-do { color: var(--tt-do-fg); }
+.ktm-chon { height: 28px; margin-left: -8px; padding: 0 26px 0 8px; border: 1px solid transparent; border-radius: 6px; background-color: transparent;
+  font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+.ktm-chon:hover, .ktm-chon:focus { border-color: var(--rule-soft); background-color: var(--canvas, #fff); outline: none; }
+
+/* Cột trái: ô nhập nhãn trên */
+.ktm-trai { display: flex; flex-direction: column; gap: 14px; }
+.ktm-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ktm-f__nhan { font-size: 12px; color: var(--ash-2); }
+.ktm-f__phu { margin-left: 6px; color: var(--lds-mo, #94a3b8); }
+.ktm-f__goiy { font-size: 12px; color: var(--ash-2); line-height: 1.45; }
+.ktm-f__doc { font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; color: var(--ink); min-height: 20px; }
+.ktm-o { width: 100%; min-height: 32px; border: 1px solid var(--rule-soft); border-radius: 6px; padding: 0 10px; background: var(--canvas, #fff);
+  font: inherit; font-size: 13.5px; color: var(--ink); }
+textarea.ktm-o { padding: 7px 10px; line-height: 1.45; resize: vertical; }
+.ktm-o::placeholder { color: var(--lds-mo, #94a3b8); }
+.ktm-o:focus { outline: none; border-color: var(--ash-2); }
+.ktm-luoi2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.ktm-hang { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; }
+.ktm-o-chon { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.ktm-o-chon input { width: 15px; height: 15px; margin: 0; accent-color: var(--ink); }
+.ktm-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--rule-soft); border-radius: 7px; background: var(--rule-hair); }
+.ktm-seg button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid transparent; border-radius: 5px;
+  background: none; font: inherit; font-size: 12.5px; color: var(--ash); cursor: pointer; white-space: nowrap; }
+.ktm-seg button.on { background: var(--canvas, #fff); border-color: var(--rule); color: var(--ink); }
+.ktm-khoi { border: 1px solid var(--rule-soft); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.ktm-khoi__dau { margin: 0; font-size: 13px; font-weight: 400; color: var(--ink); }
+
+/* Ảnh: ô 64px, ô "+ Thêm" viền đỏ khi còn thiếu ảnh bắt buộc */
+.ktm-anh { min-width: 0; border-radius: 8px; }
+.ktm-anh.is-keo { outline: 2px dashed var(--ash-2); outline-offset: 4px; }
+.ktm-anh__dau { margin: 0 0 6px; font-size: 12px; font-weight: 400; color: var(--ash-2); display: flex; gap: 8px; flex-wrap: wrap; }
+.ktm-anh__o { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ktm-anh__tam { position: relative; margin: 0; width: 64px; height: 64px; }
+.ktm-anh__xem { display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 6px; overflow: hidden; cursor: zoom-in; background: var(--rule-hair); }
+.ktm-anh__xem img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ktm-anh__xoa { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--canvas, #fff); color: var(--ash); cursor: pointer; }
+.ktm-anh__xoa:hover { color: var(--tt-do-fg); border-color: var(--tt-do-fg); }
+.ktm-anh__them { width: 64px; height: 64px; display: grid; place-items: center; padding: 0; border: 1px dashed var(--rule); border-radius: 6px;
+  background: var(--canvas, #fff); font: inherit; font-size: 12px; color: var(--ash-2); cursor: pointer; }
+.ktm-anh__them:hover:not(:disabled) { background: var(--rule-hair); }
+.ktm-anh__them.is-can { border-color: var(--tt-do-dot); color: var(--tt-do-fg); }
+.ktm-anh__them:disabled { cursor: progress; opacity: .7; }
+.ktm-anh__nen, .ktm-anh__loi { margin: 6px 0 0; font-size: 12px; color: var(--ash-2); }
+.ktm-anh__loi { color: var(--tt-do-fg); }
+
+/* Việc cần làm của phiếu bảo trì: dòng 38px, "Không áp dụng" là chữ gạch chân nhạt */
+.ktm-viec-dau { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.ktm-viec-dau .ktm-viec { font-size: 12px; color: var(--ash-2); }
+.ktm-ds-viec { border: 1px solid var(--rule-soft); border-radius: 8px; overflow: hidden; }
+.ktm-ds-viec__dong { display: flex; align-items: center; gap: 12px; min-height: 38px; padding: 4px 12px; font-size: 13.5px; }
+.ktm-ds-viec__dong + .ktm-ds-viec__dong { border-top: 1px solid var(--rule-hair); }
+.ktm-ds-viec__dong:hover { background: var(--rule-hair); }
+.ktm-ds-viec__chon { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
+.ktm-ds-viec__chon input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--tt-la-dot); }
+.ktm-ds-viec__dong.is-xong .ktm-ds-viec__ten { color: var(--ash-2); }
+.ktm-ds-viec__dong.is-bo .ktm-ds-viec__ten { color: var(--ash-2); text-decoration: line-through; }
+.ktm-ds-viec__bo { display: inline-flex; gap: 8px; font-size: 12px; color: var(--ash); max-width: 45%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ktm-lk-nhat { flex: none; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ash); cursor: pointer;
+  text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+.ktm-lk-nhat:hover { color: var(--ink); }
+
+/* Hộp thoại lập mới */
+.ktm-hop-nen { position: fixed; inset: 0; z-index: 400; display: flex; justify-content: center; align-items: flex-start;
+  padding: 8vh 12px 24px; background: rgba(15, 23, 42, .32); overflow-y: auto; }
+.ktm-hop { background: var(--canvas, #fff); border-radius: 12px; box-shadow: 0 24px 60px rgba(15, 23, 42, .3); display: flex; flex-direction: column; }
+.ktm-hop__dau { display: flex; align-items: center; gap: 8px; padding: 14px 18px 6px; }
+.ktm-hop__dau h2 { margin: 0; flex: 1; font-size: 16px; font-weight: 500; letter-spacing: -.01em; }
+.ktm-hop__than { padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 12px; }
+.ktm-hop__chan { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid var(--rule-soft); }
+.ktm-hop__phu { flex: 1; min-width: 0; display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--ash-2); }
+.ktm-ic { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: none;
+  color: var(--ash); cursor: pointer; }
+.ktm-ic:hover { background: var(--rule-hair); }
+
+@media (max-width: 760px) {
+  .ktm-luoi2 { grid-template-columns: minmax(0, 1fr); }
+  .kt-ngan__than.kt-ngan__than--hai:has(.ktm-cot) { display: block; overflow-y: auto; }
+  .kt-ngan__than.kt-ngan__than--hai:has(.ktm-cot) .kt-ngan__chinh { overflow: visible; border-right: 0; border-bottom: 1px solid var(--rule-soft); }
+  .kt-ngan__cot:has(.ktm-cot) { overflow: visible; }
+  .ktm-hop-nen { padding-top: 12px; }
+}

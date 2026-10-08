@@ -173,12 +173,18 @@ describe("danh mục do HỆ SINH — `khongTaoTay` / `khongXoa`", () => {
 });
 
 describe("mở một dòng bằng BÀN PHÍM", () => {
-  it("tên dòng là <button> thật (Enter/Space chạy sẵn), không phải chữ trần trong <tr onClick>", async () => {
+  // Lưới danh mục (08/10/2026): dòng là `<tr tabIndex=0>` — Tab tới dòng rồi Enter / Space mở ngăn.
+  // Không gán `role="button"` cho `<tr>` (mất vai "row" của hàng).
+  it("Tab tới dòng rồi Enter / Space là mở dòng đó", async () => {
+    const user = userEvent.setup();
     stub({ items: [{ id: 1, ma: "G-001", ten: "Couché 150" }] });
     moMan(CFG);
 
-    await screen.findByText("G-001");
-    await waitFor(() => expect(screen.getByRole("button", { name: /^Mở Couché 150/ })).toBeTruthy());
+    const dong = (await screen.findByText("G-001")).closest("tr")!;
+    expect(dong.getAttribute("tabindex")).toBe("0");
+    dong.focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText(/Chỉnh sửa/)).toBeInTheDocument();
   });
 });
 
@@ -257,12 +263,17 @@ describe("Thanh lọc chung (06/10/2026) — kỳ Ngày tạo + điều kiện +
     await screen.findByText("Hộp A");
     expect(urls().some((x) => x.includes("/api/khuon-be?") && x.includes("active=true")
       && x.includes("kem_dem=true"))).toBe(true);
-    expect(screen.getByRole("button", { name: "Bỏ lọc Trạng thái" })).toBeTruthy();
+    // Hàng lọc nhanh trạng thái (08/10/2026): "Đang dùng" đang bật, số đếm lấy từ `dem` của máy chủ.
+    const dang = screen.getByRole("button", { name: /^Đang dùng/ });
+    expect(dang.getAttribute("aria-pressed")).toBe("true");
+    expect(dang.textContent).toContain("1");
+    expect(screen.getByRole("button", { name: /^Đã ngừng/ }).textContent).toContain("4");
+    expect(screen.getByRole("button", { name: /^Tất cả/ }).textContent).toContain("5");
     expect(screen.getByRole("columnheader", { name: "Ngày tạo" })).toBeTruthy();
     expect(screen.getByText("02/10/2026")).toBeTruthy();
   });
 
-  it("⭐ chọn điều kiện ⇒ query có tham số đó, giá trị lấy tên + số từ máy chủ; bỏ Trạng thái ⇒ xem tất cả", async () => {
+  it("⭐ chọn điều kiện ⇒ query có tham số đó, giá trị lấy tên + số từ máy chủ; bấm Tất cả ⇒ xem cả đã ngừng", async () => {
     stubDem();
     window.history.replaceState(null, "", "/");
     const u = userEvent.setup();
@@ -279,7 +290,7 @@ describe("Thanh lọc chung (06/10/2026) — kỳ Ngày tạo + điều kiện +
     expect(window.location.search).toContain("khach_hang_id=7");
 
     vi.mocked(fetch).mockClear();
-    await u.click(screen.getByRole("button", { name: "Bỏ lọc Trạng thái" }));
+    await u.click(screen.getByRole("button", { name: /^Tất cả/ }));
     await waitFor(() => expect(urls().some((x) => x.includes("khach_hang_id=7"))).toBe(true));
     expect(urls().some((x) => x.includes("active="))).toBe(false);
     expect(window.location.search).toContain("active=tat_ca");

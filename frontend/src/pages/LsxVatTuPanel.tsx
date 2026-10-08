@@ -66,7 +66,7 @@ function OBuoc({ t, buocs }: { t: TongKe; buocs: BuocKe[] }) {
       {lan.map((l) => (
         <div className="khsx-vtbang__lan" key={l.buoc.id}>
           <span className="khsx-vtbang__lan-ten">
-            #{l.buoc.thu_tu} {l.buoc.ten}
+            {l.buoc.ten}
           </span>
           {nhieuDong && l.so_luong != null && (
             <span className="khsx-vtbang__lan-sl">
@@ -143,7 +143,7 @@ export function LsxVatTuPanel({ ke }: { ke: BangKeVatTu }) {
             </span>
             {thieuKhuon.map((b) => (
               <span className="khsx-vtke__strip-buoc" key={b.id}>
-                #{b.thu_tu} {b.ten}
+                {b.ten}
               </span>
             ))}
           </>
@@ -163,7 +163,7 @@ export function LsxVatTuPanel({ ke }: { ke: BangKeVatTu }) {
                 className={`khsx-vtke__chip${b.dong.length > 0 ? " is-co" : ""}${b.thieu_khuon ? " is-thieu" : ""}`}
                 title={b.dong.length > 0 ? `${b.dong.length} món vật tư` : "Không dùng vật tư"}
               >
-                #{b.thu_tu} {b.ten}
+                {b.ten}
                 {b.dong.length > 0 && <span className="khsx-vtke__chip-dem">{b.dong.length}</span>}
                 {b.thieu_khuon && <Icon name="alert" size={11} />}
               </span>
@@ -213,8 +213,8 @@ export function LsxVatTuPanel({ ke }: { ke: BangKeVatTu }) {
       <div className="khsx-vtke__foot">
         <Icon name="alert" size={14} />
         <span>
-          Đây là <b>tổng số cần</b> theo định mức kỹ thuật — Kiểm tra tồn kho, giữ chỗ và cấp phát
-          tại <b>Kế hoạch vật tư</b>.
+          Đây là tổng số cần theo định mức kỹ thuật. Kiểm tra tồn kho, giữ chỗ và cấp phát tại Kế
+          hoạch vật tư.
         </span>
       </div>
     </div>

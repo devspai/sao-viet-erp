@@ -902,7 +902,8 @@ def test_gom_de_nghi_KHONG_suy_ngay_can_va_tra_lenh_nguon(db, svc, customer):
     gom = svc.gom_de_nghi(chon)
     assert gom["needed_date"] is None
     assert "ghi_chu_ngay" not in gom
-    assert gom["nguon"] == chon
+    assert [{k: v for k, v in n.items() if k != "so_luong"} for n in gom["nguon"]] == chon
+    assert [n["so_luong"] for n in gom["nguon"]] == [500, 500], "liên kết mang số đề nghị của ô"
     assert len(gom["lines"]) == 1
 
 
@@ -1043,7 +1044,7 @@ def test_xem_truoc_de_nghi_mua_TRA_DU_DE_DIEN_FORM_va_KHONG_ghi_gi(client):
     assert body["needed_date"] is None, "ngày cần để người lập tự gõ — hệ không suy"
     assert "LSX-X, LSX-Y" in body["noi_dung"]
     # Khổ là một phần khoá dòng + khổ cần của dòng mua; vật tư khác 0 · 0.
-    assert body["nguon"] == [{**n, "kho_rong": 0, "kho_dai": 0} for n in nguon]
+    assert body["nguon"] == [{**n, "kho_rong": 0, "kho_dai": 0, "so_luong": None} for n in nguon]
     assert body["lines"] == [{"hang_loai": "vat_tu", "hang_id": 7, "kho_rong": 0, "kho_dai": 0,
                               "item_name": "Kẽm CTP", "unit": "kem", "quantity": 15}]
 

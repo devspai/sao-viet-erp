@@ -5,7 +5,9 @@ import type {
   DepartmentPurchaseRequestLineOut,
   DepartmentPurchaseSourceType,
   DepartmentPurchaseWorkflowStatus,
+  LoaiMua,
 } from "../../../../api/client";
+import type { NavigateFn } from "../../../../components/AppShell";
 
 export type StatusFilter = "all" | DepartmentPurchaseWorkflowStatus;
 
@@ -17,6 +19,8 @@ export interface BoMonState {
 }
 
 export interface DepartmentPurchaseRequestsPageProps {
+  /** Nút "Lập đơn mua cho N món" ở chi tiết yêu cầu nhảy sang màn Mua hàng. */
+  navigate?: NavigateFn;
   eventTick?: number;
   /** Liên thông từ PMH/Phiếu chi: lọc + tô sáng đúng mã YCMH này khi mở trang. */
   focusRequestCode?: string | null;
@@ -28,6 +32,8 @@ export interface DepartmentPurchaseRequestsPageProps {
    *  gửi seed không kèm đầu phiếu thì mọi thứ chạy y như cũ. */
   seedHeader?: {
     source_type?: DepartmentPurchaseSourceType | null;
+    /** Kho gửi `mua_ton`, Kế hoạch vật tư gửi `cho_lsx` (08/10/2026). */
+    loai_mua?: LoaiMua | null;
     needed_date?: string | null;
     related_document_type?: string | null;
     related_document_code?: string | null;

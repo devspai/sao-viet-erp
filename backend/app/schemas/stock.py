@@ -12,6 +12,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..services.kho_giay import DANG_GIAY, DANG_TO, chuan_kho, khoa_dong
+from .purchase import MuaChoLenhOut
 
 
 def _chuan_giay(hang_loai: str | None, dang: str | None, kho_rong, kho_dai, *, bat_buoc: bool):
@@ -141,6 +142,9 @@ class StockRequestLineOut(BaseModel):
     # Giá bán theo đơn hàng (chỉ để đọc, không vào sổ) + số đơn đi kèm.
     don_gia_ban: int | None = None
     don_ban_ma: str | None = None
+    # Yêu cầu NHẬP từ đợt giao mua: hàng này mua cho lệnh nào / tồn kho (08/10/2026).
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
+    loai_mua_cac: list[str] = Field(default_factory=list)
     # Kho phản hồi: lý do kho cấp/nhập thiếu so với còn phải cấp (nếu có).
     ly_do_thieu: str | None = None
     ghi_chu: str | None = None
@@ -192,6 +196,11 @@ class StockRequestOut(BaseModel):
     kho_nguon_id: int | None = None
     kho_nguon_ten: str | None = None
     xuat_voucher_id: int | None = None
+    # NGUỒN MUA HÀNG: yêu cầu nhập lập từ một đợt giao của phiếu mua — ngăn kho hiện "DMH-… Đợt 2".
+    purchase_delivery_id: int | None = None
+    don_mua_id: int | None = None
+    don_mua_ma: str | None = None
+    dot_so: int | None = None
     # Yêu cầu SINH TỪ ĐỀ NGHỊ CẤP VẬT TƯ CÔNG ĐOẠN (spec-de-nghi-cap-vat-tu-cong-doan) — ba trường
     # đều None với yêu cầu kho THƯỜNG (không do sản xuất lập), FE không phải phân nhánh.
     # GIỜ cần thật. `ngay_can` chỉ có DATE nên không diễn đạt được ca chiều cần hàng lúc 13h30
@@ -788,6 +797,16 @@ class StockLotOut(BaseModel):
     tu_kcs: bool = False
 
 
+class TonNhomDem(BaseModel):
+    """Số MẶT HÀNG (nhóm tồn) theo 5 nhóm lọc của màn Tồn kho — đếm trên tập đã lọc bởi ô tìm, kỳ Nhập và các khoảng; bỏ riêng bộ lọc nhóm."""
+
+    all: int = 0
+    can_mua: int = 0
+    du_ton: int = 0
+    chuakhai: int = 0
+    sap_het_han: int = 0
+
+
 class AllocationLineOut(BaseModel):
     lot_id: int
     ma_lo: str
@@ -832,6 +851,10 @@ class MaterialXuatRow(BaseModel):
     don_gia: int | None = None
     # Dòng xuất này thuộc phiếu ĐIỀU CHUYỂN (chuyển đi) → lịch sử mặt hàng xếp vào tab "Chuyển kho".
     dieu_chuyen: bool = False
+    # Vị trí + HSD của LÔ đã xuất (đọc cùng câu) và lô thành phẩm từ KCS chưa có giá gốc.
+    vi_tri: str | None = None
+    hsd: date | None = None
+    chua_gia_goc: bool = False
 
 
 class MaterialHistoryOut(BaseModel):
@@ -845,6 +868,42 @@ class MaterialHistoryOut(BaseModel):
     on_hand: float
     nhap: list[StockLotOut] = []
     xuat: list[MaterialXuatRow] = []
+
+
+class MaterialChuyenRow(BaseModel):
+    """1 dòng tab "Chuyển kho" của ngăn mặt hàng: lô NHẬN VỀ (`chieu=in`) hoặc dòng CHUYỂN ĐI (`out`)."""
+
+    key: str
+    chieu: str
+    ngay: date
+    voucher_id: int | None = None
+    voucher_ma: str | None = None
+    so_luong: float
+    don_gia: int | None = None
+    chua_gia_goc: bool = False
+    vi_tri: str | None = None
+    hsd: date | None = None
+
+
+class MaterialHistoryPage(BaseModel):
+    """MỘT trang của một tab ngăn mặt hàng (Lô tồn / Lịch sử nhập / Lịch sử xuất / Chuyển kho).
+
+    Cắt trang ở DB: lịch sử một mặt hàng dày lên theo năm, không nạp cả về trình duyệt. `dem` = số
+    dòng của MỌI tab (cho số trên tab), `lo`/`xuat`/`chuyen` chỉ một trong ba có dòng theo `tab`."""
+
+    hang_loai: str
+    hang_id: int
+    hang_ma: str | None = None
+    hang_ten: str | None = None
+    dvt: str | None = None
+    on_hand: float
+    tab: str
+    page: int
+    size: int
+    dem: dict[str, int]
+    lo: list[StockLotOut] = []
+    xuat: list[MaterialXuatRow] = []
+    chuyen: list[MaterialChuyenRow] = []
 
 
 # --- Tra kho CÔNG KHAI (quét tem QR, không đăng nhập) -------------------------
@@ -940,3 +999,98 @@ class StockLevelOut(BaseModel):
 # GỠ 2026-08-08: `StockMaterialCreate` + `StockMaterialQuyDoi` — hai cửa cho kho tự đẻ mặt
 # hàng và tự khai quy đổi cho từng dòng. Nay mặt hàng phải có sẵn trong danh mục Giấy / Vật
 # tư khác, còn quy đổi lấy từ đồ thị đơn vị dùng chung.
+
+
+class DuBaoLenhRow(BaseModel):
+    """Một lệnh (hoặc bài ghép) sắp lĩnh mặt hàng — theo đúng thứ tự ăn tồn của bảng cân đối."""
+
+    ma: str
+    lsx_id: int | None = None
+    bai_ghep_id: int | None = None
+    ten_viec: str | None = None
+    khach_ten: str | None = None
+    han_sx: date | None = None
+    #: Σ `con_phai_co` của chủ thể với mặt hàng này — đơn vị GỐC.
+    can: float = 0
+    #: Phần đã giữ chỗ (kho + đang về) của chủ thể — để bày, không vào phép trừ.
+    da_giu: float = 0
+
+
+class DuBaoVeRow(BaseModel):
+    ma: str | None = None
+    ngay_ve: date
+    sl: float
+    # Hàng đang về này mua cho lệnh nào / tồn kho (08/10/2026).
+    mua_cho: list[MuaChoLenhOut] = Field(default_factory=list)
+    loai_mua_cac: list[str] = Field(default_factory=list)
+
+
+class TonKhoaRow(BaseModel):
+    """Tồn toàn xưởng của MỘT khoá (dạng + khổ) của một mặt hàng — không tiền. Số theo đơn vị gốc
+    của khoá: giấy tờ đếm "tờ", giấy cuộn và hàng khác theo đơn vị gốc của mã."""
+
+    dang_giay: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
+    ton: float = 0
+    don_vi_goc: str | None = None
+    don_vi_goc_ten: str | None = None
+
+
+class DuBaoTonRow(BaseModel):
+    """Dự báo của MỘT dòng màn Tồn kho (khoá tồn 4 phần). Số đều theo đơn vị GỐC của mặt hàng.
+
+    Không có tiền: PMH chỉ được gọi tên (`phieu_mua`), giá nằm ở sổ giá của danh mục."""
+
+    hang_loai: str
+    hang_id: int
+    kho_rong: int = 0
+    kho_dai: int = 0
+    #: Tồn TOÀN XƯỞNG mà bảng cân đối đang dùng — giữ chỗ không chia theo kho, nên màn kho cần
+    #: số này để nói "lệnh tính trên tồn mọi kho". `None` = không lệnh nào cần mã này.
+    ton_toan_xuong: float | None = None
+    can_lenh: float = 0
+    dang_ve: float = 0
+    lenh: list[DuBaoLenhRow] = Field(default_factory=list)
+    ve: list[DuBaoVeRow] = Field(default_factory=list)
+    phieu_mua: list[dict] = Field(default_factory=list)
+
+
+class TonNhomMuc(BaseModel):
+    """Phán quyết của MỘT dòng tồn (nhóm) trong trang — máy chủ là nguồn DUY NHẤT của "Cần mua", chip
+    Tình trạng và các số dự báo mà dòng bày; màn không tự tính lại. Không có tiền."""
+
+    #: Khoá dòng tồn dạng chuỗi như `khoaTon` bên màn: `giay:12:780:905` · `giay:12:0:0` · `giay:12` · `vat_tu:5`.
+    khoa: str
+    hang_loai: str
+    hang_id: int
+    kho_rong: int = 0
+    kho_dai: int = 0
+    can_mua: bool = False
+    #: Đã khai ngưỡng cho dòng này ở kho này (giấy cũ chưa có dạng khớp ngưỡng khổ 0 × 0).
+    co_nguong: bool = False
+    #: `het` · `can_mua` · `vuot` (đang vượt tối đa) · `se_vuot` · `chua` (chưa đặt mức) · None (trong mức).
+    tinh_trang: str | None = None
+    #: Sắp xuất / Sắp về / Dự kiến còn của dòng; None khi dự báo không dùng được lúc này.
+    can_lenh: float | None = None
+    dang_ve: float | None = None
+    du_kien: float | None = None
+    duoi_cuoi: bool = False
+    #: Dòng dự báo đầy đủ (lệnh, đơn về) cho ngăn chi tiết — chỉ dòng trong trang; None khi dự báo hỏng.
+    du_bao: DuBaoTonRow | None = None
+
+
+class TonNhomPage(BaseModel):
+    """Một trang màn Tồn kho của MỘT kho — máy chủ đã lọc, đếm, cắt trang theo MẶT HÀNG.
+
+    `items` = lô của các mặt hàng TRONG TRANG (không phải một dòng mỗi mặt hàng): màn gom chúng thành
+    dòng tồn như cũ. `total` = số mặt hàng khớp lọc (không phải số lô). `nhom` = phán quyết từng dòng."""
+
+    items: list[StockLotOut]
+    total: int
+    dem: TonNhomDem
+    #: Có mặt hàng nào của kho khai hạn sử dụng — màn chỉ bày cột Hạn sử dụng khi có.
+    co_hsd: bool = False
+    nhom: list[TonNhomMuc] = Field(default_factory=list)
+    #: False khi dự báo hỏng tạm thời: "Cần mua" lùi về mức tồn so với ngưỡng, các số dự báo để trống.
+    du_bao_ok: bool = True

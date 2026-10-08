@@ -11,21 +11,35 @@
 //
 // Không tách thành hai màn (dù là hai bảng): người tổ kỹ thuật phải nhìn thấy hàng
 // chờ báo hỏng NGAY CẠNH hàng việc đang làm thì mới tiếp nhận kịp; bắt họ đổi màn là lời báo nằm
-// đó cả ca. Chuyển cửa bằng công tắc đầu thanh công cụ, mỗi lúc chỉ một khung được gắn.
+// đó cả ca. Chuyển cửa bằng công tắc cạnh tên màn, mỗi lúc chỉ một khung được gắn.
+//
+// Bố cục (07/10/2026): danh sách theo khuôn lưới chung `LuoiDs` của Báo giá/Đơn hàng (tên màn + nút
+// chính một hàng, thẻ lọc trắng gắn liền lưới, chip trạng thái màu `--tt-*`); ngăn chi tiết theo
+// phương án A của docs/mockups/ky-thuat-may-ngan-3-phuong-an.html — hai cột kiểu Linear, form lập
+// mới là hộp thoại giữa màn.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyRow } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
+import {
+  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
+  type CotLuoi,
+} from "../components/LuoiDs";
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
 import {
-  kyThuatMay, NHAN_MUC_DO, NHAN_TT_SUA_CHUA, NHAN_TT_YEU_CAU, TT_YEU_CAU,
+  kyThuatMay, NHAN_MUC_DO, NHAN_TT_SUA_CHUA, NHAN_TT_YEU_CAU,
   type Anh, type MayChon, type SuaChua, type YeuCau,
 } from "../api/kyThuatMay";
-import { AnhBox, Badge, NhatKyPhieu, fmtNgayGio } from "./KyThuatMayChung";
+import {
+  AnhBox, ChipKtm, ChonMucDo, CotPhieu, DongTT, HopThoai, MucDo, NhatKyPhieu, ONhap,
+  fmtNgayGio, fmtNgayGioNgan, hienChuDu, keoDai, useManHep,
+} from "./KyThuatMayChung";
+import { NganPhai } from "./ke-toan/shared/NganPhai";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
 import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
@@ -37,9 +51,8 @@ import {
 } from "./loc-ky-thuat-may/dieu-kien-ky-thuat-may";
 
 import "./rebuild-catalog.css";
+import "./ke-toan/ke-toan.css";
 import "./ky-thuat-may.css";
-
-const MUC_DO_CHON = ["nhe", "trung_binh", "nghiem_trong"];
 
 // Kỳ + bộ lọc của màn — DÙNG CHUNG hai khung (xem `dieu-kien-ky-thuat-may.ts`), ghi lên URL `?man=`.
 type LocMan = { ky: KyDS; loc: LocSuaChua };
@@ -50,61 +63,148 @@ const docLocMan = (p: URLSearchParams): LocMan => ({
 });
 const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locSuaChuaLenUrl(t.loc) });
 
-/** Ô ngày `dd/MM/yyyy`, di chuột thấy đủ giờ. */
-function ONgay({ v }: { v: string | null }) {
-  return <td className="rc__nowrap" title={ngayGioDayDu(v)}>{ngayDayDu(v)}</td>;
-}
+interface Cot extends CotLuoi { w?: number; c?: boolean; title?: string }
 
-interface FormState {
-  may_id: string;
+/** Cột lưới phiếu sửa chữa, xếp theo nhóm nghĩa: Mã, Ngày, Máy, Chỗ hỏng, Mức độ, Trạng thái, các mốc
+ *  thời gian của đợt hỏng, Ảnh, Mô tả. Bề rộng đủ cho chữ thật (mã, tên máy dài) — tổng vượt khung thì
+ *  lưới cuộn ngang như Báo giá, KHÔNG ép cột hẹp lại rồi cắt "IN-0…". Mô tả là cột co giãn cuối. */
+const COT_PHIEU: Cot[] = [
+  { key: "ma", label: "Mã phiếu", coDinh: true, w: 100 },
+  { key: "ngay", label: "Ngày tạo", w: 110 },
+  { key: "may", label: "Máy", w: 270 },
+  { key: "cho", label: "Chỗ hỏng", w: 210 },
+  { key: "muc", label: "Mức độ", w: 130 },
+  { key: "tt", label: "Trạng thái", w: 130 },
+  { key: "hong", label: "Hỏng lúc", w: 120 },
+  { key: "keo", label: "Đã kéo dài", w: 120, title: "Từ lúc hỏng tới giờ, hoặc tới lúc sửa xong" },
+  { key: "anh", label: "Ảnh", w: 60, c: true },
+  { key: "mota", label: "Mô tả" },
+];
+
+/** Cột lưới yêu cầu báo hỏng. "Xử lý" (nút lập phiếu / từ chối, hoặc kết quả) đứng CUỐI, co giãn và
+ *  CỐ ĐỊNH (không ẩn được: đó là việc chính của hàng chờ); lý do từ chối dài bao nhiêu cũng còn chỗ. */
+const COT_YC: Cot[] = [
+  { key: "ma", label: "Mã yêu cầu", coDinh: true, w: 110 },
+  { key: "ngay", label: "Ngày tạo", w: 120 },
+  { key: "may", label: "Máy", w: 270 },
+  { key: "cho", label: "Chỗ hỏng", w: 200 },
+  { key: "muc", label: "Mức độ", w: 180, title: "Mức độ người báo chọn; máy đang dừng thì ghi đỏ bên cạnh" },
+  { key: "lsx", label: "Lệnh SX", w: 110, title: "Lệnh đang chạy lúc máy hỏng (báo từ màn Thực hiện sản xuất)" },
+  { key: "tt", label: "Trạng thái", w: 140 },
+  { key: "nguoi", label: "Người báo", w: 210 },
+  { key: "mota", label: "Mô tả", w: 240 },
+  { key: "xuly", label: "Xử lý", coDinh: true },
+];
+
+interface FormSua {
   bo_phan_hong: string;
   mo_ta: string;
   muc_do: string;
-  // KHÔNG có `nguoi_bao_ten`: người báo do server chốt (xem `SuaChuaIn` bên backend).
   nguyen_nhan_phuong_an: string;
   ghi_chu: string;
 }
 
-const FORM_RONG: FormState = {
-  may_id: "", bo_phan_hong: "", mo_ta: "", muc_do: "trung_binh",
-  nguyen_nhan_phuong_an: "", ghi_chu: "",
-};
+const formTuPhieu = (p: SuaChua): FormSua => ({
+  bo_phan_hong: p.bo_phan_hong ?? "",
+  mo_ta: p.mo_ta ?? "",
+  muc_do: p.muc_do ?? "trung_binh",
+  nguyen_nhan_phuong_an: p.nguyen_nhan_phuong_an ?? "",
+  ghi_chu: p.ghi_chu ?? "",
+});
 
-interface YcFormState {
-  may_id: string;
-  bo_phan_hong: string;
-  mo_ta: string;
-  muc_do: string;
-  may_dung: boolean;
+/** Ba thẻ xám lúc đang nạp (bản điện thoại của hàng xương bảng). */
+function TheCho() {
+  return (
+    <>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="ktm-the is-skel">
+          <span className="rc-skel" style={{ width: "45%" }} />
+          <span className="rc-skel" style={{ width: "75%" }} />
+          <span className="rc-skel" style={{ width: "60%" }} />
+        </div>
+      ))}
+    </>
+  );
 }
 
-const YC_FORM_RONG: YcFormState = {
-  may_id: "", bo_phan_hong: "", mo_ta: "", muc_do: "trung_binh", may_dung: false,
-};
-
-/** Ô chọn máy dùng chung cho cả hai khung. Dữ liệu lấy từ `/ky-thuat-may/may-chon` chứ KHÔNG từ
+/** Ô chọn máy của hai hộp thoại lập mới. Dữ liệu lấy từ `/ky-thuat-may/may-chon` chứ KHÔNG từ
  *  danh mục thiết bị: `dm_thiet_bi` là quyền của phòng kỹ thuật, thợ đứng máy không có ⇒ dùng
  *  `mayThietBi.list` ở đây là ô chọn rỗng trơn và họ không báo hỏng được. */
-function ChonMay({ giaTri, may, loiMay, khoa, onChange }: {
+function ChonMay({ giaTri, may, loiMay, onChange }: {
   giaTri: string;
   may: MayChon[];
   loiMay: string | null;
-  khoa: boolean;
   onChange: (v: string) => void;
 }) {
   const dangChon = may.find((m) => String(m.id) === giaTri);
   return (
-    <label className="rc-field">
-      <span className="rc-field__label">Máy *</span>
-      <select className="rc-input" value={giaTri} disabled={khoa}
-        onChange={(e) => onChange(e.target.value)}>
-        <option value="">— Chọn máy —</option>
-        {may.map((m) => <option key={m.id} value={m.id}>{m.ma} · {m.ten}</option>)}
+    <label className="ktm-f">
+      <span className="ktm-f__nhan">Máy</span>
+      <select className="ktm-o" value={giaTri} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Chọn máy</option>
+        {may.map((m) => <option key={m.id} value={m.id}>{m.ma} {m.ten}</option>)}
       </select>
       {loiMay
-        ? <span className="ktm-hint ktm-hint--loi">{loiMay}</span>
-        : dangChon?.loai_may && <span className="ktm-hint">{dangChon.loai_may}</span>}
+        ? <span className="ktm-f__goiy lds-do">{loiMay}</span>
+        : dangChon?.loai_may && <span className="ktm-f__goiy">{dangChon.loai_may}</span>}
     </label>
+  );
+}
+
+/** Ô "Máy" trong lưới và cột thuộc tính: mã, tên mờ bên cạnh. */
+function OMay({ ma, ten }: { ma: string | null; ten: string | null }) {
+  return <>{ma ?? "—"}{ten && <span className="ktm-phu">{ten}</span>}</>;
+}
+
+/** Lưới chung của hai khung: bọc `CuonLuoi` (tiêu đề bám khi cuộn trang, cột mã ghim khi cuộn ngang).
+ *  `cot` là danh sách cột ĐANG HIỆN (đã qua ẩn/hiện + đổi chỗ của nút "Cột"). */
+function Luoi<T extends { id: number }>({ cot, rows, loading, rong, o, onMo }: {
+  cot: Cot[];
+  rows: T[];
+  loading: boolean;
+  rong: ReactNode;
+  o: (r: T, key: string) => ReactNode;
+  onMo: (r: T) => void;
+}) {
+  return (
+    <CuonLuoi ghim={soCotGhim(cot)}>
+      <table className="lds-g" style={{ minWidth: rongLuoi(cot, 240) }}>
+        <colgroup>
+          {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+        </colgroup>
+        <thead>
+          <tr>
+            {cot.map((c) => <th key={c.key} className={c.c ? "c" : undefined} title={c.title}>{c.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {loading && rows.length === 0 ? (
+            <EmptyRow colSpan={cot.length} trangThai="dang-tai" />
+          ) : rows.length === 0 ? (
+            <tr><td colSpan={cot.length} className="lds-trong">{rong}</td></tr>
+          ) : rows.map((r) => (
+            <tr key={r.id} className="lds-dong" tabIndex={0} onClick={() => onMo(r)}
+              onKeyDown={(e) => {
+                if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+                  e.preventDefault();
+                  onMo(r);
+                }
+              }}>
+              {cot.map((c) => <OCell key={c.key} c={c}>{o(r, c.key)}</OCell>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </CuonLuoi>
+  );
+}
+
+function OCell({ c, children }: { c: Cot; children: ReactNode }) {
+  // Ô bị cắt "…" thì rê chuột hiện chữ đủ — đo lúc rê, ô nào cũng được kể cả ô dựng bằng thẻ.
+  return (
+    <td className={c.c ? "c" : undefined} onMouseEnter={hienChuDu}>
+      {children}
+    </td>
   );
 }
 
@@ -132,7 +232,7 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
   // Vừa tiếp nhận một yêu cầu ⇒ nhảy thẳng sang phiếu vừa sinh, khỏi bắt người ta đi tìm mã SC.
   const [moPhieuId, setMoPhieuId] = useState<number | null>(null);
 
-  // Danh sách máy nạp LƯỜI và dùng chung hai khung: chỉ cần khi có ai đó mở form.
+  // Danh sách máy nạp LƯỜI và dùng chung hai khung: chỉ cần khi có ai đó mở form lập mới.
   const [may, setMay] = useState<MayChon[]>([]);
   const [loiMay, setLoiMay] = useState<string | null>(null);
   const [canMay, setCanMay] = useState(false);
@@ -143,9 +243,10 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
       // Nuốt lỗi ở đây là ô chọn máy rỗng trơn và người dùng tưởng xưởng chưa khai máy nào.
       .catch((e) => setLoiMay(e instanceof Error ? e.message : "Không tải được danh sách máy."));
   }, [token, canMay, may.length]);
+  const onCanMay = useCallback(() => setCanMay(true), []);
 
-  // Số trên công tắc = yêu cầu chưa ai tiếp nhận. Chỉ hỏi khi có quyền phiếu (cửa của endpoint) —
-  // người báo hỏng không cần con số này, nó là hàng chờ của tổ sửa chữa.
+  // Chấm trên công tắc = còn yêu cầu chưa ai tiếp nhận. Chỉ hỏi khi có quyền phiếu (cửa của
+  // endpoint) — người báo hỏng không cần nó, đây là hàng chờ của tổ sửa chữa.
   useEffect(() => {
     if (!token || !xemPhieu) return;
     kyThuatMay.choXuLy(token).then((r) => setChoXuLy(r.total)).catch(() => {});
@@ -155,17 +256,19 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
 
   const [locMan, setLocMan] = useLocMan("sua-chua-may", LOC_MAN_TRONG, docLocMan, ghiLocMan);
 
-  // Công tắc đứng ĐẦU thanh công cụ: nó đổi cả màn bên dưới, nấp ở góc phải thì không ai tìm ra.
+  // Công tắc đứng NGAY CẠNH tên màn: nó đổi cả màn bên dưới, nấp ở góc phải thì không ai tìm ra.
   const chuyen = xemPhieu && xemYc ? (
     <div className="ktm-xem" role="group" aria-label="Chế độ xem">
       <button type="button" className={`ktm-xem__nut${khung === "phieu" ? " is-active" : ""}`}
-        onClick={() => doiKhung("phieu")}>
-        <Icon name="settings" size={14} /> Phiếu sửa chữa
+        aria-pressed={khung === "phieu"} onClick={() => doiKhung("phieu")}>
+        Phiếu sửa chữa
       </button>
       <button type="button" className={`ktm-xem__nut${khung === "yeu-cau" ? " is-active" : ""}`}
-        onClick={() => doiKhung("yeu-cau")}>
-        <Icon name="bell" size={14} /> Yêu cầu báo hỏng
-        {choXuLy > 0 && <span className="ktm-xem__so">{choXuLy}</span>}
+        aria-pressed={khung === "yeu-cau"} onClick={() => doiKhung("yeu-cau")}>
+        Yêu cầu báo hỏng
+        {/* CHẤM, không số: còn yêu cầu chờ tiếp nhận là đủ để rẽ sang — số thì đã nằm trên nút
+            lọc "Chờ tiếp nhận" bên kia. */}
+        {choXuLy > 0 && <span className="ktm-xem__cham" aria-label="Có yêu cầu chờ tiếp nhận" />}
       </button>
     </div>
   ) : null;
@@ -176,7 +279,7 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
     return (
       <KhungPhieu
         chuyen={chuyen}
-        may={may} loiMay={loiMay} onCanMay={() => setCanMay(true)}
+        may={may} loiMay={loiMay} onCanMay={onCanMay}
         moId={moPhieuId} onDaMo={() => setMoPhieuId(null)}
         locMan={locMan} onLocMan={setLocMan}
       />
@@ -187,7 +290,7 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
       chuyen={chuyen}
       locMan={locMan} onLocMan={setLocMan}
       guiDuoc={guiYcDuoc} tiepNhanDuoc={tiepNhanDuoc} tuChoiDuoc={tuChoiDuoc}
-      may={may} loiMay={loiMay} onCanMay={() => setCanMay(true)}
+      may={may} loiMay={loiMay} onCanMay={onCanMay}
       eventTick={eventTick}
       onThayDoi={ycThayDoi}
       onMoPhieu={xemPhieu ? (id) => { setMoPhieuId(id); setKhung("phieu"); } : undefined}
@@ -227,6 +330,9 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
   const [tab, setTab] = useState<string>("can_lam");
   const [mo, setMo] = useState<SuaChua | "new" | null>(null);
   const dieuKien = useDieuKienSuaChua("phieu");
+  const [cotAn, setCotAn] = useCotAn("sua-chua-may-phieu");
+  const [thuTu, setThuTu] = useThuTuCot("sua-chua-may-phieu");
+  const cotHien = xepCot(COT_PHIEU, thuTu).filter((c) => !cotAn.has(c.key));
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocPhieu(locMan.loc) });
 
   // Lọc + tìm kiếm + phân trang ở SERVER (xem ghi chú cùng chỗ bên màn Phiếu bảo trì).
@@ -260,286 +366,298 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
     kyThuatMay.getSuaChua(token, moId).then(setMo).catch(() => {}).finally(onDaMo);
   }, [token, moId]);
 
-  // Mở ngăn NÀO cũng cần danh sách máy, không riêng form tạo mới: ô "Máy" của phiếu đã có phải
-  // tra được `may_id` ra tên máy để hiện. Trước đây chỉ nạp khi `mo === "new"` ⇒ mở phiếu cũ là
-  // danh sách rỗng, `<select>` không có option nào khớp `may_id` nên trình duyệt vẽ ra
-  // "— Chọn máy —" cho một phiếu đã có máy hẳn hoi (nhìn như phiếu mất máy, và mời chọn lại).
-  useEffect(() => { if (mo !== null) onCanMay(); }, [mo, onCanMay]);
+  // Danh sách máy chỉ cần cho hộp "Lập phiếu sửa" — phiếu đã có tự mang mã + tên máy theo.
+  useEffect(() => { if (mo === "new") onCanMay(); }, [mo, onCanMay]);
 
-  // `rows` là trang server trả về — không lọc lại ở đây.
-  const hien = rows;
-
-  // Số trên tab đếm ở DB (`dem`), không phải đếm trang đang xem.
-  const soCanLam = (dem.cho_sua ?? 0) + (dem.dang_sua ?? 0) + (dem.cho_vat_tu ?? 0);
-  const tongTatCa = soCanLam + (dem.da_sua_xong ?? 0);
+  // Số trên nút lọc đếm ở DB (`dem`), không phải đếm trang đang xem.
+  const soChoSua = dem.cho_sua ?? 0;
+  const tongTatCa = soChoSua + (dem.da_sua_xong ?? 0);
   // Bảng rỗng vì CHƯA CÓ phiếu nào, hay vì bộ lọc — `dem` đã đi theo bộ lọc nên phải hỏi cả lọc.
   const chuaCo = tongTatCa === 0 && !qTre.trim() && khoaLoc === "{}";
 
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
   const datLoc = (t: LocMan) => doiLoc(() => onLocMan(t));
-  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `tab`, về trang 1 như bấm tab).
+  // Phiếu chỉ còn 2 trạng thái (mg 0379): "Chờ sửa" chính là việc còn phải làm (`can_lam`).
+  const tabs = [
+    { id: "all", nhan: "Tất cả", so: tongTatCa },
+    { id: "can_lam", nhan: NHAN_TT_SUA_CHUA.cho_sua, so: soChoSua },
+    { id: "da_sua_xong", nhan: NHAN_TT_SUA_CHUA.da_sua_xong, so: dem.da_sua_xong ?? 0 },
+  ];
+  // Trạng thái trong nút Lọc = chính hàng lọc nhanh (đọc/ghi `tab`, về trang 1 như bấm nút).
   const dkDu: DieuKien<LocSuaChua>[] = [
     dkTheoTab<LocSuaChua>({
-      tabs: [
-        { id: "can_lam", nhan: "Cần làm", so: soCanLam },
-        { id: "all", nhan: "Tất cả", so: tongTatCa },
-        { id: "da_sua_xong", nhan: NHAN_TT_SUA_CHUA.da_sua_xong, so: dem.da_sua_xong ?? 0 },
-      ],
-      tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)),
+      tabs, tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)), anKhoi: true,
     }),
     ...dieuKien,
   ];
 
-  return (
-    <div className="rc ktm">
-      <div className="rc__head">
-        <div className="rc__headrow">
-          <h1 className="rc__title">Sửa chữa máy</h1>
-          <span className="rc__count">{tongTatCa} phiếu</span>
-          {soCanLam > 0 && (
-            <span className="ktm-chip ktm-chip--canh-bao">
-              {/* Đếm PHIẾU chưa đóng, không phải số máy: có phân trang rồi thì không gom được
-                  theo máy trên toàn bảng nếu chỉ nhìn trang hiện tại — mà con số nửa vời còn tệ
-                  hơn không có. */}
-              <Icon name="alert" size={13} /> {soCanLam} việc chưa xong
-            </span>
-          )}
-        </div>
-      </div>
+  const hepMan = useManHep();
+  const xoaLoc = () => doiLoc(() => { setQ(""); setTab("all"); onLocMan(LOC_MAN_TRONG); });
+  const rong = chuaCo ? (
+    <>
+      Chưa có phiếu sửa chữa nào. Máy hỏng thì lập phiếu ngay để có vết.{" "}
+      {taoDuoc && <button type="button" className="lds-lk" onClick={() => setMo("new")}>Lập phiếu sửa</button>}
+    </>
+  ) : (
+    <>Không có phiếu nào khớp bộ lọc. <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button></>
+  );
 
-      <div className="rc__unified-bar tl-thanh">
+  const o = (r: SuaChua, key: string): ReactNode => {
+    const xong = r.trang_thai === "da_sua_xong";
+    switch (key) {
+      case "ma": return r.ma;
+      case "may": return <OMay ma={r.may_ma} ten={r.may_ten} />;
+      case "cho": return r.bo_phan_hong;
+      case "muc": return <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />;
+      case "tt": return <ChipKtm tt={r.trang_thai}>{NHAN_TT_SUA_CHUA[r.trang_thai] ?? r.trang_thai}</ChipKtm>;
+      case "hong": return <span title={ngayGioDayDu(r.thoi_diem)}>{fmtNgayGioNgan(r.thoi_diem)}</span>;
+      case "keo": return <span className={xong ? "lds-mu" : undefined}>{keoDai(r.thoi_diem, xong ? r.hoan_thanh_at : null)}</span>;
+      // Chỉ hiện số khi có ảnh. Thiếu ảnh sau khi sửa thì nút đóng phiếu tự chặn và nói lý do —
+      // nhắc lại ở đây là một viên đỏ trên mọi dòng đang mở.
+      case "anh": return r.so_anh > 0 ? String(r.so_anh) : "";
+      case "ngay": return <span className="lds-mu" title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</span>;
+      case "mota": return r.mo_ta ? r.mo_ta : <span className="lds-mu3">—</span>;
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="ktm lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Sửa chữa máy</h1>
         {chuyen}
-        <div className="rc__search-wrapper">
-          <Icon name="search" size={15} />
-          <input className="rc__search" placeholder="Tìm mã phiếu, máy, bộ phận hỏng…"
-            value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
-        </div>
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_SUA_CHUA}
-          onKy={(ky) => datLoc({ ...locMan, ky })}
-          dieuKien={dkDu}
-          loc={locMan.loc}
-          onLoc={(loc) => datLoc({ ...locMan, loc })}
-        />
-        <div className="rc__unified-right" style={{ marginLeft: "auto" }}>
+        <div className="lds-dau__nut">
           {taoDuoc && (
             <Button variant="accent" onClick={() => setMo("new")}>
-              <Icon name="plus" size={15} /> Ghi nhận máy hỏng
+              <Icon name="plus" size={15} /> Lập phiếu sửa
             </Button>
           )}
         </div>
-      </div>
+      </header>
 
-      <div className="rc__tabs">
-        <button className={`rc__tab${tab === "can_lam" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("can_lam"))}>
-          Cần làm <span className="rc__tabn">{soCanLam}</span>
-        </button>
-        <button className={`rc__tab${tab === "all" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("all"))}>
-          Tất cả <span className="rc__tabn">{tongTatCa}</span>
-        </button>
-        {/* Không có tab "Chờ sửa"/"Đang sửa"/"Chờ vật tư": drawer đã bỏ nút chuyển giữa các nấc đó,
-            phiếu chỉ còn chờ sửa → đã sửa xong, nên "Cần làm" gánh luôn phần chờ sửa (kể cả phiếu cũ
-            còn kẹt ở hai nấc giữa). */}
-        <button className={`rc__tab${tab === "da_sua_xong" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("da_sua_xong"))}>
-          {NHAN_TT_SUA_CHUA.da_sua_xong} <span className="rc__tabn">{dem.da_sua_xong ?? 0}</span>
-        </button>
-      </div>
+      <section className="lds-loc">
+        <LocNhanhTrangThai dang={tab} onChon={(id) => doiLoc(() => setTab(id))}
+          muc={tabs.map((t) => ({
+            key: t.id, label: t.nhan, count: t.so,
+            mau: t.id === "can_lam" ? "vang" as const : t.id === "da_sua_xong" ? "la" as const : undefined,
+          }))} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={q} onChange={(v) => doiLoc(() => setQ(v))}
+            placeholder="Tìm mã phiếu, máy, chỗ hỏng" ariaLabel="Tìm phiếu sửa chữa" />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_SUA_CHUA}
+            onKy={(ky) => datLoc({ ...locMan, ky })}
+            dieuKien={dkDu}
+            loc={locMan.loc}
+            onLoc={(loc) => datLoc({ ...locMan, loc })}
+          />
+          {/* Điện thoại hiện thẻ chứ không hiện lưới nên không có cột để ẩn. */}
+          {!hepMan && <ChonCot cot={COT_PHIEU} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />}
+        </div>
+      </section>
 
       {error && (
-        <div className="banner banner--error" role="alert" style={{ marginBottom: "var(--sp-4)" }}>
+        <div className="banner banner--error" role="alert">
           <span>{error}</span>
-          <button type="button" className="btn btn--ghost" onClick={load}>Tải lại</button>
+          <button type="button" className="lds-lk" onClick={load}>Tải lại</button>
         </div>
       )}
 
-      <div className="rc__tablewrap">
-        <table className="rc__table">
-          <thead>
-            <tr>
-              <th style={{ width: "10%" }}>Mã phiếu</th>
-              <th style={{ width: "15%" }}>Máy</th>
-              <th>Hỏng hóc</th>
-              <th style={{ width: "11%" }}>Mức độ</th>
-              <th style={{ width: "12%" }}>Trạng thái</th>
-              <th style={{ width: "11%" }}>Thời điểm hỏng</th>
-              <th style={{ width: "9%" }}>Ngày tạo</th>
-              <th style={{ width: "8%" }} className="text-center">Ảnh</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 8 }).map((__, j) => (
-                    <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
-                  ))}
-                </tr>
-              ))
-            ) : hien.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="rc__empty-state-td">
-                  <div className="rc__empty-state">
-                    {/* Cùng cỡ/nét với màn danh mục: bảng rỗng không có hình thì nhìn như lỗi render. */}
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="rc__empty-icon">
-                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-                    </svg>
-                    <p className="rc__empty-text">
-                      {chuaCo
-                        ? "Chưa có phiếu sửa chữa nào. Máy hỏng thì ghi nhận ngay để có vết."
-                        : "Không có phiếu nào khớp bộ lọc."}
-                    </p>
-                    {/* Màn rỗng phải chỉ ra BƯỚC KẾ TIẾP, không bỏ người dùng đứng đó. */}
-                    {chuaCo ? (
-                      taoDuoc && (
-                        <Button variant="ghost" onClick={() => setMo("new")}>
-                          <Icon name="plus" size={15} /> Ghi nhận máy hỏng
-                        </Button>
-                      )
-                    ) : (
-                      <Button variant="ghost" onClick={() => doiLoc(() => {
-                        setQ(""); setTab("all"); onLocMan(LOC_MAN_TRONG);
-                      })}>
-                        Xoá bộ lọc
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ) : hien.map((r) => (
-              <tr key={r.id} className="rc__row" onClick={() => setMo(r)}>
-                <td className="rc__mono rc__nowrap">
-                  <span className="rc__code-badge ktm-ma">{r.ma}</span>
-                </td>
-                <td className="rc__name">
-                  {r.may_ma ? (
-                    <span className="ktm-may-badge">
-                      <Icon name="settings" size={12} /> {r.may_ma}
-                    </span>
-                  ) : "—"}
-                  <div className="ktm-phu">{r.may_ten ?? ""}</div>
-                </td>
-                <td>
-                  <strong>{r.bo_phan_hong}</strong>
-                  {r.mo_ta && <div className="ktm-phu ktm-phu--cat">{r.mo_ta}</div>}
-                </td>
-                <td>
-                  <Badge kieu={`muc-${r.muc_do}`}>
-                    <span className={`ktm-priority-dot ktm-priority-dot--${r.muc_do}`} />
-                    {NHAN_MUC_DO[r.muc_do] ?? r.muc_do}
-                  </Badge>
-                </td>
-                <td><Badge kieu={`tt-${r.trang_thai}`}>{NHAN_TT_SUA_CHUA[r.trang_thai] ?? r.trang_thai}</Badge></td>
-                <td className="rc__nowrap">{fmtNgayGio(r.thoi_diem)}</td>
-                <ONgay v={r.created_at} />
-                <td className="text-center rc__nowrap">
-                  <span className={`ktm-anhchip${r.so_anh === 0 ? "" : r.co_anh_sau ? " is-du" : " is-thieu"}`}>
-                    <Icon name="camera" size={12} /> {r.so_anh} ảnh
+      {/* Điện thoại: lưới 10 cột ép xuống 375px là mỗi cột ~35px — mỗi phiếu thành một THẺ, giữ đủ
+          thông tin của lưới (thiếu tiêu đề cột nên mỗi mẩu tự mang nhãn ngắn). */}
+      {hepMan ? (
+        <>
+          <div className="ktm-the-ds">
+            {loading ? <TheCho /> : rows.length === 0 ? <p className="ktm-the-rong">{rong}</p> : rows.map((r) => {
+              const xong = r.trang_thai === "da_sua_xong";
+              return (
+                <button key={r.id} type="button" className={`ktm-the${xong ? " is-xong" : ""}`}
+                  onClick={() => setMo(r)}>
+                  <span className="ktm-the__dau">
+                    <span className="ktm-ma">{r.ma}</span>
+                    <ChipKtm tt={r.trang_thai}>{NHAN_TT_SUA_CHUA[r.trang_thai] ?? r.trang_thai}</ChipKtm>
                   </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {total > 0 && (
-        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
-          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
-          donVi="phiếu" ariaLabel="Phân trang phiếu sửa chữa" />
+                  <span className="ktm-the__than">
+                    <span className="ktm-may-badge">{r.may_ma ?? "—"}</span>
+                    <span className="ktm-the__goi">{r.bo_phan_hong}</span>
+                  </span>
+                  {r.mo_ta && <span className="ktm-the__mota">{r.mo_ta}</span>}
+                  <span className="ktm-the__meta">
+                    <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />
+                    <span>Hỏng {fmtNgayGioNgan(r.thoi_diem)}</span>
+                    <span>{xong ? "Sửa mất" : "Đã kéo dài"} {keoDai(r.thoi_diem, xong ? r.hoan_thanh_at : null)}</span>
+                    {r.so_anh > 0 && <span>{r.so_anh} ảnh</span>}
+                    <span>Tạo {ngayDayDu(r.created_at)}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {total > 0 && (
+            <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+              onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+              donVi="phiếu" ariaLabel="Phân trang phiếu sửa chữa" />
+          )}
+        </>
+      ) : (
+        <div className="lds-sheet">
+          <Luoi cot={cotHien} rows={rows} loading={loading} rong={rong} o={o} onMo={setMo} />
+          {total > 0 && (
+            <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+              onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+              donVi="phiếu" ariaLabel="Phân trang phiếu sửa chữa" />
+          )}
+        </div>
       )}
 
-      {mo && (
+      {mo === "new" ? (
+        <LapPhieuHop may={may} loiMay={loiMay} onClose={() => setMo(null)}
+          // Lập xong là để LÀM: mở luôn phiếu vừa lập (thêm ảnh trước khi sửa, ghi nguyên nhân).
+          onSaved={(p) => { load(); setMo(p); }} />
+      ) : mo ? (
         <SuaChuaDrawer
-          phieu={mo === "new" ? null : mo}
-          may={may}
-          loiMay={loiMay}
+          phieu={mo}
           suaDuoc={suaDuoc}
           onClose={() => setMo(null)}
           onSaved={(p) => { load(); setMo(p); }}
         />
-      )}
+      ) : null}
     </div>
   );
 }
 
-function SuaChuaDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
-  phieu: SuaChua | null;
+/** Hộp thoại "Lập phiếu sửa" (phương án A4). Người báo và giờ hỏng do máy chủ chốt từ tài khoản +
+ *  lúc bấm — không có ô gõ tên. */
+function LapPhieuHop({ may, loiMay, onClose, onSaved }: {
   may: MayChon[];
   loiMay: string | null;
-  suaDuoc: boolean;
   onClose: () => void;
   onSaved: (p: SuaChua) => void;
 }) {
   const { token, user } = useAuth();
-  const [form, setForm] = useState<FormState>(FORM_RONG);
+  const [mayId, setMayId] = useState("");
+  const [form, setForm] = useState<FormSua>({
+    bo_phan_hong: "", mo_ta: "", muc_do: "trung_binh", nguyen_nhan_phuong_an: "", ghi_chu: "",
+  });
+  const [dang, setDang] = useState(false);
+  const [loi, setLoi] = useState<string | null>(null);
+  const set = (k: keyof FormSua, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const gui = async () => {
+    if (!token || dang) return;
+    if (!mayId) { setLoi("Chưa chọn máy."); return; }
+    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
+    setDang(true);
+    setLoi(null);
+    try {
+      const p = await kyThuatMay.createSuaChua(token, {
+        may_id: Number(mayId),
+        bo_phan_hong: form.bo_phan_hong.trim(),
+        mo_ta: form.mo_ta.trim() || null,
+        muc_do: form.muc_do,
+        nguyen_nhan_phuong_an: form.nguyen_nhan_phuong_an.trim() || null,
+        ghi_chu: null,
+      });
+      onSaved(p);
+    } catch (e) {
+      setLoi(e instanceof Error ? e.message : "Lập phiếu không thành công.");
+      setDang(false);
+    }
+  };
+
+  return (
+    <HopThoai tieuDe="Lập phiếu sửa" rong={720} nutChinh="Lập phiếu" dangGui={dang} loi={loi}
+      coNoiDung={!!(mayId || form.bo_phan_hong || form.mo_ta || form.nguyen_nhan_phuong_an)}
+      onGui={() => void gui()} onDong={onClose}
+      chanTrai={<>
+        <span>Người báo: {user?.name?.trim() || user?.username || "—"}</span>
+        <span>Hỏng lúc: bây giờ</span>
+      </>}>
+      <div className="ktm-luoi2">
+        <ChonMay giaTri={mayId} may={may} loiMay={loiMay} onChange={setMayId} />
+        <ONhap nhan="Chỗ hỏng" giaTri={form.bo_phan_hong} khoa={false}
+          placeholder="vd: trục cán, bạc đạn, băng tải" onChange={(v) => set("bo_phan_hong", v)} />
+      </div>
+      <ONhap nhan="Mô tả" nhieuDong giaTri={form.mo_ta} khoa={false}
+        placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao" onChange={(v) => set("mo_ta", v)} />
+      <ONhap nhan="Nguyên nhân và cách sửa" phu="ghi sau cũng được" nhieuDong
+        giaTri={form.nguyen_nhan_phuong_an} khoa={false}
+        placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"
+        onChange={(v) => set("nguyen_nhan_phuong_an", v)} />
+      <div className="ktm-hang">
+        <span className="ktm-f__nhan">Mức độ</span>
+        <ChonMucDo giaTri={form.muc_do} nhan={NHAN_MUC_DO} onChange={(v) => set("muc_do", v)} />
+      </div>
+    </HopThoai>
+  );
+}
+
+/** Ngăn chi tiết phiếu sửa chữa (phương án A1): trái là phần đọc/viết (chỗ hỏng, mô tả, nguyên
+ *  nhân, ghi chú, ảnh), phải là cột thuộc tính đứng yên + nút đóng phiếu ở đáy cột. */
+function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
+  phieu: SuaChua;
+  suaDuoc: boolean;
+  onClose: () => void;
+  onSaved: (p: SuaChua) => void;
+}) {
+  const { token } = useAuth();
+  const [hienTai, setHienTai] = useState<SuaChua>(phieu);
+  const [form, setForm] = useState<FormSua>(() => formTuPhieu(phieu));
   const [luu, setLuu] = useState(false);
   const [dangDoi, setDangDoi] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
   const [anhTick, setAnhTick] = useState(0);   // đổi ⇒ nạp lại phiếu để cập nhật cờ `co_anh_sau`
   const [anh, setAnh] = useState<Anh[]>([]);
-  const [hienTai, setHienTai] = useState<SuaChua | null>(phieu);
-  const [tab, setTab] = useState<"chi-tiet" | "lich-su">("chi-tiet");
+  const [tab, setTab] = useState("chi-tiet");
 
-  const dong = hienTai?.trang_thai === "da_sua_xong";
+  const dong = hienTai.trang_thai === "da_sua_xong";
   const khoaSua = !suaDuoc || dong;
-  // Phiếu SINH TỪ lời báo của bộ phận khác — mức độ/triệu chứng có lời nhắc riêng.
-  const tuNguon = !!hienTai?.yeu_cau_ma;
+  // Phiếu SINH TỪ lời báo của bộ phận khác — mô tả có lời nhắc riêng.
+  const tuNguon = !!hienTai.yeu_cau_ma;
+  const goc = formTuPhieu(hienTai);
+  const doi = (Object.keys(goc) as (keyof FormSua)[]).some((k) => form[k] !== goc[k]);
 
   useEffect(() => {
     setHienTai(phieu);
-    setForm(phieu ? {
-      may_id: String(phieu.may_id),
-      bo_phan_hong: phieu.bo_phan_hong ?? "",
-      mo_ta: phieu.mo_ta ?? "",
-      muc_do: phieu.muc_do ?? "trung_binh",
-      nguyen_nhan_phuong_an: phieu.nguyen_nhan_phuong_an ?? "",
-      ghi_chu: phieu.ghi_chu ?? "",
-    } : FORM_RONG);
+    setForm(formTuPhieu(phieu));
   }, [phieu]);
 
-  // Sau khi thêm/xoá ảnh phải nạp lại phiếu: nút "Xác nhận đã sửa" mở/khoá theo `co_anh_sau` mà
-  // cờ đó do backend tính. Nạp ĐÚNG một phiếu — kéo cả danh sách theo máy rồi `find` thì phiếu nằm
-  // ngoài trang đầu là không thấy, và nút cứ khoá mãi dù ảnh đã tải lên.
+  // Sau khi thêm/xoá ảnh phải nạp lại phiếu: nút "Xác nhận đã sửa xong" mở/khoá theo `co_anh_sau`
+  // mà cờ đó do backend tính. Nạp ĐÚNG một phiếu — kéo cả danh sách theo máy rồi `find` thì phiếu
+  // nằm ngoài trang đầu là không thấy, và nút cứ khoá mãi dù ảnh đã tải lên.
   useEffect(() => {
-    if (!token || !hienTai || anhTick === 0) return;
+    if (!token || anhTick === 0) return;
     kyThuatMay.getSuaChua(token, hienTai.id).then(setHienTai).catch(() => {});
-  }, [anhTick, token, hienTai?.id]);
+  }, [anhTick, token, hienTai.id]);
 
   // Ảnh nạp một lần cho cả hai khối (trước/sau) — xem ghi chú ở `AnhBox`.
   const napAnh = useCallback(() => {
-    if (!token || !hienTai) { setAnh([]); return; }
+    if (!token) return;
     kyThuatMay.listAnh(token, "sua_chua", hienTai.id).then(setAnh)
       // Nuốt lỗi ở đây là ảnh đã tải lên rồi mà khối ảnh vẫn trống và nút xác nhận vẫn khoá —
       // không một dòng nào nói vì sao.
       .catch((e) => setLoi(e instanceof Error ? e.message : "Không tải được danh sách ảnh."));
-  }, [token, hienTai?.id]);
+  }, [token, hienTai.id]);
   useEffect(napAnh, [napAnh]);
+  const anhDoi = () => { napAnh(); setAnhTick((t) => t + 1); };
 
-  const set = (k: keyof FormState, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof FormSua, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const luuPhieu = async () => {
-    if (!token) return;
-    if (!hienTai && !form.may_id) { setLoi("Chưa chọn máy."); return; }
-    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi bộ phận hỏng."); return; }
+    if (!token || luu) return;
+    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
     setLuu(true);
     setLoi(null);
-    const body = {
-      // Máy chỉ gửi lúc LẬP phiếu — sửa phiếu thì máy đã chốt, server bỏ qua.
-      ...(hienTai ? {} : { may_id: Number(form.may_id) }),
-      bo_phan_hong: form.bo_phan_hong.trim(),
-      mo_ta: form.mo_ta.trim() || null,
-      muc_do: form.muc_do,
-      nguyen_nhan_phuong_an: form.nguyen_nhan_phuong_an.trim() || null,
-      ghi_chu: form.ghi_chu.trim() || null,
-    };
     try {
-      const p = hienTai
-        ? await kyThuatMay.updateSuaChua(token, hienTai.id, body)
-        : await kyThuatMay.createSuaChua(token, body);
+      // Máy đã chốt lúc lập phiếu — không gửi lại.
+      const p = await kyThuatMay.updateSuaChua(token, hienTai.id, {
+        bo_phan_hong: form.bo_phan_hong.trim(),
+        mo_ta: form.mo_ta.trim() || null,
+        muc_do: form.muc_do,
+        nguyen_nhan_phuong_an: form.nguyen_nhan_phuong_an.trim() || null,
+        ghi_chu: form.ghi_chu.trim() || null,
+      });
       setHienTai(p);
       onSaved(p);
     } catch (e) {
@@ -549,14 +667,14 @@ function SuaChuaDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
     }
   };
 
-  const doiTrangThai = async (tt: string) => {
+  const xacNhanXong = async () => {
     // `dangDoi` chặn bấm dồn: hai lượt gọi chồng nhau thì lượt về sau ghi đè trạng thái của lượt
     // về trước, và màn hình hiện cái người dùng KHÔNG bấm cuối cùng.
-    if (!token || !hienTai || dangDoi) return;
+    if (!token || dangDoi) return;
     setLoi(null);
     setDangDoi(true);
     try {
-      const p = await kyThuatMay.trangThaiSuaChua(token, hienTai.id, tt);
+      const p = await kyThuatMay.trangThaiSuaChua(token, hienTai.id, "da_sua_xong");
       setHienTai(p);
       onSaved(p);
     } catch (e) {
@@ -566,210 +684,96 @@ function SuaChuaDrawer({ phieu, may, loiMay, suaDuoc, onClose, onSaved }: {
     }
   };
 
+  // Nút đóng phiếu: lý do khoá nói thẳng dưới nút, không bắt người ta rê chuột đọc tooltip.
+  const lyDoKhoa = !hienTai.co_anh_sau
+    ? "Chụp ít nhất 1 ảnh sau khi sửa để mở nút này."
+    : doi ? "Lưu thay đổi trước đã." : null;
+
+  const cot = (
+    <CotPhieu cuoi={suaDuoc && !dong ? (
+      <>
+        <Button variant="accent" disabled={!!lyDoKhoa || dangDoi} onClick={() => void xacNhanXong()}>
+          {dangDoi ? "Đang lưu…" : "Xác nhận đã sửa xong"}
+        </Button>
+        {lyDoKhoa && <span className="ktm-ly">{lyDoKhoa}</span>}
+      </>
+    ) : undefined}>
+      <DongTT nhan="Trạng thái">
+        <ChipKtm tt={hienTai.trang_thai}>{NHAN_TT_SUA_CHUA[hienTai.trang_thai] ?? hienTai.trang_thai}</ChipKtm>
+      </DongTT>
+      <DongTT nhan="Máy"><OMay ma={hienTai.may_ma} ten={hienTai.may_ten} /></DongTT>
+      <DongTT nhan="Mức độ">
+        {khoaSua ? (
+          <MucDo muc={hienTai.muc_do} nhan={NHAN_MUC_DO[hienTai.muc_do] ?? hienTai.muc_do} />
+        ) : (
+          <select className="ktm-chon" value={form.muc_do} aria-label="Mức độ"
+            onChange={(e) => set("muc_do", e.target.value)}>
+            {Object.keys(NHAN_MUC_DO).map((m) => <option key={m} value={m}>{NHAN_MUC_DO[m]}</option>)}
+          </select>
+        )}
+      </DongTT>
+      <DongTT nhan="Người báo">{hienTai.nguoi_bao_ten || hienTai.yeu_cau_nguoi_bao || "—"}</DongTT>
+      <DongTT nhan="Hỏng lúc">{fmtNgayGio(hienTai.thoi_diem)}</DongTT>
+      <DongTT nhan={dong ? "Sửa mất" : "Đã kéo dài"}>
+        {keoDai(hienTai.thoi_diem, dong ? hienTai.hoan_thanh_at : null) || "—"}
+      </DongTT>
+      {dong && <DongTT nhan="Sửa xong lúc">{fmtNgayGio(hienTai.hoan_thanh_at)}</DongTT>}
+      <DongTT nhan="Từ yêu cầu">
+        {hienTai.yeu_cau_ma ? (
+          <>{hienTai.yeu_cau_ma}{hienTai.yeu_cau_bo_phan && <span className="ktm-phu">{hienTai.yeu_cau_bo_phan}</span>}</>
+        ) : <span className="lds-mu3">không có</span>}
+      </DongTT>
+      <DongTT nhan="Ngày tạo"><span className="lds-mu">{fmtNgayGio(hienTai.created_at)}</span></DongTT>
+    </CotPhieu>
+  );
+
   return (
-    <div className="rc-drawer__scrim" role="dialog" aria-modal="true" onClick={onClose}>
-      <aside className="rc-drawer ktm-drawer" onClick={(e) => e.stopPropagation()}>
-        <header className="rc-drawer__head">
-          <div>
-            <div className="rc-drawer__kicker" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>Phiếu sửa chữa</span>
-              {hienTai && (
-                <span className={`ktm-header-status-badge ktm-header-status-badge--${hienTai.trang_thai}`}>
-                  {NHAN_TT_SUA_CHUA[hienTai.trang_thai] ?? hienTai.trang_thai}
-                </span>
-              )}
-            </div>
-            <h2 className="rc-drawer__title">
-              {hienTai ? `${hienTai.ma} · ${hienTai.bo_phan_hong}` : "Phiếu sửa chữa mới"}
-            </h2>
+    <NganPhai
+      tieuDe={<><span className="ktm-ngan-ma">{hienTai.ma}</span>{hienTai.bo_phan_hong}</>}
+      tabs={[{ id: "chi-tiet", nhan: "Chi tiết" }, { id: "lich-su", nhan: "Lịch sử thao tác" }]}
+      tab={tab} onTab={setTab}
+      onDong={onClose}
+      chanDong={() => doi}
+      cot={cot}
+      chan={!khoaSua && tab === "chi-tiet" ? (
+        <>
+          <span className="kt-ngan__xt">{doi ? "Có thay đổi chưa lưu" : ""}</span>
+          <Button variant="ghost" disabled={!doi || luu} onClick={() => setForm(goc)}>Bỏ thay đổi</Button>
+          <Button variant="accent" disabled={!doi || luu} onClick={() => void luuPhieu()}>
+            {luu ? "Đang lưu…" : "Lưu"}
+          </Button>
+        </>
+      ) : undefined}
+    >
+      {tab === "lich-su" ? (
+        <NhatKyPhieu loai="ky_thuat_sua_chua" phieuId={hienTai.id} />
+      ) : (
+        <div className="ktm-trai">
+          {loi && <div className="banner banner--error" role="alert">{loi}</div>}
+          <ONhap nhan="Chỗ hỏng" giaTri={form.bo_phan_hong} khoa={khoaSua}
+            placeholder="vd: trục cán, bạc đạn, băng tải" onChange={(v) => set("bo_phan_hong", v)} />
+          <ONhap nhan="Mô tả" nhieuDong giaTri={form.mo_ta} khoa={khoaSua}
+            placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao"
+            goiY={tuNguon && !khoaSua
+              ? `Chép từ ${hienTai.yeu_cau_ma}. Soi ra thêm gì thì viết nối vào, đừng xoá lời người báo.`
+              : undefined}
+            onChange={(v) => set("mo_ta", v)} />
+          <ONhap nhan="Nguyên nhân và cách sửa" nhieuDong giaTri={form.nguyen_nhan_phuong_an} khoa={khoaSua}
+            placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"
+            onChange={(v) => set("nguyen_nhan_phuong_an", v)} />
+          <ONhap nhan="Ghi chú" giaTri={form.ghi_chu} khoa={khoaSua}
+            placeholder="vd: chờ bạc đạn trục cán về, hãng báo thứ 5 tới"
+            onChange={(v) => set("ghi_chu", v)} />
+          <div className="ktm-luoi2">
+            <AnhBox loai="sua_chua" phieuId={hienTai.id} giaiDoan="truoc"
+              tieuDe="Ảnh trước khi sửa" khoa={khoaSua} tatCaAnh={anh} onChanged={anhDoi} />
+            <AnhBox loai="sua_chua" phieuId={hienTai.id} giaiDoan="sau"
+              tieuDe="Ảnh sau khi sửa" batBuoc canChu="cần ít nhất 1 ảnh để đóng phiếu"
+              khoa={dong || !suaDuoc} tatCaAnh={anh} onChanged={anhDoi} />
           </div>
-          <button type="button" className="rc-drawer__x" onClick={onClose} aria-label="Đóng">
-            <Icon name="x" size={14} />
-          </button>
-        </header>
-
-        {/* Tab chỉ hiện khi phiếu ĐÃ TỒN TẠI: phiếu mới chưa có gì để kể lại. */}
-        {hienTai && (
-          <div className="ktm-tab">
-            <button type="button" className={`ktm-tab__nut${tab === "chi-tiet" ? " is-active" : ""}`}
-              onClick={() => setTab("chi-tiet")}>Chi tiết</button>
-            <button type="button" className={`ktm-tab__nut${tab === "lich-su" ? " is-active" : ""}`}
-              onClick={() => setTab("lich-su")}>Lịch sử thao tác</button>
-          </div>
-        )}
-
-        {/* Bọc FORM: Enter trong ô là lưu được, khỏi phải rê chuột đi tìm nút. Form ôm cả body lẫn
-            chân drawer nên nút Lưu dính đáy vẫn submit đúng form này. */}
-        <form className="ktm-drawer__form" onSubmit={(e) => { e.preventDefault(); void luuPhieu(); }}>
-        <div className="rc-drawer__body">
-          {hienTai && tab === "lich-su" ? (
-            <NhatKyPhieu loai="ky_thuat_sua_chua" phieuId={hienTai.id} />
-          ) : (
-          <>
-          {loi && <div className="banner banner--error" style={{ marginBottom: "var(--sp-4)" }}>{loi}</div>}
-          {dong && (
-            <div className="ktm-thongbao ktm-thongbao--xong">
-              <Icon name="check" size={14} /> Phiếu đã đóng ngày {fmtNgayGio(hienTai?.hoan_thanh_at)} — nội dung khoá lại.
-            </div>
-          )}
-
-          {/* Hero Context Card: Hiển thị Máy (nếu có), Người báo & Thời gian mượt mà, không dùng border-left cạnh */}
-          <div className="ktm-hero-card">
-            <div className="ktm-hero-card__row">
-              <div className="ktm-hero-card__item">
-                <Icon name="settings" size={14} />
-                <span>Máy: <strong>{hienTai ? (hienTai.may_ma ? `${hienTai.may_ma} · ${hienTai.may_ten ?? ""}` : "—") : "Chọn máy bên dưới"}</strong></span>
-              </div>
-              <div className="ktm-hero-card__item">
-                <Icon name="users" size={14} />
-                <span>Báo bởi: <strong>{hienTai ? (hienTai.nguoi_bao_ten || hienTai.yeu_cau_nguoi_bao || "—") : (user?.name?.trim() || user?.username || "—")}</strong></span>
-              </div>
-            </div>
-            <div className="ktm-hero-card__row">
-              <div className="ktm-hero-card__item">
-                <Icon name="calendar" size={13} />
-                <span>{hienTai ? fmtNgayGio(hienTai.thoi_diem) : "Thời điểm hiện tại"}</span>
-              </div>
-              {hienTai?.yeu_cau_ma && (
-                <div className="ktm-hero-card__tag">
-                  <Icon name="bell" size={12} />
-                  <span>Từ {hienTai.yeu_cau_ma}{hienTai.yeu_cau_bo_phan ? ` · ${hienTai.yeu_cau_bo_phan}` : ""}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Card Form 1: Lời Báo Hỏng (Bên báo hỏng ghi) */}
-          <div className="ktm-form-card">
-            <div className="ktm-form-card__head">
-              <div className="ktm-form-card__icon">
-                <Icon name="alert" size={15} />
-              </div>
-              <h3 className="ktm-form-card__title">Lời báo hỏng & Thông tin sự cố</h3>
-            </div>
-
-            {/* Máy CHỈ chọn khi tự lập phiếu mới */}
-            {!hienTai && (
-              <div className="ktm-field-group" style={{ marginBottom: "14px" }}>
-                <ChonMay giaTri={form.may_id} may={may} loiMay={loiMay} khoa={khoaSua}
-                  onChange={(v) => set("may_id", v)} />
-              </div>
-            )}
-
-            <div className="rc-grid" style={{ gap: "14px" }}>
-              <label className="rc-field">
-                <span className="rc-field__label">Bộ phận hỏng *</span>
-                <input className="rc-input ktm-input-modern" value={form.bo_phan_hong} disabled={khoaSua}
-                  placeholder="vd: Trục cán & bạc đạn, băng tải..."
-                  onChange={(e) => set("bo_phan_hong", e.target.value)} />
-              </label>
-
-              <div className="rc-field">
-                <span className="rc-field__label">Mức độ sự cố</span>
-                <div className="ktm-priority-seg">
-                  {MUC_DO_CHON.map((m) => {
-                    const isSel = form.muc_do === m;
-                    return (
-                      <button key={m} type="button"
-                        disabled={khoaSua}
-                        className={`ktm-priority-btn ktm-priority-btn--${m}${isSel ? " is-selected" : ""}`}
-                        onClick={() => set("muc_do", m)}>
-                        <span className={`ktm-priority-dot ktm-priority-dot--${m}`} />
-                        {NHAN_MUC_DO[m]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <label className="rc-field rc-field--full">
-                <span className="rc-field__label">Triệu chứng & mô tả hỏng hóc</span>
-                <textarea className="rc-input ktm-input-modern" rows={2} value={form.mo_ta} disabled={khoaSua}
-                  placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao, màng cán không thẳng…"
-                  onChange={(e) => set("mo_ta", e.target.value)} />
-                {tuNguon && (
-                  <span className="rc-field__hint">
-                    Chép từ {hienTai?.yeu_cau_ma}. Soi ra thêm gì thì viết nối vào, đừng xoá lời người ta.
-                  </span>
-                )}
-              </label>
-            </div>
-          </div>
-
-          {/* Card Form 2: Tổ sửa chữa ghi */}
-          <div className="ktm-form-card">
-            <div className="ktm-form-card__head">
-              <div className="ktm-form-card__icon" style={{ background: "#eff6ff", color: "#2563eb" }}>
-                <Icon name="fileText" size={15} />
-              </div>
-              <h3 className="ktm-form-card__title">Tổ sửa chữa ghi nhận & xử lý</h3>
-            </div>
-
-            <div className="rc-grid" style={{ gap: "14px" }}>
-              <label className="rc-field rc-field--full">
-                <span className="rc-field__label">Nguyên nhân & phương án sửa</span>
-                <textarea className="rc-input ktm-input-modern" rows={2} value={form.nguyen_nhan_phuong_an} disabled={khoaSua}
-                  placeholder="Ghi khi đã soi ra nguyên nhân — vd: bạc đạn mòn, cần thay và căn chỉnh lại trục."
-                  onChange={(e) => set("nguyen_nhan_phuong_an", e.target.value)} />
-              </label>
-
-              <label className="rc-field rc-field--full">
-                <span className="rc-field__label">Ghi chú tiến độ / vật tư</span>
-                <textarea className="rc-input ktm-input-modern" rows={2} value={form.ghi_chu} disabled={khoaSua}
-                  placeholder="vd: đang chờ bạc đạn trục cán về, hãng báo thứ 5 tới"
-                  onChange={(e) => set("ghi_chu", e.target.value)} />
-              </label>
-            </div>
-          </div>
-
-          {hienTai && (
-            <>
-              <AnhBox loai="sua_chua" phieuId={hienTai.id} giaiDoan="truoc"
-                tieuDe="Ảnh hiện trạng hỏng" khoa={khoaSua}
-                moTa="Chụp trước khi tháo — không bắt buộc, nhưng đây là thứ giúp cãi lại được khi có tranh cãi."
-                tatCaAnh={anh}
-                onChanged={() => { napAnh(); setAnhTick((t) => t + 1); }} />
-
-              <AnhBox loai="sua_chua" phieuId={hienTai.id} giaiDoan="sau"
-                tieuDe="Ảnh chứng thực sau sửa" batBuoc khoa={dong}
-                moTa="Bắt buộc để đóng phiếu."
-                tatCaAnh={anh}
-                onChanged={() => { napAnh(); setAnhTick((t) => t + 1); }} />
-
-              {suaDuoc && !dong && (
-                <section className="ktm-xacnhan">
-                  <div className="ktm-xacnhan__title">Xác nhận đã sửa chữa xong</div>
-                  {!hienTai.co_anh_sau && (
-                    <p className="ktm-xacnhan__chan">
-                      <Icon name="alert" size={13} /> Cần ít nhất 1 ảnh chứng thực sau sửa mới xác nhận được.
-                    </p>
-                  )}
-                  <button type="button" className="ktm-xacnhan__nut"
-                    disabled={!hienTai.co_anh_sau || dangDoi}
-                    onClick={() => doiTrangThai("da_sua_xong")}>
-                    <Icon name="check" size={15} /> Xác nhận đã sửa chữa xong
-                  </button>
-                </section>
-              )}
-            </>
-          )}
-          </>
-          )}
         </div>
-
-        {/* Chân drawer DÍNH ĐÁY như mọi màn khác: trước đây nút Lưu nằm giữa thân, cuộn xuống
-            checklist ảnh là mất dấu nó — người dùng tưởng phiếu tự lưu. */}
-        {!khoaSua && (!hienTai || tab === "chi-tiet") && (
-          <footer className="rc-drawer__foot">
-            <Button variant="ghost" type="button" onClick={onClose}>Hủy</Button>
-            <Button variant="accent" type="submit" disabled={luu}>
-              {luu ? "Đang lưu…" : hienTai ? "Lưu thay đổi" : "Tạo phiếu"}
-            </Button>
-          </footer>
-        )}
-        </form>
-      </aside>
-    </div>
+      )}
+    </NganPhai>
   );
 }
 
@@ -803,10 +807,13 @@ function KhungYeuCau({
   const [q, setQ] = useState("");
   const qTre = useTre(q);
   const [tab, setTab] = useState<string>("cho_tiep_nhan");
-  // "Chỉ của tôi" cắt NGANG các tab (một yêu cầu vừa của tôi vừa đang chờ) ⇒ là điều kiện
-  // "Người gửi" trên thanh lọc, không phải tab thứ năm.
+  // "Chỉ của tôi" cắt NGANG các trạng thái (một yêu cầu vừa của tôi vừa đang chờ) ⇒ là điều kiện
+  // "Người gửi" trên thanh lọc, không phải một nút lọc nhanh nữa.
   const [mo, setMo] = useState<YeuCau | "new" | null>(null);
   const dieuKien = useDieuKienSuaChua("yeu-cau");
+  const [cotAn, setCotAn] = useCotAn("sua-chua-may-yeu-cau");
+  const [thuTu, setThuTu] = useThuTuCot("sua-chua-may-yeu-cau");
+  const cotHien = xepCot(COT_YC, thuTu).filter((c) => !cotAn.has(c.key));
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYeuCau(locMan.loc) });
 
   const load = useCallback(() => {
@@ -830,8 +837,7 @@ function KhungYeuCau({
   }, [token, qTre, tab, khoaLoc, page, size, eventTick]);
 
   useEffect(load, [load]);
-  // Cùng lý do như bên khung Phiếu: mở một yêu cầu đã gửi cũng phải tra được tên máy.
-  useEffect(() => { if (mo !== null) onCanMay(); }, [mo, onCanMay]);
+  useEffect(() => { if (mo === "new") onCanMay(); }, [mo, onCanMay]);
 
   const soCho = dem.cho_tiep_nhan ?? 0;
   const tongTatCa = soCho + (dem.da_tao_phieu ?? 0) + (dem.tu_choi ?? 0);
@@ -839,207 +845,314 @@ function KhungYeuCau({
   const doiLoc = (fn: () => void) => { fn(); setPage(1); };
 
   const datLoc = (t: LocMan) => doiLoc(() => onLocMan(t));
-  // Trạng thái trong nút Lọc = chính hàng tab (đọc/ghi `tab`, về trang 1 như bấm tab).
+  const tabs = [
+    { id: "all", nhan: "Tất cả", so: tongTatCa },
+    { id: "cho_tiep_nhan", nhan: NHAN_TT_YEU_CAU.cho_tiep_nhan, so: soCho },
+    { id: "da_tao_phieu", nhan: NHAN_TT_YEU_CAU.da_tao_phieu, so: dem.da_tao_phieu ?? 0 },
+    { id: "tu_choi", nhan: NHAN_TT_YEU_CAU.tu_choi, so: dem.tu_choi ?? 0 },
+  ];
+  // Trạng thái trong nút Lọc = chính hàng lọc nhanh (đọc/ghi `tab`, về trang 1 như bấm nút).
   const dkDu: DieuKien<LocSuaChua>[] = [
     dkTheoTab<LocSuaChua>({
-      tabs: [
-        { id: "cho_tiep_nhan", nhan: "Chờ tiếp nhận", so: soCho },
-        { id: "all", nhan: "Tất cả", so: tongTatCa },
-        ...TT_YEU_CAU.filter((tt) => tt !== "cho_tiep_nhan")
-          .map((tt) => ({ id: tt, nhan: NHAN_TT_YEU_CAU[tt], so: dem[tt] ?? 0 })),
-      ],
-      tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)),
+      tabs, tatCa: "all", dang: tab, dat: (id) => doiLoc(() => setTab(id)), anKhoi: true,
     }),
     ...dieuKien,
   ];
 
   const sauKhiLuu = () => { load(); onThayDoi(); };
 
-  return (
-    <div className="rc ktm">
-      <div className="rc__head">
-        <div className="rc__headrow">
-          <h1 className="rc__title">Sửa chữa máy</h1>
-          <span className="rc__count">{tongTatCa} yêu cầu</span>
-          {soCho > 0 && (
-            <span className="ktm-chip ktm-chip--canh-bao">
-              <Icon name="alert" size={13} /> {soCho} chờ tiếp nhận
-            </span>
-          )}
-        </div>
-      </div>
+  // Lập phiếu / từ chối NGAY TRÊN DÒNG: hàng chờ phải xử lý được không cần mở ngăn. Cả hai vẫn hỏi
+  // lại một nhịp — lập phiếu sinh mã SC và kéo ảnh sang, không đảo được.
+  const [hoiLap, setHoiLap] = useState<YeuCau | null>(null);
+  const [dangLap, setDangLap] = useState(false);
+  const [loiLap, setLoiLap] = useState<string | null>(null);
+  const [hoiTuChoi, setHoiTuChoi] = useState<YeuCau | null>(null);
+  const lapPhieu = async () => {
+    if (!token || !hoiLap || dangLap) return;
+    setDangLap(true);
+    setLoiLap(null);
+    try {
+      const r = await kyThuatMay.taoPhieuTuYeuCau(token, hoiLap.id, {});
+      setHoiLap(null);
+      sauKhiLuu();
+      // Lập xong là để SỬA: mở thẳng phiếu vừa sinh, khỏi đi tìm mã SC.
+      onMoPhieu?.(r.phieu.id);
+    } catch (e) {
+      // 409 = người khác vừa tiếp nhận trước; câu của máy chủ đã nói phiếu nào.
+      setLoiLap(e instanceof Error ? e.message : "Không lập được phiếu.");
+    } finally {
+      setDangLap(false);
+    }
+  };
+  const tuChoi = async (lyDo: string) => {
+    if (!token || !hoiTuChoi) return;
+    await kyThuatMay.tuChoiYeuCau(token, hoiTuChoi.id, lyDo);
+    setHoiTuChoi(null);
+    sauKhiLuu();
+  };
 
-      <div className="rc__unified-bar tl-thanh">
+  const hepMan = useManHep();
+  const xoaLoc = () => doiLoc(() => { setQ(""); onLocMan(LOC_MAN_TRONG); setTab("all"); });
+  const rong = chuaCo ? (
+    <>
+      Chưa ai báo máy hỏng. Máy trục trặc thì báo ngay, tổ sửa chữa thấy liền.{" "}
+      {guiDuoc && <button type="button" className="lds-lk" onClick={() => setMo("new")}>Báo máy hỏng</button>}
+    </>
+  ) : tab === "cho_tiep_nhan" && !qTre.trim() && khoaLoc === "{}" ? (
+    "Không còn yêu cầu nào chờ tiếp nhận."
+  ) : (
+    <>Không có yêu cầu nào khớp bộ lọc. <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button></>
+  );
+
+  const xuLy = (r: YeuCau, the: boolean): ReactNode => {
+    if (r.trang_thai === "cho_tiep_nhan") {
+      if (!tiepNhanDuoc && !tuChoiDuoc) return the ? null : <span className="lds-mu3">Chờ tổ sửa chữa</span>;
+      return (
+        <span className={the ? "ktm-the__nut" : "ktm-nut-dong"} onClick={(e) => e.stopPropagation()}>
+          {tiepNhanDuoc && (
+            <Button variant={the ? "accent" : "ghost"} onClick={() => { setLoiLap(null); setHoiLap(r); }}>
+              Lập phiếu
+            </Button>
+          )}
+          {tuChoiDuoc && <Button variant="ghost" onClick={() => setHoiTuChoi(r)}>Từ chối</Button>}
+        </span>
+      );
+    }
+    if (r.trang_thai === "da_tao_phieu") {
+      return onMoPhieu && r.phieu_id ? (
+        <button type="button" className="lds-lk"
+          onClick={(e) => { e.stopPropagation(); onMoPhieu(r.phieu_id as number); }}>
+          Sang {r.phieu_ma}
+        </button>
+      ) : <span className="lds-mu">{r.phieu_ma}</span>;
+    }
+    return r.ly_do_tu_choi
+      ? <span className={the ? "ktm-the__mota" : "lds-mu"} title={r.ly_do_tu_choi}>{the ? `Lý do từ chối: ${r.ly_do_tu_choi}` : r.ly_do_tu_choi}</span>
+      : null;
+  };
+
+  const o = (r: YeuCau, key: string): ReactNode => {
+    switch (key) {
+      case "ma": return r.ma;
+      case "may": return <OMay ma={r.may_ma} ten={r.may_ten} />;
+      case "cho": return r.bo_phan_hong;
+      // "dừng máy" là dấu hiệu DUY NHẤT ăn màu đỏ ở bảng này — ít dòng có và là thứ đẩy yêu cầu
+      // lên đầu hàng chờ.
+      case "muc": return (
+        <>
+          <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />
+          {r.may_dung && <span className="ktm-phu lds-do">dừng máy</span>}
+        </>
+      );
+      case "nguoi": return (
+        <>{r.nguoi_bao_ten ?? "—"}{r.bo_phan && <span className="lds-tag">{r.bo_phan}</span>}</>
+      );
+      case "lsx": return r.lsx_ma ?? "";
+      case "tt": return <ChipKtm tt={r.trang_thai}>{NHAN_TT_YEU_CAU[r.trang_thai] ?? r.trang_thai}</ChipKtm>;
+      case "ngay": return <span className="lds-mu" title={ngayGioDayDu(r.created_at)}>{fmtNgayGioNgan(r.created_at)}</span>;
+      case "mota": return r.mo_ta ? r.mo_ta : <span className="lds-mu3">—</span>;
+      case "xuly": return xuLy(r, false);
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="ktm lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Sửa chữa máy</h1>
         {chuyen}
-        <div className="rc__search-wrapper">
-          <Icon name="search" size={15} />
-          <input className="rc__search" placeholder="Tìm mã YC, máy, bộ phận hỏng, người báo…"
-            value={q} onChange={(e) => doiLoc(() => setQ(e.target.value))} />
-        </div>
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_YEU_CAU}
-          onKy={(ky) => datLoc({ ...locMan, ky })}
-          dieuKien={dkDu}
-          loc={locMan.loc}
-          onLoc={(loc) => datLoc({ ...locMan, loc })}
-        />
-        <div className="rc__unified-right" style={{ marginLeft: "auto" }}>
+        <div className="lds-dau__nut">
           {guiDuoc && (
             <Button variant="accent" onClick={() => setMo("new")}>
               <Icon name="plus" size={15} /> Báo máy hỏng
             </Button>
           )}
         </div>
-      </div>
+      </header>
 
-      <div className="rc__tabs">
-        <button className={`rc__tab${tab === "cho_tiep_nhan" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("cho_tiep_nhan"))}>
-          Chờ tiếp nhận <span className="rc__tabn">{soCho}</span>
-        </button>
-        <button className={`rc__tab${tab === "all" ? " is-active" : ""}`}
-          onClick={() => doiLoc(() => setTab("all"))}>
-          Tất cả <span className="rc__tabn">{tongTatCa}</span>
-        </button>
-        {TT_YEU_CAU.filter((tt) => tt !== "cho_tiep_nhan").map((tt) => (
-          <button key={tt} className={`rc__tab${tab === tt ? " is-active" : ""}`}
-            onClick={() => doiLoc(() => setTab(tt))}>
-            {NHAN_TT_YEU_CAU[tt]} <span className="rc__tabn">{dem[tt] ?? 0}</span>
-          </button>
-        ))}
-      </div>
+      <section className="lds-loc">
+        <LocNhanhTrangThai dang={tab} onChon={(id) => doiLoc(() => setTab(id))}
+          muc={tabs.map((t) => ({
+            key: t.id, label: t.nhan, count: t.so,
+            mau: t.id === "all" ? undefined : ({ cho_tiep_nhan: "cam", da_tao_phieu: "la", tu_choi: "do" } as const)[t.id as "cho_tiep_nhan"],
+          }))} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={q} onChange={(v) => doiLoc(() => setQ(v))}
+            placeholder="Tìm mã yêu cầu, máy, chỗ hỏng" ariaLabel="Tìm yêu cầu báo hỏng" />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_YEU_CAU}
+            onKy={(ky) => datLoc({ ...locMan, ky })}
+            dieuKien={dkDu}
+            loc={locMan.loc}
+            onLoc={(loc) => datLoc({ ...locMan, loc })}
+          />
+          {/* Điện thoại hiện thẻ chứ không hiện lưới nên không có cột để ẩn. */}
+          {!hepMan && <ChonCot cot={COT_YC} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />}
+        </div>
+      </section>
 
       {error && (
-        <div className="banner banner--error" role="alert" style={{ marginBottom: "var(--sp-4)" }}>
+        <div className="banner banner--error" role="alert">
           <span>{error}</span>
-          <button type="button" className="btn btn--ghost" onClick={load}>Tải lại</button>
+          <button type="button" className="lds-lk" onClick={load}>Tải lại</button>
         </div>
       )}
 
-      <div className="rc__tablewrap">
-        <table className="rc__table">
-          <thead>
-            <tr>
-              <th style={{ width: "10%" }}>Mã YC</th>
-              <th style={{ width: "15%" }}>Máy</th>
-              <th>Hỏng hóc</th>
-              <th style={{ width: "14%" }}>Người báo</th>
-              <th style={{ width: "13%" }}>Trạng thái</th>
-              <th style={{ width: "11%" }}>Thời điểm hỏng</th>
-              <th style={{ width: "9%" }}>Ngày tạo</th>
-              <th style={{ width: "8%" }} className="text-center">Ảnh</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`sk-${i}`} className="rc-skel__row">
-                  {Array.from({ length: 8 }).map((__, j) => (
-                    <td key={j}><span className="rc-skel" style={{ width: "70%" }} /></td>
-                  ))}
-                </tr>
-              ))
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="rc__empty-state-td">
-                  <div className="rc__empty-state">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="rc__empty-icon">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                    </svg>
-                    <p className="rc__empty-text">
-                      {chuaCo
-                        ? "Chưa ai báo máy hỏng. Máy trục trặc thì báo ngay — tổ sửa chữa thấy liền."
-                        : tab === "cho_tiep_nhan"
-                          ? "Không còn yêu cầu nào chờ tiếp nhận."
-                          : "Không có yêu cầu nào khớp bộ lọc."}
-                    </p>
-                    {chuaCo ? (
-                      guiDuoc && (
-                        <Button variant="ghost" onClick={() => setMo("new")}>
-                          <Icon name="plus" size={15} /> Báo máy hỏng
-                        </Button>
-                      )
-                    ) : (
-                      <Button variant="ghost"
-                        onClick={() => doiLoc(() => { setQ(""); onLocMan(LOC_MAN_TRONG); setTab("all"); })}>
-                        Xoá bộ lọc
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="rc__row" onClick={() => setMo(r)}>
-                <td className="rc__mono rc__nowrap">
-                  <span className="rc__code-badge ktm-ma">{r.ma}</span>
-                </td>
-                <td className="rc__name">
-                  {r.may_ma ? <span className="ktm-may-badge">{r.may_ma}</span> : "—"}
-                  {/* "Máy đang dừng" là dấu hiệu DUY NHẤT được ăn màu ở bảng này — nó là thứ ít
-                      dòng có và là thứ đẩy yêu cầu lên đầu hàng chờ. */}
-                  {r.may_dung && (
-                    <span className="ktm-chip ktm-chip--dung">
-                      <Icon name="pause" size={11} /> Đang dừng
-                    </span>
-                  )}
-                  <div className="ktm-phu">{r.may_ten ?? ""}</div>
-                </td>
-                <td>
-                  <div className="ktm-hong">
-                    <strong>{r.bo_phan_hong}</strong>
-                    <Badge kieu={`muc-${r.muc_do}`}>{NHAN_MUC_DO[r.muc_do] ?? r.muc_do}</Badge>
-                  </div>
-                  {r.mo_ta && <div className="ktm-phu ktm-phu--cat">{r.mo_ta}</div>}
-                </td>
-                <td>
-                  {r.nguoi_bao_ten ?? "—"}
-                  {r.bo_phan && <div className="ktm-phu">{r.bo_phan}</div>}
-                </td>
-                <td>
-                  <Badge kieu={`tt-${r.trang_thai}`}>
-                    {NHAN_TT_YEU_CAU[r.trang_thai] ?? r.trang_thai}
-                  </Badge>
-                  {r.phieu_ma && <div className="ktm-phu">{r.phieu_ma}</div>}
-                </td>
-                <td className="rc__nowrap">{fmtNgayGio(r.thoi_diem)}</td>
-                <ONgay v={r.created_at} />
-                <td className="text-center rc__nowrap">
-                  <span className={`ktm-anhchip${r.so_anh === 0 ? "" : " is-du"}`}>
-                    <Icon name="camera" size={12} /> {r.so_anh} ảnh
-                  </span>
-                </td>
-              </tr>
+      {/* Điện thoại: thẻ thay lưới. Hai nút lập phiếu/từ chối nằm to ở đáy thẻ — đây là việc chính
+          của hàng chờ, nút nhỏ trong ô hẹp thì ngón tay bấm trượt. Thẻ là `div` vì trong nó có nút
+          (button lồng button là HTML sai). */}
+      {hepMan ? (
+        <>
+          <div className="ktm-the-ds">
+            {loading ? <TheCho /> : rows.length === 0 ? <p className="ktm-the-rong">{rong}</p> : rows.map((r) => (
+              <div key={r.id} role="button" tabIndex={0} className="ktm-the"
+                onClick={() => setMo(r)}
+                onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) setMo(r); }}>
+                <span className="ktm-the__dau">
+                  <span className="ktm-ma">{r.ma}</span>
+                  <ChipKtm tt={r.trang_thai}>{NHAN_TT_YEU_CAU[r.trang_thai] ?? r.trang_thai}</ChipKtm>
+                </span>
+                <span className="ktm-the__than">
+                  <span className="ktm-may-badge">{r.may_ma ?? "—"}</span>
+                  <span className="ktm-the__goi">{r.bo_phan_hong}</span>
+                </span>
+                {r.mo_ta && <span className="ktm-the__mota">{r.mo_ta}</span>}
+                <span className="ktm-the__meta">
+                  {r.may_dung && <span className="lds-do">Máy đang dừng</span>}
+                  <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />
+                  {r.nguoi_bao_ten && <span>{r.nguoi_bao_ten}</span>}
+                  {r.bo_phan && <span className="lds-tag">{r.bo_phan}</span>}
+                  {r.lsx_ma && <span>Lệnh {r.lsx_ma}</span>}
+                  <span>Tạo {fmtNgayGioNgan(r.created_at)}</span>
+                </span>
+                {xuLy(r, true)}
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
-      {total > 0 && (
-        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
-          onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
-          donVi="yêu cầu" ariaLabel="Phân trang yêu cầu sửa chữa" />
+          </div>
+          {total > 0 && (
+            <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+              onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+              donVi="yêu cầu" ariaLabel="Phân trang yêu cầu sửa chữa" />
+          )}
+        </>
+      ) : (
+        <div className="lds-sheet">
+          <Luoi cot={cotHien} rows={rows} loading={loading} rong={rong} o={o} onMo={setMo} />
+          {total > 0 && (
+            <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+              onTrang={setPage} onSize={(n) => { setSize(n); setPage(1); }} loading={loading}
+              donVi="yêu cầu" ariaLabel="Phân trang yêu cầu sửa chữa" />
+          )}
+        </div>
       )}
 
-      {mo && (
+      {mo === "new" ? (
+        <BaoHongHop may={may} loiMay={loiMay} onClose={() => setMo(null)}
+          // Gửi xong mở luôn yêu cầu vừa gửi: chụp ảnh chỗ hỏng là bước kế tiếp.
+          onSaved={(y) => { sauKhiLuu(); setMo(y); }} />
+      ) : mo ? (
         <YeuCauDrawer
-          yc={mo === "new" ? null : mo}
-          may={may} loiMay={loiMay}
+          yc={mo}
           tiepNhanDuoc={tiepNhanDuoc} tuChoiDuoc={tuChoiDuoc}
           onClose={() => setMo(null)}
           onSaved={(y) => { sauKhiLuu(); setMo(y); }}
           onMoPhieu={onMoPhieu}
         />
-      )}
+      ) : null}
+
+      <ConfirmDialog open={!!hoiLap} busy={dangLap} error={loiLap}
+        title={`Lập phiếu sửa từ ${hoiLap?.ma ?? ""}`}
+        confirmLabel="Lập phiếu" cancelLabel="Quay lại"
+        onConfirm={() => void lapPhieu()} onCancel={() => setHoiLap(null)}>
+        <p className="ktm-hoi">
+          Sinh phiếu sửa chữa mới cho {hoiLap?.may_ma} với chỗ hỏng và mức độ người báo đã ghi; ảnh
+          kèm theo chuyển sang phiếu. Muốn chỉnh trước khi lập thì mở yêu cầu ra.
+        </p>
+      </ConfirmDialog>
+      <TuChoiDialog open={!!hoiTuChoi} ma={hoiTuChoi?.ma ?? ""}
+        onCancel={() => setHoiTuChoi(null)} onConfirm={tuChoi} />
     </div>
   );
 }
 
-function YeuCauDrawer({ yc, may, loiMay, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhieu }: {
-  yc: YeuCau | null;
+/** Hộp thoại "Báo máy hỏng" (phương án A3). Người báo + bộ phận lấy từ tài khoản. */
+function BaoHongHop({ may, loiMay, onClose, onSaved }: {
   may: MayChon[];
   loiMay: string | null;
+  onClose: () => void;
+  onSaved: (y: YeuCau) => void;
+}) {
+  const { token, user } = useAuth();
+  const [mayId, setMayId] = useState("");
+  const [boPhan, setBoPhan] = useState("");
+  const [moTa, setMoTa] = useState("");
+  const [mucDo, setMucDo] = useState("trung_binh");
+  const [mayDung, setMayDung] = useState(false);
+  const [dang, setDang] = useState(false);
+  const [loi, setLoi] = useState<string | null>(null);
+
+  const gui = async () => {
+    if (!token || dang) return;
+    if (!mayId) { setLoi("Chưa chọn máy."); return; }
+    if (!boPhan.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
+    setDang(true);
+    setLoi(null);
+    try {
+      const y = await kyThuatMay.taoYeuCau(token, {
+        may_id: Number(mayId),
+        bo_phan_hong: boPhan.trim(),
+        mo_ta: moTa.trim() || null,
+        muc_do: mucDo,
+        may_dung: mayDung,
+      });
+      onSaved(y);
+    } catch (e) {
+      setLoi(e instanceof Error ? e.message : "Gửi không thành công.");
+      setDang(false);
+    }
+  };
+
+  return (
+    <HopThoai tieuDe="Báo máy hỏng" nutChinh="Gửi yêu cầu" dangGui={dang} loi={loi}
+      coNoiDung={!!(mayId || boPhan || moTa)}
+      onGui={() => void gui()} onDong={onClose}
+      chanTrai={<span>Người báo: {user?.name?.trim() || user?.username || "—"}</span>}>
+      <div className="ktm-luoi2">
+        <ChonMay giaTri={mayId} may={may} loiMay={loiMay} onChange={setMayId} />
+        <ONhap nhan="Chỗ hỏng" giaTri={boPhan} khoa={false}
+          placeholder="vd: trục cán, bạc đạn" onChange={setBoPhan} />
+      </div>
+      <ONhap nhan="Mô tả" nhieuDong giaTri={moTa} khoa={false}
+        placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"
+        onChange={setMoTa} />
+      <div className="ktm-hang">
+        <ChonMucDo giaTri={mucDo} nhan={NHAN_MUC_DO} onChange={setMucDo} />
+        <label className="ktm-o-chon">
+          <input type="checkbox" checked={mayDung} onChange={(e) => setMayDung(e.target.checked)} />
+          Máy đang dừng, không chạy được
+        </label>
+      </div>
+      <span className="ktm-f__goiy">
+        Mức độ chọn theo cảm nhận, tổ sửa chữa đánh giá lại khi tiếp nhận. Máy dừng thì yêu cầu lên
+        đầu hàng chờ.
+      </span>
+    </HopThoai>
+  );
+}
+
+interface FormYc { bo_phan_hong: string; mo_ta: string; muc_do: string; may_dung: boolean }
+const formTuYc = (y: YeuCau): FormYc => ({
+  bo_phan_hong: y.bo_phan_hong ?? "",
+  mo_ta: y.mo_ta ?? "",
+  muc_do: y.muc_do ?? "trung_binh",
+  may_dung: y.may_dung ?? false,
+});
+
+/** Ngăn chi tiết yêu cầu báo hỏng — cùng khuôn hai cột với phiếu sửa chữa. Tổ sửa chữa lập phiếu /
+ *  từ chối bằng hai nút ở đáy cột phải; mức độ tổ đánh giá + nguyên nhân ghi ở khối "Khi lập phiếu". */
+function YeuCauDrawer({ yc, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhieu }: {
+  yc: YeuCau;
   tiepNhanDuoc: boolean;
   tuChoiDuoc: boolean;
   onClose: () => void;
@@ -1047,325 +1160,212 @@ function YeuCauDrawer({ yc, may, loiMay, tiepNhanDuoc, tuChoiDuoc, onClose, onSa
   onMoPhieu?: (phieuId: number) => void;
 }) {
   const { token, user } = useAuth();
-  const [form, setForm] = useState<YcFormState>(YC_FORM_RONG);
+  const [hienTai, setHienTai] = useState<YeuCau>(yc);
+  const [form, setForm] = useState<FormYc>(() => formTuYc(yc));
   const [luu, setLuu] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
   const [anh, setAnh] = useState<Anh[]>([]);
-  const [hienTai, setHienTai] = useState<YeuCau | null>(yc);
-  const [tab, setTab] = useState<"chi-tiet" | "lich-su">("chi-tiet");
-  // Nội dung tổ sửa chữa chỉnh lại LÚC TIẾP NHẬN — để trống là bê nguyên lời người báo.
-  const [tn, setTn] = useState({ bo_phan_hong: "", muc_do: "", nguyen_nhan_phuong_an: "" });
-  const [dangTiepNhan, setDangTiepNhan] = useState(false);
+  const [tab, setTab] = useState("chi-tiet");
+  // Nguyên nhân tổ sửa chữa soi ra trước khi lập phiếu. Mức độ KHÔNG hỏi lại ở đây: phiếu lấy mức độ
+  // của yêu cầu, muốn khác thì sửa ô Mức độ ở cột phải rồi Lưu (một thông tin chỉ một chỗ nhập).
+  const [tn, setTn] = useState({ nguyen_nhan_phuong_an: "" });
+  const [dangLap, setDangLap] = useState(false);
   const [hoiTuChoi, setHoiTuChoi] = useState(false);
-  const [phieuVua, setPhieuVua] = useState<SuaChua | null>(null);
 
-  const daXuLy = !!hienTai && hienTai.trang_thai !== "cho_tiep_nhan";
-  const cuaToi = !!hienTai && !!user && hienTai.nguoi_bao_id === user.id;
+  const daXuLy = hienTai.trang_thai !== "cho_tiep_nhan";
+  const cuaToi = !!user && hienTai.nguoi_bao_id === user.id;
   // Sửa lời báo: chính người gửi, hoặc tổ sửa chữa (họ mới là bên phải làm việc với nội dung đó).
-  // Backend chốt lại y hệt ở `_kiem_chu_yeu_cau` — chỗ này chỉ để không bày nút bấm vào rồi 403.
-  const khoaSua = !!hienTai && (daXuLy || !(cuaToi || tuChoiDuoc));
+  // Backend chốt lại y hệt ở `_kiem_chu_yeu_cau` — chỗ này chỉ để không bày ô sửa ra rồi 403.
+  const khoaSua = daXuLy || !(cuaToi || tuChoiDuoc);
+  const goc = formTuYc(hienTai);
+  const doi = (Object.keys(goc) as (keyof FormYc)[]).some((k) => form[k] !== goc[k]);
 
   useEffect(() => {
     setHienTai(yc);
-    setPhieuVua(null);
-    setForm(yc ? {
-      may_id: String(yc.may_id),
-      bo_phan_hong: yc.bo_phan_hong ?? "",
-      mo_ta: yc.mo_ta ?? "",
-      muc_do: yc.muc_do ?? "trung_binh",
-      may_dung: yc.may_dung ?? false,
-    } : YC_FORM_RONG);
-    setTn({
-      bo_phan_hong: yc?.bo_phan_hong ?? "",
-      muc_do: yc?.muc_do ?? "trung_binh",
-      nguyen_nhan_phuong_an: "",
-    });
+    setForm(formTuYc(yc));
+    setTn({ nguyen_nhan_phuong_an: "" });
   }, [yc]);
 
   const napAnh = useCallback(() => {
-    if (!token || !hienTai) { setAnh([]); return; }
-    // Ảnh ĐỔI CHỦ sang phiếu lúc tiếp nhận ⇒ yêu cầu đã thành phiếu thì đọc theo cặp mới, đọc
-    // theo `yeu_cau` sẽ ra rỗng và người báo tưởng ảnh của mình bay mất.
+    if (!token) return;
+    // Ảnh ĐỔI CHỦ sang phiếu lúc lập phiếu ⇒ yêu cầu đã thành phiếu thì đọc theo cặp mới, đọc theo
+    // `yeu_cau` sẽ ra rỗng và người báo tưởng ảnh của mình bay mất.
     const loai = hienTai.phieu_id ? "sua_chua" : "yeu_cau";
-    const id = hienTai.phieu_id ?? hienTai.id;
-    kyThuatMay.listAnh(token, loai, id).then(setAnh)
+    kyThuatMay.listAnh(token, loai, hienTai.phieu_id ?? hienTai.id).then(setAnh)
       .catch((e) => setLoi(e instanceof Error ? e.message : "Không tải được danh sách ảnh."));
-  }, [token, hienTai?.id, hienTai?.phieu_id]);
+  }, [token, hienTai.id, hienTai.phieu_id]);
   useEffect(napAnh, [napAnh]);
 
-  const set = <K extends keyof YcFormState>(k: K, v: YcFormState[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof FormYc>(k: K, v: FormYc[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const luuYc = async () => {
-    if (!token) return;
-    if (!form.may_id) { setLoi("Chưa chọn máy."); return; }
-    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi bộ phận hỏng."); return; }
+    if (!token || luu) return;
+    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
     setLuu(true);
     setLoi(null);
-    const body = {
-      may_id: Number(form.may_id),
-      bo_phan_hong: form.bo_phan_hong.trim(),
-      mo_ta: form.mo_ta.trim() || null,
-      muc_do: form.muc_do,
-      may_dung: form.may_dung,
-    };
     try {
-      const y = hienTai
-        ? await kyThuatMay.suaYeuCau(token, hienTai.id, body)
-        : await kyThuatMay.taoYeuCau(token, body);
+      const y = await kyThuatMay.suaYeuCau(token, hienTai.id, {
+        may_id: hienTai.may_id,
+        bo_phan_hong: form.bo_phan_hong.trim(),
+        mo_ta: form.mo_ta.trim() || null,
+        muc_do: form.muc_do,
+        may_dung: form.may_dung,
+      });
       setHienTai(y);
       onSaved(y);
     } catch (e) {
-      setLoi(e instanceof Error ? e.message : "Gửi không thành công.");
+      setLoi(e instanceof Error ? e.message : "Lưu không thành công.");
     } finally {
       setLuu(false);
     }
   };
 
-  const tiepNhan = async () => {
-    if (!token || !hienTai || dangTiepNhan) return;
+  const lapPhieu = async () => {
+    if (!token || dangLap) return;
     setLoi(null);
-    setDangTiepNhan(true);
+    setDangLap(true);
     try {
       const r = await kyThuatMay.taoPhieuTuYeuCau(token, hienTai.id, {
-        bo_phan_hong: tn.bo_phan_hong.trim() || undefined,
-        muc_do: tn.muc_do || undefined,
+        muc_do: hienTai.muc_do,
         nguyen_nhan_phuong_an: tn.nguyen_nhan_phuong_an.trim() || undefined,
       });
-      setPhieuVua(r.phieu);
       setHienTai(r.yeu_cau);
       onSaved(r.yeu_cau);
     } catch (e) {
       // 409 = người khác vừa tiếp nhận trước. Câu của backend đã nói rõ phiếu nào, cứ hiện nguyên.
-      setLoi(e instanceof Error ? e.message : "Không tạo được phiếu.");
+      setLoi(e instanceof Error ? e.message : "Không lập được phiếu.");
     } finally {
-      setDangTiepNhan(false);
+      setDangLap(false);
     }
   };
 
   const tuChoi = async (lyDo: string) => {
-    if (!token || !hienTai) return;
-    setLoi(null);
-    try {
-      const y = await kyThuatMay.tuChoiYeuCau(token, hienTai.id, lyDo);
-      setHienTai(y);
-      onSaved(y);
-      setHoiTuChoi(false);
-    } catch (e) {
-      setLoi(e instanceof Error ? e.message : "Không từ chối được.");
-    }
+    const y = await kyThuatMay.tuChoiYeuCau(token!, hienTai.id, lyDo);
+    setHienTai(y);
+    onSaved(y);
+    setHoiTuChoi(false);
   };
 
-  return (
-    <div className="rc-drawer__scrim" role="dialog" aria-modal="true" onClick={onClose}>
-      <aside className="rc-drawer ktm-drawer" onClick={(e) => e.stopPropagation()}>
-        <header className="rc-drawer__head">
-          <div>
-            <div className="rc-drawer__kicker">
-              {hienTai
-                ? `Yêu cầu báo hỏng · ${NHAN_TT_YEU_CAU[hienTai.trang_thai] ?? ""}`
-                : "Báo máy hỏng"}
-            </div>
-            <h2 className="rc-drawer__title">
-              {hienTai ? `${hienTai.ma} · ${hienTai.bo_phan_hong}` : "Yêu cầu mới"}
-            </h2>
-            {hienTai && (
-              <div className="ktm-meta">
-                <span>{hienTai.may_ma} · {hienTai.may_ten}</span>
-                {hienTai.nguoi_bao_ten && (
-                  <span>
-                    Báo bởi <strong>{hienTai.nguoi_bao_ten}</strong>
-                    {hienTai.bo_phan ? ` · ${hienTai.bo_phan}` : ""}
-                  </span>
-                )}
-                <span>{fmtNgayGio(hienTai.thoi_diem)}</span>
-              </div>
-            )}
-          </div>
-          <button type="button" className="rc-drawer__x" onClick={onClose} aria-label="Đóng">
-            <Icon name="x" size={14} />
-          </button>
-        </header>
+  const choLap = !daXuLy && tiepNhanDuoc;
+  // KHÔNG có nút xoá yêu cầu — cũng không có endpoint. Bỏ một lời báo phải đi qua "Từ chối" kèm lý
+  // do: xoá lặng là người báo không bao giờ biết vì sao.
+  const cuoi = !daXuLy && (tiepNhanDuoc || tuChoiDuoc) ? (
+    <>
+      {tiepNhanDuoc && (
+        <Button variant="accent" disabled={doi || dangLap} onClick={() => void lapPhieu()}>
+          {dangLap ? "Đang lập phiếu…" : "Lập phiếu sửa"}
+        </Button>
+      )}
+      {doi && <span className="ktm-ly">Lưu thay đổi trước đã.</span>}
+      {tuChoiDuoc && (
+        <Button variant="ghost" className="ktm-nut-do" onClick={() => setHoiTuChoi(true)}>Từ chối</Button>
+      )}
+    </>
+  ) : undefined;
 
-        {hienTai && (
-          <div className="ktm-tab">
-            <button type="button" className={`ktm-tab__nut${tab === "chi-tiet" ? " is-active" : ""}`}
-              onClick={() => setTab("chi-tiet")}>Chi tiết</button>
-            <button type="button" className={`ktm-tab__nut${tab === "lich-su" ? " is-active" : ""}`}
-              onClick={() => setTab("lich-su")}>Lịch sử thao tác</button>
-          </div>
+  const cot = (
+    <CotPhieu cuoi={cuoi}>
+      <DongTT nhan="Trạng thái">
+        <ChipKtm tt={hienTai.trang_thai}>{NHAN_TT_YEU_CAU[hienTai.trang_thai] ?? hienTai.trang_thai}</ChipKtm>
+      </DongTT>
+      {/* Kết cục của lời báo đứng ngay dưới trạng thái: người gửi mở ra là biết được xử lý thế nào. */}
+      {hienTai.trang_thai === "da_tao_phieu" && (
+        <DongTT nhan="Phiếu sửa">
+          {onMoPhieu && hienTai.phieu_id ? (
+            <button type="button" className="lds-lk" onClick={() => onMoPhieu(hienTai.phieu_id as number)}>
+              {hienTai.phieu_ma}
+            </button>
+          ) : hienTai.phieu_ma}
+        </DongTT>
+      )}
+      {hienTai.trang_thai === "tu_choi" && (
+        <DongTT nhan="Lý do từ chối"><span className="lds-do">{hienTai.ly_do_tu_choi}</span></DongTT>
+      )}
+      {daXuLy && hienTai.xu_ly_ten && <DongTT nhan="Người xử lý">{hienTai.xu_ly_ten}</DongTT>}
+      {daXuLy && <DongTT nhan="Xử lý lúc">{fmtNgayGio(hienTai.xu_ly_at)}</DongTT>}
+      <DongTT nhan="Máy"><OMay ma={hienTai.may_ma} ten={hienTai.may_ten} /></DongTT>
+      <DongTT nhan="Mức độ">
+        {khoaSua ? (
+          <MucDo muc={hienTai.muc_do} nhan={NHAN_MUC_DO[hienTai.muc_do] ?? hienTai.muc_do} />
+        ) : (
+          <select className="ktm-chon" value={form.muc_do} aria-label="Mức độ"
+            onChange={(e) => set("muc_do", e.target.value)}>
+            {Object.keys(NHAN_MUC_DO).map((m) => <option key={m} value={m}>{NHAN_MUC_DO[m]}</option>)}
+          </select>
         )}
+      </DongTT>
+      <DongTT nhan="Máy dừng">
+        {khoaSua ? (
+          hienTai.may_dung ? <span className="lds-do">Máy đang dừng</span> : <span className="lds-mu">Vẫn chạy được</span>
+        ) : (
+          <label className="ktm-o-chon">
+            <input type="checkbox" checked={form.may_dung} onChange={(e) => set("may_dung", e.target.checked)} />
+            Đang dừng
+          </label>
+        )}
+      </DongTT>
+      <DongTT nhan="Người báo">
+        {hienTai.nguoi_bao_ten ?? "—"}{hienTai.bo_phan && <span className="lds-tag">{hienTai.bo_phan}</span>}
+      </DongTT>
+      <DongTT nhan="Hỏng lúc">{fmtNgayGio(hienTai.thoi_diem)}</DongTT>
+      {hienTai.lsx_ma && <DongTT nhan="Lệnh SX">{hienTai.lsx_ma}</DongTT>}
+      <DongTT nhan="Ngày tạo"><span className="lds-mu">{fmtNgayGio(hienTai.created_at)}</span></DongTT>
+    </CotPhieu>
+  );
 
-        <form className="ktm-drawer__form" onSubmit={(e) => { e.preventDefault(); void luuYc(); }}>
-        <div className="rc-drawer__body">
-          {hienTai && tab === "lich-su" ? (
-            <NhatKyPhieu loai="ky_thuat_yeu_cau" phieuId={hienTai.id} />
-          ) : (
+  return (
+    <>
+      <NganPhai
+        tieuDe={<><span className="ktm-ngan-ma">{hienTai.ma}</span>{hienTai.bo_phan_hong}</>}
+        tabs={[{ id: "chi-tiet", nhan: "Chi tiết" }, { id: "lich-su", nhan: "Lịch sử thao tác" }]}
+        tab={tab} onTab={setTab}
+        onDong={onClose}
+        chanDong={() => doi || (choLap && !!tn.nguyen_nhan_phuong_an.trim())}
+        cot={cot}
+        chan={!khoaSua && tab === "chi-tiet" ? (
           <>
-          {loi && <div className="banner banner--error" style={{ marginBottom: "var(--sp-4)" }}>{loi}</div>}
-
-          {/* Kết cục của lời báo phải nằm NGAY TRÊN CÙNG: người gửi mở ra là biết ngay được xử lý
-              thế nào, không phải cuộn đi tìm. */}
-          {hienTai?.trang_thai === "da_tao_phieu" && (
-            <div className="ktm-thongbao ktm-thongbao--xong">
-              <Icon name="check" size={14} />
-              <span>
-                Đã lập phiếu <strong>{hienTai.phieu_ma ?? phieuVua?.ma ?? ""}</strong>
-                {hienTai.xu_ly_ten ? ` · ${hienTai.xu_ly_ten}` : ""} · {fmtNgayGio(hienTai.xu_ly_at)}
-                {anh.length > 0 && " · ảnh đã chuyển sang phiếu"}
-              </span>
-              {onMoPhieu && hienTai.phieu_id && (
-                <button type="button" className="rc__link-btn"
-                  onClick={() => onMoPhieu(hienTai.phieu_id as number)}>
-                  Mở phiếu
-                </button>
-              )}
-            </div>
-          )}
-          {hienTai?.trang_thai === "tu_choi" && (
-            <div className="ktm-thongbao ktm-thongbao--huy">
-              <Icon name="ban" size={14} />
-              <span>
-                Không lập phiếu: <strong>{hienTai.ly_do_tu_choi}</strong>
-                {hienTai.xu_ly_ten ? ` — ${hienTai.xu_ly_ten}` : ""} · {fmtNgayGio(hienTai.xu_ly_at)}
-              </span>
-            </div>
-          )}
-
-          <div className="ktm-form-card">
-            <div className="ktm-form-card__head">
-              <div className="ktm-form-card__icon">
-                <Icon name="alert" size={15} />
-              </div>
-              <h3 className="ktm-form-card__title">Chi tiết máy & sự cố báo hỏng</h3>
-            </div>
-
-            {/* Thẻ cảnh báo Máy Đang Dừng (Emergency Stop Alert Card) */}
-            <label className={`ktm-emergency-card${form.may_dung ? " is-active" : ""}`}>
-              <input type="checkbox" className="ktm-emergency-card__checkbox" checked={form.may_dung} disabled={khoaSua}
-                onChange={(e) => set("may_dung", e.target.checked)} />
-              <div className="ktm-emergency-card__body">
-                <div className="ktm-emergency-card__title">
-                  <span>Máy đang dừng, không chạy được</span>
-                  {form.may_dung && <span className="ktm-emergency-card__badge">🛑 Ưu tiên cao</span>}
-                </div>
-                <span className="ktm-emergency-card__desc">
-                  Đánh dấu là yêu cầu này cần xử lý khẩn cấp và sẽ được đẩy lên đầu hàng chờ của tổ sửa chữa.
-                </span>
-              </div>
-            </label>
-
-            <div className="rc-grid" style={{ gap: "14px" }}>
-              <ChonMay giaTri={form.may_id} may={may} loiMay={loiMay} khoa={khoaSua}
-                onChange={(v) => set("may_id", v)} />
-
-              <label className="rc-field">
-                <span className="rc-field__label">Bộ phận hỏng *</span>
-                <input className="rc-input ktm-input-modern" value={form.bo_phan_hong} disabled={khoaSua}
-                  placeholder="vd: Trục cán & bạc đạn"
-                  onChange={(e) => set("bo_phan_hong", e.target.value)} />
-              </label>
-
-              <div className="rc-field rc-field--full">
-                <span className="rc-field__label">Mức độ (theo bạn cảm nhận)</span>
-                <div className="ktm-priority-seg" style={{ marginBottom: "6px" }}>
-                  {MUC_DO_CHON.map((m) => {
-                    const isSel = form.muc_do === m;
-                    return (
-                      <button key={m} type="button"
-                        disabled={khoaSua}
-                        className={`ktm-priority-btn ktm-priority-btn--${m}${isSel ? " is-selected" : ""}`}
-                        onClick={() => set("muc_do", m)}>
-                        <span className={`ktm-priority-dot ktm-priority-dot--${m}`} />
-                        {NHAN_MUC_DO[m]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="rc-field__hint">Cứ chọn theo cảm nhận — tổ sửa chữa sẽ đánh giá lại khi tiếp nhận.</span>
-              </div>
-
-              <label className="rc-field rc-field--full">
-                <span className="rc-field__label">Triệu chứng & mô tả hỏng hóc</span>
-                <textarea className="rc-input ktm-input-modern" rows={2} value={form.mo_ta} disabled={khoaSua}
-                  placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép…"
-                  onChange={(e) => set("mo_ta", e.target.value)} />
-              </label>
-            </div>
-          </div>
-
-          {hienTai && (
+            <span className="kt-ngan__xt">{doi ? "Có thay đổi chưa lưu" : ""}</span>
+            <Button variant="ghost" disabled={!doi || luu} onClick={() => setForm(goc)}>Bỏ thay đổi</Button>
+            <Button variant="accent" disabled={!doi || luu} onClick={() => void luuYc()}>
+              {luu ? "Đang lưu…" : "Lưu"}
+            </Button>
+          </>
+        ) : undefined}
+      >
+        {tab === "lich-su" ? (
+          <NhatKyPhieu loai="ky_thuat_yeu_cau" phieuId={hienTai.id} />
+        ) : (
+          <div className="ktm-trai">
+            {loi && <div className="banner banner--error" role="alert">{loi}</div>}
+            <ONhap nhan="Chỗ hỏng" giaTri={form.bo_phan_hong} khoa={khoaSua}
+              placeholder="vd: trục cán, bạc đạn" onChange={(v) => set("bo_phan_hong", v)} />
+            <ONhap nhan="Mô tả" nhieuDong giaTri={form.mo_ta} khoa={khoaSua}
+              placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"
+              onChange={(v) => set("mo_ta", v)} />
             <AnhBox loai={hienTai.phieu_id ? "sua_chua" : "yeu_cau"}
               phieuId={hienTai.phieu_id ?? hienTai.id} giaiDoan="truoc"
-              tieuDe="Ảnh chỗ hỏng" khoa={khoaSua}
-              moTa="Chụp bằng điện thoại là đủ — một tấm ảnh nói nhanh hơn cả đoạn mô tả."
-              tatCaAnh={anh}
-              onChanged={napAnh} />
-          )}
+              tieuDe={hienTai.phieu_id ? "Ảnh chỗ hỏng (đã chuyển sang phiếu)" : "Ảnh chỗ hỏng"}
+              khoa={khoaSua} tatCaAnh={anh} onChanged={napAnh} />
 
-          {/* Tiếp nhận là quyết định MỘT CHIỀU (sinh mã SC, kéo ảnh sang phiếu) ⇒ tách hẳn khối
-              riêng, không nấp thành một nút thường lẫn giữa các ô nhập. */}
-          {hienTai && !daXuLy && tiepNhanDuoc && (
-            <section className="ktm-xacnhan">
-              <div className="ktm-xacnhan__title">Tiếp nhận · lập phiếu sửa chữa</div>
-              <p className="ktm-xacnhan__mo-ta">
-                Sinh phiếu SC mới từ lời báo này; ảnh kèm theo chuyển sang phiếu. Để trống các ô
-                dưới là giữ nguyên lời người báo.
-              </p>
-              <div className="rc-grid">
-                <label className="rc-field">
-                  <span className="rc-field__label">Bộ phận hỏng ghi trên phiếu</span>
-                  <input className="rc-input" value={tn.bo_phan_hong}
-                    onChange={(e) => setTn((s) => ({ ...s, bo_phan_hong: e.target.value }))} />
-                </label>
-                <label className="rc-field">
-                  <span className="rc-field__label">Mức độ (tổ kỹ thuật đánh giá)</span>
-                  <select className="rc-input" value={tn.muc_do}
-                    onChange={(e) => setTn((s) => ({ ...s, muc_do: e.target.value }))}>
-                    {MUC_DO_CHON.map((m) => <option key={m} value={m}>{NHAN_MUC_DO[m]}</option>)}
-                  </select>
-                </label>
-                <label className="rc-field rc-field--full">
-                  <span className="rc-field__label">Nguyên nhân & phương án sửa</span>
-                  <textarea className="rc-input" rows={2} value={tn.nguyen_nhan_phuong_an}
-                    placeholder="Ghi được ngay thì ghi, không thì bổ sung sau trong phiếu."
-                    onChange={(e) => setTn((s) => ({ ...s, nguyen_nhan_phuong_an: e.target.value }))} />
-                </label>
-              </div>
-              <button type="button" className="ktm-xacnhan__nut" disabled={dangTiepNhan}
-                onClick={() => void tiepNhan()}>
-                <Icon name="check" size={15} />
-                {dangTiepNhan ? "Đang lập phiếu…" : "Tạo phiếu sửa chữa"}
-              </button>
-              {tuChoiDuoc && (
-                <button type="button" className="rc__link-btn ktm-link-huy"
-                  onClick={() => setHoiTuChoi(true)}>
-                  Không lập phiếu · từ chối kèm lý do
-                </button>
-              )}
-            </section>
-          )}
-
-          {/* KHÔNG có nút xoá yêu cầu — cũng không có endpoint. Bỏ một lời báo phải đi qua "từ
-              chối kèm lý do": xoá lặng là người báo không bao giờ biết vì sao. */}
-          </>
-          )}
-        </div>
-
-        {!khoaSua && (!hienTai || tab === "chi-tiet") && (
-          <footer className="rc-drawer__foot">
-            <Button variant="ghost" type="button" onClick={onClose}>Hủy</Button>
-            <Button variant="accent" type="submit" disabled={luu}>
-              {luu ? "Đang gửi…" : hienTai ? "Lưu thay đổi" : "Gửi yêu cầu"}
-            </Button>
-          </footer>
+            {/* Lập phiếu là quyết định MỘT CHIỀU (sinh mã SC, kéo ảnh sang phiếu) ⇒ khối riêng có
+                viền, không lẫn vào các ô của lời báo. */}
+            {choLap && (
+              <section className="ktm-khoi">
+                <h4 className="ktm-khoi__dau">Khi lập phiếu sửa</h4>
+                <ONhap nhan="Nguyên nhân và cách sửa" phu="ghi sau cũng được" nhieuDong
+                  giaTri={tn.nguyen_nhan_phuong_an} khoa={false}
+                  placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"
+                  onChange={(v) => setTn({ nguyen_nhan_phuong_an: v })} />
+                <span className="ktm-f__goiy">Chỗ hỏng, mô tả, mức độ và ảnh chép sang phiếu như trên.</span>
+              </section>
+            )}
+          </div>
         )}
-        </form>
-      </aside>
+      </NganPhai>
 
-      <TuChoiDialog open={hoiTuChoi} ma={hienTai?.ma ?? ""}
+      <TuChoiDialog open={hoiTuChoi} ma={hienTai.ma}
         onCancel={() => setHoiTuChoi(false)} onConfirm={tuChoi} />
-    </div>
+    </>
   );
 }
 
@@ -1384,7 +1384,7 @@ function TuChoiDialog({ open, ma, onCancel, onConfirm }: {
   useEffect(() => { if (open) { setLyDo(""); setLoi(null); } }, [open]);
 
   const chay = async () => {
-    if (!lyDo.trim()) { setLoi("Phải ghi lý do — người báo cần đọc được vì sao."); return; }
+    if (!lyDo.trim()) { setLoi("Phải ghi lý do, người báo cần đọc được vì sao."); return; }
     setBusy(true);
     setLoi(null);
     try {
@@ -1398,16 +1398,16 @@ function TuChoiDialog({ open, ma, onCancel, onConfirm }: {
 
   return (
     <ConfirmDialog open={open} danger busy={busy} error={loi}
-      title={<span className="ktm-dialog-title"><Icon name="ban" size={16} /> Từ chối {ma}</span>}
+      title={`Từ chối ${ma}`}
       confirmLabel="Từ chối yêu cầu" cancelLabel="Quay lại"
       confirmDisabled={!lyDo.trim()}
       onConfirm={() => void chay()} onCancel={onCancel}>
       <div className="ktm-boqua-form">
         <p>Yêu cầu sẽ đóng lại và người báo nhận được lý do này ngay.</p>
-        <label className="rc-field">
-          <span className="rc-field__label">Lý do *</span>
-          <textarea className="rc-input" rows={3} value={lyDo} autoFocus
-            placeholder="vd: máy này đã có YC-0004 báo cùng lỗi · chỉnh lại được tại chỗ, không cần thay"
+        <label className="ktm-f">
+          <span className="ktm-f__nhan">Lý do</span>
+          <textarea className="ktm-o" rows={3} value={lyDo} autoFocus
+            placeholder="vd: máy này đã có YC-0004 báo cùng lỗi"
             onChange={(e) => setLyDo(e.target.value)} />
         </label>
       </div>

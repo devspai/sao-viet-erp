@@ -52,8 +52,8 @@ export function LeaveRequestDetailModal({
   const renderStatusBadge = () => {
     if (dangXin) {
       return (
-        <span className="cc-status-pill cc-status-pill--pending">
-          <span className="cc-status-dot cc-status-dot--pending" />
+        <span className="cc-status-pill cc-status-pill--xin-huy">
+          <span className="cc-status-dot cc-status-dot--xin-huy" />
           Đang xin hủy
         </span>
       );

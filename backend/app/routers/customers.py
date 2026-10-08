@@ -241,13 +241,16 @@ def list_customers(
         filtered = [c for c in filtered if trong_khoang_ngay(c.created_at, tu_ngay, den_ngay)]
     if loai:
         filtered = [c for c in filtered if c.customer_kind == loai]
-    if mua:
-        def _tinh_trang(c: Customer) -> str:
-            st = stats.per_customer.get(c.id)
-            if st is None or st.orders_total == 0:
-                return "chua_don"
-            return "dang_mua" if st.orders_12m > 0 else "ngung"
+    def _tinh_trang(c: Customer) -> str:
+        st = stats.per_customer.get(c.id)
+        if st is None or st.orders_total == 0:
+            return "chua_don"
+        return "dang_mua" if st.orders_12m > 0 else "ngung"
 
+    dem_mua = {"dang_mua": 0, "ngung": 0, "chua_don": 0}
+    for c in filtered:
+        dem_mua[_tinh_trang(c)] += 1
+    if mua:
         filtered = [c for c in filtered if _tinh_trang(c) == mua]
 
     key, is_desc = _sort_key(sort or "code")
@@ -263,12 +266,17 @@ def list_customers(
         filtered.sort(key=lambda c: getattr(stats.per_customer[c.id], attr), reverse=is_desc)
     elif key == "name":
         filtered.sort(key=lambda c: c.name.lower(), reverse=is_desc)
+    elif key == "created":
+        filtered.sort(key=lambda c: (c.created_at is not None, c.created_at or datetime.min), reverse=is_desc)
     elif key == "credit_limit":
         filtered.sort(key=lambda c: c.credit_limit, reverse=is_desc)
     else:  # code (default) — stable, sequential
         filtered.sort(key=lambda c: c.code, reverse=is_desc)
 
     total = len(filtered)
+    tong_mua_12m = sum(
+        st.revenue_12m for c in filtered if (st := stats.per_customer.get(c.id)) is not None
+    )
     start = (page - 1) * size
     page_rows = filtered[start : start + size]
 
@@ -289,6 +297,8 @@ def list_customers(
             avg_order_value=stats.avg_order_value,
             total_revenue=stats.total_revenue,
         ),
+        dem_mua=dem_mua,
+        tong_mua_12m=tong_mua_12m,
     )
 
 

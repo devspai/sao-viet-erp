@@ -1526,6 +1526,25 @@ def test_nhap_vat_tu_trung_trong_file_thi_lay_dong_duoi(client, auth_headers):
     assert body["errors"] and body["errors"][0]["row"] == 3
 
 
+def test_nhap_vat_tu_doc_dang_ban_va_kho_giay(client, auth_headers):
+    """Cột Dạng bán + Khổ (07/10/2026): Tờ kèm khổ (cạnh ngắn trước), Cuộn kèm khổ rộng; giấy tờ
+    hai khổ là hai dòng giá; tờ thiếu cạnh và dạng lạ thành lỗi đúng dòng."""
+    hdr = ("Tên hàng*", "Dạng bán", "Khổ (mm)", "Đơn vị*", "Đơn giá*", "VAT %", "Ghi chú")
+    data = _file_vat_tu([
+        ("Couche 80", "Tờ", "870x650", "ram", 520000, 8, ""),
+        ("Couche 80", "Tờ", "790 × 1090", "ram", 600000, 8, ""),
+        ("Couche 80", "cuon", "1090", "tan", 22600000, 8, ""),
+        ("Couche 80", "Tờ", "650", "ram", 1, 8, ""),
+        ("Couche 80", "Tấm", "", "ram", 1, 8, ""),
+        ("Keo", "", "", "kg", 80000, 10, ""),
+    ], header=hdr)
+    body = _nhap(client, auth_headers, data).json()
+    got = [(i["dang_ban"], i["kho_rong"], i["kho_dai"], i["unit"]) for i in body["items"]]
+    assert got == [("to", 650, 870, "ram"), ("to", 790, 1090, "ram"), ("cuon", 1090, 0, "tan"),
+                   (None, 0, 0, "kg")]
+    assert [e["row"] for e in body["errors"]] == [5, 6]
+
+
 def test_nhap_vat_tu_chan_file_hong_thieu_cot_va_qua_tran(client, auth_headers):
     hong = _nhap(client, auth_headers, b"day khong phai file excel")
     assert hong.status_code == 422
@@ -1669,12 +1688,22 @@ def test_purchase_request_required_header_and_line_fields(client, auth_headers):
         == 422
     )
 
+    # Một đơn gắn được nhiều yêu cầu (08/10/2026). Đơn không nối dòng nào ⇒ gắn cả tập; yêu cầu
+    # đã bị đơn khác giữ (`source`, giữ bởi đơn "sớm hơn ngày cần" ở trên) thì vẫn chặn.
     second_source = _create_department_request(client, auth_headers)
-    multiple_sources = _request_payload(supplier["id"])
-    multiple_sources["source_request_ids"] = [source["id"], second_source["id"]]
-    resp = client.post("/api/purchase-requests", json=multiple_sources, headers=auth_headers)
+    third_source = _create_department_request(client, auth_headers)
+    held = _request_payload(supplier["id"])
+    held["source_request_ids"] = [source["id"], second_source["id"]]
+    resp = client.post("/api/purchase-requests", json=held, headers=auth_headers)
     assert resp.status_code == 422
-    assert "chi duoc gan 1" in resp.json()["detail"]
+    assert source["code"] in resp.json()["detail"]
+    multiple_sources = _request_payload(supplier["id"])
+    multiple_sources["source_request_ids"] = [second_source["id"], third_source["id"]]
+    resp = client.post("/api/purchase-requests", json=multiple_sources, headers=auth_headers)
+    assert resp.status_code == 201, resp.text
+    assert sorted(s["department_request_id"] for s in resp.json()["sources"]) == sorted(
+        [second_source["id"], third_source["id"]]
+    )
 
 
 def test_purchase_request_validates_active_supplier(client, auth_headers):
@@ -1971,7 +2000,7 @@ def test_sua_pmh_khong_duoc_xoa_lien_ket_mat_hang_goc(client, auth_headers):
         client, auth_headers, name="NCC Round Trip Mat Hang Goc",
         items=[{
             "hang_loai": "giay", "hang_id": giay_id,
-            "item_name": "Giay round-trip", "unit": "kg",
+            "item_name": "Giay round-trip", "dang_ban": "cuon", "unit": "kg",
             "unit_price": 22000, "vat_percent": 8,
         }],
     )
@@ -2599,6 +2628,60 @@ def test_pmh_sua_kho_mua_va_so_luong(client, auth_headers):
     ln = res.json()["lines"][0]
     assert ln["quantity"] == 120
     assert (ln["kho_rong"], ln["kho_dai"]) == (800, 1090), "khổ mua do thu mua sửa, không chép khổ cần"
+
+
+def _pmh_giay_da_mua(client, headers):
+    """PMH một dòng giấy tờ 790 × 1090, đã duyệt và đánh dấu đã mua. Trả `(pr_id, dong_id)`."""
+    ycmh, _giay, supplier_id, ten = _ycmh_giay(client, headers, (790, 1090))
+    payload = _request_payload(supplier_id)
+    payload["source_request_ids"] = [ycmh["id"]]
+    payload["lines"] = [_dong_mua(ten, ycmh["lines"][0]["id"])]
+    pr = client.post("/api/purchase-requests", json=payload, headers=headers).json()
+    for buoc, h in (("submit", headers), ("approve", _h_duyet()), ("mark-purchased", headers)):
+        r = client.post(f"/api/purchase-requests/{pr['id']}/{buoc}", headers=h)
+        assert r.status_code == 200, r.text
+    return pr["id"], pr["lines"][0]["id"]
+
+
+def _dot(client, headers, pr_id, dong_id, **them):
+    r = client.post(f"/api/purchase-requests/{pr_id}/deliveries", headers=headers, json={
+        "delivery_date": date.today().isoformat(),
+        "lines": [{"purchase_request_line_id": dong_id, "quantity": 40, **them}]})
+    return r
+
+
+def test_dot_giao_mac_dinh_kho_nhan_bang_kho_dat(client, auth_headers):
+    pr_id, dong_id = _pmh_giay_da_mua(client, auth_headers)
+    r = _dot(client, auth_headers, pr_id, dong_id)
+    assert r.status_code == 200, r.text
+    ln = r.json()["deliveries"][-1]["lines"][0]
+    assert (ln["kho_rong"], ln["kho_dai"], ln["khac_kho_dat"]) == (790, 1090, False)
+    # Gửi lại đúng khổ đặt (lộn cạnh) cũng là "theo khổ đặt", không bật cờ khác khổ.
+    r = _dot(client, auth_headers, pr_id, dong_id, kho_rong=1090, kho_dai=790)
+    ln = r.json()["deliveries"][-1]["lines"][0]
+    assert ln["khac_kho_dat"] is False
+
+
+def test_dot_giao_ghi_kho_nhan_khac_kho_dat(client, auth_headers):
+    """NCC giao 790 × 1080 thay 790 × 1090: đợt ghi khổ thực nhận, hàng vào tồn theo khổ đó."""
+    pr_id, dong_id = _pmh_giay_da_mua(client, auth_headers)
+    r = _dot(client, auth_headers, pr_id, dong_id, kho_rong=1080, kho_dai=790)
+    assert r.status_code == 200, r.text
+    dot = r.json()["deliveries"][-1]
+    ln = dot["lines"][0]
+    assert (ln["kho_rong"], ln["kho_dai"], ln["khac_kho_dat"]) == (790, 1080, True)
+    # Sửa đợt về đúng khổ đặt ⇒ thôi khác khổ.
+    r = client.put(f"/api/purchase-requests/{pr_id}/deliveries/{dot['id']}", headers=auth_headers,
+                   json={"delivery_date": date.today().isoformat(),
+                         "lines": [{"purchase_request_line_id": dong_id, "quantity": 40}]})
+    assert r.status_code == 200, r.text
+    assert r.json()["deliveries"][-1]["lines"][0]["khac_kho_dat"] is False
+
+
+def test_dot_giao_kho_nhan_thieu_canh_bi_chan(client, auth_headers):
+    pr_id, dong_id = _pmh_giay_da_mua(client, auth_headers)
+    r = _dot(client, auth_headers, pr_id, dong_id, kho_rong=790)
+    assert r.status_code in (400, 422), r.text
 
 
 def test_pmh_chi_lay_dong_duoc_chon_dong_con_lai_van_mo(client, auth_headers):

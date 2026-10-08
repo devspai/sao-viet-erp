@@ -16,7 +16,11 @@ import {
 import { useAuth } from "../../auth/useAuth";
 import { useCan, useKcs } from "../../auth/permissions";
 import type { NavigateFn } from "../../components/AppShell";
-import { EmptyState } from "../../components/EmptyState";
+import { EmptyRow } from "../../components/EmptyState";
+import {
+  ChipTT, ChonCot, CuonLuoi, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
+  type CotLuoi, type MauTT,
+} from "../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { Icon } from "../../components/Icons";
 import { useDebounced } from "../../utils/useDebounced";
@@ -43,6 +47,58 @@ const docLocMan = (p: URLSearchParams): LocMan => ({
   loc: locKcsTuUrl(p),
 });
 const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locKcsLenUrl(t.loc) });
+
+/** Cột lưới lệnh. Thứ tự: Mã, Ngày, Khách, Nội dung, Số (đạt, lỗi), Trạng thái, Lần KCS gần nhất. */
+interface CotKcs extends CotLuoi { w?: number; n?: boolean }
+const COT_KCS: CotKcs[] = [
+  { key: "ma", label: "Lệnh", coDinh: true, w: 130 },
+  { key: "ngay", label: "Ngày tạo", w: 104 },
+  { key: "khach", label: "Khách hàng", w: 190 },
+  { key: "ten", label: "Tên lệnh", w: 200 },
+  { key: "nhom", label: "Nhóm", w: 100 },
+  { key: "dat", label: "Đạt ở công đoạn cuối", w: 170, n: true },
+  { key: "loi", label: "Lỗi", w: 80, n: true },
+  { key: "tt", label: "Trạng thái nhóm", w: 150 },
+  { key: "gan", label: "Lần KCS gần nhất" },
+];
+const MAU_NHOM: Record<string, MauTT> = { in_production: "xanh", closed: "la" };
+
+function OKcs({ cot, l }: { cot: string; l: SxKcsLenhList["items"][number] }) {
+  switch (cot) {
+    case "ma":
+      return <td title={l.ten || undefined}>{l.ma}</td>;
+    case "ngay":
+      return <td title={ngayGioDayDu(l.created_at)}>{ngayDayDu(l.created_at)}</td>;
+    case "khach":
+      return l.khach ? <td title={l.khach}>{l.khach}</td> : <td className="lds-mu3">—</td>;
+    case "ten":
+      return l.ten ? <td title={l.ten}>{l.ten}</td> : <td className="lds-mu3">—</td>;
+    case "nhom":
+      return l.nhom_ma ? <td title={l.nhom_ma}>{l.nhom_ma}</td> : <td className="lds-mu3">—</td>;
+    case "dat": {
+      if (!l.cuoi || l.cuoi.tot <= 0) return <td className="n lds-mu3">—</td>;
+      // Đạt đủ số tổ ghi tốt thì xanh lá; còn thiếu thì cam (chưa kiểm hết).
+      const kiemDu = l.cuoi.dat >= l.cuoi.tot;
+      return (
+        <td className={`n ${kiemDu ? "lds-la" : "lds-cam"}`} title="KCS đạt / tổ ghi tốt ở công đoạn cuối">
+          {num(l.cuoi.dat)}/{num(l.cuoi.tot)}
+        </td>
+      );
+    }
+    case "loi":
+      return l.so_loi > 0 ? <td className="n lds-do">{num(l.so_loi)}</td> : <td className="n lds-mu3">—</td>;
+    case "tt": {
+      const nt = l.nhom_trang_thai ? KCS_NHOM_TRANG_THAI[l.nhom_trang_thai] : null;
+      return nt
+        ? <td><ChipTT mau={MAU_NHOM[l.nhom_trang_thai as string] ?? "slate"}>{nt.nhan}</ChipTT></td>
+        : <td className="lds-mu3">—</td>;
+    }
+    case "gan":
+      return <td title={ngayGioDayDu(l.kcs_gan_nhat)}>{ngayDayDu(l.kcs_gan_nhat)}</td>;
+    default:
+      return <td />;
+  }
+}
 import "../rebuild-catalog.css";
 import "./kcs.css";
 
@@ -64,6 +120,10 @@ export function KcsTheoLenhPage({
     ? (id: number) => navigate("kho-main", { khoOpenRequest: { id, view: coTabDeNghi ? "denghi" : "yeucau" } })
     : undefined;
   const [lsxId, setLsxId] = useState<number | null>(null);
+  // Cột của lưới lệnh: ẩn / đổi chỗ nhớ theo máy người xem.
+  const [cotAn, setCotAn] = useCotAn("kcs-lenh");
+  const [thuTuCot, setThuTuCot] = useThuTuCot("kcs-lenh");
+  const cotHien = xepCot(COT_KCS, thuTuCot).filter((c) => !cotAn.has(c.key));
 
   // ---- Danh sách lệnh --------------------------------------------------------------------
   const [tim, setTim] = useState("");
@@ -159,141 +219,99 @@ export function KcsTheoLenhPage({
   }
 
   const bangLenh = (
-    <section className="kcs-the kcs-lenh" aria-label="Lệnh sản xuất">
-      <div className="kcs-lenh__dau tl-thanh">
-        <h2 className="kcs-lenh__tieu">Lệnh sản xuất <span className="rc__count">{lenh?.tong ?? 0}</span></h2>
-        <div className="kcs-lenh__tim">
-          <Icon name="search" size={15} className="kcs-lenh__tim-ic" />
-          <input type="search" placeholder="Tìm mã lệnh, sản phẩm, khách hàng…" value={tim}
-            aria-label="Tìm lệnh" onChange={(e) => setTim(e.target.value)} />
+    <section className="kcs-lenh lds" aria-label="Lệnh sản xuất">
+      <h2 className="kcs-lenh__tieu">Lệnh sản xuất <span className="rc__count">{lenh?.tong ?? 0}</span></h2>
+      <section className="lds-loc">
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={tim} onChange={setTim} placeholder="Tìm mã lệnh, sản phẩm, khách hàng…" ariaLabel="Tìm lệnh" />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_KCS}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
+          <ChonCot cot={COT_KCS} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />
         </div>
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_KCS}
-          onKy={(ky) => setLocMan({ ...locMan, ky })}
-          dieuKien={dieuKien}
-          loc={locMan.loc}
-          onLoc={(loc) => setLocMan({ ...locMan, loc })}
-        />
-      </div>
+      </section>
 
-      {lenhLoi ? (
-        <div className="kcs-lenh__trong">
-          <p className="rc__empty-text">Không tải được danh sách lệnh.</p>
-          <p className="rc__empty-sub">{lenhLoi}</p>
-          <button type="button" className="btn btn--ghost" onClick={() => setLenhTick((k) => k + 1)}>Tải lại</button>
-        </div>
-      ) : lenh == null ? (
-        <EmptyState trangThai="dang-tai" inline />
-      ) : lenh.items.length === 0 ? (
-        <div className="kcs-lenh__trong">
-          <p className="rc__empty-text">
-            {timCham || coLoc ? "Không có lệnh nào khớp." : "Chưa có lệnh nào đang sản xuất."}
-          </p>
-          {coLoc ? (
-            <button type="button" className="btn btn--ghost"
-              onClick={() => setLocMan({ ky: { loai: "tat_ca", moc: locMan.ky.moc }, loc: LOC_KCS_TRONG })}>
-              Xoá bộ lọc
-            </button>
-          ) : !timCham && (
-            <button type="button" className="btn btn--ghost"
-              onClick={() => setLocMan({ ...locMan, loc: { ...locMan.loc, nhom: "tat_ca" } })}>
-              Xem cả nhóm đã đóng
-            </button>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="rc__tablewrap">
-            <table className="rc__table kcs-table--lenh">
-              <colgroup>
-                <col className="kcs-col--lenh" />
-                <col className="kcs-col--khach" />
-                <col className="kcs-col--nhom" />
-                <col className="kcs-col--ngay" />
-                <col className="kcs-col--ngay" />
-                <col className="kcs-col--kiem" />
-                <col className="kcs-col--loi" />
-              </colgroup>
-              <thead>
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+            <colgroup>
+              {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                {/* Chỉ công đoạn cuối mới kiểm đạt (19/09/2026) — đếm "x/y công đoạn đã kiểm" báo thiếu oan. */}
+                {cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {lenhLoi ? (
                 <tr>
-                  <th>Lệnh</th>
-                  <th>Khách hàng</th>
-                  <th>Nhóm</th>
-                  <th>Ngày tạo</th>
-                  <th>Lần KCS gần nhất</th>
-                  {/* Chỉ công đoạn cuối mới kiểm đạt (19/09/2026) — đếm "x/y công đoạn đã kiểm" báo thiếu oan. */}
-                  <th className="num">Đạt ở công đoạn cuối</th>
-                  <th className="num">Lỗi</th>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    <span className="lds-do">{lenhLoi}</span>{" "}
+                    <button type="button" className="lds-lk" onClick={() => setLenhTick((k) => k + 1)}>Thử lại</button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {lenh.items.map((l) => {
-                  const nt = l.nhom_trang_thai ? KCS_NHOM_TRANG_THAI[l.nhom_trang_thai] : null;
-                  const kiemDu = l.cuoi != null && l.cuoi.tot > 0 && l.cuoi.dat >= l.cuoi.tot;
-                  return (
-                    <tr key={l.lsx_id} className="kcs-row--clickable" tabIndex={0}
-                      onClick={() => setLsxId(l.lsx_id)}
-                      onKeyDown={(e) => { if (e.key === "Enter") setLsxId(l.lsx_id); }}>
-                      <td>
-                        <strong className="kcs-code">{l.ma}</strong>
-                        <div className="rc__sub">{l.ten}</div>
-                      </td>
-                      <td>{l.khach ?? "—"}</td>
-                      <td>
-                        {l.nhom_ma ?? "—"}
-                        {nt && <div className="rc__sub"><span className={`badge-sem ${nt.cls}`}>{nt.nhan}</span></div>}
-                      </td>
-                      <td title={ngayGioDayDu(l.created_at)}>{ngayDayDu(l.created_at)}</td>
-                      <td title={ngayGioDayDu(l.kcs_gan_nhat)}>{ngayDayDu(l.kcs_gan_nhat)}</td>
-                      <td className="num">
-                        {l.cuoi && l.cuoi.tot > 0 ? (
-                          <span className={`kcs-dot-pill ${kiemDu ? "kcs-dot-pill--moss" : "kcs-dot-pill--amber"}`}
-                            title="KCS đạt / tổ ghi tốt ở công đoạn cuối">
-                            <span className="kcs-dot-pill__dot" />
-                            {num(l.cuoi.dat)}/{num(l.cuoi.tot)}
-                          </span>
-                        ) : "—"}
-                      </td>
-                      <td className="num">
-                        {l.so_loi > 0 ? (
-                          <span className="kcs-dot-pill kcs-dot-pill--signal">
-                            <span className="kcs-dot-pill__dot" />
-                            {num(l.so_loi)}
-                          </span>
-                        ) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {/* Cỡ trang lấy từ máy chủ trả về (`co_trang`) — đúng con số đã cắt, kể cả khi máy chủ kẹp lại. */}
+              ) : lenh == null ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : lenh.items.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {timCham || coLoc ? "Không có lệnh nào khớp điều kiện đang lọc." : "Chưa có lệnh nào đang sản xuất."}{" "}
+                    {coLoc ? (
+                      <button type="button" className="lds-lk"
+                        onClick={() => setLocMan({ ky: { loai: "tat_ca", moc: locMan.ky.moc }, loc: LOC_KCS_TRONG })}>
+                        Xoá bộ lọc
+                      </button>
+                    ) : !timCham && (
+                      <button type="button" className="lds-lk"
+                        onClick={() => setLocMan({ ...locMan, loc: { ...locMan.loc, nhom: "tat_ca" } })}>
+                        Xem cả nhóm đã đóng
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                lenh.items.map((l) => (
+                  <tr key={l.lsx_id} className="lds-dong" tabIndex={0}
+                    onClick={() => setLsxId(l.lsx_id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLsxId(l.lsx_id); } }}>
+                    {cotHien.map((c) => <OKcs key={c.key} cot={c.key} l={l} />)}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {/* Cỡ trang lấy từ máy chủ trả về (`co_trang`) — đúng con số đã cắt, kể cả khi máy chủ kẹp lại. */}
+        {!lenhLoi && lenh != null && lenh.items.length > 0 && (
           <PhanTrangDayDu trang={lenh.trang} size={lenh.co_trang} tong={lenh.tong} soDong={lenh.items.length}
             onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }}
             loading={lenhLoading} donVi="lệnh" ariaLabel="Phân trang lệnh KCS" />
-        </>
-      )}
+        )}
+      </div>
     </section>
   );
 
   return (
-    <main className="rc kcs-page">
-      <header className="rc__head kcs-page__head">
-        <div className="rc__headrow">
-          <h1 className="rc__title">KCS</h1>
-          <div className="rc__spacer" />
-          {lsxId == null && (
-            <KcsBaoCaoLoc filters={filters} onFiltersChange={setFilters} congDoanOpts={congDoanOpts} />
-          )}
-          {kcs && lsxId == null && (
+    <main className="rc kcs-page lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">KCS</h1>
+        {lsxId == null && (
+          <KcsBaoCaoLoc filters={filters} onFiltersChange={setFilters} congDoanOpts={congDoanOpts} />
+        )}
+        {kcs && lsxId == null && (
+          <div className="lds-dau__nut">
             <button type="button" className="btn btn--accent" onClick={xuatExcel} disabled={exporting}>
               <Icon name="download" size={15} />
               {exporting ? "Đang xuất…" : "Xuất Excel"}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
       {lsxId != null ? (

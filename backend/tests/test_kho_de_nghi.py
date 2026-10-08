@@ -778,6 +778,61 @@ def test_lich_su_nhap_xuat_theo_vat_tu(client):
     assert all(x["sl_de_nghi"] == 15 for x in h2["xuat"])
 
 
+def test_lich_su_trang_dem_tab_va_tong_xuat(client):
+    """Ngăn mặt hàng màn Tồn kho: lịch sử cắt trang ở máy chủ theo tab (kèm số mọi tab), tổng xuất
+    90 ngày cho hộp ngưỡng, và danh sách lô gọn giữ đúng một lô đại diện cho mặt hàng đã hết."""
+    kho_id, mat_id = _setup(client)
+    _nhap(client, kho_id=kho_id, mat_id=mat_id, qty=10, gia=100_000)
+    _nhap(client, kho_id=kho_id, mat_id=mat_id, qty=10, gia=200_000)
+    req = _approved_request(client, kho_id=kho_id, loai="XUAT", mat_id=mat_id, qty=15)
+    tk = _login(client, "t_thukho")
+    alloc = client.get("/api/kho/phieu/lo/goi-y", headers=tk,
+                       params={"hang_loai": mat_id[0], "hang_id": mat_id[1], "kho_id": kho_id, "so_luong": 15}).json()
+    vid = client.post("/api/kho/phieu", headers=tk, json={
+        "request_id": req["id"], "kho_id": kho_id,
+        "lines": [{"request_line_id": req["lines"][0]["id"], "so_luong": x["so_luong"], "lot_id": x["lot_id"]}
+                  for x in alloc["lines"]],
+    }).json()["id"]
+    assert client.post(f"/api/kho/phieu/{vid}/ghi-so", headers=tk).status_code == 200
+
+    kt = _login(client, "t_ketoan")
+    url = f"/api/kho/phieu/mat-hang/{mat_id[0]}/{mat_id[1]}"
+    ton = client.get(f"{url}/lich-su-trang", headers=kt, params={"kho_id": kho_id, "tab": "lo_ton"}).json()
+    assert ton["dem"] == {"lo_ton": 1, "nhap": 2, "xuat": 2, "chuyen": 0}
+    assert ton["on_hand"] == 5
+    assert [l["sl_con_lai"] for l in ton["lo"]] == [5] and ton["xuat"] == []
+    # Trang 2 cỡ 1 của tab Nhập = lô CŨ hơn (mới nhất trước).
+    nhap = client.get(f"{url}/lich-su-trang", headers=kt,
+                      params={"kho_id": kho_id, "tab": "nhap", "page": 2, "size": 1}).json()
+    assert [l["don_gia_nhap"] for l in nhap["lo"]] == [100_000]
+    xuat = client.get(f"{url}/lich-su-trang", headers=kt, params={"kho_id": kho_id, "tab": "xuat"}).json()
+    assert sorted(x["so_luong"] for x in xuat["xuat"]) == [5, 10]
+    assert all(x["vi_tri"] is None or isinstance(x["vi_tri"], str) for x in xuat["xuat"])
+    # Thiếu view_cost → giá ẩn ở cả trang.
+    x2 = client.get(f"{url}/lich-su-trang", headers=tk, params={"kho_id": kho_id, "tab": "xuat"}).json()
+    assert all(x["don_gia"] is None for x in x2["xuat"])
+
+    assert client.get(f"{url}/tong-xuat", headers=kt, params={"kho_id": kho_id}).json()["tong"] == 15
+
+    # Danh sách gọn: lô còn hàng + (nếu cả mặt hàng đã hết) một lô đại diện; lô rỗng 100k bị bỏ.
+    gon = client.get("/api/kho/phieu/lo/danh-sach", headers=kt,
+                     params={"kho_id": kho_id, "con_hang": False, "dai_dien_het": True}).json()
+    cua = [l for l in gon if (l["hang_loai"], l["hang_id"]) == tuple(mat_id)]
+    assert [l["sl_con_lai"] for l in cua] == [5]
+
+    # Xuất nốt 5 → mặt hàng về 0: vẫn còn ĐÚNG MỘT dòng (lô mới nhất) để màn giữ dòng "Hết".
+    req2 = _approved_request(client, kho_id=kho_id, loai="XUAT", mat_id=mat_id, qty=5)
+    vid2 = client.post("/api/kho/phieu", headers=tk, json={
+        "request_id": req2["id"], "kho_id": kho_id,
+        "lines": [{"request_line_id": req2["lines"][0]["id"], "so_luong": 5, "lot_id": cua[0]["id"]}],
+    }).json()["id"]
+    assert client.post(f"/api/kho/phieu/{vid2}/ghi-so", headers=tk).status_code == 200
+    gon = client.get("/api/kho/phieu/lo/danh-sach", headers=kt,
+                     params={"kho_id": kho_id, "con_hang": False, "dai_dien_het": True}).json()
+    cua = [l for l in gon if (l["hang_loai"], l["hang_id"]) == tuple(mat_id)]
+    assert [(l["sl_con_lai"], l["don_gia_nhap"]) for l in cua] == [(0, 200_000)]
+
+
 def test_dinh_kem_hoa_don_vao_phieu(client):
     """Đính kèm hóa đơn/chứng từ (ảnh/PDF) vào phiếu: upload → list → xóa qua HTTP thật."""
     kho_id, mat_id = _setup(client)
@@ -1000,3 +1055,95 @@ def test_api_can_luc_ve_gio_nha_may_du_db_tra_aware(client, monkeypatch):
     assert body["san_xuat_cong_viec_id"] == cv_id
     # Không "Z", không "+07:00", không "+00:00" — chuỗi trần đúng giờ tổ trưởng gõ.
     assert body["can_luc"] == "2026-09-02T13:30:00", body["can_luc"]
+
+
+def test_yeu_cau_nhap_tu_dot_giao_tra_ma_don_mua_va_so_dot(client):
+    """Ngăn yêu cầu nhập (khuôn A) hiện "Nguồn hàng: DMH-… Đợt 2" — yêu cầu chỉ giữ
+    `purchase_delivery_id`, máy chủ phải tra ra mã phiếu mua + số đợt ở cả xem lẻ lẫn danh sách."""
+    from datetime import date
+
+    from app.models.purchase import PurchaseDelivery, PurchaseRequest
+
+    kho_id, mat_id = _setup(client)
+    db = SessionLocal()
+    try:
+        pr = PurchaseRequest(code="DMH-TEST-0001")
+        db.add(pr)
+        db.flush()
+        dot = PurchaseDelivery(purchase_request_id=pr.id, seq_no=2, delivery_date=date(2026, 10, 7))
+        db.add(dot)
+        db.commit()
+        pr_id, dot_id = pr.id, dot.id
+    finally:
+        db.close()
+
+    dn = _login(client, "t_denghi")
+    r = client.post("/api/kho/de-nghi", headers=dn, json={
+        "loai": "NHAP", "kho_id": kho_id, "purchase_delivery_id": dot_id,
+        "lines": [{"hang_loai": mat_id[0], "hang_id": mat_id[1], "dvt": "to", "sl_de_nghi": 10}],
+    })
+    assert r.status_code == 201, r.text
+    req_id = r.json()["id"]
+
+    tk = _login(client, "t_thukho")
+    body = client.get(f"/api/kho/de-nghi/{req_id}", headers=tk).json()
+    assert (body["don_mua_id"], body["don_mua_ma"], body["dot_so"]) == (pr_id, "DMH-TEST-0001", 2)
+
+    ds = client.get("/api/kho/de-nghi", headers=tk).json()["items"]
+    dong = next(x for x in ds if x["id"] == req_id)
+    assert (dong["don_mua_ma"], dong["dot_so"]) == ("DMH-TEST-0001", 2)
+    # Yêu cầu tạo tay (không từ đợt giao) để trống, không đoán.
+    tay = _approved_request(client, kho_id=kho_id, loai="NHAP", mat_id=mat_id, qty=5)
+    assert client.get(f"/api/kho/de-nghi/{tay['id']}", headers=tk).json()["don_mua_ma"] is None
+
+
+def _dot_giao_moi(ma: str) -> int:
+    from datetime import date
+
+    from app.models.purchase import PurchaseDelivery, PurchaseRequest
+
+    db = SessionLocal()
+    try:
+        pr = PurchaseRequest(code=ma)
+        db.add(pr)
+        db.flush()
+        dot = PurchaseDelivery(purchase_request_id=pr.id, seq_no=1, delivery_date=date(2026, 10, 7))
+        db.add(dot)
+        db.commit()
+        return dot.id
+    finally:
+        db.close()
+
+
+def test_mot_dot_giao_chi_nhap_kho_mot_lan(client):
+    """Máy chủ chặn yêu cầu nhập kho thứ hai cho cùng một đợt giao (409), không chỉ ẩn nút."""
+    kho_id, mat_id = _setup(client)
+    dot_id = _dot_giao_moi("DMH-TEST-0101")
+    dn = _login(client, "t_denghi")
+    body = {"loai": "NHAP", "kho_id": kho_id, "purchase_delivery_id": dot_id,
+            "lines": [{"hang_loai": mat_id[0], "hang_id": mat_id[1], "dvt": "to", "sl_de_nghi": 10}]}
+    r1 = client.post("/api/kho/de-nghi", headers=dn, json=body)
+    assert r1.status_code == 201, r1.text
+    # Gửi Y HỆT lần đầu (form nhập từ đợt bị khoá, mở ở tab thứ hai): vẫn phải 409 kèm mã cũ, KHÔNG
+    # được lớp chống gửi lại nuốt mất mà trả 201 yêu cầu cũ như thể vừa tạo mới (bấm thử 07/10/2026).
+    r2 = client.post("/api/kho/de-nghi", headers=dn, json=body)
+    assert r2.status_code == 409, r2.text
+    assert r1.json()["ma"] in r2.json()["detail"]
+    r3 = client.post("/api/kho/de-nghi", headers=dn, json={**body, "ghi_chu": "gửi lại"})
+    assert r3.status_code == 409, r3.text
+
+
+def test_dot_da_huy_yeu_cau_nhap_thi_nhap_lai_duoc(client):
+    kho_id, mat_id = _setup(client)
+    dot_id = _dot_giao_moi("DMH-TEST-0102")
+    dn = _login(client, "t_denghi")
+    body = {"loai": "NHAP", "kho_id": kho_id, "purchase_delivery_id": dot_id,
+            "lines": [{"hang_loai": mat_id[0], "hang_id": mat_id[1], "dvt": "to", "sl_de_nghi": 10}]}
+    yc = client.post("/api/kho/de-nghi", headers=dn, json=body).json()
+    # Yêu cầu tạo là duyệt luôn ⇒ kho huỷ (quyết không lập phiếu), kèm lý do.
+    r = client.post(f"/api/kho/de-nghi/{yc['id']}/huy-kho", headers=_login(client, "t_thukho"),
+                    json={"ly_do": "NCC giao nhầm, trả lại"})
+    assert r.status_code == 200, r.text
+    r = client.post("/api/kho/de-nghi", headers=dn, json={**body, "ghi_chu": "lần 2"})
+    assert r.status_code == 201, r.text
+

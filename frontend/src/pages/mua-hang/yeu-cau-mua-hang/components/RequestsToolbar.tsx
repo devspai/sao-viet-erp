@@ -1,29 +1,20 @@
-// Thanh trên cùng của màn Yêu cầu mua hàng: tiêu đề + ô tìm + thanh lọc chung (kỳ + điều kiện) + nút
-// tạo, rồi hàng tab trạng thái có số (tách từ pages/DepartmentPurchaseRequestsPage.tsx).
-// 06/10/2026: ô chọn trạng thái rời → tab có số do máy chủ đếm; thêm `ThanhLoc` (kỳ theo Ngày tạo /
-// Ngày cần hàng; điều kiện Phòng ban, Người yêu cầu, Mặt hàng).
-import type { Dispatch, SetStateAction } from "react";
+// Đầu màn Yêu cầu mua hàng: tiêu đề + nút tạo, rồi thẻ lọc CHUNG với Mua hàng › Yêu cầu chờ xử lý
+// (phương án 3, 07/10/2026): ô tìm + `ThanhLoc` + nút "Xem theo", hàng chip trạng thái có số. Chip là
+// trạng thái yêu cầu hay tình trạng món tuỳ chế độ xem — cha truyền vào.
+import type { ReactNode } from "react";
 import { Button } from "../../../../components/Button";
-import { Icon } from "../../../../components/Icons";
-import { StatusTabs } from "../../../../components/StatusTabs";
-import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
 import type { KyDS } from "../../../thanh-loc/ky-danh-sach";
-import { dkTheoTab, type DieuKien } from "../../../thanh-loc/thanh-loc";
-import { tabCoSo } from "../../loc-mua-hang/ThanhCongCuMuaHang";
-import { MOC_YEU_CAU, TAB_CHINH_YEU_CAU, type LocYeuCau } from "../../loc-mua-hang/dieu-kien-yeu-cau";
-import { SOURCE_STATUS_META } from "../shared/constants";
-import type { StatusFilter } from "../shared/types";
+import type { DieuKien } from "../../../thanh-loc/thanh-loc";
+import { ThanhCongCuMuaHang, type TabDem } from "../../loc-mua-hang/ThanhCongCuMuaHang";
+import { MOC_YEU_CAU, type LocYeuCau } from "../../loc-mua-hang/dieu-kien-yeu-cau";
 
 export function RequestsToolbar({
-  loading,
-  total,
+  tabs,
+  tab,
+  onTab,
+  ariaTabs,
   q,
-  setQ,
-  status,
-  setStatus,
-  demTheoTab,
-  setPage,
-  load,
+  onQ,
   canCreate,
   openCreate,
   ky,
@@ -31,16 +22,16 @@ export function RequestsToolbar({
   dieuKien,
   loc,
   onLoc,
+  ben,
+  chonCot,
+  banner,
 }: {
-  loading: boolean;
-  total: number;
+  tabs: TabDem[];
+  tab: string;
+  onTab: (v: string) => void;
+  ariaTabs: string;
   q: string;
-  setQ: Dispatch<SetStateAction<string>>;
-  status: StatusFilter;
-  setStatus: Dispatch<SetStateAction<StatusFilter>>;
-  demTheoTab: Record<string, number> | null;
-  setPage: Dispatch<SetStateAction<number>>;
-  load: () => void;
+  onQ: (v: string) => void;
   canCreate: boolean;
   openCreate: () => void;
   ky: KyDS;
@@ -48,71 +39,42 @@ export function RequestsToolbar({
   dieuKien: DieuKien<LocYeuCau>[];
   loc: LocYeuCau;
   onLoc: (l: LocYeuCau) => void;
+  ben?: ReactNode;
+  /** Nút "Cột" của lưới (`ChonCotBang`). */
+  chonCot?: ReactNode;
+  /** Lời báo lỗi: nằm giữa đầu màn và thẻ lọc — chen giữa thẻ lọc và lưới là gãy tấm. */
+  banner?: ReactNode;
 }) {
-  const tabs = tabCoSo(TAB_CHINH_YEU_CAU, SOURCE_STATUS_META, demTheoTab, status);
-  const datTab = (v: string) => {
-    setStatus(v as StatusFilter);
-    setPage(1);
-  };
-  // "Trạng thái" trong nút Lọc = hàng tab trạng thái bên dưới (đọc/ghi thẳng tab đang chọn).
-  const dkDu: DieuKien<LocYeuCau>[] = [
-    dkTheoTab<LocYeuCau>({
-      tabs: tabs.map((t) => ({ id: t.value, nhan: t.label, so: t.count })),
-      tatCa: "all",
-      dang: status,
-      dat: datTab,
-    }),
-    ...dieuKien,
-  ];
   return (
     <>
-      <div className="purchase__topbar-unified">
-        <div className="purchase__topbar-left">
-          <h1 className="purchase__topbar-title">Yêu cầu mua hàng</h1>
-          <span className="purchase__count-badge">{loading ? "..." : total}</span>
-        </div>
-        <div className="purchase__topbar-controls tl-thanh">
-          <form
-            className="purchase__search-wrap"
-            onSubmit={(e) => {
-              e.preventDefault();
-              load();
-            }}
-          >
-            <span className="purchase__search-icon">
-              <Icon name="search" size={16} />
-            </span>
-            <input
-              className="input purchase__search-input"
-              placeholder="Tìm mã yêu cầu, mục đích, vật tư..."
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value);
-                setPage(1);
-              }}
-            />
-          </form>
-          <ThanhLoc ky={ky} moc={MOC_YEU_CAU} onKy={onKy} dieuKien={dkDu} loc={loc} onLoc={onLoc} />
-        </div>
-        <div className="purchase__topbar-actions">
-          {canCreate && (
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Yêu cầu mua hàng</h1>
+        {canCreate && (
+          <div className="lds-dau__nut">
             <Button variant="accent" onClick={openCreate}>
               + Tạo yêu cầu mua
             </Button>
-          )}
-        </div>
-      </div>
-      <div className="purchase__tab-trang-thai">
-        <StatusTabs
-          active={status}
-          onChange={datTab}
-          tabs={tabs.map((t) => ({
-            key: t.value,
-            label: t.label,
-            count: t.count,
-          }))}
-        />
-      </div>
+          </div>
+        )}
+      </header>
+      {banner}
+      <ThanhCongCuMuaHang
+        tabs={tabs}
+        tab={tab}
+        onTab={onTab}
+        ariaTabs={ariaTabs}
+        q={q}
+        onQ={onQ}
+        placeholder="Tìm mã yêu cầu, nội dung, vật tư…"
+        ky={ky}
+        moc={MOC_YEU_CAU}
+        onKy={onKy}
+        dieuKien={dieuKien}
+        loc={loc}
+        onLoc={onLoc}
+        ben={ben}
+        chonCot={chonCot}
+      />
     </>
   );
 }

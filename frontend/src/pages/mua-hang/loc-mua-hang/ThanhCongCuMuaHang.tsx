@@ -1,28 +1,60 @@
-// Thẻ lọc của hai tab màn Mua hàng (06/10/2026) — thay `ToolbarChuan` ở màn này. Cùng khuôn với hộp
-// Đơn mua hàng của Kế toán (`InboxToolbar`): hàng 1 = tab trạng thái có số (máy chủ đếm theo đúng ô
-// tìm, kỳ và điều kiện đang áp); hàng 2 = ô tìm + thanh lọc chung `ThanhLoc`.
-import { Icon } from "../../../components/Icons";
+// Thẻ lọc của Yêu cầu mua hàng, Mua hàng và Kế toán › Đơn mua hàng — cùng khuôn thẻ lọc dính mép
+// trên lưới của các danh sách Kinh doanh (`lds-loc`, phương án A đã duyệt 07/10/2026).
+// Dải đầu thẻ = lọc nhanh trạng thái có số (máy chủ đếm theo đúng ô tìm, kỳ và điều kiện đang áp);
+// hàng dưới = ô tìm + `ThanhLoc` (kỳ + nút Lọc), dạt phải là nhóm Tiền (danh sách đơn) và "Xem theo".
+// Trạng thái CHỈ chọn ở dải lọc nhanh — không nhân thêm thành ô "Trạng thái" trong nút Lọc (trước
+// đây chọn một chip là hiện cả viên "Trạng thái: Chờ lập đơn ×" lẫn chip sáng: nói hai lần).
+import type { ReactNode } from "react";
+import { LocNhanhTrangThai, OTim } from "../../../components/LuoiDs";
 import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import type { KyDS } from "../../thanh-loc/ky-danh-sach";
-import { dkTheoTab, type DieuKien } from "../../thanh-loc/thanh-loc";
+import type { DieuKien } from "../../thanh-loc/thanh-loc";
+import type { MauTT } from "../trang-thai-mua";
+import "../trang-thai-mua.css";
 
-export type TabDem = { value: string; label: string; count?: number };
+export type TabDem = { value: string; label: string; count?: number; mau?: MauTT };
 
 /** Tab luôn hiện + các trạng thái ít gặp chỉ hiện khi có bản ghi (hoặc đang chọn). */
 export function tabCoSo(
   chinh: string[],
-  meta: Record<string, { label: string }>,
-  dem: Record<string, number> | null,
+  meta: Record<string, { label: string; mau?: MauTT }>,
+  dem: Record<string, number> | null | undefined,
   dangChon: string,
+  nhanTatCa = "Tất cả",
 ): TabDem[] {
-  const tabs: TabDem[] = [{ value: "all", label: "Tất cả", count: dem ? dem.tat_ca ?? 0 : undefined }];
+  const tabs: TabDem[] = [{ value: "all", label: nhanTatCa, count: dem ? dem.tat_ca ?? 0 : undefined }];
   for (const [value, m] of Object.entries(meta)) {
     const so = dem ? dem[value] ?? 0 : undefined;
     if (chinh.includes(value) || (so ?? 0) > 0 || value === dangChon) {
-      tabs.push({ value, label: m.label, count: so });
+      tabs.push({ value, label: m.label, count: so, mau: m.mau });
     }
   }
   return tabs;
+}
+
+export type NhomChip = {
+  /** Chữ trước nhóm ("Hàng", "Tiền"); bỏ trống khi chỉ có một nhóm. */
+  nhan?: string;
+  tabs: TabDem[];
+  tab: string;
+  onTab: (v: string) => void;
+  aria: string;
+  /** Bấm lại chip đang chọn thì bỏ chọn (về `boChon`) — nhóm phụ như Tiền không có chip Tất cả. */
+  boChon?: string;
+};
+
+function Nhom({ n }: { n: NhomChip }) {
+  return (
+    <div className="mh-tc__nhom">
+      {n.nhan && <span className="mh-tc__nhan">{n.nhan}</span>}
+      <LocNhanhTrangThai
+        muc={n.tabs.map((t) => ({ key: t.value, label: t.label, count: t.count, mau: t.mau }))}
+        dang={n.tab}
+        onChon={(v) => n.onTab(n.tab === v && n.boChon !== undefined ? n.boChon : v)}
+        ariaLabel={n.aria}
+      />
+    </div>
+  );
 }
 
 export function ThanhCongCuMuaHang<L>({
@@ -30,6 +62,8 @@ export function ThanhCongCuMuaHang<L>({
   tab,
   onTab,
   ariaTabs,
+  nhanNhom,
+  nhomPhu,
   q,
   onQ,
   placeholder,
@@ -39,11 +73,17 @@ export function ThanhCongCuMuaHang<L>({
   dieuKien,
   loc,
   onLoc,
+  ben,
+  chonCot,
 }: {
   tabs: TabDem[];
   tab: string;
   onTab: (v: string) => void;
   ariaTabs: string;
+  /** Chữ trước nhóm chính (vd "Hàng") — chỉ cần khi có `nhomPhu`. */
+  nhanNhom?: string;
+  /** Nhóm chip thứ hai, độc lập với nhóm chính (vd "Tiền" của danh sách đơn) — nằm ở hàng công cụ. */
+  nhomPhu?: NhomChip;
   q: string;
   onQ: (v: string) => void;
   placeholder: string;
@@ -53,68 +93,26 @@ export function ThanhCongCuMuaHang<L>({
   dieuKien: DieuKien<L>[];
   loc: L;
   onLoc: (l: L) => void;
+  /** Dạt mép phải hàng công cụ, vd nút đoạn "Xem theo: Yêu cầu | Từng món". */
+  ben?: ReactNode;
+  /** Nút "Cột" của lưới đứng ngay dưới (`ChonCotBang`) — nằm cuối cùng ở mép phải. */
+  chonCot?: ReactNode;
 }) {
-  // "Trạng thái" trong nút Lọc = hàng tab trạng thái (đọc/ghi thẳng tab đang chọn, không state thứ hai).
-  const dkDu: DieuKien<L>[] = [
-    dkTheoTab<L>({
-      tabs: tabs.map((t) => ({ id: t.value, nhan: t.label, so: t.count })),
-      tatCa: "all",
-      dang: tab,
-      dat: onTab,
-    }),
-    ...dieuKien,
-  ];
   return (
-    <section className="acct-dmh__toolbar-card">
-      <div className="acct-toolbar__top-row">
-        <div className="acct-toolbar__tabs" role="tablist" aria-label={ariaTabs}>
-          {tabs.map((t) => {
-            const active = tab === t.value;
-            return (
-              <button
-                key={t.value}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={`acct-toolbar__tab${active ? " is-active" : ""}`}
-                onClick={() => onTab(t.value)}
-              >
-                <span>{t.label}</span>
-                {t.count != null && (
-                  <span className="acct-toolbar__tab-count">{t.count.toLocaleString("vi-VN")}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+    <section className="lds-loc mh-tc">
+      <div className="mh-tc__dai">
+        <Nhom n={{ nhan: nhomPhu ? nhanNhom : undefined, tabs, tab, onTab, aria: ariaTabs }} />
       </div>
-
-      <div className="acct-toolbar__main-row tl-thanh">
-        <form
-          className="acct-toolbar__search-wrap"
-          role="search"
-          onSubmit={(event) => event.preventDefault()}
-        >
-          <Icon name="search" size={16} className="acct-toolbar__search-icon" />
-          <input
-            className="acct-toolbar__search-input"
-            value={q}
-            onChange={(event) => onQ(event.target.value)}
-            placeholder={placeholder}
-            aria-label={placeholder}
-          />
-          {q && (
-            <button
-              type="button"
-              className="acct-toolbar__clear-search"
-              onClick={() => onQ("")}
-              title="Xóa từ khóa"
-            >
-              <Icon name="x" size={14} />
-            </button>
-          )}
-        </form>
-        <ThanhLoc ky={ky} moc={moc} onKy={onKy} dieuKien={dkDu} loc={loc} onLoc={onLoc} />
+      <div className="lds-loc__thanh tl-thanh" role="search">
+        <OTim value={q} onChange={onQ} placeholder={placeholder} ariaLabel={placeholder} />
+        <ThanhLoc ky={ky} moc={moc} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />
+        {(nhomPhu || ben || chonCot) && (
+          <div className="lds-loc__phai">
+            {nhomPhu && <Nhom n={nhomPhu} />}
+            {ben}
+            {chonCot}
+          </div>
+        )}
       </div>
     </section>
   );

@@ -13,15 +13,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from ..models.don_vi_do import TRAM_TO_NGUYEN
 from ..models.vat_lieu_kho import HANG_LOAI, THO
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
-from .dong_giay import ban_do_tram, ma_cua_tram
-from .kho_giay import DANG_CUON, DANG_TO
+from .kho_giay import DANG_CUON, DANG_TO, don_vi_goc_to, la_ma_to_giay
 from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU, ma_chip_hop_le, ma_tu_ten_chip
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
@@ -463,7 +461,7 @@ class VatLieuKhoService:
         do (thiếu đường quy đổi / mặt hàng chưa khai đơn vị), chứ không lặng lẽ lấy hệ số 1 —
         hệ số 1 sai thì tồn kho sai mà không ai thấy dòng lỗi nào.
 
-        `dang` (giấy): `to` ⇒ gốc là tờ nguyên; `cuon` ⇒ gốc là `don_vi_gia`, phải là khối lượng. Xem
+        `dang` (giấy): `to` ⇒ gốc là đơn vị kho `to` ("tờ"); `cuon` ⇒ gốc là `don_vi_gia`, phải là khối lượng. Xem
         `don_vi_cua_mat_hang`.
         """
         return self.quy_tu_don_vi(
@@ -507,6 +505,9 @@ class VatLieuKhoService:
             return None
         hop = {d["ma"].lower(): d for d in ra["ds"]}
         hop.update({(d["ten"] or "").strip().lower(): d for d in ra["ds"] if d["ten"]})
+        if ma not in hop and ra.get("giay_to") and la_ma_to_giay(ma):
+            # Mã chặng của dòng giấy lệnh qua cửa kho: cùng một tờ, hệ số 1.
+            return hop.get(ra["don_vi_goc"].lower())
         return hop.get(ma)
 
     def he_so_ve_goc(self, ra: dict, dvt: str | None) -> float | None:
@@ -522,8 +523,9 @@ class VatLieuKhoService:
     def don_vi_cua_mat_hang(self, hang_loai: str, hang_id: int, *, dang: str | None = None) -> dict:
         """Đơn vị gốc + MỌI đơn vị đổi được với nó — nguồn của dropdown ĐVT ở Kho / NCC.
 
-        `dang` CHỈ có nghĩa với giấy (spec 2026-10-01 §3.2): `to` ⇒ gốc = chặng tờ nguyên, `ds` = mọi
-        đơn vị đổi được về nó theo cặp ở module Đơn vị (ram → tờ nguyên…); `cuon` ⇒ gốc =
+        `dang` CHỈ có nghĩa với giấy (spec 2026-10-01 §3.2): `to` ⇒ gốc = đơn vị kho `to` ("tờ", chủ chốt
+        07/10/2026), `ds` = mọi đơn vị đổi được về nó theo cặp ở module Đơn vị (ram → tờ…); mã
+        chặng tờ của lệnh (`to_nguyen`) nhận hệ số 1 ở `_dong_don_vi`; `cuon` ⇒ gốc =
         `don_vi_gia` của mã giấy, bắt buộc thuộc họ Khối lượng — không thì báo lỗi, không đoán.
         `None` ⇒ như cũ (đường không phải kho).
         """
@@ -534,6 +536,28 @@ class VatLieuKhoService:
         # `quy_ve_goc` không tìm ra nút gốc và NÉM LỖI ⇒ mọi dòng phiếu kho cũ hiện cảnh báo đỏ.
         dvs = don_vi_map(self.don_vi.all_rows())
         cap_rows = list(self.don_vi.cap_rows())
+        return self._don_vi_theo_dang(hang_loai, obj, dang, dvs, cap_rows)
+
+    def don_vi_nhieu_theo_dang(self, khoa) -> dict[tuple[str, int, str | None], dict | None]:
+        """`don_vi_cua_mat_hang` cho NHIỀU bộ `(hang_loai, hang_id, dang)` một lượt — bảng đơn vị,
+        cặp quy đổi đọc một lần, mặt hàng nạp theo lô (bảng giá NCC: giấy quy theo dạng bán của
+        từng dòng). Bộ nào không dựng được (mặt hàng mất, cuộn mà gốc không phải khối lượng) ⇒ None."""
+        khoa = set(khoa)
+        objs = self.map_theo_cap({(k[0], k[1]) for k in khoa})
+        if not objs:
+            return {k: None for k in khoa}
+        dvs = don_vi_map(self.don_vi.all_rows())
+        cap_rows = list(self.don_vi.cap_rows())
+        ra: dict = {}
+        for k in khoa:
+            obj = objs.get((k[0], k[1]))
+            try:
+                ra[k] = self._don_vi_theo_dang(k[0], obj, k[2], dvs, cap_rows) if obj else None
+            except VatLieuKhoError:
+                ra[k] = None
+        return ra
+
+    def _don_vi_theo_dang(self, hang_loai: str, obj, dang, dvs: dict, cap_rows: list) -> dict:
         if hang_loai == "giay" and dang == DANG_TO:
             return self._don_vi_giay_to(obj, dvs, cap_rows)
         if hang_loai == "giay" and dang == DANG_CUON:
@@ -546,14 +570,14 @@ class VatLieuKhoService:
         return self._don_vi_tu(hang_loai, obj, dvs, cap_rows)
 
     def _don_vi_giay_to(self, obj, dvs: dict, cap_rows: list) -> dict:
-        """Giấy dạng TỜ: gốc là mã đơn vị đứng ở chặng tờ nguyên (hỏi `dong_giay`, không viết cứng)."""
-        goc = ma_cua_tram(TRAM_TO_NGUYEN, ban_do_tram()) or TRAM_TO_NGUYEN
+        """Giấy dạng TỜ: gốc là đơn vị kho `to` ("tờ"); ram… theo cặp ở module Đơn vị."""
+        goc = don_vi_goc_to()
         ds = don_vi_dung_duoc(goc, dvs, cap_rows, None)
         return {
             "hang_loai": "giay", "hang_id": obj.id, "ma": obj.ma, "ten": obj.ten,
             "don_vi_goc": goc,
-            "don_vi_goc_ten": (dvs.get(goc.lower()) or {}).get("ten") or goc,
-            "ds": ds, "ly_do": None,
+            "don_vi_goc_ten": (dvs.get(goc.lower()) or {}).get("ten") or "tờ",
+            "ds": ds, "ly_do": None, "giay_to": True,
         }
 
     def don_vi_nhieu_mat_hang(self, caps, *, san: dict | None = None) -> dict[tuple[str, int], dict]:

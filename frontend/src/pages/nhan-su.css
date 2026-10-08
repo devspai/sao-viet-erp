@@ -711,26 +711,32 @@ button.ns__kpi {
   flex-shrink: 0;
 }
 
-.ns-badge--ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.ns-badge--warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
-.ns-badge--info { background: #f3e8ff; color: #7e22ce; border-color: #e9d5ff; }
-.ns-badge--muted { background: #f8fafc; color: var(--ash-2); border-color: #e2e8f0; }
+/* Tông badge — bộ chip trạng thái chung --tt-* (tokens.css). ĐỊNH NGHĨA DUY NHẤT: luong.css từng
+   đè warn/info/danger bằng màu khác, đã gỡ (07/10/2026). */
+.ns-badge--ok { background: var(--tt-la-bg); color: var(--tt-la-fg); border-color: transparent; }
+.ns-badge--warn { background: var(--tt-vang-bg); color: var(--tt-vang-fg); border-color: transparent; }
+.ns-badge--info { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); border-color: transparent; }
+.ns-badge--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); border-color: transparent; }
+.ns-badge--muted { background: var(--tt-slate-bg); color: var(--tt-slate-fg); border-color: transparent; }
+.ns-badge--gray { background: var(--tt-xam-bg); color: var(--tt-xam-fg); border-color: transparent; }
 /* "Hết thử việc · chờ xác nhận" — cam ĐẬM hơn `--warn` (thử việc) để tách hai cái cạnh nhau,
    nhưng chưa phải đỏ `--danger`: đây là việc TỒN cần bấm, không phải sự cố. */
-.ns-badge--due { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+.ns-badge--due { background: var(--tt-cam-bg); color: var(--tt-cam-fg); border-color: transparent; }
 
 /* Ô KPI "Chờ xác nhận" — cùng hệ cam với badge, để mắt nối được ô lọc với dòng trong bảng. */
 .ns__kpi--due { border-color: #fed7aa; background: #fff7ed; }
 .ns__kpi--due .ns__kpilabel, .ns__kpi--due .ns__kpival { color: #c2410c; }
 .ns__kpi--due svg { color: #f97316; }
-.ns-badge--danger { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+.ns-badge--danger { background: var(--tt-do-bg); color: var(--tt-do-fg); border-color: transparent; }
 
-.ns-badge--ok .ns-badge-dot { background: #10b981; }
-.ns-badge--warn .ns-badge-dot { background: #f59e0b; }
-.ns-badge--info .ns-badge-dot { background: #a855f7; }
-.ns-badge--muted .ns-badge-dot { background: #94a3b8; }
-.ns-badge--due .ns-badge-dot { background: #f97316; }
-.ns-badge--danger .ns-badge-dot { background: #f43f5e; }
+.ns-badge--ok .ns-badge-dot { background: var(--tt-la-dot); }
+.ns-badge--warn .ns-badge-dot { background: var(--tt-vang-dot); }
+.ns-badge--info .ns-badge-dot { background: var(--tt-xanh-dot); }
+.ns-badge--tim .ns-badge-dot { background: var(--tt-tim-dot); }
+.ns-badge--muted .ns-badge-dot { background: var(--tt-slate-dot); }
+.ns-badge--gray .ns-badge-dot { background: var(--tt-xam-dot); }
+.ns-badge--due .ns-badge-dot { background: var(--tt-cam-dot); }
+.ns-badge--danger .ns-badge-dot { background: var(--tt-do-dot); }
 
 /* Chân phân trang (`.ptdd`, khuôn Nhật ký — 05/10/2026 thay `.ns__pager`) nối vào đáy thẻ bảng
    thành MỘT khối: khung bảng tự là thẻ có viền nên chân đứng ngay sau, mượn viền cho ba cạnh.

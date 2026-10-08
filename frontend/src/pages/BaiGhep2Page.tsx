@@ -239,9 +239,6 @@ export function BaiGhep2Page({
             </span>
           </div>
           <h1 className="bg2-header__title">Ghép bài in Offset</h1>
-          <p className="bg2-header__sub">
-            Phân nhóm và ghép chung nhiều lệnh in trên cùng khuôn bài để tối ưu chi phí giấy &amp; kẽm
-          </p>
         </div>
       </header>
 

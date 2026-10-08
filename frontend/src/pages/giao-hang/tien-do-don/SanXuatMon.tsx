@@ -24,6 +24,9 @@ function TheO({ m }: { m: MonCoBan }) {
   return <span className={`sxm-the sxm-the--${mau}`}>{nhan}</span>;
 }
 
+/** Khách đã THỰC NHẬN đủ món — không dùng `con_phai_giao` ≤ 0 (số đó trừ cả phần yêu cầu đang giữ). */
+const nhanDu = (m: MonSanXuat) => m.khach_nhan_du ?? m.da_giao >= m.dat;
+
 /** Chỗ "chậm" trước — món đại diện cho ô là món đứng sớm nhất ở đây. */
 const THU_TU_O: MonO[] = ["chua_lenh", "chua_xuong", "ngoai", "xuong", "cho_kho", "du_hang"];
 
@@ -31,11 +34,11 @@ const THU_TU_O: MonO[] = ["chua_lenh", "chua_xuong", "ngoai", "xuong", "cho_kho"
 function tomTatO(mons: MonSanXuat[]): { mon: MonSanXuat; nhan: string; mau: TongMau | "giao"; chiTiet: string } {
   const mon = [...mons].sort((x, y) => THU_TU_O.indexOf(x.o) - THU_TU_O.indexOf(y.o))[0];
   if (!mons.every((m) => m.du_hang)) return { mon, ...nhanO(mon), chiTiet: chiTietO(mon) };
-  if (mons.every((m) => m.con_phai_giao <= 0)) return { mon, nhan: "Đã giao đủ", mau: "ok", chiTiet: chiTietO(mon) };
+  if (mons.every(nhanDu)) return { mon, nhan: "Đã giao đủ", mau: "ok", chiTiet: chiTietO(mon) };
   if (mons.some((m) => m.da_giao > 0)) {
     const ct = mons.length === 1
       ? `đã giao ${so(mon.da_giao)}/${so(mon.dat)}${mon.don_vi ? ` ${mon.don_vi}` : ""}`
-      : `đã giao ${mons.filter((m) => m.con_phai_giao <= 0).length}/${mons.length} món`;
+      : `đã giao ${mons.filter(nhanDu).length}/${mons.length} món`;
     return { mon, nhan: "Giao dở", mau: "giao", chiTiet: ct };
   }
   return { mon, nhan: "Đủ hàng", mau: "ok", chiTiet: chiTietO(mon) };

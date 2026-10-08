@@ -165,3 +165,34 @@ def test_tab_hoan_tat_can_giao_du_va_hoa_don_du(sess, admin, orders):
     hoa_don(tong - tong // 2)
     _, tab, dem, cho = thay()
     assert "DH-HT1" in tab and dem == 1 and cho == ["xong"]
+
+
+def test_dong_cong_tong_theo_bo_loc(sess, orders, admin):
+    """Dòng "Cộng" của lưới đơn: Σ giá trị gồm VAT + Σ cọc đã thu trên MỌI đơn khớp lọc, không chỉ trang."""
+    for i, gia in enumerate([1_000_000, 2_000_000, 3_000_000]):
+        o = Order(order_no=f"DH-CG{i}", source_type="bao_gia", status="draft")
+        o.lines.append(OrderLine(description="Hàng", qty=1, line_total=gia, vat_pct_estimate=10))
+        sess.add(o)
+    sess.commit()
+    out = orders.list(actor=admin, scope="all", q="DH-CG", status=None, order_kind=None,
+                      sort="-created_at", page=1, size=1)
+    assert out.total == 3 and len(out.items) == 1
+    assert out.tong_gia_tri == 6_600_000 and out.tong_coc == 0
+
+
+def test_yeu_cau_giu_du_ma_chua_giao_khong_phai_hoan_tat(sess):
+    """`con_phai_giao` = 0 khi yêu cầu giao đang GIỮ đủ số — khách chưa nhận gì. Đơn đó vẫn chờ GIAO,
+    không phải "xong" (07/10/2026: danh sách báo Hoàn tất oan, lệch số tab Hoàn tất ở máy chủ)."""
+    from types import SimpleNamespace
+
+    o = Order(order_no="DH-GIU1", source_type="bao_gia", status="ordered",
+              san_xuat_released_at=datetime.now(timezone.utc))
+    o.lines.append(OrderLine(description="Tờ rơi", qty=4000, line_total=1000, vat_pct_estimate=0))
+    sess.add(o)
+    sess.commit()
+    cum = SimpleNamespace(khoa="k1", ten="Tờ rơi", dong_dau=o.lines[0])
+    n = {"cum": cum, "co_lenh": False, "lsx_ids": [], "dat": 4000, "da_giao": 0, "giao_thang": 0,
+         "dang_giu": 4000, "con_phai_giao": 0, "khach_nhan_du": False, "giao_duoc": 0}
+    t = tom_tat_nhieu_don(sess, [o], nguon_san={o.id: [n]}, lenh_san={})[o.id]
+    assert t["dang_cho"] == ["giao"]
+    assert t["mon"][0]["khach_nhan_du"] is False

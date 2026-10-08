@@ -167,6 +167,31 @@ class AccountingRepository:
     def get_voucher(self, voucher_id: int) -> PaymentVoucher | None:
         return self.db.execute(self._voucher_stmt().where(PaymentVoucher.id == voucher_id)).scalars().first()
 
+    def tong_chi_dot_truoc_phieu(self, delivery_id: int, voucher_id: int) -> int:
+        """Σ tiền các phiếu chi ĐÃ CHI trả cho đợt giao này, lập TRƯỚC phiếu `voucher_id`
+        (id nhỏ hơn). Không tính chính phiếu đó."""
+        return int(
+            self.db.execute(
+                select(func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0)).where(
+                    PaymentVoucher.delivery_id == delivery_id,
+                    PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
+                    PaymentVoucher.id < voucher_id,
+                )
+            ).scalar_one()
+        )
+
+    def tong_thu_hoa_don_truoc_phieu(self, sales_invoice_id: int, receipt_id: int) -> int:
+        """Σ tiền các phiếu thu ĐÃ THU gắn hoá đơn này, lập TRƯỚC phiếu `receipt_id`."""
+        return int(
+            self.db.execute(
+                select(func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0)).where(
+                    PaymentReceipt.sales_invoice_id == sales_invoice_id,
+                    PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+                    PaymentReceipt.id < receipt_id,
+                )
+            ).scalar_one()
+        )
+
     def get_voucher_by_salary_advance(self, salary_advance_id: int):
         """Phiếu chi đã lập cho một phiếu tạm ứng — None nếu chưa lập.
 
@@ -691,6 +716,15 @@ class AccountingRepository:
             .group_by(PaymentReceipt.order_id)
         )
         return {int(oid): int(s) for oid, s in self.db.execute(stmt)}
+
+    def tong_coc_da_thu(self, order_ids_stmt) -> int:
+        """Σ cọc đã thu (phiếu 'received') của mọi đơn trong câu chọn id — dòng "Cộng" của lưới đơn."""
+        stmt = select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).where(
+            PaymentReceipt.order_id.in_(order_ids_stmt),
+            PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
+            PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+        )
+        return int(self.db.execute(stmt).scalar_one() or 0)
 
     def list_order_receipts(self, order_id: int) -> list[PaymentReceipt]:
         """Mọi phiếu thu cọc của một đơn (mọi trạng thái) — FE hiện danh sách + đi tới màn

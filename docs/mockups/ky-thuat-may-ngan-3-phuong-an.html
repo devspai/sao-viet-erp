@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngăn Kỹ thuật máy: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--rust-deep:#9a3412;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;--tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;--tt-do-dot:#ef4444;
+  --tt-xam-bg:#e5e7eb;--tt-xam-fg:#374151;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button,input,select,textarea{font:inherit;color:inherit}
+.doc{max-width:1320px;margin:0 auto;padding:40px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px;letter-spacing:-.01em}
+.doc>p,.doc li{color:var(--ash);max-width:1100px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.h2{margin:56px 0 4px;font-size:21px;font-weight:500;letter-spacing:-.01em;padding-top:22px;border-top:1px solid var(--rule)}
+.cap{margin:26px 0 6px;font-size:15px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1120px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;margin:8px 0 4px;font-size:13px}
+.words th,.words td{padding:5px 12px;border-bottom:1px solid var(--rule-hair);text-align:left}
+.words th{background:#f8fafc;color:var(--ash-2);font-weight:500;font-size:12px}
+.words td:first-child{color:var(--ash-2);text-decoration:line-through;text-decoration-color:var(--ash-3)}
+
+/* ── khung ngăn: phía sau là màn danh sách mờ, ngăn rộng 1180 như mọi ngăn của hệ thống ── */
+.stage{width:1270px;height:var(--h,720px);position:relative;border:1px solid var(--rule);border-radius:12px;overflow:hidden;
+  background:repeating-linear-gradient(180deg,#eef1f5 0 34px,#e6eaf0 34px 35px)}
+.stage::before{content:"";position:absolute;inset:0;background:rgba(15,23,42,.28)}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:1180px;background:#fff;display:flex;flex-direction:column;box-shadow:-12px 0 32px rgba(15,23,42,.18)}
+.ngan__keo{position:absolute;left:0;top:0;bottom:0;width:5px;cursor:ew-resize}
+.ngan__keo:hover{background:var(--rule-soft)}
+.dau{display:flex;align-items:center;gap:10px;padding:12px 20px 0}
+.dau__ma{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ash);border:1px solid var(--rule-soft);border-radius:5px;padding:1px 6px}
+.dau__ten{font-size:17px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dau__sp{flex:1}
+.ico{width:30px;height:30px;border:1px solid transparent;border-radius:6px;background:none;display:grid;place-items:center;color:var(--ash);cursor:pointer}
+.ico:hover{background:var(--rule-hair)}
+.tabs{display:flex;gap:18px;padding:0 20px;border-bottom:1px solid var(--rule-soft);margin-top:8px}
+.tabs span{padding:8px 0;font-size:13px;color:var(--ash-2);border-bottom:2px solid transparent;cursor:pointer}
+.tabs span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.than{flex:1;min-height:0;overflow:auto}
+.chan{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--rule-soft);background:#fff}
+.chan .sp{flex:1}
+.chan__phu{font-size:12.5px;color:var(--ash-2)}
+
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.chip--vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.chip--la{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.chip--do{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.chip--xam{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}
+.the{display:inline-block;padding:0 6px;border-radius:4px;background:var(--rule-hair);color:var(--ash);font-size:12px;line-height:19px;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.do{color:var(--tt-do-fg)}
+.nhat{color:var(--ash-2)}
+.nho{font-size:12px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 13px;border-radius:7px;border:1px solid var(--rule);background:#fff;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--rule-hair)}
+.btn--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--chinh:hover{background:var(--rust-deep)}
+.btn--tat{background:#e2e8f0;border-color:#e2e8f0;color:#94a3b8;cursor:not-allowed}
+.btn--chu{border-color:transparent;background:none;color:var(--ash)}
+.btn--do{border-color:transparent;background:none;color:var(--tt-do-fg)}
+.lienket{color:var(--ash);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer;font-size:12.5px;background:none;border:0;padding:0}
+
+.o{width:100%;height:32px;border:1px solid var(--rule-soft);border-radius:6px;padding:0 10px;background:#fff;font-size:13.5px}
+.o:focus{outline:none;border-color:var(--rust);box-shadow:0 0 0 3px rgba(197,64,10,.12)}
+textarea.o{height:auto;padding:7px 10px;resize:vertical;line-height:1.45}
+.o::placeholder{color:var(--ash-3)}
+select.o{appearance:none;background-image:linear-gradient(45deg,transparent 50%,#94a3b8 50%),linear-gradient(135deg,#94a3b8 50%,transparent 50%);background-position:calc(100% - 15px) 14px,calc(100% - 10px) 14px;background-size:5px 5px;background-repeat:no-repeat}
+.nhan{display:block;font-size:12px;color:var(--ash-2);margin-bottom:4px}
+.seg{display:inline-flex;border:1px solid var(--rule-soft);border-radius:7px;padding:2px;gap:2px;background:var(--rule-hair)}
+.seg span{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:5px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap;border:1px solid transparent}
+.seg span.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+
+/* ảnh: ô nhỏ 64px, không còn vùng kéo-thả to chiếm nửa màn */
+.anh{display:flex;gap:6px;flex-wrap:wrap}
+.anh i{width:64px;height:64px;border-radius:6px;display:block;background:linear-gradient(135deg,#7c6a58,#5b4b3e)}
+.anh i.b{background:linear-gradient(135deg,#64748b,#334155)}
+.anh__them{width:64px;height:64px;border:1px dashed var(--rule);border-radius:6px;display:grid;place-items:center;color:var(--ash-2);font-size:11.5px;text-align:center;line-height:1.25;cursor:pointer;background:#fff}
+.anh__them:hover{background:var(--rule-hair)}
+.anh__them.can{border-color:#fca5a5;color:var(--tt-do-fg);background:#fff}
+
+/* ═══ PHƯƠNG ÁN A — hai cột kiểu Linear issue ═══ */
+.a-than{display:grid;grid-template-columns:1fr 320px;height:100%}
+.a-trai{padding:16px 24px 20px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.a-phai{border-left:1px solid var(--rule-soft);background:#fbfcfd;padding:14px 18px;display:flex;flex-direction:column;gap:0;overflow:auto}
+.a-tt{display:grid;grid-template-columns:104px 1fr;align-items:center;min-height:34px;gap:8px;font-size:13px}
+.a-tt>span:first-child{color:var(--ash-2);font-size:12.5px}
+.a-tt+.a-tt{border-top:1px solid var(--rule-hair)}
+.a-chon{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;margin-left:-8px;border:1px solid transparent;border-radius:6px;cursor:pointer;width:max-content}
+.a-chon:hover{border-color:var(--rule-soft);background:#fff}
+.a-mo-ta{font-size:13.5px;color:var(--ink);white-space:pre-wrap;line-height:1.55;margin:0}
+.a-nguoi{font-size:12px;color:var(--ash-2);margin-top:4px}
+.a-khoi h4{margin:0 0 6px;font-size:12.5px;font-weight:400;color:var(--ash-2)}
+.a-anh2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.a-xong{margin-top:auto;padding-top:14px;border-top:1px solid var(--rule-soft);display:flex;flex-direction:column;gap:6px}
+.a-xong .btn{width:100%;height:36px}
+.a-ly{font-size:12px;color:var(--tt-do-fg)}
+.a-viec{border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden}
+.a-viec__dong{display:flex;align-items:center;gap:10px;height:38px;padding:0 12px;font-size:13.5px}
+.a-viec__dong+.a-viec__dong{border-top:1px solid var(--rule-hair)}
+.a-viec__dong:hover{background:var(--rule-hair)}
+.a-viec__dong .sp{flex:1}
+.cb{width:16px;height:16px;border:1.5px solid var(--rule);border-radius:4px;display:inline-block;flex:none;background:#fff}
+.cb.on{background:var(--tt-la-dot);border-color:var(--tt-la-dot);position:relative}
+.cb.on::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.a-dem{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ash-2)}
+.vach{width:80px;height:4px;border-radius:2px;background:var(--rule-soft);position:relative;overflow:hidden}
+.vach>i{position:absolute;inset:0 auto 0 0;background:var(--tt-la-dot)}
+
+/* hộp thoại giữa màn cho form ngắn (phương án A + C) */
+.hop{position:absolute;left:50%;top:70px;transform:translateX(-50%);width:600px;background:#fff;border-radius:12px;box-shadow:0 24px 60px rgba(15,23,42,.3);display:flex;flex-direction:column}
+.hop__dau{display:flex;align-items:center;padding:14px 18px 6px;font-size:16px;letter-spacing:-.01em}
+.hop__than{padding:8px 18px 14px;display:flex;flex-direction:column;gap:12px}
+.hop__chan{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--rule-soft)}
+.hop__chan .sp{flex:1}
+.luoi2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hop--rong{width:720px}
+
+/* ═══ PHƯƠNG ÁN B — tờ phiếu đặc kiểu Odoo form ═══ */
+.b-trang{display:flex;align-items:center;gap:0;margin-left:auto}
+.b-buoc{position:relative;height:28px;display:inline-flex;align-items:center;padding:0 14px 0 20px;font-size:12.5px;color:var(--ash-2);background:var(--rule-hair);border:1px solid var(--rule-soft)}
+.b-buoc:first-child{border-radius:6px 0 0 6px;padding-left:12px}
+.b-buoc:last-child{border-radius:0 6px 6px 0}
+.b-buoc+.b-buoc{border-left:0}
+.b-buoc.on{background:#fff;color:var(--ink);border-color:var(--rule)}
+.b-hanh{display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--rule-soft);background:#fbfcfd}
+.b-hanh .sp{flex:1}
+.b-to{padding:14px 24px 18px;display:flex;flex-direction:column;gap:14px}
+.b-luoi{display:grid;grid-template-columns:1fr 1fr;column-gap:40px}
+.b-o{display:grid;grid-template-columns:132px 1fr;align-items:center;min-height:36px;gap:10px;border-bottom:1px solid var(--rule-hair)}
+.b-o>span:first-child{font-size:12.5px;color:var(--ash-2)}
+.b-o--ca{grid-column:1/-1;align-items:start;padding:6px 0}
+.b-o--ca>span:first-child{padding-top:7px}
+.b-o .o{border-color:transparent;background:transparent;padding:0 8px;margin-left:-8px}
+.b-o .o:hover{border-color:var(--rule-soft)}
+.b-o textarea.o{padding:6px 8px}
+.b-nhom{font-size:12px;color:var(--ash-2);letter-spacing:.02em;margin:4px 0 -6px}
+.b-anh{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--rule-soft);border-radius:8px}
+.b-anh>div{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.b-anh>div+div{border-left:1px solid var(--rule-soft)}
+.b-anh__dau{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ash-2)}
+.b-bang{width:100%;border-collapse:collapse;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;font-size:13.5px}
+.b-bang th{font-weight:400;font-size:12px;color:var(--ash-2);text-align:left;padding:6px 12px;background:#f8fafc;border-bottom:1px solid var(--rule-soft)}
+.b-bang td{height:36px;padding:0 12px;border-bottom:1px solid var(--rule-hair)}
+.b-bang tr:last-child td{border-bottom:0}
+.b-bang tr:hover td{background:var(--rule-hair)}
+
+/* ═══ PHƯƠNG ÁN C — phiếu việc theo bước kiểu MaintainX/UpKeep ═══ */
+.c-than{display:grid;grid-template-columns:400px 1fr;height:100%}
+.c-trai{background:#fbfcfd;border-right:1px solid var(--rule-soft);padding:16px 20px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+.c-phai{padding:16px 26px;overflow:auto}
+.c-may{display:flex;align-items:center;gap:10px}
+.c-may__ma{font-size:20px;letter-spacing:-.01em}
+.c-loi{border:1px solid var(--rule-soft);border-radius:10px;background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.c-loi__ten{font-size:15px}
+.c-loi p{margin:0;color:var(--ash);line-height:1.55}
+.c-so{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.c-so>div{border:1px solid var(--rule-soft);border-radius:8px;background:#fff;padding:8px 10px}
+.c-so small{display:block;font-size:11.5px;color:var(--ash-2)}
+.c-so span{font-size:14px}
+.c-buoc{display:grid;grid-template-columns:30px 1fr;gap:12px;position:relative;padding-bottom:18px}
+.c-buoc::before{content:"";position:absolute;left:14px;top:30px;bottom:0;width:2px;background:var(--rule-soft)}
+.c-buoc:last-child::before{display:none}
+.c-buoc__so{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--rule);display:grid;place-items:center;font-size:13px;color:var(--ash);background:#fff;z-index:1}
+.c-buoc__so.xong{background:var(--tt-la-dot);border-color:var(--tt-la-dot);color:#fff}
+.c-buoc__so.dang{border-color:var(--rust);color:var(--rust)}
+.c-buoc h4{margin:4px 0 8px;font-size:14.5px;font-weight:400;display:flex;align-items:center;gap:8px}
+.c-buoc h4 .nhat{font-size:12.5px}
+.c-viec{display:flex;align-items:center;gap:12px;min-height:46px;padding:0 14px;border:1px solid var(--rule-soft);border-radius:10px;background:#fff;margin-bottom:6px;font-size:14px}
+.c-viec .sp{flex:1}
+.c-viec .cb{width:20px;height:20px}
+.c-viec .cb.on::after{left:6px;top:2px;width:5px;height:10px}
+.c-viec.xong{background:#f8fafc}
+.c-viec.xong .ten{color:var(--ash-2);text-decoration:line-through}
+.c-chon{display:flex;gap:6px;flex-wrap:wrap}
+.c-chon span{height:40px;padding:0 14px;border:1px solid var(--rule-soft);border-radius:9px;display:inline-flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;background:#fff}
+.c-chon span.on{border-color:var(--ink)}
+.c-chon span:hover{background:var(--rule-hair)}
+.c-dung{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--rule-soft);border-radius:10px;cursor:pointer}
+.c-dung.on{border-color:#fca5a5;background:#fff}
+.c-big{height:44px;font-size:14px;padding:0 20px}
+.c-hop .o{height:40px;font-size:14px}
+.c-hop textarea.o{min-height:70px}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Ngăn Kỹ thuật máy: 3 phương án</h1>
+<p>Làm lại bốn ngăn mở từ màn danh sách: chi tiết phiếu sửa chữa, lập phiếu sửa, báo máy hỏng và chi tiết phiếu bảo trì. Ngăn cũ phải cuộn vì bốn lý do: ngăn chỉ rộng ~750px nên mọi ô xếp một cột; hai vùng kéo-thả ảnh mỗi vùng cao ~200px; nhãn nhóm chữ hoa kèm biểu tượng ăn một dòng riêng cho từng khối; và nút "Xác nhận đã sửa xong" nằm một khối riêng tận đáy.</p>
+<p>Cả ba phương án giữ đúng logic đã chốt:</p>
+<ul>
+  <li>Phiếu sửa chữa chỉ còn hai trạng thái là Chờ sửa và Đã sửa xong. Đóng phiếu phải có ít nhất một ảnh sau khi sửa.</li>
+  <li>Không xoá phiếu. Không gõ tên người: người báo và người làm lấy từ tài khoản. Máy chốt lúc lập phiếu.</li>
+  <li>Bảo trì có ba trạng thái là Chưa làm, Đã xong và Đã hủy. Phải xử lý hết việc con mới xác nhận xong được. Việc nào không làm thì bấm "Không áp dụng" và ghi lý do. Hủy phiếu phải có lý do.</li>
+  <li>Ngăn rộng 1180px như mọi ngăn của hệ thống, kéo mép trái để nới rộng hơn. Ngăn có hai tab: Chi tiết và Lịch sử thao tác.</li>
+</ul>
+<p>Chữ không in đậm. Không nối thông tin bằng dấu chấm giữa dòng hay dấu phẩy. Chip trạng thái dùng bộ màu tươi của hệ thống.</p>
+
+<table class="words">
+  <tr><th>Chữ cũ</th><th>Chữ mới</th><th>Vì sao</th></tr>
+  <tr><td>Lời báo hỏng &amp; Thông tin sự cố</td><td>(bỏ tiêu đề khối)</td><td>Các ô đã tự nói mình là gì; tiêu đề khối chỉ ăn dòng</td></tr>
+  <tr><td>Bộ phận hỏng *</td><td>Chỗ hỏng</td><td>Khớp tên cột ở bảng danh sách</td></tr>
+  <tr><td>Triệu chứng &amp; mô tả hỏng hóc</td><td>Mô tả</td><td>Ngắn, ai cũng hiểu</td></tr>
+  <tr><td>Nguyên nhân &amp; phương án sửa</td><td>Nguyên nhân và cách sửa</td><td>Bỏ ký hiệu &amp;</td></tr>
+  <tr><td>Ghi chú tiến độ / vật tư</td><td>Ghi chú</td><td>Trạng thái "Chờ vật tư" đã gỡ, thiếu đồ ghi ở đây</td></tr>
+  <tr><td>Ảnh hiện trạng hỏng / Ảnh chứng thực sau sửa</td><td>Ảnh trước khi sửa / Ảnh sau khi sửa</td><td>Cặp chữ đối xứng, dễ hiểu</td></tr>
+  <tr><td>Mức độ (theo bạn cảm nhận)</td><td>Mức độ</td><td>Câu giải thích chuyển vào chữ mờ dưới ô</td></tr>
+  <tr><td>Nội dung / gói bảo trì</td><td>Việc bảo trì</td><td>Khớp cột ở bảng</td></tr>
+  <tr><td>Hạng mục bảo trì</td><td>Việc cần làm</td><td>Chữ thường ngày</td></tr>
+</table>
+
+<!-- ═════════════════════════════ PHƯƠNG ÁN A ═════════════════════════════ -->
+<div class="h2">Phương án A: hai cột, nội dung bên trái, thông tin phiếu bên phải</div>
+<p class="note">Khuôn từ trang chi tiết việc của <b>Linear</b> và <b>Jira</b>, cũng là cách GitHub bày một issue. Cột trái là phần người ta đọc và viết: mô tả, nguyên nhân, ảnh. Cột phải rộng 320px là bảng thuộc tính đứng yên: trạng thái, máy, mức độ, người báo, thời gian. Nút chốt việc nằm cuối cột phải nên luôn trong tầm mắt, không phải cuộn xuống đáy. Ảnh thu thành ô 64px; ô ảnh sau khi sửa viền đỏ khi còn thiếu. Form ngắn như "Báo máy hỏng" và "Lập phiếu sửa" mở bằng hộp thoại giữa màn, như nút "New issue" của Linear: năm ô không cần một ngăn 1180px.</p>
+
+<div class="cap">A1. Chi tiết phiếu sửa chữa SC-0009</div>
+<div class="scroll"><div class="stage" style="--h:600px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau"><span class="dau__ma">SC-0009</span><span class="dau__ten">Cụm cấp giấy (feeder)</span><span class="chip chip--vang">Chờ sửa</span><span class="dau__sp"></span><button class="ico" title="Đóng">✕</button></div>
+  <div class="tabs"><span class="on">Chi tiết</span><span>Lịch sử thao tác</span></div>
+  <div class="than"><div class="a-than">
+    <div class="a-trai">
+      <div><span class="nhan">Chỗ hỏng</span><input class="o" value="Cụm cấp giấy (feeder)"></div>
+      <div><span class="nhan">Mô tả</span><textarea class="o" rows="2">Cấp giấy hay kéo đôi tờ khi chạy giấy couche 100 gsm, phải dừng máy nhặt tờ.</textarea></div>
+      <div><span class="nhan">Nguyên nhân và cách sửa</span><textarea class="o" rows="2" placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"></textarea></div>
+      <div><span class="nhan">Ghi chú</span><input class="o" placeholder="vd: chờ bạc đạn trục cán về, hãng báo thứ 5 tới"></div>
+      <div class="a-anh2">
+        <div class="a-khoi"><h4>Ảnh trước khi sửa</h4><div class="anh"><i></i><span class="anh__them">+ Thêm</span></div></div>
+        <div class="a-khoi"><h4>Ảnh sau khi sửa <span class="do">cần ít nhất 1 ảnh để đóng phiếu</span></h4><div class="anh"><span class="anh__them can">+ Chụp<br>ảnh</span></div></div>
+      </div>
+    </div>
+    <div class="a-phai">
+      <div class="a-tt"><span>Trạng thái</span><span><span class="chip chip--vang">Chờ sửa</span></span></div>
+      <div class="a-tt"><span>Máy</span><span>IN-04 <span class="nhat">Máy in 6 màu Mitsubishi 72×102</span></span></div>
+      <div class="a-tt"><span>Mức độ</span><span class="a-chon"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình<span class="nhat">▾</span></span></div>
+      <div class="a-tt"><span>Người báo</span><span>Khưu Mai Nhân Tâm</span></div>
+      <div class="a-tt"><span>Hỏng lúc</span><span>07/10/2026 10:20</span></div>
+      <div class="a-tt"><span>Đã kéo dài</span><span>11 giờ</span></div>
+      <div class="a-tt"><span>Từ yêu cầu</span><span class="nhat">không có</span></div>
+      <div class="a-tt"><span>Ngày tạo</span><span class="nhat">07/10/2026 10:21</span></div>
+      <div class="a-xong">
+        <button class="btn btn--tat">Xác nhận đã sửa xong</button>
+        <span class="a-ly">Chụp ít nhất 1 ảnh sau khi sửa để mở nút này.</span>
+      </div>
+    </div>
+  </div></div>
+  <div class="chan"><span class="chan__phu">Có thay đổi chưa lưu</span><span class="sp"></span><button class="btn btn--chu">Bỏ thay đổi</button><button class="btn btn--chinh">Lưu</button></div>
+</div></div></div>
+
+<div class="cap">A2. Chi tiết phiếu bảo trì PBT-0012</div>
+<div class="scroll"><div class="stage" style="--h:560px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau"><span class="dau__ma">PBT-0012</span><span class="dau__ten">Bảo trì tuần máy in</span><span class="chip chip--vang">Chưa làm</span><span class="do nho">trễ 3 ngày</span><span class="dau__sp"></span><button class="ico" title="In phiếu">⎙</button><button class="ico" title="Đóng">✕</button></div>
+  <div class="tabs"><span class="on">Chi tiết</span><span>Lịch sử thao tác</span></div>
+  <div class="than"><div class="a-than">
+    <div class="a-trai">
+      <div>
+        <div style="display:flex;align-items:center;margin-bottom:6px"><span class="nhan" style="margin:0">Việc cần làm</span><span class="sp" style="flex:1"></span><span class="a-dem"><span class="vach"><i style="width:0"></i></span>0/3 đã xử lý</span></div>
+        <div class="a-viec">
+          <div class="a-viec__dong"><span class="cb"></span><span>Vệ sinh lô mực và lô nước</span><span class="sp"></span><button class="lienket">Không áp dụng</button></div>
+          <div class="a-viec__dong"><span class="cb"></span><span>Xả nước bình khí nén</span><span class="sp"></span><button class="lienket">Không áp dụng</button></div>
+          <div class="a-viec__dong"><span class="cb"></span><span>Kiểm tra đầu phun ẩm</span><span class="sp"></span><button class="lienket">Không áp dụng</button></div>
+        </div>
+      </div>
+      <div><span class="nhan">Ghi chú kỹ thuật</span><input class="o" placeholder="Thuê hãng ngoài thì ghi ở đây, vd: KT hãng Bobst VN sang xử lý lúc 14h"></div>
+      <div class="a-anh2">
+        <div class="a-khoi"><h4>Ảnh trước khi làm</h4><div class="anh"><span class="anh__them">+ Thêm</span></div></div>
+        <div class="a-khoi"><h4>Ảnh sau khi làm <span class="do">cần ít nhất 1 ảnh</span></h4><div class="anh"><span class="anh__them can">+ Chụp<br>ảnh</span></div></div>
+      </div>
+    </div>
+    <div class="a-phai">
+      <div class="a-tt"><span>Trạng thái</span><span><span class="chip chip--vang">Chưa làm</span></span></div>
+      <div class="a-tt"><span>Máy</span><span>IN-01 <span class="nhat">Máy in 2 màu Mitsubishi 72×102</span></span></div>
+      <div class="a-tt"><span>Việc bảo trì</span><span>Bảo trì tuần máy in</span></div>
+      <div class="a-tt"><span>Chu kỳ</span><span>1 tuần</span></div>
+      <div class="a-tt"><span>Hạn làm</span><span>04/10/2026 <span class="do nho">trễ 3 ngày</span></span></div>
+      <div class="a-tt"><span>Người làm</span><span class="nhat">người bấm xác nhận</span></div>
+      <div class="a-tt"><span>Ngày tạo</span><span class="nhat">07/10/2026</span></div>
+      <div class="a-xong">
+        <button class="btn btn--tat">Xác nhận đã bảo trì xong</button>
+        <span class="a-ly">Còn 3 việc chưa xử lý và chưa có ảnh sau khi làm.</span>
+        <button class="btn btn--do" style="height:30px">Hủy phiếu</button>
+      </div>
+    </div>
+  </div></div>
+</div></div></div>
+
+<div class="cap">A3. Báo máy hỏng (hộp thoại)</div>
+<div class="scroll"><div class="stage" style="--h:470px">
+  <div class="hop">
+    <div class="hop__dau">Báo máy hỏng<span style="flex:1"></span><button class="ico">✕</button></div>
+    <div class="hop__than">
+      <div class="luoi2">
+        <div><span class="nhan">Máy</span><select class="o"><option>Chọn máy</option></select></div>
+        <div><span class="nhan">Chỗ hỏng</span><input class="o" placeholder="vd: trục cán, bạc đạn"></div>
+      </div>
+      <div><span class="nhan">Mô tả</span><textarea class="o" rows="3" placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"></textarea></div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <span class="seg"><span><i class="dot" style="background:var(--tt-la-dot)"></i>Nhẹ</span><span class="on"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình</span><span><i class="dot" style="background:var(--tt-do-dot)"></i>Nghiêm trọng</span></span>
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer"><span class="cb"></span>Máy đang dừng, không chạy được</label>
+      </div>
+      <span class="nhat nho">Mức độ chọn theo cảm nhận, tổ sửa chữa đánh giá lại khi tiếp nhận. Máy dừng thì yêu cầu lên đầu hàng chờ.</span>
+    </div>
+    <div class="hop__chan"><span class="nhat nho">Người báo: Admin</span><span class="sp"></span><button class="btn btn--chu">Hủy</button><button class="btn btn--chinh">Gửi yêu cầu</button></div>
+  </div>
+</div></div>
+
+<div class="cap">A4. Lập phiếu sửa (hộp thoại)</div>
+<div class="scroll"><div class="stage" style="--h:520px">
+  <div class="hop hop--rong">
+    <div class="hop__dau">Lập phiếu sửa<span style="flex:1"></span><button class="ico">✕</button></div>
+    <div class="hop__than">
+      <div class="luoi2">
+        <div><span class="nhan">Máy</span><select class="o"><option>Chọn máy</option></select></div>
+        <div><span class="nhan">Chỗ hỏng</span><input class="o" placeholder="vd: trục cán, bạc đạn, băng tải"></div>
+      </div>
+      <div><span class="nhan">Mô tả</span><textarea class="o" rows="2" placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao"></textarea></div>
+      <div><span class="nhan">Nguyên nhân và cách sửa <span class="nhat">(ghi sau cũng được)</span></span><textarea class="o" rows="2" placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"></textarea></div>
+      <div style="display:flex;align-items:center;gap:12px"><span class="nhan" style="margin:0">Mức độ</span><span class="seg"><span><i class="dot" style="background:var(--tt-la-dot)"></i>Nhẹ</span><span class="on"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình</span><span><i class="dot" style="background:var(--tt-do-dot)"></i>Nghiêm trọng</span></span></div>
+    </div>
+    <div class="hop__chan"><span class="nhat nho">Người báo: Admin, hỏng lúc: bây giờ</span><span class="sp"></span><button class="btn btn--chu">Hủy</button><button class="btn btn--chinh">Lập phiếu</button></div>
+  </div>
+</div></div>
+
+<!-- ═════════════════════════════ PHƯƠNG ÁN B ═════════════════════════════ -->
+<div class="h2">Phương án B: một tờ phiếu đặc, nhãn bên trái ô</div>
+<p class="note">Khuôn từ form chứng từ của <b>Odoo</b> và object page của <b>SAP Fiori</b>. Đầu ngăn có thanh bước (Chờ sửa → Đã sửa xong) và dải nút việc chính ngay dưới, nên chốt việc nằm trên cùng. Thân ngăn là lưới hai cột, nhãn đứng trái ô, mỗi dòng cao 36px, ô trông như chữ thường cho tới khi rê chuột vào. Nhìn giống tờ phiếu in, mọi thông tin nằm gọn trong một màn. Ảnh trước và sau đứng cạnh nhau trong một khung chia đôi. Việc con của bảo trì là một bảng nhỏ. Form lập mới dùng chính tờ này với ít dòng hơn và vẫn mở bằng ngăn 1180px, nhưng chỉ cao vừa nội dung.</p>
+
+<div class="cap">B1. Chi tiết phiếu sửa chữa SC-0009</div>
+<div class="scroll"><div class="stage" style="--h:600px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau"><span class="dau__ma">SC-0009</span><span class="dau__ten">Cụm cấp giấy (feeder)</span><span class="b-trang"><span class="b-buoc on">Chờ sửa</span><span class="b-buoc">Đã sửa xong</span></span><button class="ico" title="Đóng">✕</button></div>
+  <div class="tabs"><span class="on">Chi tiết</span><span>Lịch sử thao tác</span></div>
+  <div class="b-hanh"><button class="btn btn--tat">Xác nhận đã sửa xong</button><span class="nhat nho">Cần ít nhất 1 ảnh sau khi sửa.</span><span class="sp"></span><button class="btn btn--chu">Bỏ thay đổi</button><button class="btn btn--chinh">Lưu</button></div>
+  <div class="than"><div class="b-to">
+    <div class="b-luoi">
+      <div class="b-o"><span>Máy</span><span>IN-04 <span class="nhat">Máy in 6 màu Mitsubishi 72×102</span></span></div>
+      <div class="b-o"><span>Người báo</span><span>Khưu Mai Nhân Tâm</span></div>
+      <div class="b-o"><span>Chỗ hỏng</span><input class="o" value="Cụm cấp giấy (feeder)"></div>
+      <div class="b-o"><span>Hỏng lúc</span><span>07/10/2026 10:20 <span class="the">đã kéo dài 11 giờ</span></span></div>
+      <div class="b-o"><span>Mức độ</span><span class="seg"><span><i class="dot" style="background:var(--tt-la-dot)"></i>Nhẹ</span><span class="on"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình</span><span><i class="dot" style="background:var(--tt-do-dot)"></i>Nghiêm trọng</span></span></div>
+      <div class="b-o"><span>Từ yêu cầu</span><span class="nhat">không có</span></div>
+      <div class="b-o b-o--ca"><span>Mô tả</span><textarea class="o" rows="2">Cấp giấy hay kéo đôi tờ khi chạy giấy couche 100 gsm, phải dừng máy nhặt tờ.</textarea></div>
+      <div class="b-o b-o--ca"><span>Nguyên nhân và cách sửa</span><textarea class="o" rows="2" placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"></textarea></div>
+      <div class="b-o b-o--ca"><span>Ghi chú</span><input class="o" placeholder="vd: chờ bạc đạn trục cán về, hãng báo thứ 5 tới"></div>
+    </div>
+    <div class="b-anh">
+      <div><div class="b-anh__dau">Ảnh trước khi sửa <span class="the">1 ảnh</span></div><div class="anh"><i></i><span class="anh__them">+ Thêm</span></div></div>
+      <div><div class="b-anh__dau">Ảnh sau khi sửa <span class="chip chip--do">bắt buộc để đóng phiếu</span></div><div class="anh"><span class="anh__them can">+ Chụp<br>ảnh</span></div></div>
+    </div>
+  </div></div>
+</div></div></div>
+
+<div class="cap">B2. Chi tiết phiếu bảo trì PBT-0012</div>
+<div class="scroll"><div class="stage" style="--h:600px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau"><span class="dau__ma">PBT-0012</span><span class="dau__ten">Bảo trì tuần máy in</span><span class="b-trang"><span class="b-buoc on">Chưa làm</span><span class="b-buoc">Đã xong</span></span><button class="ico" title="In phiếu">⎙</button><button class="ico" title="Đóng">✕</button></div>
+  <div class="tabs"><span class="on">Chi tiết</span><span>Lịch sử thao tác</span></div>
+  <div class="b-hanh"><button class="btn btn--tat">Xác nhận đã bảo trì xong</button><span class="nhat nho">Còn 3 việc chưa xử lý và chưa có ảnh sau khi làm.</span><span class="sp"></span><button class="btn btn--do">Hủy phiếu</button></div>
+  <div class="than"><div class="b-to">
+    <div class="b-luoi">
+      <div class="b-o"><span>Máy</span><span>IN-01 <span class="nhat">Máy in 2 màu Mitsubishi 72×102</span></span></div>
+      <div class="b-o"><span>Hạn làm</span><span>04/10/2026 <span class="do nho">trễ 3 ngày</span></span></div>
+      <div class="b-o"><span>Việc bảo trì</span><input class="o" value="Bảo trì tuần máy in"></div>
+      <div class="b-o"><span>Chu kỳ</span><span>1 tuần</span></div>
+      <div class="b-o b-o--ca"><span>Ghi chú kỹ thuật</span><input class="o" placeholder="Thuê hãng ngoài thì ghi ở đây, vd: KT hãng Bobst VN sang xử lý lúc 14h"></div>
+    </div>
+    <table class="b-bang">
+      <tr><th style="width:44px">Xong</th><th>Việc cần làm</th><th style="width:300px">Không làm lần này</th></tr>
+      <tr><td><span class="cb"></span></td><td>Vệ sinh lô mực và lô nước</td><td><button class="lienket">Không áp dụng</button></td></tr>
+      <tr><td><span class="cb"></span></td><td>Xả nước bình khí nén</td><td><button class="lienket">Không áp dụng</button></td></tr>
+      <tr><td><span class="cb"></span></td><td>Kiểm tra đầu phun ẩm</td><td><button class="lienket">Không áp dụng</button></td></tr>
+    </table>
+    <div class="b-anh">
+      <div><div class="b-anh__dau">Ảnh trước khi làm</div><div class="anh"><span class="anh__them">+ Thêm</span></div></div>
+      <div><div class="b-anh__dau">Ảnh sau khi làm <span class="chip chip--do">bắt buộc</span></div><div class="anh"><span class="anh__them can">+ Chụp<br>ảnh</span></div></div>
+    </div>
+  </div></div>
+</div></div></div>
+
+<div class="cap">B3. Báo máy hỏng (ngăn, cao vừa nội dung)</div>
+<div class="scroll"><div class="stage" style="--h:330px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau" style="padding-bottom:10px;border-bottom:1px solid var(--rule-soft)"><span class="dau__ten">Báo máy hỏng</span><span class="dau__sp"></span><span class="nhat nho">Người báo: Admin</span><button class="ico">✕</button></div>
+  <div class="than"><div class="b-to">
+    <div class="b-luoi">
+      <div class="b-o"><span>Máy</span><select class="o"><option>Chọn máy</option></select></div>
+      <div class="b-o"><span>Máy đang dừng</span><label style="display:inline-flex;align-items:center;gap:8px"><span class="cb"></span><span class="nhat nho">đánh dấu thì yêu cầu lên đầu hàng chờ</span></label></div>
+      <div class="b-o"><span>Chỗ hỏng</span><input class="o" placeholder="vd: trục cán, bạc đạn"></div>
+      <div class="b-o"><span>Mức độ</span><span class="seg"><span><i class="dot" style="background:var(--tt-la-dot)"></i>Nhẹ</span><span class="on"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình</span><span><i class="dot" style="background:var(--tt-do-dot)"></i>Nghiêm trọng</span></span></div>
+      <div class="b-o b-o--ca"><span>Mô tả</span><textarea class="o" rows="2" placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"></textarea></div>
+    </div>
+  </div></div>
+  <div class="chan"><span class="sp"></span><button class="btn btn--chu">Hủy</button><button class="btn btn--chinh">Gửi yêu cầu</button></div>
+</div></div></div>
+
+<div class="cap">B4. Lập phiếu sửa (ngăn, cao vừa nội dung)</div>
+<div class="scroll"><div class="stage" style="--h:380px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau" style="padding-bottom:10px;border-bottom:1px solid var(--rule-soft)"><span class="dau__ten">Lập phiếu sửa</span><span class="dau__sp"></span><span class="nhat nho">Người báo: Admin</span><button class="ico">✕</button></div>
+  <div class="than"><div class="b-to">
+    <div class="b-luoi">
+      <div class="b-o"><span>Máy</span><select class="o"><option>Chọn máy</option></select></div>
+      <div class="b-o"><span>Hỏng lúc</span><span>bây giờ</span></div>
+      <div class="b-o"><span>Chỗ hỏng</span><input class="o" placeholder="vd: trục cán, bạc đạn, băng tải"></div>
+      <div class="b-o"><span>Mức độ</span><span class="seg"><span><i class="dot" style="background:var(--tt-la-dot)"></i>Nhẹ</span><span class="on"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình</span><span><i class="dot" style="background:var(--tt-do-dot)"></i>Nghiêm trọng</span></span></div>
+      <div class="b-o b-o--ca"><span>Mô tả</span><textarea class="o" rows="2" placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao"></textarea></div>
+      <div class="b-o b-o--ca"><span>Nguyên nhân và cách sửa</span><textarea class="o" rows="2" placeholder="Ghi sau cũng được, vd: bạc đạn mòn, cần thay"></textarea></div>
+    </div>
+  </div></div>
+  <div class="chan"><span class="sp"></span><button class="btn btn--chu">Hủy</button><button class="btn btn--chinh">Lập phiếu</button></div>
+</div></div></div>
+
+<!-- ═════════════════════════════ PHƯƠNG ÁN C ═════════════════════════════ -->
+<div class="h2">Phương án C: phiếu việc theo bước, làm từ trên xuống</div>
+<p class="note">Khuôn từ phiếu công việc của các ứng dụng bảo trì nhà xưởng như <b>MaintainX</b>, <b>UpKeep</b> và <b>Fiix</b>, nơi thợ cầm máy tính bảng đứng cạnh máy. Cột trái rộng 400px là "máy nào, hỏng gì": mã máy chữ to, lời người báo, ảnh trước, mấy con số thời gian. Cột phải là các bước đánh số, làm xong bước nào tick xanh bước đó, bước chốt nằm cuối chuỗi. Ô bấm cao 40 đến 46px cho ngón tay. Hợp nếu thợ chủ yếu thao tác trên máy tính bảng ngoài xưởng; trên máy tính bàn thì thưa hơn A và B.</p>
+
+<div class="cap">C1. Chi tiết phiếu sửa chữa SC-0009</div>
+<div class="scroll"><div class="stage" style="--h:600px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau"><span class="dau__ma">SC-0009</span><span class="chip chip--vang">Chờ sửa</span><span class="dau__sp"></span><button class="ico" title="Đóng">✕</button></div>
+  <div class="tabs"><span class="on">Chi tiết</span><span>Lịch sử thao tác</span></div>
+  <div class="than"><div class="c-than">
+    <div class="c-trai">
+      <div class="c-may"><span class="c-may__ma">IN-04</span><span class="nhat">Máy in 6 màu Mitsubishi 72×102</span></div>
+      <div class="c-loi">
+        <div style="display:flex;align-items:center;gap:8px"><span class="c-loi__ten">Cụm cấp giấy (feeder)</span><span class="sp" style="flex:1"></span><span class="nho"><i class="dot" style="background:var(--tt-vang-dot)"></i> Trung bình</span></div>
+        <p>Cấp giấy hay kéo đôi tờ khi chạy giấy couche 100 gsm, phải dừng máy nhặt tờ.</p>
+        <span class="nhat nho">Khưu Mai Nhân Tâm báo</span>
+        <div class="anh"><i></i></div>
+      </div>
+      <div class="c-so">
+        <div><small>Hỏng lúc</small><span>07/10 10:20</span></div>
+        <div><small>Đã kéo dài</small><span>11 giờ</span></div>
+      </div>
+      <button class="lienket" style="align-self:flex-start">Sửa lời báo hỏng</button>
+    </div>
+    <div class="c-phai">
+      <div class="c-buoc"><span class="c-buoc__so dang">1</span><div><h4>Tìm nguyên nhân <span class="nhat">ghi lại để lần sau tra</span></h4><textarea class="o" rows="2" placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"></textarea><div style="margin-top:8px"><input class="o" placeholder="Ghi chú, vd: chờ bạc đạn về, hãng báo thứ 5"></div></div></div>
+      <div class="c-buoc"><span class="c-buoc__so">2</span><div><h4>Chụp ảnh sau khi sửa <span class="do nho">bắt buộc</span></h4><div class="anh"><span class="anh__them can" style="width:84px;height:84px">+ Chụp<br>ảnh</span></div></div></div>
+      <div class="c-buoc"><span class="c-buoc__so">3</span><div><h4>Xác nhận đã sửa xong</h4><button class="btn btn--tat c-big">Xác nhận đã sửa xong</button><div class="nhat nho" style="margin-top:6px">Mở khi đã có ảnh ở bước 2.</div></div></div>
+    </div>
+  </div></div>
+  <div class="chan"><span class="chan__phu">Có thay đổi chưa lưu</span><span class="sp"></span><button class="btn btn--chu">Bỏ thay đổi</button><button class="btn btn--chinh">Lưu</button></div>
+</div></div></div>
+
+<div class="cap">C2. Chi tiết phiếu bảo trì PBT-0012</div>
+<div class="scroll"><div class="stage" style="--h:640px"><div class="ngan"><span class="ngan__keo"></span>
+  <div class="dau"><span class="dau__ma">PBT-0012</span><span class="chip chip--vang">Chưa làm</span><span class="do nho">trễ 3 ngày</span><span class="dau__sp"></span><button class="ico" title="In phiếu">⎙</button><button class="ico" title="Đóng">✕</button></div>
+  <div class="tabs"><span class="on">Chi tiết</span><span>Lịch sử thao tác</span></div>
+  <div class="than"><div class="c-than">
+    <div class="c-trai">
+      <div class="c-may"><span class="c-may__ma">IN-01</span><span class="nhat">Máy in 2 màu Mitsubishi 72×102</span></div>
+      <div class="c-loi"><span class="c-loi__ten">Bảo trì tuần máy in</span><span class="nhat nho">Lặp mỗi 1 tuần theo lịch của máy</span></div>
+      <div class="c-so">
+        <div><small>Hạn làm</small><span>04/10/2026</span></div>
+        <div><small>So với hạn</small><span class="do">trễ 3 ngày</span></div>
+      </div>
+      <div><span class="nhan">Ghi chú kỹ thuật</span><textarea class="o" rows="2" placeholder="Thuê hãng ngoài thì ghi ở đây"></textarea></div>
+      <button class="btn btn--do" style="align-self:flex-start;margin-top:auto">Hủy phiếu</button>
+    </div>
+    <div class="c-phai">
+      <div class="c-buoc"><span class="c-buoc__so dang">1</span><div><h4>Làm từng việc <span class="nhat">0/3 đã xử lý</span></h4>
+        <div class="c-viec"><span class="cb"></span><span class="ten">Vệ sinh lô mực và lô nước</span><span class="sp"></span><button class="lienket">Không áp dụng</button></div>
+        <div class="c-viec"><span class="cb"></span><span class="ten">Xả nước bình khí nén</span><span class="sp"></span><button class="lienket">Không áp dụng</button></div>
+        <div class="c-viec"><span class="cb"></span><span class="ten">Kiểm tra đầu phun ẩm</span><span class="sp"></span><button class="lienket">Không áp dụng</button></div>
+      </div></div>
+      <div class="c-buoc"><span class="c-buoc__so">2</span><div><h4>Chụp ảnh <span class="nhat">trước khi làm không bắt buộc, sau khi làm bắt buộc</span></h4><div style="display:flex;gap:24px"><div><span class="nhan">Trước</span><div class="anh"><span class="anh__them">+ Thêm</span></div></div><div><span class="nhan">Sau</span><div class="anh"><span class="anh__them can">+ Chụp<br>ảnh</span></div></div></div></div></div>
+      <div class="c-buoc"><span class="c-buoc__so">3</span><div><h4>Xác nhận đã bảo trì xong</h4><button class="btn btn--tat c-big">Xác nhận đã bảo trì xong</button></div></div>
+    </div>
+  </div></div>
+</div></div></div>
+
+<div class="cap">C3. Báo máy hỏng (hộp thoại, ô to cho ngón tay)</div>
+<div class="scroll"><div class="stage" style="--h:560px">
+  <div class="hop hop--rong c-hop">
+    <div class="hop__dau">Báo máy hỏng<span style="flex:1"></span><button class="ico">✕</button></div>
+    <div class="hop__than">
+      <label class="c-dung"><span class="cb" style="width:20px;height:20px"></span><span>Máy đang dừng, không chạy được<br><span class="nhat nho">Yêu cầu lên đầu hàng chờ của tổ sửa chữa</span></span></label>
+      <div class="luoi2">
+        <div><span class="nhan">Máy</span><select class="o"><option>Chọn máy</option></select></div>
+        <div><span class="nhan">Chỗ hỏng</span><input class="o" placeholder="vd: trục cán, bạc đạn"></div>
+      </div>
+      <div><span class="nhan">Mức độ</span><div class="c-chon"><span><i class="dot" style="background:var(--tt-la-dot)"></i>Nhẹ</span><span class="on"><i class="dot" style="background:var(--tt-vang-dot)"></i>Trung bình</span><span><i class="dot" style="background:var(--tt-do-dot)"></i>Nghiêm trọng</span></div></div>
+      <div><span class="nhan">Mô tả</span><textarea class="o" placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"></textarea></div>
+    </div>
+    <div class="hop__chan"><span class="nhat nho">Người báo: Admin</span><span class="sp"></span><button class="btn btn--chu c-big">Hủy</button><button class="btn btn--chinh c-big">Gửi yêu cầu</button></div>
+  </div>
+</div></div>
+
+<div class="cap">C4. Lập phiếu sửa</div>
+<p class="note">Giống C3: hộp thoại 720px, ô cao 40px, cùng thứ tự ô, thêm ô "Nguyên nhân và cách sửa" (ghi sau cũng được). Lập xong thì mở thẳng phiếu ở dạng C1.</p>
+
+<div class="h2">So nhanh</div>
+<table class="words" style="font-size:13px">
+  <tr><th>Tiêu chí</th><th>A: hai cột kiểu Linear</th><th>B: tờ phiếu kiểu Odoo</th><th>C: theo bước kiểu MaintainX</th></tr>
+  <tr><td style="text-decoration:none;color:var(--ink)">Phiếu SC-0009 vừa một màn</td><td>Có</td><td>Có, đặc nhất</td><td>Có, nhưng thưa nhất</td></tr>
+  <tr><td style="text-decoration:none;color:var(--ink)">Nút chốt việc nằm ở</td><td>Cuối cột phải, luôn thấy</td><td>Dải nút trên cùng</td><td>Bước cuối của chuỗi</td></tr>
+  <tr><td style="text-decoration:none;color:var(--ink)">Form ngắn (báo hỏng, lập phiếu)</td><td>Hộp thoại giữa màn</td><td>Ngăn 1180, cao vừa nội dung</td><td>Hộp thoại, ô to</td></tr>
+  <tr><td style="text-decoration:none;color:var(--ink)">Hợp với</td><td>Tổ kỹ thuật làm trên máy tính</td><td>Người quen đọc chứng từ giấy</td><td>Thợ cầm máy tính bảng ngoài xưởng</td></tr>
+</table>
+</div>
+</body>
+</html>

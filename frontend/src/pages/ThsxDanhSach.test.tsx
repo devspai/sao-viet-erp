@@ -81,4 +81,21 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     fireEvent.click(screen.getByText("Đang chạy"));
     expect(onPick).toHaveBeenCalledWith(item);
   });
+
+  it("lưới theo khuôn: dòng đang mở viền đủ cạnh, cột ẩn biến mất cả tiêu đề lẫn ô", () => {
+    const { container } = render(
+      <ThsxDanhSach
+        lenh={mockLenh([mockViec({ id: 301 })])}
+        selectedId={301}
+        onPick={vi.fn()}
+        cotAn={new Set(["may", "vt"])}
+      />
+    );
+    expect(container.querySelector("table.lds-g")).not.toBeNull();
+    expect(container.querySelector("tbody tr.lds-dong.is-chon")).not.toBeNull();
+    expect(screen.queryByText("Máy / Trạm")).toBeNull();
+    expect(screen.queryByText("CTP Screen 8600")).toBeNull();
+    expect(screen.queryByText("Định mức vật tư")).toBeNull();
+    expect(screen.getByText("Công đoạn")).toBeInTheDocument();
+  });
 });

@@ -280,7 +280,8 @@ def doi_trang_thai_sua_chua(
 # ================= Yêu cầu sửa chữa (bộ phận khác báo hỏng) =================
 
 
-def _row_yeu_cau(yc, may_map: dict, anh_tk: dict, phieu_map: dict) -> YeuCauRow:
+def _row_yeu_cau(yc, may_map: dict, anh_tk: dict, phieu_map: dict,
+                 lsx_map: dict) -> YeuCauRow:
     row = YeuCauRow.model_validate(yc)
     may = may_map.get(yc.may_id) or {}
     row.may_ma, row.may_ten = may.get("ma"), may.get("ten")
@@ -288,6 +289,7 @@ def _row_yeu_cau(yc, may_map: dict, anh_tk: dict, phieu_map: dict) -> YeuCauRow:
     phieu = phieu_map.get(yc.phieu_id) if yc.phieu_id else None
     if phieu:
         row.phieu_ma, row.phieu_trang_thai = phieu["ma"], phieu["trang_thai"]
+    row.lsx_ma = lsx_map.get(yc.lsx_id) if yc.lsx_id else None
     return row
 
 
@@ -296,6 +298,7 @@ def _mot_yeu_cau(svc: KyThuatMayService, yc) -> YeuCauRow:
         yc, svc.may_map([yc.may_id]),
         svc.repo.anh_thong_ke(LOAI_PHIEU_YEU_CAU, [yc.id]),
         svc.repo.ma_sua_chua_map([yc.phieu_id] if yc.phieu_id else []),
+        svc.repo.ma_lsx_map([yc.lsx_id]),
     )
 
 
@@ -348,8 +351,9 @@ def list_yeu_cau(
     may_map = svc.may_map([r.may_id for r in rows])
     anh_tk = svc.repo.anh_thong_ke(LOAI_PHIEU_YEU_CAU, [r.id for r in rows])
     phieu_map = svc.repo.ma_sua_chua_map([r.phieu_id for r in rows])
+    lsx_map = svc.repo.ma_lsx_map([r.lsx_id for r in rows])
     return YeuCauListOut(
-        items=[_row_yeu_cau(r, may_map, anh_tk, phieu_map) for r in rows],
+        items=[_row_yeu_cau(r, may_map, anh_tk, phieu_map, lsx_map) for r in rows],
         total=total, page=page, size=size,
         dem=svc.dem_yeu_cau(**loc),
     )
@@ -476,7 +480,7 @@ def list_bao_tri(
     _: BtReader,
     q: str | None = Query(default=None),
     may_id: int | None = Query(default=None),
-    # Nhận cả `can_lam` / `qua_han` — hai bộ lọc dẫn xuất, xem `repo.list_bao_tri`.
+    # Nhận cả `can_lam` · `qua_han` · `hom_nay` · `sap_toi` — bộ lọc dẫn xuất, xem `repo.list_bao_tri`.
     trang_thai: str | None = Query(default=None),
     # dinh_ky | dot_xuat
     loai: str | None = Query(default=None, pattern="^(dinh_ky|dot_xuat)$"),

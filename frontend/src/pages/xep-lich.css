@@ -2015,8 +2015,8 @@
 .xl-tt {
   padding: 3px 10px;
   border-radius: var(--r-pill);
-  background: var(--steel-soft);
-  color: var(--steel);
+  background: var(--tt-slate-bg);
+  color: var(--tt-slate-fg);
   font-size: 11px;
   font-weight: 600;
   display: inline-flex;
@@ -2038,11 +2038,12 @@
   100% { opacity: 0.4; transform: scale(0.9); }
 }
 
-.xl-tt--da_phat_hanh { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
-.xl-tt--da_dong { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+/* Cùng màu trạng thái lệnh với Kế hoạch SX (`khsx-pill--*`). */
+.xl-tt--da_phat_hanh { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.xl-tt--da_dong { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
 .xl-thanh--dong { filter: grayscale(1); opacity: .6; }
-.xl-tt--san_sang { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
-.xl-tt--da_lap_ke_hoach { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.xl-tt--san_sang { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.xl-tt--da_lap_ke_hoach { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
 
 /* Timeline Banner / Strip */
 .xl-timeline-strip {
@@ -2689,10 +2690,11 @@
   border-radius: var(--r-pill);
   cursor: help;
 }
-.xl-c-tt--cho { color: #64748b; background: #f8fafc; border: 1px solid #e2e8f0; }
-.xl-c-tt--chay { color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; }
-.xl-c-tt--dung { color: #b45309; background: #fffbeb; border: 1px solid #fde68a; }
-.xl-c-tt--xong { color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; }
+/* Trạng thái bước — cùng màu với Thực hiện SX (`thsx-tt--*`): chờ cyan · chạy lá · dừng vàng · xong slate. */
+.xl-c-tt--cho { background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); }
+.xl-c-tt--chay { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.xl-c-tt--dung { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.xl-c-tt--xong { background: var(--tt-slate-bg); color: var(--tt-slate-fg); }
 
 /* Hai dòng KẾ HOẠCH / THỰC TẾ của một bước. Cột nhãn RỘNG CỐ ĐỊNH để hai dòng thẳng hàng — lệch
    một pixel là mắt phải dò lại từ đầu mỗi lần so. Số dùng `tabular-nums` cùng lý do. */

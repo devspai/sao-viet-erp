@@ -1,26 +1,32 @@
-/** Màn PHIẾU CHI (đặc tả PC-1 … PC-6, A.16 – A.18) — màn đầu tiên dựng trên bộ khung chung kế toán.
+/** Màn PHIẾU CHI (đặc tả PC-1 … PC-6, A.16 – A.18) — khuôn lưới danh sách chung `lds-*`, giống các
+ *  danh sách Kinh doanh (08/10/2026).
  *
- *  Khuôn trang: đầu trang (tiêu đề + một câu + nút rust) → hàng thẻ lọc → thanh lọc (ô tìm, thanh lọc
- *  chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày chi + điều kiện, "n phiếu") → bảng + chân phân trang. Bấm dòng mở ngăn chi tiết bên phải.
- *  Mọi lọc chạy ở MÁY CHỦ; số trên thẻ lọc (`the_loc`) tính theo kỳ + bộ lọc, KHÔNG theo thẻ đang chọn.
+ *  Khuôn trang: đầu trang (tiêu đề + nút "Lập phiếu chi") → thẻ lọc (hàng lọc nhanh trạng thái có số;
+ *  ô tìm, thanh lọc chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày chi + điều kiện; nút Cột) → lưới kiểu
+ *  bảng tính + dòng Cộng + chân phân trang. Bấm dòng mở ngăn chi tiết kiểu 3 bên phải. Mục "Gia công
+ *  chờ chi" thay cả bảng (chỉ hiện khi có việc).
+ *  Mọi lọc chạy ở MÁY CHỦ; số trên hàng lọc nhanh (`the_loc`) tính theo kỳ + bộ lọc, KHÔNG theo mục đang chọn.
  *
  *  ⚠️ TIỀN THẬT: lập phiếu chi = tiền đã rời két, không sửa được — sai thì hủy (có lý do) rồi lập lại.
  */
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError, api, type GiaCongChoChi, type PaymentVoucherRow } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
+import { Button } from "../../../components/Button";
+import {
+  ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, xepCot, type MucLocNhanh,
+} from "../../../components/LuoiDs";
 import { VOUCHER_PAGE_LABEL } from "../../../constants/features";
 import { GoiYPhim } from "../shared/BangPhieu";
-import { vietSo } from "../shared/dinhDang";
-import { TheLoc, type TheLocMuc } from "../shared/TheLoc";
-import { theLocSo, useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
+import { soPhieuCong } from "../shared/PhieuGon";
+import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { HangChoGiaCong } from "./components/HangChoGiaCong";
 import { VouchersDrawer } from "./components/VouchersDrawer";
-import { VouchersTable } from "./components/VouchersTable";
+import { COT_PHIEU_CHI, VouchersTable } from "./components/VouchersTable";
 import { LapPhieuChiGiaCongModal } from "./modals/LapPhieuChiGiaCongModal";
 import { StandaloneVoucherDialog } from "./modals/StandaloneVoucherDialog";
 import { PAGE_SIZE } from "./shared/list-constants";
@@ -103,67 +109,70 @@ export function PaymentVouchersPage({
     onSuKien: taiGc,
   };
   const sp = useTrangPhieu(cauHinh, token, eventTick, focusQuery);
+  const moDonMua = coXemDonMua ? (code: string) => navigate("ke-toan-don-mua-hang", { focusRequestCode: code }) : undefined;
   const { the, setThe, loc, rows, mo, setMo, load } = sp;
-  const { soThe, soTheCung } = sp;
-  const muc = useMemo<TheLocMuc[]>(() => {
-    const chung = theLocSo(soThe, soTheCung, { nhanXong: "Đã chi", phuThieu: "chưa có hoá đơn hoặc biên nhận" });
-    return [
-      chung.tatCa,
-      chung.xong,
-      chung.thieu,
-      {
-        id: "gc",
-        nhan: "Gia công chờ chi",
-        cham: "amber",
-        // Gia công không có đơn giá (chủ chốt 07/10/2026) ⇒ thẻ đếm việc, không cộng tiền.
-        so: gc == null ? "—" : `${gc.length} việc`,
-        phu: gc == null ? undefined : "đã chốt chờ chi",
-      },
-      chung.daHuy,
-    ];
-  }, [soThe, soTheCung, gc]);
-  // Trạng thái trong nút Lọc = các thẻ có bảng ("Gia công chờ chi" thay cả bảng nên không vào).
+  const { soThe } = sp;
+  const muc = useMemo<MucLocNhanh[]>(() => [
+    { key: "tat_ca", label: "Tất cả", count: soThe?.tat_ca },
+    { key: "xong", label: "Đã chi", mau: "la", count: soThe?.xong },
+    { key: "thieu", label: "Thiếu chứng từ gốc", mau: "vang", count: soThe?.thieu_chung_tu },
+    // Gia công không có đơn giá (chủ chốt 07/10/2026) ⇒ mục đếm việc, không cộng tiền. Không có việc
+    // (hoặc đang tải) thì ẩn — trừ khi đang đứng ở mục đó (vd mở từ link) hoặc tải LỖI: lỗi thì mục vẫn
+    // hiện (không số) để bấm vào thấy câu lỗi, việc chờ chi không lặng lẽ biến mất.
+    ...(the !== "gc" && !gcLoi && (gc?.length ?? 0) === 0
+      ? []
+      : [{ key: "gc", label: "Gia công chờ chi", mau: "cam" as const, count: gc?.length }]),
+    { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
+  ], [soThe, gc, gcLoi, the]);
+  // Trạng thái trong nút Lọc = các tab có bảng ("Gia công chờ chi" thay cả bảng nên không vào).
   const dieuKien = useMemo(
     () => [
-      dkTrangThaiPhieu({ muc: muc.filter((m) => m.id !== "gc"), n: soThe, dang: the, dat: (id) => setThe(id as TheLocPC) }),
+      dkTrangThaiPhieu({
+        muc: muc.filter((m) => m.key !== "gc").map((m) => ({ id: m.key, nhan: m.label })),
+        n: soThe, dang: the, dat: (id) => setThe(id as TheLocPC),
+      }),
       ...dieuKienPhieu(CAU_HINH_LOC_PC, sp.taiKhoan),
     ],
     [muc, soThe, the, setThe, sp.taiKhoan],
   );
+  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
+  const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
+  const [cotAn, setCotAn] = useCotAn(MAN);
+  const [thuTu, setThuTu] = useThuTuCot(MAN);
+  const cotHien = xepCot(COT_PHIEU_CHI, thuTu).filter((c) => !cotAn.has(c.key));
 
   return (
-    <main className="kt-trang">
-      <header className="kt-ph">
-        <div>
-          <h1>{VOUCHER_PAGE_LABEL}</h1>
-          <p>Sổ tiền ra: mọi phiếu chi tiền mặt và chuyển khoản.</p>
+    <main className="kt-trang lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">{VOUCHER_PAGE_LABEL}</h1>
+        <div className="lds-dau__nut">
+          {coLap && (
+            <Button variant="accent" onClick={() => setLapRoi(true)}>
+              <Plus size={15} aria-hidden="true" /> Lập phiếu chi
+            </Button>
+          )}
         </div>
-        {coLap && (
-          <div className="kt-ph__nut">
-            <button type="button" className="kt-btn kt-btn--chinh" onClick={() => setLapRoi(true)}>
-              <Plus size={16} aria-hidden="true" />
-              Lập phiếu chi
-            </button>
-          </div>
-        )}
       </header>
 
-      <TheLoc muc={muc} dangChon={the} onChon={(id) => setThe(id as TheLocPC)} />
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={muc} dang={the} onChon={(k) => setThe(k as TheLocPC)} />
+        {/* Mục "Gia công chờ chi" không có bảng phiếu ⇒ ô tìm, bộ lọc và nút Cột không áp vào, ẩn đi. */}
+        {the !== "gc" && (
+          <div className="lds-loc__thanh tl-thanh" role="search">
+            <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nhận, lý do, mã đơn"
+              ariaLabel="Tìm phiếu chi" />
+            <ThanhLoc ky={sp.ky} moc={MOC_PC} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
+            <ChonCot cot={COT_PHIEU_CHI} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          </div>
+        )}
+      </section>
 
       {the === "gc" ? (
         <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} />
       ) : (
         <>
-          <div className="kt-tb tl-thanh">
-            <label className="kt-tim">
-              <Search size={16} aria-hidden="true" />
-              <input aria-label="Tìm phiếu chi" placeholder="Tìm mã phiếu, người nhận, nội dung, mã đơn mua" value={sp.tim}
-                onChange={(e) => sp.setTim(e.target.value)} />
-            </label>
-            <ThanhLoc ky={sp.ky} moc={MOC_PC} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
-            <span className="kt-tb__dem">{`${vietSo(sp.tong)} phiếu`}</span>
-          </div>
           <VouchersTable
+            cot={cotHien}
             rows={rows}
             loading={sp.loading}
             loi={sp.loi}
@@ -173,11 +182,14 @@ export function PaymentVouchersPage({
             coLoc={dangLoc(the, loc, sp.timTre)}
             onBoLoc={sp.boLoc}
             onLap={coLap ? () => setLapRoi(true) : undefined}
+            onMoDonMua={moDonMua}
             trang={sp.page}
             size={sp.size}
             tong={sp.tong}
             onTrang={sp.datTrang}
             onSize={sp.setSize}
+            tongTien={sp.tongTien}
+            soXong={soXong}
           />
           <GoiYPhim />
         </>
@@ -192,7 +204,7 @@ export function PaymentVouchersPage({
           xuong={sp.xuong}
           onDong={() => setMo(null)}
           onDoi={load}
-          onMoDonMua={coXemDonMua ? (code) => navigate("ke-toan-don-mua-hang", { focusRequestCode: code }) : undefined}
+          onMoDonMua={moDonMua}
           onMoPhieuThu={(code) => navigate("ke-toan-phieu-thu", { focusReceiptQuery: code })}
           onMoYeuCau={coXemYeuCau ? (code) => navigate("yeu-cau-mua-hang", { focusRequestCode: code }) : undefined}
         />

@@ -1,31 +1,108 @@
-/** Bảng danh sách phiếu thu (đặc tả PT-1, A.9, A.10, A.12, A.13) — đối xứng bảng Phiếu chi.
- *
- *  Cột theo thứ tự đọc: thu của ai — bao nhiêu — xong chưa — vì đâu — khi nào — mã phiếu. Mẩu thông
- *  tin đứng cạnh nhau KHÔNG nối bằng "·" hay dấu phẩy: mẩu loại là thẻ nhỏ, còn lại chữ thường.
- *  Mã nguồn là link khi người xem mở được nơi đó (`moNguon`); bấm link không mở ngăn phiếu.
+/** Bảng danh sách phiếu thu — khuôn lưới danh sách chung `lds-*` (giống các danh sách Kinh doanh,
+ *  đối xứng bảng Phiếu chi): Số phiếu — Ngày thu — Người nộp tiền — Lý do nộp — Thu theo — Hình thức —
+ *  Số tiền — Trạng thái — Ngày tạo — Ghi chú, cuối bảng dòng Cộng phiếu đã thu (số máy chủ cộng trên cả bộ lọc).
+ *  Cột do người xem ẩn / đổi chỗ nên trang truyền vào `cot` (đã xếp + lọc); ô vẽ theo khoá cột.
+ *  Mẩu thông tin đứng cạnh nhau KHÔNG nối bằng "·" hay dấu phẩy: nhãn loại là thẻ nhỏ.
+ *  Mã nguồn là nút khi người xem mở được nơi đó (`moNguon`); bấm nút không mở ngăn phiếu.
+ *  Dòng đi được bằng bàn phím (↑ ↓ chuyển, Enter mở).
  */
-import { ChevronRight } from "lucide-react";
-
 import type { PaymentReceiptRow } from "../../../../api/client";
+import { EmptyRow } from "../../../../components/EmptyState";
+import { CuonLuoi, ChipTT, rongLuoi, soCotGhim, soVN, type CotLuoi } from "../../../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import { BangRong, TheDienThoai, ThieuChungTu, diChuyen, lopDong } from "../../shared/BangPhieu";
-import { Cum, TheNho } from "../../shared/Cum";
-import { ngay, ngayGio, tien, vietSo } from "../../shared/dinhDang";
+import { diChuyen } from "../../shared/BangPhieu";
+import { ngay, ngayGio } from "../../shared/dinhDang";
+import { soPhieu } from "../../shared/LuoiGon";
 import { STATUS_META } from "../shared/constants";
 import { methodText, sourceCode, sourceLabel } from "../shared/helpers";
 
-/** Pill trạng thái + dòng "Thiếu chứng từ" (chỉ phiếu đã thu mới cần chứng từ). */
-export function TrangThaiPhieuThu({ row, gon }: { row: PaymentReceiptRow; gon?: boolean }) {
-  const tt = STATUS_META[row.status];
-  return (
-    <>
-      <span className={`kt-tt kt-tt--${tt.mau}`}>{tt.label}</span>
-      {!gon && row.status === "received" && row.attachment_count === 0 && <ThieuChungTu />}
-    </>
-  );
+export interface CotPhieuThu extends CotLuoi {
+  w?: number;
+  n?: boolean;
+}
+
+/** Cột Lý do nộp rộng 220 và Số tiền 136 (đủ số tới chục tỷ); cột cuối (Ghi chú) co giãn. */
+export const COT_PHIEU_THU: CotPhieuThu[] = [
+  { key: "so", label: "Số phiếu", coDinh: true, w: 100 },
+  { key: "ngay_thu", label: "Ngày thu", w: 104 },
+  { key: "nguoi_nop", label: "Người nộp tiền", w: 170 },
+  { key: "ly_do", label: "Lý do nộp", w: 220 },
+  { key: "thu_theo", label: "Thu theo", w: 190 },
+  { key: "hinh_thuc", label: "Hình thức", w: 112 },
+  { key: "so_tien", label: "Số tiền", n: true, w: 136 },
+  { key: "trang_thai", label: "Trạng thái", w: 112 },
+  { key: "ngay_tao", label: "Ngày tạo", w: 104 },
+  { key: "ghi_chu", label: "Ghi chú" },
+];
+
+/** Màu chip của từng trạng thái (bộ `--tt-*`, mỗi trạng thái một sắc). */
+const MAU_TRANG_THAI = { xanh: "la", amber: "cam", xam: "xam" } as const;
+
+function OPhieuThu({ cot, row, moNguon }: {
+  cot: string;
+  row: PaymentReceiptRow;
+  moNguon?: (row: PaymentReceiptRow) => (() => void) | undefined;
+}) {
+  switch (cot) {
+    case "so":
+      return <td title={soPhieu(row)}>{soPhieu(row)}</td>;
+    case "ngay_thu":
+      return <td>{ngay(row.receipt_date)}</td>;
+    case "nguoi_nop":
+      return <td title={row.payer_name || undefined}>{row.payer_name || "—"}</td>;
+    case "ly_do":
+      return <td title={row.content || undefined}>{row.content}</td>;
+    case "thu_theo": {
+      const ma = sourceCode(row);
+      const mo = ma ? moNguon?.(row) : undefined;
+      // Ô hẹp: mã dài bị "…" cắt thì chữ nổi giữ đủ nhãn + mã.
+      return (
+        <td title={[sourceLabel(row), ma].filter(Boolean).join(" ")}>
+          <span className="lds-tag">{sourceLabel(row)}</span>
+          {ma && " "}
+          {ma && (mo ? (
+            <button type="button" className="lds-lk"
+              onClick={(e) => {
+                e.stopPropagation();
+                mo();
+              }}
+              onKeyDown={(e) => e.stopPropagation()}>
+              {ma}
+            </button>
+          ) : (
+            <span className="lds-mu">{ma}</span>
+          ))}
+        </td>
+      );
+    }
+    case "hinh_thuc":
+      return <td>{methodText(row)}</td>;
+    case "so_tien": {
+      const ngoaiTe = row.currency !== "VND"
+        ? `${row.currency} ${soVN(row.amount)} tỷ giá ${soVN(row.exchange_rate)}`
+        : undefined;
+      return <td className="n"><span title={ngoaiTe}>{soVN(row.amount_vnd)}</span></td>;
+    }
+    case "trang_thai": {
+      const tt = STATUS_META[row.status];
+      return <td><ChipTT mau={MAU_TRANG_THAI[tt.mau]}>{tt.label}</ChipTT></td>;
+    }
+    case "ngay_tao":
+      return <td className="lds-mu" title={ngayGio(row.created_at)}>{ngay(row.created_at)}</td>;
+    case "ghi_chu":
+      // Phiếu đã thu mà chưa có chứng từ gốc: nhắc bằng chữ vàng; phiếu hủy / chờ thu chưa đòi chứng từ.
+      return (
+        <td>
+          {row.status === "received" && row.attachment_count === 0 ? <span className="lds-vang">Thiếu chứng từ gốc</span> : null}
+        </td>
+      );
+    default:
+      return <td />;
+  }
 }
 
 export function ReceiptsTable({
+  cot,
   rows,
   loading,
   loi,
@@ -35,13 +112,17 @@ export function ReceiptsTable({
   coLoc,
   onBoLoc,
   onLap,
+  moNguon,
   trang,
   size,
   tong,
   onTrang,
   onSize,
-  moNguon,
+  tongTien,
+  soXong,
 }: {
+  /** Cột đang hiện, đã xếp theo thứ tự người xem chọn. */
+  cot: CotPhieuThu[];
   rows: PaymentReceiptRow[];
   loading: boolean;
   /** Lỗi tải danh sách — bảng rỗng thì nói "không tải được", không nói "chưa có". */
@@ -54,129 +135,101 @@ export function ReceiptsTable({
   onBoLoc: () => void;
   /** Không có = không có quyền lập phiếu ⇒ bảng rỗng không mời lập. */
   onLap?: () => void;
+  /** Cách mở nơi nguồn của một phiếu; undefined = không mở được (thiếu quyền / thu khác). */
+  moNguon?: (row: PaymentReceiptRow) => (() => void) | undefined;
   trang: number;
   size: number;
   tong: number;
   onTrang: (n: number) => void;
   onSize: (n: number) => void;
-  /** Cách mở nơi nguồn của một phiếu; undefined = không mở được (thiếu quyền / thu khác). */
-  moNguon?: (row: PaymentReceiptRow) => (() => void) | undefined;
+  /** Tổng tiền phiếu đã thu theo kỳ + bộ lọc (mọi trang); null = chưa có ⇒ không vẽ dòng Cộng. */
+  tongTien: number | null;
+  /** Số phiếu đã thu khớp với `tongTien`; null = thẻ đang xem không có phiếu đã thu. */
+  soXong: number | null;
 }) {
-  if (rows.length === 0) {
-    return (
-      <BangRong loading={loading} loi={loi} coLoc={coLoc} onTaiLai={onTaiLai} onBoLoc={onBoLoc} onLap={onLap}
-        chuTai="Đang tải danh sách phiếu thu…" chuLoi="Không tải được danh sách phiếu thu."
-        chuChuaCo={
-          <>
-            <b>Chưa có phiếu thu nào trong kỳ này</b>
-            <span>Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu; khoản thu khác lập ở đây.</span>
-          </>
-        }
-        nutLap="Lập phiếu thu" />
-    );
-  }
-
+  const viTriTien = cot.findIndex((c) => c.key === "so_tien");
   return (
-    <div className="kt-bang" aria-busy={loading || undefined}>
-      <table className="kt-chinh">
-        <colgroup>
-          <col />
-          <col style={{ width: "15%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "17%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "10%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: 36 }} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Thu của</th>
-            <th className="kt-so">Số tiền</th>
-            <th>Trạng thái</th>
-            <th>Nguồn</th>
-            <th>Ngày thu</th>
-            <th>Ngày tạo</th>
-            <th>Mã phiếu</th>
-            <th aria-label="Mở" />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const ma = sourceCode(row);
-            const mo = ma ? moNguon?.(row) : undefined;
-            const lop = lopDong(row.id, dangXem, row.status === "cancelled");
-            return (
-              <tr key={row.id} className={lop} tabIndex={0} onClick={() => onMo(row.id)}
-                onKeyDown={(e) => diChuyen(e, () => onMo(row.id))}>
-                <td>
-                  <span className="kt-ten">{row.payer_name || "—"}</span>
-                  {row.content && <span className="kt-phu" title={row.content}>{row.content}</span>}
-                </td>
-                <td className="kt-so">
-                  <span className="kt-tien">{tien(row.amount_vnd)}</span>
-                  {row.currency !== "VND" ? (
-                    <Cum className="kt-phu">
-                      <TheNho>{`${row.currency} ${vietSo(row.amount)}`}</TheNho>
-                      <span>{`tỷ giá ${vietSo(row.exchange_rate)}`}</span>
-                    </Cum>
-                  ) : (
-                    <span className="kt-phu">{methodText(row)}</span>
-                  )}
-                </td>
-                <td>
-                  <TrangThaiPhieuThu row={row} />
-                </td>
-                <td>
-                  <span>{sourceLabel(row)}</span>
-                  {ma && (mo ? (
-                    <span className="kt-phu">
-                      <button type="button" className="kt-lk"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          mo();
-                        }}
-                        onKeyDown={(e) => e.stopPropagation()}>
-                        {ma}
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="kt-phu">{ma}</span>
-                  ))}
-                </td>
-                <td>{ngay(row.receipt_date)}</td>
-                <td title={ngayGio(row.created_at)}>{ngay(row.created_at)}</td>
-                <td className="kt-ma">{row.code}</td>
-                <td className="kt-mui">
-                  <ChevronRight size={16} aria-hidden="true" />
+    <div className="lds-sheet" aria-busy={loading || undefined}>
+      <CuonLuoi ghim={soCotGhim(cot)}>
+        <table className="lds-g" style={{ minWidth: rongLuoi(cot) }}>
+          <colgroup>
+            {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+          </colgroup>
+          <thead>
+            <tr>{cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {loading && rows.length === 0 ? (
+              <EmptyRow colSpan={cot.length} trangThai="dang-tai" />
+            ) : loi && rows.length === 0 ? (
+              <tr>
+                <td colSpan={cot.length} className="lds-trong">
+                  <span className="lds-do" role="alert">{`Không tải được danh sách phiếu thu. ${loi}`}</span>{" "}
+                  <button type="button" className="lds-lk" onClick={onTaiLai}>Thử lại</button>
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {/* Điện thoại: mỗi dòng một thẻ hai hàng (tên + số tiền; ngày + nguồn + trạng thái). */}
-      <TheDienThoai onMo={onMo} the={rows.map((row) => ({
-        id: row.id,
-        ten: row.payer_name,
-        ma: row.code,
-        soVnd: row.amount_vnd,
-        ngay: row.receipt_date,
-        loai: sourceLabel(row),
-        thieuChungTu: row.status === "received" && row.attachment_count === 0,
-        trangThai: <TrangThaiPhieuThu row={row} gon />,
-      }))} />
-      <PhanTrangDayDu
-        trang={trang}
-        size={size}
-        tong={tong}
-        soDong={rows.length}
-        onTrang={onTrang}
-        onSize={onSize}
-        loading={loading}
-        donVi="phiếu"
-        ariaLabel="Phân trang phiếu thu"
-      />
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={cot.length} className="lds-trong">
+                  {coLoc ? (
+                    <>
+                      Không có phiếu nào khớp điều kiện đang lọc.{" "}
+                      <button type="button" className="lds-lk" onClick={onBoLoc}>Xoá bộ lọc</button>
+                    </>
+                  ) : (
+                    <>
+                      Chưa có phiếu thu nào trong kỳ này. Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu;
+                      khoản thu khác lập ở đây.
+                      {onLap && (
+                        <>
+                          {" "}
+                          <button type="button" className="lds-lk" onClick={onLap}>Lập phiếu thu</button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr key={row.id}
+                  className={`lds-dong${row.id === dangXem ? " is-chon" : ""}${row.status === "cancelled" ? " kt-da-huy" : ""}`}
+                  tabIndex={0} onClick={() => onMo(row.id)} onKeyDown={(e) => diChuyen(e, () => onMo(row.id))}>
+                  {cot.map((c) => <OPhieuThu key={c.key} cot={c.key} row={row} moNguon={moNguon} />)}
+                </tr>
+              ))
+            )}
+            {/* Dòng Cộng: Σ tiền phiếu đã thu của MỌI phiếu khớp bộ lọc (máy chủ cộng), không chỉ trang đang xem. */}
+            {rows.length > 0 && tongTien != null && soXong != null && (
+              <tr className="lds-cong lds-nhom">
+                {/* Cột Số tiền bị ẩn: dòng Cộng vẫn còn, tổng tiền đứng ngay sau nhãn (không mất số phiếu lẫn tiền). */}
+                <td className="lead" colSpan={viTriTien > 0 ? viTriTien : cot.length}>
+                  <span className="lds-dinh-trai">
+                    {`Cộng ${soVN(soXong)} phiếu đã thu`}
+                    {viTriTien < 0 ? <span>{soVN(tongTien)}</span> : null}
+                    <span className="lds-mu3">không tính phiếu đã hủy</span>
+                  </span>
+                </td>
+                {viTriTien > 0 ? <td className="n">{soVN(tongTien)}</td> : null}
+                {viTriTien > 0 && cot.length - viTriTien - 1 > 0 ? <td colSpan={cot.length - viTriTien - 1} /> : null}
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </CuonLuoi>
+      {!loi && tong > 0 && (
+        <PhanTrangDayDu
+          trang={trang}
+          size={size}
+          tong={tong}
+          soDong={rows.length}
+          onTrang={onTrang}
+          onSize={onSize}
+          loading={loading}
+          donVi="phiếu"
+          ariaLabel="Phân trang phiếu thu"
+        />
+      )}
     </div>
   );
 }

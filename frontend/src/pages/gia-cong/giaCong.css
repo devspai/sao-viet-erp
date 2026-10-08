@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   margin: 12px 0 1rem;
-  padding: 16px 18px;
+  padding: 12px 16px;
   background: #ffffff;
   border: 1px solid var(--rule-soft, #e2e8f0);
   border-radius: 12px;
@@ -15,11 +15,11 @@
 .gcn__lan {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
   min-width: 0;
 }
 .gcn__ten-khoi {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -27,8 +27,8 @@
   color: var(--ash, #64748b);
 }
 .gcn__lan + .gcn__lan {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid var(--rule-hair, #f1f5f9);
 }
 
@@ -36,14 +36,15 @@
 .gcn__dau {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px 16px;
+  gap: 8px 16px;
 }
 .gcn__tieu-de { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .gcn__tieu-de-dong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.gcn__viec { font-size: 15px; font-weight: 600; color: var(--ink, #0f172a); overflow-wrap: anywhere; }
-.gcn__dau-nut { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gcn__viec { font-size: 14px; font-weight: 600; color: var(--ink, #0f172a); overflow-wrap: anywhere; }
+.gcn__dau-nut { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gcn__dau-nut .btn { min-height: 32px; height: 32px; padding: 0 12px; font-size: 13px; }
 .gcn__nut-huy { color: var(--signal, #8a1f1f); }
 .gcn__o-so {
   width: 10rem;
@@ -55,7 +56,8 @@
 }
 .gcn__o-so:focus { outline: none; border-color: var(--rust, #c5400a); }
 
-/* Chip trạng thái — CÓ màu chữ. Hổ phách = hàng đang ở ngoài, thép = chờ mang đi, rêu = đã về. */
+/* Chip trạng thái — bộ chip chung --tt-* (tokens.css): chàm = chờ mang đi, ngọc = đang ở nhà gia
+   công, lá = đã về, xám = đã huỷ. Cùng màu với cột Tình trạng ở Theo dõi SX theo máy. */
 .gcn__tt {
   display: inline-flex;
   align-items: center;
@@ -64,13 +66,13 @@
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
-  background: var(--steel-soft, #dde1e5);
-  color: var(--steel, #4a5560);
+  background: var(--tt-cham-bg);
+  color: var(--tt-cham-fg);
 }
 .gcn__tt--dang_o_ngoai,
-.gcn__tt--dang_gia_cong { background: var(--amber-soft, #efe4c4); color: var(--amber-deep, #7a5c0f); }
-.gcn__tt--da_xong { background: var(--moss-soft, #dbe7dd); color: var(--moss, #2f5d3a); }
-.gcn__tt--da_huy { background: var(--rule-hair, #f1f5f9); color: var(--ash, #64748b); }
+.gcn__tt--dang_gia_cong { background: var(--tt-ngoc-bg); color: var(--tt-ngoc-fg); }
+.gcn__tt--da_xong { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.gcn__tt--da_huy { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
 
 .gcn__phu-dong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .gcn__the {
@@ -85,49 +87,49 @@
 .gcn__phu { font-size: 12.5px; color: var(--ash, #64748b); overflow-wrap: anywhere; }
 .gcn__phu--chu-y { color: var(--amber-deep, #7a5c0f); }
 
-/* --- Thanh tiến độ chia đoạn ---------------------------------------------------------------- */
-.gcn__tiendo {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* --- Dãy chấm mốc cạnh chip trạng thái: xanh = đã qua, hổ phách có quầng = đang ở, xám = chưa tới.
+   Tên mốc nằm trong aria-label; lúc nào, ai nằm ở hàng thông tin bên dưới. ---------------------- */
+.gcn__moc { display: inline-flex; align-items: center; gap: 0; margin: 0 0 0 2px; padding: 0; list-style: none; }
+.gcn__moc-cham { width: 7px; height: 7px; border-radius: 50%; background: var(--rule, #cbd5e1); }
+.gcn__moc-cham + .gcn__moc-cham { margin-left: 16px; position: relative; }
+.gcn__moc-cham + .gcn__moc-cham::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 9px;
+  width: 14px;
+  height: 1px;
+  background: var(--rule, #cbd5e1);
 }
-.gcn__doan { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.gcn__doan-thanh {
-  display: block;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--rule-soft, #e2e8f0);
-}
-.gcn__doan--xong .gcn__doan-thanh { background: var(--moss, #2f5d3a); }
-.gcn__doan--dang .gcn__doan-thanh { background: var(--amber, #9c7714); }
-.gcn__doan-nhan { font-size: 12.5px; font-weight: 600; color: var(--ink, #0f172a); }
-.gcn__doan--cho .gcn__doan-nhan { color: var(--ash, #64748b); font-weight: 500; }
-.gcn__doan--dang .gcn__doan-nhan { color: var(--amber-deep, #7a5c0f); }
-.gcn__doan-phu { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--ash, #64748b); }
+.gcn__moc-cham--xong { background: var(--moss, #2f5d3a); }
+.gcn__moc-cham--dang { background: var(--amber, #9c7714); box-shadow: 0 0 0 3px var(--amber-soft, #efe4c4); }
 
-/* --- Hàng cặp nhãn–giá trị ------------------------------------------------------------------ */
+/* --- Danh sách chi tiết hai cột (khối Details của Stripe): nhãn xám bề rộng cố định, giá trị cùng
+   hàng, chữ 13px thường — không in đậm cỡ tiêu đề. ---------------------------------------------- */
 .gcn__dl {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 12px 24px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
   margin: 0;
-  padding-top: 14px;
+  padding-top: 4px;
   border-top: 1px solid var(--rule-hair, #f1f5f9);
 }
-.gcn__dl-o { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.gcn__dl-o dt { font-size: 11.5px; color: var(--ash, #64748b); }
-.gcn__dl-o dd { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gcn__dl-o {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  min-width: 0;
+}
+.gcn__dl-o dt { font-size: 12.5px; color: var(--ash, #64748b); }
+.gcn__dl-o dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .gcn__gt {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 8px;
-  font-size: 14px;
-  font-weight: 600;
+  gap: 2px 4px;
+  font-size: 13px;
   color: var(--ink, #0f172a);
   overflow-wrap: anywhere;
 }
@@ -142,6 +144,12 @@
   text-decoration: none;
 }
 .gcn__goi:hover { text-decoration: underline; }
+/* Mã chứng từ là chữ bấm được, không phải nút: bỏ chiều cao 44px mà luật chạm trên điện thoại ép cho
+   mọi <button> — giữ nó thì mỗi mã đội cả hàng lên gấp ba. */
+button.gcn__goi { min-height: 0; height: auto; padding: 2px 0; border: 0; background: none; font: inherit; font-size: 12.5px; cursor: pointer; }
+/* Ngăn chứng từ kho đẩy ra body (ChungTuKhoNoi) — nằm trên ngăn lệnh / bài ghép. */
+.gcn-chung-tu-lop { position: fixed; inset: 0; z-index: 70; }
+.gcn-chung-tu-lop:focus { outline: none; }
 
 /* --- Form nhận hàng về: một hàng, mọi ô cao 36px, nút dồn phải ------------------------------ */
 .gcn__chot {
@@ -196,6 +204,9 @@
 .gcn__chia { flex-basis: 100%; font-size: 13px; }
 
 /* --- Lịch sử ---------------------------------------------------------------------------------- */
+/* Hàng chân: Lịch sử và Đã huỷ nằm cạnh nhau; cái nào mở ra thì chiếm trọn hàng. */
+.gcn__chan { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 18px; }
+.gcn__chan > details[open] { flex-basis: 100%; }
 .gcn__lichsu summary {
   width: fit-content;
   cursor: pointer;
@@ -222,8 +233,9 @@
   padding-top: 12px;
   border-top: 1px solid var(--rule-hair, #f1f5f9);
 }
-/* Không còn lần nào đang chạy ⇒ danh sách huỷ đứng ngay dưới tên khối, khỏi kẻ ngăn. */
-.gcn__da-huy--mot-minh { margin-top: 0; padding-top: 0; border-top: 0; }
+/* Không còn lần nào đang chạy, hoặc nằm trong hàng chân ⇒ khỏi kẻ ngăn. */
+.gcn__da-huy--mot-minh,
+.gcn__chan > .gcn__da-huy { margin-top: 0; padding-top: 0; border-top: 0; }
 .gcn__da-huy summary {
   width: fit-content;
   cursor: pointer;
@@ -357,7 +369,7 @@
 @media (max-width: 640px) {
   .gcn { padding: 14px; }
   .gcn__dau-nut { width: 100%; }
-  .gcn__tiendo { grid-auto-flow: row; }
+  .gcn__dl { grid-template-columns: minmax(0, 1fr); }
   .gcn__chot-nut { margin-left: 0; }
   .gcn__lichsu li,
   .gcn__da-huy li { grid-template-columns: 1fr; gap: 0; }

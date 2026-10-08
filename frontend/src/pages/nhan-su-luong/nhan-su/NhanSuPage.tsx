@@ -225,9 +225,6 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
               chữ thường 15px. */}
           <p className="eyebrow">Nhân sự &amp; Lương</p>
           <h1 className="ns__title">Hồ sơ nhân sự</h1>
-          <p className="ns__sub">
-            Phòng Hành chính nhân sự · quản lý hồ sơ, quá trình công tác
-          </p>
         </div>
         <div className="ns2__headact">
           {/* Vai PHỤ → ghost. Cùng hệ `.btn` với nút cam bên cạnh nên hai nút bằng chiều cao;

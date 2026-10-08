@@ -15,9 +15,9 @@ export const STATUS_CLASS: Record<string, string> = {
   probation: "ns-badge--warn",
   probation_ended: "ns-badge--due",
   active: "ns-badge--ok",
-  on_leave: "ns-badge--info",
-  suspended: "ns-badge--muted",
-  resigned: "ns-badge--danger",
+  on_leave: "ns-badge--tim",
+  suspended: "ns-badge--danger",
+  resigned: "ns-badge--gray",
 };
 export const GENDER_LABEL: Record<string, string> = {
   male: "Nam",

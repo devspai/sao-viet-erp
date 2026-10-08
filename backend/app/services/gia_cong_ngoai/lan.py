@@ -19,7 +19,7 @@ from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import thuc_te_hien_thi
 from ..san_xuat.san_luong import he_so_nhanh_toa
 from . import trang_thai
-from .tron_goi import goi_y_cap_giay
+from .tron_goi import goi_y_cap_giay, ly_do_khong_nhan_ve
 
 
 def _f(v) -> float | None:
@@ -498,15 +498,16 @@ def lan_dict(db: Session, gcn, *, _cache: dict | None = None) -> dict:
              "viec": tra(a.action).nhan, "chi_tiet": a.detail or ""}
             for a in AuditLogRepository(db).list_by_target(f"gia_cong_ngoai:{gcn.id}", limit=50)
         ],
-        "xuat_giay": _xuat_giay(xuat),
+        "xuat_giay": _xuat_giay(xuat, repo),
         "cap_giay": goi_y_cap_giay(db, gcn, co_xuat=bool(xuat)),
+        "ly_do_khong_nhan_ve": ly_do_khong_nhan_ve(repo, gcn, xuat),
         "version": gcn.version,
     }
 
 
-def _xuat_giay(xuat: list) -> dict | None:
+def _xuat_giay(xuat: list, repo: GiaCongNgoaiRepository) -> dict | None:
     """Đề nghị xuất giấy còn sống + khổ / số tờ của dòng giấy — ô Giấy hiện thẻ khổ, số tờ, trạng
-    thái kho và mã đề nghị."""
+    thái kho, mã đề nghị và các phiếu xuất kho đã lập theo nó (bấm mở được)."""
     if not xuat:
         return None
     r = xuat[0]
@@ -515,7 +516,9 @@ def _xuat_giay(xuat: list) -> dict | None:
             "kho_rong": int(ln.kho_rong or 0) if ln is not None else 0,
             "kho_dai": int(ln.kho_dai or 0) if ln is not None else 0,
             "so_to": _f(ln.sl_de_nghi) if ln is not None else None,
-            "don_vi": ln.dvt if ln is not None else None}
+            "don_vi": ln.dvt if ln is not None else None,
+            "phieu": [{"id": v.id, "ma": v.ma, "ngay": v.ngay, "trang_thai": v.trang_thai}
+                      for v in repo.phieu_cua_yeu_cau(r.id)]}
 
 
 def _lan_huy_gon(gcn, *, lsx_ma: str, ten: dict) -> dict:

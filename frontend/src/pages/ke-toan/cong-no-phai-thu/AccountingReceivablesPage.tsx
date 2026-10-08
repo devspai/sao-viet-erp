@@ -1,16 +1,16 @@
 /** Màn CÔNG NỢ PHẢI THU (đặc tả NPTh-1 … NPTh-3, A.11, A.17, A.18) — dựng trên bộ khung chung kế toán,
  *  cùng khuôn màn Công nợ phải trả.
  *
- *  Khuôn trang: đầu trang → khối TỔNG QUAN (Còn nợ tới cuối kỳ, quá hạn, bán thêm, đã thu + thanh
- *  tuổi nợ bấm được) → thanh lọc (nhóm nút có số, ô tìm, thanh lọc chung: kỳ + điều kiện, "n khách
- *  hàng") → bảng + chân phân trang. Bấm dòng mở ngăn khách hàng; bấm số Quá hạn / Đã thu mở ngăn đúng
- *  chỗ đó. Mọi lọc chạy ở MÁY CHỦ. Nợ tính theo từng HOÁ ĐƠN bán.
+ *  Khuôn trang (phương án A, 07/10/2026): tiêu đề + dải tab có số — ô tìm, thanh lọc chung → "Còn
+ *  nợ tới …" + "Xem cột" (Tuổi nợ | Trong kỳ và liên hệ, bộ sau có thêm cột Phụ trách) → lưới kiểu
+ *  bảng tính, dòng Cộng đầu bảng → chân phân trang. Bấm dòng mở ngăn khách hàng; bấm số quá hạn / thu
+ *  trong kỳ mở ngăn đúng chỗ đó. Mọi lọc chạy ở MÁY CHỦ. Nợ tính theo từng HOÁ ĐƠN bán.
  *
  *  ⚠️ LUẬT SỐNG CÒN: im lặng không được đồng nghĩa với hết nợ. Tải hỏng thì để TRỐNG và nói rõ,
  *  KHÔNG hiện 0 đ.
  *
- *  Thân trang (tổng quan, thanh lọc, bảng, thẻ điện thoại, phân trang) là khuôn chung `ThanTrangCongNo`
- *  — màn phải trả dùng cùng; màn này chỉ khai chữ, bốn số tổng quan và cách đọc trường.
+ *  Thân trang là khuôn chung `ThanTrangCongNo` — màn phải trả dùng cùng; màn này chỉ khai chữ và
+ *  cách đọc trường.
  *
  *  Liên thông từ Phiếu thu (`focusCustomer`, lỗi 11): lần tải ĐẦU đã mang tên khách (không tải thừa
  *  một lượt rỗng), xong thì mở ngăn đúng khách đó — khách không còn trong danh sách (đã thu đủ) vẫn mở
@@ -35,25 +35,24 @@ const MAN = "ke-toan-cong-no-phai-thu";
 
 const CAU_HINH: CauHinhThanCongNo<ReceivableCustomerRow> = {
   tieuDe: "Công nợ phải thu",
-  moTa: "Khách nào đang nợ và hoá đơn nào trễ. Nợ tính theo từng hoá đơn.",
   donVi: "khách hàng",
   nhanDoiTac: "Khách hàng",
-  nhanHan: "Hạn thu gần nhất",
-  nhanThem: "Bán thêm",
-  nhanDa: "Đã thu",
+  nhanKhoan: "Hoá đơn",
+  rongKhoan: 72,
+  nhanThemKy: "Bán trong kỳ",
+  nhanDaKy: "Thu trong kỳ",
   nhanGanNhat: "Thu gần nhất",
-  chuChuaGanNhat: "Chưa thu lần nào",
+  chuChuaGanNhat: "chưa thu lần nào",
   chuHet: "Đã thu hết",
-  donViKhoan: "hoá đơn",
+  coPhuTrach: true,
   nhanTim: "Tìm khách hàng",
-  goiYTim: "Tìm khách hàng, kể cả khách đã thu hết",
+  goiYTim: "Tìm khách hàng, kể cả đã thu hết",
   chuTai: "Đang tải công nợ phải thu…",
   chuLoi: "Không tải được công nợ phải thu.",
   chuChuaCo: "Không còn khách hàng nào nợ",
   ariaPhanTrang: "Phân trang công nợ phải thu",
   id: (r) => r.customer_id,
   ten: (r) => r.customer_name,
-  ma: (r) => r.customer_code,
   choNo: (r) => r.payment_term_days,
   themTrongKy: (r) => r.ban_trong_ky,
   daTraTrongKy: (r) => r.received_in_period,
@@ -162,7 +161,6 @@ export function AccountingReceivablesPage({
     <ThanTrangCongNo
       ch={CAU_HINH}
       sp={sp}
-      so={(d) => ({ conNo: d.total_due, quaHan: d.overdue_amount, them: d.ban_trong_ky, da: d.received_in_period })}
       dieuKien={dieuKien}
       dangXem={open?.id ?? null}
       onMo={mo}

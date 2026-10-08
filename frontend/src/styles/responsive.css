@@ -859,12 +859,6 @@
   .hint-tip__bubble::after {
     display: none !important;
   }
-
-  /* Kế hoạch SX — bảng "Còn thiếu N mục" (có nút "Sửa →" bên trong) mở bằng rê chuột.
-     Thẻ kích hoạt được gắn tabindex trong LsxDetailView.tsx nên chạm vào là focus. */
-  .khsx-topbar__pop-trigger:focus-within .khsx-topbar__popover {
-    display: block;
-  }
 }
 
 /* ===== §29. BẢNG BỊ BÓP → CHỮ RƠI DỌC TỪNG KÝ TỰ ===========================

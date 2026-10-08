@@ -110,6 +110,7 @@ def tien_do_don(db: Session, order) -> dict:
             "giao_thang": n["giao_thang"],
             "dang_giu": n["dang_giu"],
             "con_phai_giao": n["con_phai_giao"],
+            "khach_nhan_du": n["khach_nhan_du"],
             "giao_duoc": n["giao_duoc"],
             "o": (mon_theo_khoa.get(c.khoa) or {}).get("o"),
             "lenh_o": (mon_theo_khoa.get(c.khoa) or {}).get("lenh", []),

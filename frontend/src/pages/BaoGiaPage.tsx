@@ -6,7 +6,6 @@ import {
   useCallback,
   useEffect,
   useState,
-  type FormEvent,
 } from "react";
 import {
   ApiError,
@@ -25,7 +24,24 @@ import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
-import { StatusTabs } from "../components/StatusTabs";
+import {
+  CuonLuoi,
+  soCotGhim,
+  ChipTT,
+  ChonCot,
+  LocNhanhTrangThai,
+  OTim,
+  rongLuoi,
+  TieuDeSapXep,
+  ngayVN,
+  soVN,
+  tenKhachGon,
+  useCotAn,
+  useThuTuCot,
+  xepCot,
+  type CotLuoi,
+  type MauTT,
+} from "../components/LuoiDs";
 import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { DaiKhachHang } from "../components/DaiKhachHang";
@@ -66,7 +82,6 @@ import {
   Printer,
   RefreshCw,
   Save,
-  Search,
   Send,
   Table,
   TriangleAlert,
@@ -121,11 +136,6 @@ function labelOf(options: EnumOption[], value: string | null): string {
   return options.find((o) => o.value === value)?.label ?? value;
 }
 
-function fmtVnd(v: number | null | undefined): string {
-  if (v == null) return "—";
-  return Math.round(v).toLocaleString("vi-VN") + " đ";
-}
-
 function fmtDate(v: string | null): string {
   if (!v) return "—";
   try {
@@ -177,6 +187,10 @@ export function BaoGiaPage({
   const [openId, setOpenId] = useState<number | null>(openQuoteId);
 
   const [stats, setStats] = useState<QuotationStats | null>(null);
+  const [tongGiaBan, setTongGiaBan] = useState(0);
+  const [cotAn, setCotAn] = useCotAn("bao-gia");
+  const [thuTu, setThuTu] = useThuTuCot("bao-gia");
+  const xemDon = useCan()("don_hang_ban", "read");
 
   // Đi từ màn khác tới (phiếu tính giá, CRM, nhật ký): mở thẳng chi tiết.
   useEffect(() => {
@@ -201,6 +215,7 @@ export function BaoGiaPage({
       .then((res) => {
         setRows(res.items);
         setTotal(res.total);
+        setTongGiaBan(res.tong_gia_ban ?? 0);
       })
       .catch((err) => {
         if (err instanceof ApiError && err.isForbidden) setForbidden(true);
@@ -229,12 +244,6 @@ export function BaoGiaPage({
       .catch(() => setEnums(null));
   }, [token]);
 
-  function onSearch(e: FormEvent) {
-    e.preventDefault();
-    setPage(1);
-    load();
-  }
-
   function openDetail(row: QuotationRow) {
     setOpenId(row.id);
   }
@@ -242,7 +251,7 @@ export function BaoGiaPage({
   const statuses = enums?.statuses ?? [];
   // Tab trạng thái đếm số — "Cần xử lý" = nháp + đã gửi chờ khách. Dùng chung cho thanh tab và
   // điều kiện "Trạng thái" trong nút Lọc (đọc/ghi thẳng tab, không đẻ state lọc thứ hai).
-  const tabTrangThai: { key: string; label: string; count?: number; tone?: "alert" }[] = [
+  const tabTrangThai: { key: string; label: string; count?: number; tone?: "alert"; mau?: MauTT }[] = [
     { key: "", label: "Tất cả", count: stats?.total },
     { key: "need_action", label: "Cần xử lý", count: stats?.need_action, tone: "alert" },
     { key: "draft", label: "Soạn", count: stats?.draft },
@@ -253,7 +262,7 @@ export function BaoGiaPage({
     // việc (phải gửi khách), không phải trạng thái nghỉ.
     { key: "approved", label: "Đã duyệt", count: stats?.approved, tone: "alert" },
     { key: "sent", label: "Đã gửi khách", count: stats?.sent },
-    { key: "accepted", label: "Khách chốt", count: stats?.accepted },
+    { key: "accepted", label: "Khách đồng ý", count: stats?.accepted },
     { key: "converted_to_order", label: "Đã lên đơn", count: stats?.converted_to_order },
     { key: "rejected", label: "Từ chối", count: stats?.rejected },
     { key: "expired", label: "Hết hiệu lực", count: stats?.expired },
@@ -271,7 +280,6 @@ export function BaoGiaPage({
     }),
     ...dkRieng,
   ];
-  const nhanMoc = MOC_BG.find(([m]) => m === locMan.ky.moc)?.[1] ?? "Ngày tạo";
 
   if (forbidden) {
     return (
@@ -296,273 +304,354 @@ export function BaoGiaPage({
     );
   }
 
+  // Cột ngày thứ hai chạy theo mốc kỳ (Ngày tạo / Ngày gửi khách); mốc "Hạn hiệu lực" đã có cột
+  // Hiệu lực riêng nên cột này về Ngày tạo.
+  const mocNgay = locMan.ky.moc === "gui" ? "gui" : "tao";
+  const nhanNgay = mocNgay === "gui" ? "Ngày gửi khách" : "Ngày tạo";
+  const hien = (k: string) => !cotAn.has(k);
+  const cotHien = xepCot(COT_BG, thuTu).filter((c) => hien(c.key)).map((c) => (c.key === "ngay" ? { ...c, label: nhanNgay } : c));
+  const viTriGia = cotHien.findIndex((c) => c.key === "gia");
+  const muc = tabTrangThai.map((t) => ({ ...t, mau: t.key ? MAU_TRANG_THAI[t.key] : undefined }));
+
   return (
-    <main className="rdx-quote">
-      <div className="q-pagehead">
-        <div>
-          <p className="q-eyebrow"><span className="sq" />Kinh doanh</p>
-          <h1>Báo giá thương mại</h1>
-          <p className="sub">Giá bán gửi khách — dựng từ phiếu tính giá, cộng markup từng dòng.</p>
+    <main className="rdx-quote lds">
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">Báo giá thương mại</h1>
+        {/* Báo giá LUÔN khởi từ 1 Phiếu tính giá (1 PTG → 1 BG): nút này sang màn Tính giá, ở đó
+            bấm "Báo giá →" để tạo/mở báo giá. */}
+        <div className="lds-dau__nut">
+          <Button variant="accent" onClick={() => navigate?.("tinh-gia")}>
+            <Plus size={15} /> Báo giá mới
+          </Button>
         </div>
-        {/* BG-3/4: báo giá LUÔN khởi từ 1 Phiếu tính giá (1 PTG → 1 BG). Bỏ modal đa-pick cũ — nút
-            này điều hướng sang màn Phiếu tính giá, ở đó bấm "Báo giá →" để tạo/mở báo giá. */}
-        <Button variant="accent" onClick={() => navigate?.("tinh-gia")}>
-          <Plus size={15} /> Báo giá mới
-        </Button>
-      </div>
+      </header>
 
-      <form className="q-toolbar tl-thanh" onSubmit={onSearch} role="search">
-        <div className="q-search">
-          <Search size={15} />
-          <input
-            placeholder="Tìm mã báo giá, khách hàng, sản phẩm…"
+      <section className="lds-loc">
+        <LocNhanhTrangThai muc={muc} dang={statusFilter} onChon={datTrangThai} />
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim
             value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label="Tìm báo giá"
+            onChange={(v) => {
+              setQ(v);
+              setPage(1);
+            }}
+            placeholder="Tìm mã báo giá, khách hàng, sản phẩm"
+            ariaLabel="Tìm báo giá"
           />
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_BG}
+            onKy={(ky) => {
+              // Đổi mốc thì cột ngày cũng đổi — đang xếp theo cột ngày thì xếp theo mốc mới luôn.
+              if (ky.moc !== locMan.ky.moc && Object.values(COT_SAP_THEO_MOC).includes(sort.replace("-", ""))) {
+                setSort(`${sort.startsWith("-") ? "-" : ""}${COT_SAP_THEO_MOC[ky.moc]}`);
+              }
+              setLocMan({ ...locMan, ky });
+            }}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+          />
+          <LocNguoiPhuTrach
+            nap={api.quotations.nguoiPhuTrach}
+            value={nguoi}
+            onChange={(v) => {
+              setNguoi(v);
+              setPage(1);
+            }}
+            donVi="BG"
+          />
+          <ChonCot cot={COT_BG} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
         </div>
-        <Button type="submit" variant="ghost">
-          Tìm
-        </Button>
-        <ThanhLoc
-          ky={locMan.ky}
-          moc={MOC_BG}
-          onKy={(ky) => {
-            // Đổi mốc thì cột ngày cũng đổi — đang xếp theo cột ngày thì xếp theo mốc mới luôn.
-            if (ky.moc !== locMan.ky.moc && Object.values(COT_SAP_THEO_MOC).includes(sort.replace("-", ""))) {
-              setSort(`${sort.startsWith("-") ? "-" : ""}${COT_SAP_THEO_MOC[ky.moc]}`);
-            }
-            setLocMan({ ...locMan, ky });
-          }}
-          dieuKien={dieuKien}
-          loc={locMan.loc}
-          onLoc={(loc) => setLocMan({ ...locMan, loc })}
-        />
-        <LocNguoiPhuTrach
-          nap={api.quotations.nguoiPhuTrach}
-          value={nguoi}
-          onChange={(v) => {
-            setNguoi(v);
-            setPage(1);
-          }}
-          donVi="BG"
-        />
-      </form>
+      </section>
 
-      <div style={{ marginBottom: 14 }}>
-        <StatusTabs
-          tabs={tabTrangThai}
-          active={statusFilter}
-          onChange={datTrangThai}
-        />
-      </div>
-
-      <div className="q-card">
-        <table>
-          <thead>
-            <tr>
-              <th>
-                <SortBtn label="Mã báo giá" col="code" sort={sort} onSort={setSort} />
-              </th>
-              <th>Khách hàng</th>
-              <th>Sản phẩm</th>
-              <th className="num">
-                <SortBtn label="Giá bán gồm VAT" col="total" sort={sort} onSort={setSort} />
-              </th>
-              <th>
-                <SortBtn label="Trạng thái" col="status" sort={sort} onSort={setSort} />
-              </th>
-              <th>Người duyệt</th>
-              <th>
-                <SortBtn label={nhanMoc} col={COT_SAP_THEO_MOC[locMan.ky.moc]} sort={sort} onSort={setSort} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <EmptyRow colSpan={7} trangThai="dang-tai" />
-            ) : listError ? (
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+              ))}
+            </colgroup>
+            <thead>
               <tr>
-                <td colSpan={7}>
-                  <div className="banner banner--error" role="alert" style={{ margin: 14 }}>
-                    <span>{listError}</span>
-                    <button type="button" className="btn btn--ghost" onClick={() => load()}>
+                {cotHien.map((c) => (
+                  <th key={c.key} className={c.n ? "n" : undefined}>
+                    {c.sx ? (
+                      <TieuDeSapXep label={c.label} cot={c.key === "ngay" ? COT_SAP_THEO_MOC[mocNgay] : c.sx} sort={sort} onSort={setSort} />
+                    ) : (
+                      c.label
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {loading && rows.length === 0 ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : listError ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    <span className="lds-do">{listError}</span>{" "}
+                    <button type="button" className="lds-lk" onClick={() => load()}>
                       Thử lại
                     </button>
-                  </div>
-                </td>
-              </tr>
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="tl-empty">
-                  {!q.trim() && khoaLoc === "{}" && !statusFilter && nguoi == null
-                    ? "Chưa có báo giá thương mại nào được tạo."
-                    : "Không có báo giá nào khớp điều kiện đang lọc."}
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => {
-                // Tuổi phiếu: đã gửi N ngày chưa có phản hồi → nhắc gọi lại khách
-                const sentDays =
-                  r.status === "sent" && r.sent_at
-                    ? Math.floor((Date.now() - new Date(r.sent_at).getTime()) / 86_400_000)
-                    : null;
-                return (
-                  <tr key={r.id} className="click" onClick={() => openDetail(r)}>
-                    <td>
-                      <span className="code">
-                        {r.code}
-                        <span className="v">v{r.version}</span>
-                        {(r.version_count ?? 1) > 1 && (
-                          <span className="vc">{r.version_count} phiên bản</span>
-                        )}
-                      </span>
-                    </td>
-                    <td>
-                      {r.customer_name ?? (
-                        <span className="muted">
-                          {r.customer_id != null ? `KH #${r.customer_id}` : "Chưa chọn khách"}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="prod">
-                        <span className="nm">{r.product_summary ?? "—"}</span>
-                      </div>
-                    </td>
-                    <td className="num">
-                      {r.total != null ? (
-                        <span className="rust-num">{fmtVnd(r.total)}</span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                      {r.margin_percent != null && (
-                        <span className="vc">markup {Math.round(r.margin_percent)}%</span>
-                      )}
-                    </td>
-                    <td>
-                      <StatusPill status={r.status} statuses={statuses} />
-                      {sentDays !== null && sentDays >= 0 && (
-                        <span
-                          className="vc"
-                          style={sentDays >= 7 ? { color: "var(--rust-deep)", fontWeight: 600 } : undefined}
-                        >
-                          Đã gửi {sentDays} ngày{sentDays >= 7 ? " chưa phản hồi" : ""}
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <ODuyet duyet={r.duyet} />
-                    </td>
-                    <td>
-                      <div className="prod">
-                        <span className="nm" style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
-                          {fmtDate(
-                            locMan.ky.moc === "gui"
-                              ? r.sent_at ?? null
-                              : locMan.ky.moc === "hieu_luc"
-                                ? r.valid_until
-                                : r.created_at ?? null,
-                          )}
-                        </span>
-                        {r.salesperson_name && <span className="spec">{r.salesperson_name}</span>}
-                      </div>
-                    </td>
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {!q.trim() && khoaLoc === "{}" && !statusFilter && nguoi == null
+                      ? "Chưa có báo giá thương mại nào được tạo."
+                      : "Không có báo giá nào khớp điều kiện đang lọc."}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="lds-dong"
+                    tabIndex={0}
+                    onClick={() => openDetail(r)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openDetail(r);
+                      }
+                    }}
+                  >
+                    {cotHien.map((c) => (
+                      <OBaoGia
+                        key={c.key}
+                        cot={c.key}
+                        r={r}
+                        statuses={statuses}
+                        mocNgay={mocNgay}
+                        onMoDon={xemDon && navigate ? (id) => navigate("don-hang-ban", { openOrderId: id }) : undefined}
+                      />
+                    ))}
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                ))
+              )}
+              {/* Dòng Cộng: Σ giá bán của MỌI báo giá khớp bộ lọc (máy chủ cộng), không chỉ trang đang xem. */}
+              {rows.length > 0 && viTriGia > 0 ? (
+                <tr className="lds-cong lds-nhom">
+                  <td className="lead" colSpan={viTriGia}>
+                    <span className="lds-dinh-trai">Cộng {total.toLocaleString("vi-VN")} báo giá</span>
+                  </td>
+                  <td className="n">{soVN(tongGiaBan)}</td>
+                  {cotHien.length - viTriGia - 1 > 0 ? <td colSpan={cotHien.length - viTriGia - 1} /> : null}
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {!listError && total > 0 && (
+          <PhanTrangDayDu
+            trang={page}
+            size={size}
+            tong={total}
+            soDong={rows.length}
+            onTrang={setPage}
+            onSize={(n) => {
+              setSize(n);
+              setPage(1);
+            }}
+            loading={loading}
+            donVi="báo giá"
+            ariaLabel="Phân trang báo giá"
+          />
+        )}
       </div>
-
-      {!listError && total > 0 && (
-        <PhanTrangDayDu
-          trang={page}
-          size={size}
-          tong={total}
-          soDong={rows.length}
-          onTrang={setPage}
-          onSize={(n) => {
-            setSize(n);
-            setPage(1);
-          }}
-          loading={loading}
-          donVi="phiếu báo giá"
-          ariaLabel="Phân trang báo giá"
-        />
-      )}
     </main>
   );
 }
 
-// --- Ô "Người duyệt" ------------------------------------------------------------
-// Chỉ báo giá ĐẶC THÙ phải qua duyệt. Chờ duyệt: ai có quyền duyệt (đang chờ từ lúc trình);
-// đã duyệt / từ chối: người quyết + lúc quyết, ý kiến xem ở chú thích khi rê chuột.
-function ODuyet({ duyet }: { duyet: QuotationRow["duyet"] }) {
-  if (!duyet) return <span className="lkd-duyet--trong">—</span>;
-  if (duyet.trang_thai === "khong_can") return <span className="lkd-duyet--trong">Không cần duyệt</span>;
+// --- Lưới danh sách (phương án A, 07/10/2026) --------------------------------------------------
+// Thứ tự: Mã, Ngày, Khách, Sản phẩm, Số lượng, Giá bán, Lãi, Trạng thái, Người duyệt, Hiệu lực,
+// Đơn hàng (chứng từ kế tiếp), Người lập.
+const COT_BG: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
+  { key: "ma", label: "Mã báo giá", coDinh: true, w: 140, sx: "code" },
+  { key: "ngay", label: "Ngày tạo", w: 110, sx: "created_at" },
+  { key: "khach", label: "Khách hàng", w: 200 },
+  { key: "sp", label: "Sản phẩm", w: 195 },
+  { key: "sl", label: "Số lượng", w: 105, n: true },
+  { key: "gia", label: "Giá bán gồm VAT", w: 130, n: true, sx: "total" },
+  { key: "lai", label: "Lãi", w: 60, n: true },
+  { key: "tt", label: "Trạng thái", w: 150, sx: "status" },
+  { key: "duyet", label: "Người duyệt", w: 120 },
+  { key: "han", label: "Hiệu lực", w: 100, sx: "valid_until" },
+  { key: "don", label: "Đơn hàng", w: 90 },
+  { key: "nguoi", label: "Người lập" },
+];
+
+// Chấm màu hàng lọc nhanh — cùng sắc với chip trạng thái của dòng (BADGE_TRANG_THAI).
+const MAU_TRANG_THAI: Record<string, MauTT | undefined> = {
+  need_action: "do",
+  draft: "slate",
+  pending_approval: "vang",
+  approved: "xanh",
+  sent: "cyan",
+  accepted: "la",
+  converted_to_order: "tim",
+  rejected: "do",
+  expired: "cam",
+  cancelled: "xam",
+};
+
+const NHAN_DON: Record<string, string> = {
+  draft: "Nháp",
+  ordered: "Đã chốt",
+  cancelled: "Hủy",
+};
+
+function OBaoGia({
+  cot,
+  r,
+  statuses,
+  mocNgay,
+  onMoDon,
+}: {
+  cot: string;
+  r: QuotationRow;
+  statuses: EnumOption[];
+  mocNgay: "tao" | "gui";
+  onMoDon?: (orderId: number) => void;
+}) {
+  switch (cot) {
+    case "ma":
+      return (
+        <td title={(r.version_count ?? 1) > 1 ? `${r.version_count} phiên bản` : undefined}>
+          {r.code}
+          <span className="lds-u">v{r.version}</span>
+        </td>
+      );
+    case "ngay":
+      return <td>{ngayVN(mocNgay === "gui" ? r.sent_at ?? null : r.created_at ?? null)}</td>;
+    case "khach":
+      return r.customer_name ? (
+        <td title={r.customer_name}>{tenKhachGon(r.customer_name)}</td>
+      ) : (
+        <td className="lds-mu3">{r.customer_id != null ? `KH #${r.customer_id}` : "Chưa chọn khách"}</td>
+      );
+    case "sp": {
+      const ten = r.san_pham ?? r.product_summary ?? null;
+      return (
+        <td title={r.product_summary ?? undefined}>
+          {ten ?? <span className="lds-mu3">—</span>}
+          {(r.so_sp_khac ?? 0) > 0 ? <span className="lds-tag">+{r.so_sp_khac}</span> : null}
+        </td>
+      );
+    }
+    case "sl":
+      return (
+        <td className="n">
+          {r.so_luong != null ? (
+            <>
+              {soVN(r.so_luong)}
+              {r.don_vi ? <span className="lds-u">{r.don_vi}</span> : null}
+            </>
+          ) : (
+            <span className="lds-mu3">—</span>
+          )}
+        </td>
+      );
+    case "gia":
+      return <td className="n">{r.total != null ? soVN(r.total) : <span className="lds-mu3">—</span>}</td>;
+    case "lai":
+      return <td className="n">{r.margin_percent != null ? `${Math.round(r.margin_percent)}%` : <span className="lds-mu3">—</span>}</td>;
+    case "tt": {
+      // Tuổi phiếu: đã gửi N ngày chưa phản hồi → nhắc gọi lại khách (≥ 7 ngày tô đỏ).
+      const sentDays =
+        r.status === "sent" && r.sent_at ? Math.floor((Date.now() - new Date(r.sent_at).getTime()) / 86_400_000) : null;
+      return (
+        <td title={sentDays != null && sentDays >= 0 ? `Đã gửi ${sentDays} ngày chưa có phản hồi` : undefined}>
+          <ChipTT mau={MAU_TRANG_THAI[r.status] ?? "slate"}>{labelOf(statuses, r.status)}</ChipTT>
+          {sentDays != null && sentDays > 0 ? (
+            <span className={`lds-u${sentDays >= 7 ? " lds-do" : ""}`}>{sentDays} ngày</span>
+          ) : null}
+        </td>
+      );
+    }
+    case "duyet":
+      return <ODuyetGon duyet={r.duyet} />;
+    case "han":
+      return <td>{ngayVN(r.valid_until)}</td>;
+    case "don":
+      return (
+        <td title={r.don_hang_ma ? `${r.don_hang_ma}: ${NHAN_DON[r.don_hang_trang_thai ?? ""] ?? r.don_hang_trang_thai ?? ""}` : undefined}>
+          {r.don_hang_ma ? (
+            onMoDon && r.don_hang_id ? (
+              <button
+                type="button"
+                className="lds-lk"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMoDon(r.don_hang_id!);
+                }}
+              >
+                {r.don_hang_ma}
+              </button>
+            ) : (
+              r.don_hang_ma
+            )
+          ) : (
+            <span className="lds-mu3">—</span>
+          )}
+        </td>
+      );
+    case "nguoi":
+      return <td>{r.salesperson_name ?? <span className="lds-mu3">—</span>}</td>;
+    default:
+      return <td />;
+  }
+}
+
+// Ô "Người duyệt" một dòng. Chỉ báo giá ĐẶC THÙ phải qua duyệt — báo giá thường để gạch mờ (dòng nào
+// cũng "Không cần duyệt" là nhiễu). Chờ duyệt: ai duyệt được; đã duyệt / từ chối: người quyết.
+// Lúc quyết, ý kiến, danh sách người duyệt được nằm ở chú thích khi rê chuột.
+function ODuyetGon({ duyet }: { duyet: QuotationRow["duyet"] }) {
+  if (!duyet || duyet.trang_thai === "khong_can") {
+    return <td className="lds-mu3" title={duyet ? "Không cần duyệt" : undefined}>—</td>;
+  }
   const [dau, ...con] = duyet.nguoi;
-  const phu =
+  const luc =
     duyet.trang_thai === "cho"
       ? `Đang chờ từ ${fmtDate(duyet.luc)}`
       : duyet.trang_thai === "da_duyet"
         ? `Đã duyệt ${fmtDate(duyet.luc)}`
         : `Từ chối ${fmtDate(duyet.luc)}`;
-  const chuThich =
-    duyet.trang_thai === "cho"
-      ? duyet.nguoi.length > 1
-        ? `Ai trong số này duyệt cũng được:\n${duyet.nguoi.join("\n")}`
-        : undefined
-      : duyet.y_kien || undefined;
+  const chuThich = [
+    luc,
+    duyet.trang_thai === "cho" && duyet.nguoi.length > 1 ? `Ai trong số này duyệt cũng được:\n${duyet.nguoi.join("\n")}` : "",
+    duyet.trang_thai !== "cho" ? duyet.y_kien ?? "" : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   return (
-    <div className="lkd-duyet" title={chuThich}>
-      <div className="lkd-duyet__ten">
-        <span>{dau ?? "Chưa có người duyệt"}</span>
-        {con.length > 0 && <span className="lkd-duyet__them">và {con.length} người</span>}
-      </div>
-      <span className={`lkd-duyet__phu${duyet.trang_thai === "tu_choi" ? " lkd-duyet__phu--do" : ""}`}>{phu}</span>
-    </div>
+    <td title={chuThich} className={duyet.trang_thai === "tu_choi" ? "lds-do" : duyet.trang_thai === "cho" ? "lds-vang" : undefined}>
+      {duyet.trang_thai === "cho" ? "Chờ " : ""}
+      {dau ?? "chưa có người duyệt"}
+      {con.length > 0 ? <span className="lds-u">và {con.length} người</span> : null}
+    </td>
   );
 }
 
-// --- Sort header button -------------------------------------------------------
-
-function SortBtn({
-  label,
-  col,
-  sort,
-  onSort,
-}: {
-  label: string;
-  col: string;
-  sort: string;
-  onSort: (s: string) => void;
-}) {
-  const active = sort === col || sort === `-${col}`;
-  const desc = sort === `-${col}`;
-  return (
-    <button
-      type="button"
-      className={`bg__sortbtn${active ? " is-active" : ""}`}
-      onClick={() => onSort(desc ? col : active ? `-${col}` : col)}
-    >
-      {label}
-      {active && <span aria-hidden="true">{desc ? " ↓" : " ↑"}</span>}
-    </button>
-  );
-}
-
-// Thang badge trạng thái — CHỈ 3 màu chính (kem/mực/cam) + đỏ mờ signal cho Từ chối/Huỷ.
-// Cùng 1 kiểu pill + chấm; khác nhau ở nền/chữ theo mức tiến triển của phiếu.
+// Badge trạng thái — mỗi trạng thái MỘT sắc tươi (bộ chip chung --tt-*, 07/10/2026) để liếc là phân
+// biệt; trước đó Chờ duyệt = Đã duyệt và Từ chối = Hết hạn = Đã huỷ cùng màu.
+const BADGE_TRANG_THAI: Record<string, string> = {
+  draft: "tt-slate",
+  pending_approval: "tt-vang",
+  approved: "tt-xanh",
+  sent: "tt-cyan",
+  accepted: "tt-la",
+  converted_to_order: "tt-tim",
+  rejected: "tt-do",
+  expired: "tt-cam",
+  cancelled: "tt-xam",
+};
 function statusBadgeVariant(status: string): string {
-  if (status === "accepted") return "solid"; // Khách chốt — cam đặc, chữ trắng
-  if (status === "converted_to_order") return "dark"; // Đã lên đơn — nền đen chữ kem
-  if (status === "sent") return "soft"; // Đã gửi khách — cam nhạt
-  if (status === "approved") return "pending"; // Đã duyệt · chờ gửi — xám + chấm cam
-  if (status === "pending_approval") return "pending"; // Chờ duyệt — xám + chấm cam
-  if (status === "rejected" || status === "expired" || status === "cancelled") return "signal";
-  return "neutral"; // Nháp — xám
+  return BADGE_TRANG_THAI[status] ?? "tt-slate";
 }
 function StatusPill({ status, statuses }: { status: string; statuses: EnumOption[] }) {
   return (

@@ -15,7 +15,6 @@ import { crud, type Row } from "../../api/rebuildCatalog";
 import { useNapTenDonVi } from "../tenDonVi";
 import { CatalogDrawer } from "./CatalogDrawer";
 import { ImportExcelDialog } from "../../components/ImportExcelDialog";
-import { OTim } from "./OTim";
 import { XoaDanhMucDialog } from "./XoaDanhMucDialog";
 import { CopyIcon, DownloadIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
 import type { CatalogConfig, DieuKienDanhMuc, Option } from "./types";
@@ -25,13 +24,17 @@ import { thamSoKy } from "../thanh-loc/ky-danh-sach";
 import { useLocMan } from "../thanh-loc/useLocMan";
 import type { DieuKien } from "../thanh-loc/thanh-loc";
 import {
-  KHOA_ACTIVE, MOC_DM, TRANG_THAI_DM, docLocDM, ghiLocDM, gopGiaTri, locMacDinh, nenCua, ngayGioTao, ngayTao,
+  KHOA_ACTIVE, MOC_DM, docLocDM, ghiLocDM, gopGiaTri, locMacDinh, nenCua, ngayGioTao, ngayTao,
   type LocDM, type LocManDM,
 } from "./locDanhMuc";
 import { DieuHuongDanhMuc } from "./dieuHuong";
 import type { NavigateFn } from "../../components/AppShell";
 import "../rebuild-catalog.css";
-import { EmptyState } from "../../components/EmptyState";
+import { EmptyRow } from "../../components/EmptyState";
+import {
+  CuonLuoi, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
+  type CotLuoi, type MucLocNhanh,
+} from "../../components/LuoiDs";
 
 /** Số dòng mỗi trang MẶC ĐỊNH của mọi màn danh mục — người dùng đổi được ở ô "Dòng/trang" dưới
  *  chân bảng (05/10/2026, khuôn của màn Nhật ký). Trang cắt Ở MÁY CHỦ (`page`+`size`): mỗi lần mở
@@ -42,20 +45,25 @@ import { EmptyState } from "../../components/EmptyState";
  *  ra ngoài là sớm muộn có người đổi nó cho màn của họ rồi kéo cả 10 màn danh mục đi theo. */
 const PAGE_SIZE = 25;
 
-/** Bề rộng (px) cột Hành động = đúng cụm nút có thể hiện. Trước 18/09/2026 cột đóng cứng 8%: ở
- *  bảng rộng 1150px chỉ được 92px, mà "Nhân bản" + "Xóa" cần 160px ⇒ "Xóa" tràn ra ngoài bảng,
- *  khung sinh thanh cuộn ngang, mở màn lên không thấy nút Xóa đâu (5 màn có Nhân bản đều dính).
- *  Số đo từ `.rc__link-btn` (viền 2 + đệm 16 + icon 13 + khe 4 + chữ 600 12.5px Be Vietnam Pro,
- *  font đóng gói sẵn nên máy nào cũng rộng như nhau) cộng dư 1-2px. Đổi chữ/icon/đệm nút là đo lại. */
-//
-// 05/10/2026 (chủ: "icon to ra cho dễ bấm và xóa chữ đi"): ba nút thành NÚT VUÔNG CHỈ ICON 34px
-// (`.rc__icon-btn`) — tên nút nằm ở `title` (rê chuột) + `aria-label` (trình đọc màn hình).
-const NUT_RONG = { nhanBan: 34, xoa: 34, batLai: 34 } as const;
-/** Khe giữa hai nút (`.rc__acts` gap) + đệm trái 8 / phải 12 của ô. */
+/** Bề rộng (px) cột Hành động = đúng cụm nút có thể hiện. Trước 18/09/2026 cột đóng cứng 8%: "Nhân
+ *  bản" + "Xóa" bị ép tràn ra ngoài bảng, mở màn lên không thấy nút Xóa đâu.
+ *
+ *  05/10/2026 (chủ: "icon to ra cho dễ bấm và xóa chữ đi"): ba nút thành NÚT CHỈ ICON
+ *  (`.rc__icon-btn`) — tên nút nằm ở `title` (rê chuột) + `aria-label` (trình đọc màn hình).
+ *  08/10/2026 vào lưới dòng 34px: nút 28 × 26 (khớp rule `td.lds-nut .rc__icon-btn` ở
+ *  `rebuild-catalog.css`: đổi cỡ ở đó thì đổi cả ở đây). */
+const NUT_RONG = { nhanBan: 28, xoa: 28, batLai: 28 } as const;
+/** Khe giữa hai nút (`.rc__acts` gap) + đệm trái / phải của ô nút. */
 const NUT_KHE = 6;
 const COT_NUT_DEM = 20;
+/** Bề rộng mặc định cột Mã / Tên khi config không khai `widthMa` / `widthTen`. */
+const RONG_MA = 130;
+const RONG_TEN = 240;
 /** Cột Ngày tạo: vừa "dd/mm/yyyy" + đệm ô. */
 const COT_NGAY_RONG = 104;
+
+/** Một cột của lưới danh mục: cột trang tự vẽ (Mã, Tên, Ngày tạo, Hành động) + cột khai ở config. */
+interface CotDM extends CotLuoi { w?: number; n?: boolean }
 
 /** Icon của điều kiện lọc theo tên khai trong config (`types.ts` không import component). */
 const ICON_DK: Record<NonNullable<DieuKienDanhMuc["icon"]>, LucideIcon> = {
@@ -116,6 +124,9 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   // thay hàng tab facet, bảng "Lọc nâng cao" và công tắc "Hiện mục đã ngừng" cũ. Ghi lên URL
   // (`?man=<id màn>`) và nhớ theo màn; lọc + đếm + cắt trang đều ở máy chủ.
   const man = config.man ?? manTuPrefix(config.prefix);
+  // Ẩn / hiện / đổi chỗ cột: nhớ theo TỪNG danh mục (mỗi màn một khoá), mất thì về mặc định.
+  const [cotAn, setCotAn] = useCotAn(`dm-${man}`);
+  const [thuTu, setThuTu] = useThuTuCot(`dm-${man}`);
   const macDinh = useMemo(() => locMacDinh(config), [config]);
   const [locMan, setLocMan] = useLocMan<LocManDM>(man, macDinh,
     (p) => docLocDM(p, config), (t) => ghiLocDM(t, config));
@@ -212,16 +223,22 @@ export function CatalogListPage({ config, onMutate, navigate }: {
       doc: (l) => l[d.key],
       ghi: (l, v) => ({ ...l, [d.key]: v }),
     }));
-    if (config.softDelete) {
-      ds.push({
-        khoa: KHOA_ACTIVE, nhan: "Trạng thái", icon: CircleDot, kieu: "mot",
-        giaTri: gopGiaTri(TRANG_THAI_DM, dem[KHOA_ACTIVE]),
-        doc: (l) => l[KHOA_ACTIVE],
-        ghi: (l, v) => ({ ...l, [KHOA_ACTIVE]: v }),
-      });
-    }
     return ds;
-  }, [config.dieuKien, config.softDelete, nguon, dem]);
+  }, [config.dieuKien, nguon, dem]);
+
+  // Hàng lọc nhanh Đang dùng / Đã ngừng / Tất cả (màn xoá mềm) — số đếm của MÁY CHỦ (`dem.active`,
+  // đếm dưới mọi bộ lọc khác), không đếm trong JS. Trước 08/10/2026 đây là một điều kiện trong nút
+  // Lọc; nay là hàng nút bật riêng phía trên ô tìm, cùng khuôn lưới của 5 màn Kinh doanh.
+  const trangThai = locMan.loc[KHOA_ACTIVE] ?? "";
+  const demActive = dem[KHOA_ACTIVE];
+  const soDung = demActive?.find((d) => d.value === "true")?.so;
+  const soNgung = demActive?.find((d) => d.value === "false")?.so;
+  const mucTrangThai: MucLocNhanh[] = [
+    { key: "", label: "Tất cả", count: demActive ? (soDung ?? 0) + (soNgung ?? 0) : undefined },
+    { key: "true", label: "Đang dùng", count: demActive ? soDung ?? 0 : undefined, mau: "la" },
+    { key: "false", label: "Đã ngừng", count: demActive ? soNgung ?? 0 : undefined, mau: "xam" },
+  ];
+  const chonTrangThai = (key: string) => setLocMan({ ...locMan, loc: { ...locMan.loc, [KHOA_ACTIVE]: key || undefined } });
 
   // Bảng rỗng khi đang lọc KHÔNG có nghĩa "chưa có gì trong hệ thống" — kể cả khi đang xem mục
   // đã ngừng. Mặc định (Đang dùng, kỳ Tất cả) thì không tính là đang lọc.
@@ -238,27 +255,21 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const coCotNut = rongNut > 0;
   const rongCotNut = Math.max(96, rongNut + COT_NUT_DEM);
 
-  // Bề rộng cột nội dung. ⚠️ `table-layout: fixed` + `width: 100%`: cột KHÔNG khai bề rộng ăn TRỌN
-  // phần còn lại. Màn Thành phẩm từng chỉ có đúng một cột như vậy (ĐVT) nên nó chiếm 46% màn hình
-  // cho một chữ "hộp", còn Tên bị ép xuống 3 dòng (chủ báo 22/08/2026). ĐVT ở cả ba danh mục
-  // (Giấy · Vật tư khác · Thành phẩm) đều là một chip ngắn.
-  // Màn đã tự khai `width` thì bảng mặc định theo key đứng ngoài: cột nó cố ý để trống là cột ĂN
-  // PHẦN CÒN LẠI (vd Ghi chú của Công đoạn), chen 22% vào là tổng vượt 100% và cả bảng tràn ngang.
-  const khaiRongRieng = config.columns.some((c) => c.width);
-  const widthMa = config.widthMa ?? "14%";
-  const widthTen = config.widthTen ?? "24%";
-  const rongCot: (string | undefined)[] = config.columns.map((c) => c.width ?? (khaiRongRieng ? undefined
-    : c.key === "quy_doi_text" ? "34%"
-    : c.key === "ghi_chu" ? "22%"
-    : c.key === "don_vi_gia" ? "9%"
-    : undefined));
-  // Cột nào cũng có % mà cộng chưa tới 100% (Vật tư khác: 14+24+9+22) ⇒ trình duyệt dồn TOÀN BỘ
-  // phần dư vào cột px duy nhất là cột Hành động: đo được 357px trống trơn bên trái hai nút, trong
-  // khi Ghi chú bị cắt "…". Nhả bề rộng cột nội dung CUỐI để nó ăn phần dư thay. Tổng ≥ 100% thì
-  // trình duyệt tự co đều, không có phần dư, để nguyên.
-  const tongPhanTram = [widthMa, widthTen, ...rongCot]
-    .reduce((s, w) => s + (w?.endsWith("%") ? parseFloat(w) : NaN), 0);
-  if (rongCot.length > 0 && tongPhanTram < 100) rongCot[rongCot.length - 1] = undefined;
+  // Cột của lưới: Mã + Tên cố định (ghim khi cuộn ngang), Ngày tạo, rồi cột khai ở config theo thứ tự
+  // nhóm nghĩa của màn (Ghi chú cuối, không khai bề rộng ⇒ ăn phần còn lại), cột Hành động nếu có.
+  // Cột Hành động cố định ở cuối và KHÔNG nằm trong hộp "Cột" (`cotDuLieu`) — luôn hiện.
+  const cotDuLieu: CotDM[] = [
+    { key: "ma", label: "Mã", coDinh: true, w: config.widthMa ?? RONG_MA },
+    { key: "ten", label: "Tên", coDinh: true, w: config.widthTen ?? RONG_TEN },
+    { key: "ngay", label: "Ngày tạo", w: COT_NGAY_RONG },
+    ...config.columns.map((c) => ({ key: c.key, label: c.label, w: c.w, n: c.n })),
+  ];
+  const cotTatCa: CotDM[] = coCotNut
+    ? [...cotDuLieu, { key: "nut", label: "Hành động", coDinh: true, w: rongCotNut }]
+    : cotDuLieu;
+  const cotHien = xepCot(cotTatCa, thuTu).filter((c) => !cotAn.has(c.key));
+  const dangMo = editing && editing !== "new" ? editing.id : null;
+  const cotCuaConfig = new Map(config.columns.map((c) => [c.key, c]));
 
   const [confirmDeleteRow, setConfirmDeleteRow] = useState<Row | null>(null);
 
@@ -313,21 +324,90 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     }
   }
 
+  /** Một ô của dòng `r` ở cột `cot`. Chữ dài cắt "…", đủ chữ ở `title`. */
+  function oDong(cot: CotDM, r: Row) {
+    switch (cot.key) {
+      case "ma":
+        return <td key={cot.key} title={String(r.ma)}>{String(r.ma)}</td>;
+      case "ten":
+        return (
+          <td key={cot.key} title={String(r.ten)}>
+            {/* Tên cắt "…" khi dài, nhãn "Đã ngừng" luôn còn (xem `.dm-ten` ở rebuild-catalog.css). */}
+            <div className="dm-ten">
+              <span className="dm-ten__chu">{String(r.ten)}</span>
+              {r.active === false && (
+                <span className="lds-tag" title="Đã ngừng dùng — không hiện ở ô chọn khi tạo mới, nhưng chứng từ cũ vẫn giữ nguyên">
+                  Đã ngừng
+                </span>
+              )}
+            </div>
+          </td>
+        );
+      case "ngay":
+        return <td key={cot.key} title={ngayGioTao(r.created_at)}>{ngayTao(r.created_at)}</td>;
+      case "nut":
+        // Không có quyền thì ô rỗng, KHÔNG phải nút xám: nút xám vẫn là một lời mời, người ta hover đi
+        // hover lại tìm cách bật nó lên. Xóa vẫn qua hộp xác nhận nên bấm nhầm không mất dòng ngay.
+        // Nhãn đọc màn hình kèm TÊN dòng: cả cột đều là "Xóa", nghe một chuỗi "Xóa, Xóa, Xóa" là
+        // không biết đang đứng ở dòng nào.
+        return (
+          <td key={cot.key} className="lds-nut" onClick={(e) => e.stopPropagation()}>
+            <div className="rc__acts">
+              {r.active === false ? (
+                duocBatLai && (
+                  <button type="button" className="rc__icon-btn" onClick={() => batLai(r)}
+                    aria-label={`Bật lại ${String(r.ten)}`}
+                    title="Bật lại — mục này sẽ hiện lại ở các ô chọn">
+                    <UndoIcon size={17} />
+                  </button>
+                )
+              ) : (
+                <>
+                  {duocClone && (
+                    <button type="button" className="rc__icon-btn" onClick={() => clone(r)}
+                      aria-label={`Nhân bản ${String(r.ten)}`}
+                      title="Nhân bản — tạo một dòng mới sao y dòng này, đổi tên rồi lưu">
+                      <CopyIcon size={17} />
+                    </button>
+                  )}
+                  {duocXoa && (
+                    <button type="button" className="rc__icon-btn rc__icon-btn--danger" onClick={() => remove(r)}
+                      aria-label={`Xóa ${String(r.ten)}`} title="Xóa">
+                      <TrashIcon size={17} />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </td>
+        );
+      default: {
+        const c = cotCuaConfig.get(cot.key);
+        if (!c) return <td key={cot.key} />;
+        const noi = c.render
+          ? c.render(r, extra ? (extra[String(r.id)] ?? null) : undefined)
+          : (r[c.key] == null || r[c.key] === "" ? "" : String(r[c.key]));
+        return (
+          <td key={cot.key} className={c.n ? "n" : undefined} title={typeof noi === "string" && noi !== "" ? noi : undefined}>
+            {noi}
+          </td>
+        );
+      }
+    }
+  }
+
   return (
     // `rc--dm`: scope RIÊNG của màn danh mục. Không dùng `.rc` sẵn có làm mốc vì `KhoPage` và
     // `KhoHangView` cũng là `<main className="rc">` — đè theo `.rc` là rò ngược sang Kho.
     // Xem khối "GIÀNH LẠI …" ở cuối `rebuild-catalog.css`.
     // Provider để ngoài cùng, không thụt lề cả khối cho gọn diff — xem `dieuHuong.ts`.
     <DieuHuongDanhMuc.Provider value={navigate}>
-    <main className="rc rc--dm">
-      {/* HEADER — MỘT dạng cho cả 13 màn, hai hàng cố định trên một kẻ ngang:
-            1. tiêu đề · pill đếm ····· [+ Thêm …]
-            2. [ô tìm] [Kỳ ▾] [điều kiện đã áp…] [Lọc] — thanh lọc chung (06/10/2026). */}
-      <header className="rc__head">
-        <div className="rc__headrow">
-          <h1 className="rc__title">{config.heading ?? config.title}</h1>
-          <span className="rc__count">{total} mục</span>
-          <div className="rc__spacer" />
+    <main className="rc rc--dm lds">
+      {/* Đầu trang: tên màn + các nút chính (Excel, Thêm) — một hàng riêng, không chen ô lọc. Số bản
+          ghi nằm ở chân bảng ("tổng N bản ghi"), không nhắc lại ở đây. */}
+      <header className="lds-dau">
+        <h1 className="lds-dau__ten">{config.heading ?? config.title}</h1>
+        <div className="lds-dau__nut">
           {duocXuatExcel && (
             <Button variant="ghost" onClick={xuatExcel} title="Xuất toàn bộ cấu hình đang dùng ra Excel — sửa rồi nhập lại để cập nhật hàng loạt">
               <DownloadIcon /> Xuất Excel
@@ -344,10 +424,24 @@ export function CatalogListPage({ config, onMutate, navigate }: {
             </Button>
           )}
         </div>
+      </header>
 
-        {/* Ô tìm + thanh lọc chung: [Kỳ ▾] [điều kiện đã áp…] [Lọc] [Xoá lọc]. */}
-        <div className="rc__filterbar tl-thanh">
-          <OTim value={q} onChange={setQ} placeholder={config.timGoiY} />
+      {/* Bảng RỖNG vì tải hỏng thì để khối rỗng nói (nó có nút Tải lại rồi) — hai chỗ cùng kêu một
+          lỗi kèm hai nút "Tải lại" là bắt người ta đoán xem nên bấm cái nào. Banner ở đây chỉ còn
+          lo lỗi XẢY RA KHI BẢNG ĐANG CÓ DỮ LIỆU (xoá hụt, bật lại hụt). */}
+      {error && !bangTrong && (
+        <div className="banner banner--error" role="alert">
+          <span>{error}</span>
+          <button type="button" className="btn btn--ghost" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => { setError(null); load(); }}>Tải lại</button>
+        </div>
+      )}
+
+      <section className="lds-loc">
+        {config.softDelete && (
+          <LocNhanhTrangThai muc={mucTrangThai} dang={trangThai} onChon={chonTrangThai} />
+        )}
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={q} onChange={setQ} placeholder={config.timGoiY ?? "Tìm mã / tên…"} ariaLabel={`Tìm ${config.title.toLowerCase()}`} />
           <ThanhLoc
             ky={locMan.ky}
             moc={MOC_DM}
@@ -356,206 +450,81 @@ export function CatalogListPage({ config, onMutate, navigate }: {
             loc={locMan.loc}
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
+          <ChonCot cot={cotDuLieu} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
         </div>
-      </header>
+      </section>
 
-      {/* Bảng RỖNG vì tải hỏng thì để khối rỗng nói (nó có nút Tải lại rồi) — hai chỗ cùng kêu một
-          lỗi kèm hai nút "Tải lại" là bắt người ta đoán xem nên bấm cái nào. Banner ở đây chỉ còn
-          lo lỗi XẢY RA KHI BẢNG ĐANG CÓ DỮ LIỆU (xoá hụt, bật lại hụt). */}
-      {error && !bangTrong && (
-        <div className="banner banner--error" role="alert" style={{ marginBottom: "var(--sp-4)" }}>
-          <span>{error}</span>
-          <button type="button" className="btn btn--ghost" style={{ padding: "4px 12px", fontSize: "12px" }} onClick={() => { setError(null); load(); }}>Tải lại</button>
-        </div>
-      )}
-
-      <div className="rc__tablewrap">
-        <table className="rc__table">
-          <thead>
-            <tr>
-              <th style={{ width: widthMa }}>Mã</th>
-              {/* TÊN là cột người ta đọc để nhận ra dòng — cho nó rộng nhất. 16% cũ làm tên sản
-                  phẩm xuống 2–3 dòng trong khi cột bên cạnh bỏ trống. */}
-              <th style={{ width: widthTen }}>Tên</th>
-              {config.columns.map((c, i) => {
-                const isCenter = c.key === "bac" || c.key === "dai" || c.key === "active";
-                const w = rongCot[i];
-                return <th key={c.key} style={w ? { width: w } : undefined} className={isCenter ? "text-center" : ""}>{c.label}</th>;
-              })}
-              {/* Ngày tạo — CHUNG cho mọi màn danh mục (06/10/2026), cạnh mốc kỳ của thanh lọc. */}
-              <th style={{ width: `${COT_NGAY_RONG}px` }}>Ngày tạo</th>
-              {coCotNut && <th className="rc__actcol" style={{ width: `${rongCotNut}px` }}>Hành động</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              // Skeleton: 5 hàng ô shimmer thay cho dòng chữ "Đang tải…"
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`sk-${i}`} className="rc-skel__row">
-                  <td><span className="rc-skel" style={{ width: "60%" }} /></td>
-                  <td><span className="rc-skel" style={{ width: "80%" }} /></td>
-                  {config.columns.map((c) => (
-                    <td key={c.key}><span className="rc-skel" style={{ width: "50%" }} /></td>
-                  ))}
-                  <td><span className="rc-skel" style={{ width: "60%" }} /></td>
-                  {coCotNut && <td className="rc__actcol"><span className="rc-skel" style={{ width: "70px" }} /></td>}
-                </tr>
-              ))
-            ) : rows.length === 0 ? (
-              // BA ca khác hẳn nhau, đừng gộp: (a) chưa có gì · (b) bộ lọc không ra · (c) TẢI HỎNG.
-              // Trước 15/08/2026 backend chết là bảng vẫn in "Chưa có giấy nào trong hệ thống." —
-              // bảng NÓI SAI SỰ THẬT, và câu sai đó còn mời người ta đi tạo lại dữ liệu đang có.
+      <div className="lds-sheet">
+        <CuonLuoi ghim={soCotGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
+            <colgroup>
+              {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+            </colgroup>
+            <thead>
               <tr>
-                <td colSpan={config.columns.length + (coCotNut ? 4 : 3)} className="rc__empty-state-td">
-                  <EmptyState
-                    inline
-                    trangThai={error ? "loi" : "rong"}
-                    loi={error}
-                    onThuLai={() => { setError(null); load(); }}
-                    nhanThuLai="Tải lại"
-                    tieuDeLoi="Không tải được danh sách."
-                    icon={dangLoc ? "search" : "box"}
-                    title={dangLoc
-                      ? "Không tìm thấy kết quả phù hợp với bộ lọc."
-                      : `Chưa có ${config.title.toLowerCase()} nào trong hệ thống.`}
-                    action={dangLoc ? (
-                      <Button variant="ghost" onClick={() => { setQ(""); setLocMan(macDinh); }}>Xóa bộ lọc</Button>
-                    ) : duocTao ? (
-                      <Button variant="ghost" onClick={() => setEditing("new")}><PlusIcon /> Tạo {config.title.toLowerCase()}</Button>
-                    ) : undefined}
-                  />
-                </td>
+                {cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}
               </tr>
-            ) : rows.map((r) => {
-              const noWrapKeys = ["ma", "dai", "bac", "active", "version_no", "gsm", "kho", "don_vi_gia", "don_gia", "kho_max", "so_to_bu_hao", "order_no", "created_at"];
-              // Cột chữ PHỤ (không phải định danh) — cắt 1 dòng + "…", đủ chữ xem lúc rê chuột
-              // (title). Thiếu luật này thì dòng nào rơi vào chữ dài (vd Ghi chú) là cao vọt hẳn
-              // lên so với dòng bên cạnh — bảng nhìn lởm chởm dù dữ liệu không có gì bất thường.
-              const clipKeys = [
-                "ghi_chu", "nhom", "don_vi_vao", "kieu_bu_hao",
-                // Cùng dạng "chữ phụ dài": tên khác của Ghi chú/Mô tả/Vị trí/Nhóm ở các danh mục
-                // khác (Công việc khoán, Chủng loại giấy, Lý do & lỗi SX, Kho hàng, Máy, Khuôn).
-                "note", "mo_ta", "vi_tri", "loai_may", "khach_hang_ten", "so_ke",
-                // Thành phẩm: tên khách đặt lần đầu ("Công ty TNHH …") — đủ chữ xem trong drawer.
-                "customer_ten",
-                // Khuôn: "Loại" ("Khuôn ép kim") và "Tình trạng" ("Đang đặt làm") là
-                // nhãn ánh xạ nhưng có giá trị dài hơn hẳn số còn lại trong cùng cột — cột hẹp
-                // nên vỡ 2-3 dòng ngay cả khi các giá trị khác vẫn gọn 1 dòng.
-                "loai", "tinh_trang",
-              ];
-              // Cắt 1 dòng CHỈ TRÊN ĐIỆN THOẠI (dt). Khác `clipKeys` ở chỗ class `rc__clip-dt`
-              // KHÔNG có luật nào ở cấp cao nhất — luật duy nhất của nó nằm trong
-              // `@media screen and (max-width: 768px)` của `styles/responsive.css` (§71.3), nên
-              // màn ≥769px giữ nguyên hành vi xuống dòng đầy đủ.
-              // Tiêu chí KCS: cột "Hướng dẫn" (`rebuildCatalogConfigs.tsx:924`) là câu văn xuôi
-              // dài nhất trong cả 14 màn danh mục — cột `huong_dan` của model cho tới 500 ký tự.
-              // Không có luật này thì ở 375px (cột rộng 96px) một hàng cao tới 404px. Nhưng dùng
-              // `rc__clip` dùng-chung thì `rebuild-catalog.css:983` (ngoài mọi `@media`) cắt luôn
-              // cả trên máy bàn — nhân viên KCS mất câu hướng dẫn ở tầm nhìn. Đây là cột
-              // `huong_dan` DUY NHẤT trong `REBUILD_CONFIGS`, không màn nào khác dính theo.
-              const clipDtKeys = ["huong_dan"];
-              return (
-                <tr key={r.id} className={`rc__row${r.active === false ? " rc__row--ngung" : ""}`}
-                  onClick={() => setEditing(r)}>
-                  <td className="rc__mono rc__nowrap"><span className="rc__code-badge" title={String(r.ma)}>{String(r.ma)}</span></td>
-                  <td className="rc__name">
-                    {/* Flex nằm trên DIV con, không phải trên `<td>`: `display:flex` thẳng trên ô
-                        bảng phá vỡ mô hình table-cell (trình duyệt tự bọc nó vào 1 cell ẩn cao
-                        bằng đúng nội dung), nên khi hàng bị kéo cao bởi cột bên cạnh (vd Bậc số
-                        lượng nhiều dòng), Tên bị dính lên đỉnh thay vì căn giữa như các cột khác. */}
-                    <div className="rc__name-inner">
-                      {/* ĐƯỜNG BÀN PHÍM để mở dòng. Cả hàng vẫn bấm được bằng chuột (tiện, quen tay),
-                          nhưng cái mở được bằng Tab + Enter/Space phải là một `<button>` THẬT nằm
-                          trong ô Tên — KHÔNG phải `role="button"` dán lên `<tr>`: gán vai nút cho
-                          hàng là xoá luôn vai "row" của nó, trình đọc màn hình mất cả cấu trúc bảng
-                          (không còn đọc được "cột Ghi chú: …"). Đặt trên TÊN cũng nói rõ chỗ nào
-                          bấm được — trước đây cả hàng bấm được mà không có dấu hiệu nào. */}
-                      <button type="button" className="rc__open"
-                        aria-label={`Mở ${String(r.ten)} (${String(r.ma)})`}
-                        onClick={() => setEditing(r)}>
-                        {String(r.ten)}
-                      </button>
-                      {r.active === false && (
-                        <span className="badge-sem badge-sem--muted" title="Đã ngừng dùng — không hiện ở ô chọn khi tạo mới, nhưng chứng từ cũ vẫn giữ nguyên">
-                          Đã ngừng
-                        </span>
-                      )}
-                      {/* GỠ 06/09/2026: badge "Trạm giấy". Đơn vị không còn mang cờ trạm — 5 chặng
-                          của dòng giấy nay khai thẳng ở ô Đơn vị vào/ra của màn Công đoạn. */}
-                    </div>
-                  </td>
-                  {config.columns.map((c) => {
-                    const isCenter = c.key === "bac" || c.key === "dai" || c.key === "active";
-                    const isClip = clipKeys.includes(c.key);
-                    const classes = [
-                      isCenter ? "text-center" : "",
-                      noWrapKeys.includes(c.key) ? "rc__nowrap" : "",
-                      isClip ? "rc__clip" : "",
-                      clipDtKeys.includes(c.key) ? "rc__clip-dt" : "",
-                    ].filter(Boolean).join(" ");
-                    const noi = c.render ? c.render(r, extra ? (extra[String(r.id)] ?? null) : undefined) : (r[c.key] == null || r[c.key] === "" ? "" : String(r[c.key]));
-                    const meoChu = isClip && typeof noi === "string" && noi !== "" ? noi : undefined;
-                    return (
-                      <td key={c.key} className={classes || undefined} title={meoChu}>
-                        {noi}
-                      </td>
-                    );
-                  })}
-                  {/* Không có quyền thì ô rỗng, KHÔNG phải nút xám: nút xám vẫn là một lời mời,
-                      người ta hover đi hover lại tìm cách bật nó lên. Nút CHỈ ICON từ 05/10/2026
-                      (chủ yêu cầu); Xóa vẫn qua hộp xác nhận nên bấm nhầm không mất dòng ngay. */}
-                  {/* Nút nằm trong MỘT hàng flex (`.rc__acts`) chứ không thả inline trong ô: hai
-                      `inline-flex` đứng cạnh nhau canh theo đường chân chữ, mà nút có icon lấy đáy
-                      SVG làm chân chữ ⇒ "Xóa" bị đội cao hơn "Nhân bản" 2px. Nhãn đọc màn hình kèm
-                      TÊN dòng: cả cột đều là "Xóa", nghe một chuỗi "Xóa, Xóa, Xóa" là không biết
-                      đang đứng ở dòng nào. */}
-                  <td className="rc__nowrap" title={ngayGioTao(r.created_at)}>{ngayTao(r.created_at)}</td>
-                  {coCotNut && (
-                  <td className="rc__actcol" onClick={(e) => e.stopPropagation()}>
-                    <div className="rc__acts">
-                    {r.active === false ? (
-                      duocBatLai && (
-                        <button type="button" className="rc__icon-btn" onClick={() => batLai(r)}
-                          aria-label={`Bật lại ${String(r.ten)}`}
-                          title="Bật lại — mục này sẽ hiện lại ở các ô chọn">
-                          <UndoIcon size={17} />
-                        </button>
-                      )
+            </thead>
+            <tbody>
+              {loading && rows.length === 0 ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : rows.length === 0 ? (
+                // BA ca khác hẳn nhau, đừng gộp: (a) chưa có gì · (b) bộ lọc không ra · (c) TẢI HỎNG.
+                // Trước 15/08/2026 backend chết là bảng vẫn in "Chưa có giấy nào trong hệ thống." —
+                // bảng NÓI SAI SỰ THẬT, và câu sai đó còn mời người ta đi tạo lại dữ liệu đang có.
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {error ? (
+                      <>
+                        <span className="lds-do">Không tải được danh sách.</span>{" "}
+                        <span className="lds-mu">{error}</span>{" "}
+                        <button type="button" className="lds-lk" onClick={() => { setError(null); load(); }}>Tải lại</button>
+                      </>
+                    ) : dangLoc ? (
+                      <>
+                        {`Không có ${config.title.toLowerCase()} nào khớp điều kiện đang lọc.`}{" "}
+                        <button type="button" className="lds-lk" onClick={() => { setQ(""); setLocMan(macDinh); }}>Xoá bộ lọc</button>
+                      </>
                     ) : (
                       <>
-                        {duocClone && (
-                          <button type="button" className="rc__icon-btn" onClick={() => clone(r)}
-                            aria-label={`Nhân bản ${String(r.ten)}`}
-                            title="Nhân bản — tạo một dòng mới sao y dòng này, đổi tên rồi lưu">
-                            <CopyIcon size={17} />
-                          </button>
-                        )}
-                        {duocXoa && (
-                          <button type="button" className="rc__icon-btn rc__icon-btn--danger" onClick={() => remove(r)}
-                            aria-label={`Xóa ${String(r.ten)}`} title="Xóa">
-                            <TrashIcon size={17} />
-                          </button>
+                        {`Chưa có ${config.title.toLowerCase()} nào trong hệ thống.`}
+                        {duocTao && (
+                          <>
+                            {" "}
+                            <button type="button" className="lds-lk" onClick={() => setEditing("new")}>
+                              Tạo {config.title.toLowerCase()}
+                            </button>
+                          </>
                         )}
                       </>
                     )}
-                    </div>
                   </td>
-                  )}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ) : rows.map((r) => (
+                // Cả dòng bấm được bằng chuột; bàn phím thì Tab tới dòng rồi Enter / Space — dòng là
+                // `<tr tabIndex>` chứ không gán `role="button"` (gán vai nút cho hàng là mất vai
+                // "row", trình đọc màn hình hết đọc được tên cột đi kèm ô).
+                <tr key={r.id} tabIndex={0}
+                  className={`lds-dong${r.active === false ? " is-ngung" : ""}${r.id === dangMo ? " is-chon" : ""}`}
+                  onClick={() => setEditing(r)}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;   // Enter trên nút trong dòng là việc của nút
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(r); }
+                  }}>
+                  {cotHien.map((c) => oDong(c, r))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {/* Chân bảng: `total` là tổng SAU bộ lọc (đúng cái đang được cắt trang). Bảng rỗng thì ẩn —
+            khối "chưa có / không tìm thấy" đã nói giúp, thêm dòng "Tổng 0 bản ghi" là thừa. Khóa nút
+            khi đang tải để bấm dồn không đẻ ra hai lượt gọi chồng nhau. */}
+        {total > 0 && (
+          <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
+            onTrang={setPage} onSize={setSize} loading={loading} ariaLabel={`Phân trang ${config.title.toLowerCase()}`} />
+        )}
       </div>
-
-      {/* Chân bảng: `total` là tổng SAU bộ lọc (đúng cái đang được cắt trang), khác con số "N mục"
-          trên tiêu đề = tổng theo ô tìm, không theo tab. Bảng rỗng thì ẩn — khối "chưa có / không
-          tìm thấy" đã nói giúp, thêm dòng "Tổng 0 bản ghi" là thừa. Khóa nút khi đang tải để
-          bấm dồn không đẻ ra hai lượt gọi chồng nhau. */}
-      {total > 0 && (
-        <PhanTrangDayDu trang={page} size={size} tong={total} soDong={rows.length}
-          onTrang={setPage} onSize={setSize} loading={loading} ariaLabel={`Phân trang ${config.title.toLowerCase()}`} />
-      )}
 
       {editing && (
         <CatalogDrawer config={config} existing={editing === "new" ? null : editing}

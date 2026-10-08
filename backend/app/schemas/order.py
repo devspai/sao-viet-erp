@@ -148,6 +148,8 @@ class MonSanXuatOut(BaseModel):
     giao_thang: int = 0
     da_giao: float = 0
     con_phai_giao: float = 0
+    #: Khách đã THỰC NHẬN đủ (khác `con_phai_giao` = 0, số đó trừ cả phần yêu cầu đang giữ).
+    khach_nhan_du: bool = False
     lenh: list[LenhMonOut] = []
 
 
@@ -191,6 +193,9 @@ class OrderListOut(BaseModel):
     total: int
     page: int
     size: int
+    # Dòng "Cộng" cuối lưới (07/10/2026): Σ giá trị gồm VAT và Σ cọc đã thu của MỌI đơn khớp bộ lọc.
+    tong_gia_tri: int = 0
+    tong_coc: int = 0
 
 
 class OrderStatsOut(BaseModel):

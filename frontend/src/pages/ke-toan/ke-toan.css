@@ -37,27 +37,6 @@
 .kt-dem { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--r-pill);
   background: var(--charcoal); color: var(--on-charcoal); font-size: var(--fs-2xs); font-weight: 700; }
 
-/* ---------- Thẻ lọc (gộp số + tab) ---------- */
-/* Thẻ THẤP, chia đều cả hàng (khuôn ô lọc có số của Stripe Payments): số + dòng phụ chung một hàng nên
-   thẻ còn ~70px thay vì ~160px. Rộng theo nội dung từng bị chê lởm chởm, thẻ to thẻ nhỏ (06/10/2026). */
-.kt-the-loc { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-bottom: 14px; }
-.kt-the-loc__o { min-width: 0; text-align: left; background: var(--canvas); border: 1px solid var(--rule-soft);
-  border-radius: 8px; padding: 8px 14px; cursor: pointer; display: grid; gap: 1px; align-content: start;
-  font: inherit; color: var(--ink); transition: border-color var(--duration-base); }
-.kt-the-loc__o:hover { border-color: var(--rule); }
-.kt-the-loc__o.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1px var(--charcoal); }
-.kt-the-loc__nhan { font-size: var(--fs-xs); color: var(--ash); font-weight: 500; display: flex; align-items: center; gap: 6px; }
-.kt-va { font-weight: 400; }
-.kt-the-loc__cham { width: 8px; height: 8px; border-radius: 50%; background: var(--rule); flex: none; }
-.kt-the-loc__cham--xanh { background: var(--moss); }
-.kt-the-loc__cham--amber { background: var(--amber); }
-.kt-the-loc__cham--xam { background: var(--steel); }
-.kt-the-loc__cham--do { background: var(--signal); }
-.kt-the-loc__hang { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.kt-the-loc__so { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
-.kt-the-loc .kt-cung-ky { margin-top: 2px; padding-top: 0; border-top: 0; }
-.kt-the-loc__phu { font-size: var(--fs-xs); color: var(--ash-2); }
-
 /* ---------- Mẩu thông tin tách bằng thẻ nhỏ + khoảng trống (không nối bằng dấu) ---------- */
 .kt-cum { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; white-space: normal; }
 .kt-the { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--r-3);
@@ -158,17 +137,17 @@
 .kt-bang tbody tr.kt-dong:hover .kt-mui { color: var(--ash); }
 .kt-pill { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-2xs); color: var(--ash); background: var(--rule-hair);
   border: 1px solid var(--rule-soft); border-radius: var(--r-pill); padding: 1px 8px; white-space: nowrap; font-weight: 500; }
-.kt-pill--amber { color: var(--amber-deep); background: var(--amber-soft); border-color: var(--amber-soft); }
-.kt-pill--do { color: var(--signal); background: var(--signal-soft); border-color: var(--signal-soft); }
-.kt-pill--xanh { color: var(--moss-deep); background: var(--moss-soft); border-color: var(--moss-soft); }
+.kt-pill--amber { background: var(--tt-vang-bg); color: var(--tt-vang-fg); border-color: transparent; }
+.kt-pill--do { background: var(--tt-do-bg); color: var(--tt-do-fg); border-color: transparent; }
+.kt-pill--xanh { background: var(--tt-la-bg); color: var(--tt-la-fg); border-color: transparent; }
 .kt-tt { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; border-radius: var(--r-pill);
   padding: 2px 10px; white-space: nowrap; }
 .kt-tt::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.kt-tt--xanh { color: var(--moss-deep); background: var(--moss-soft); }
-.kt-tt--xam { color: var(--steel); background: var(--steel-soft); }
-.kt-tt--amber { color: var(--amber-deep); background: var(--amber-soft); }
-.kt-tt--do { color: var(--signal); background: var(--signal-soft); }
-.kt-thieu { display: flex; align-items: center; gap: 4px; color: var(--amber-deep); font-size: var(--fs-xs); margin-top: 4px; font-weight: 500; }
+/* Màu từ bộ chip trạng thái chung --tt-* (tokens.css). */
+.kt-tt--xanh { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.kt-tt--xam { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
+.kt-tt--amber { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.kt-tt--do { background: var(--tt-do-bg); color: var(--tt-do-fg); }
 .kt-phim { font-size: var(--fs-xs); color: var(--ash-2); margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 20px; }
 .kt-phim kbd { font: inherit; font-size: var(--fs-2xs); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: var(--r-2);
   padding: 0 5px; background: var(--canvas); }
@@ -180,102 +159,9 @@
 .kt-so-nut { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
 .kt-so-nut:hover, .kt-so-nut:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 .kt-rong-trong { padding: 40px 24px; display: grid; gap: 12px; justify-items: center; text-align: center; color: var(--ash); font-size: var(--fs-sm); }
-/* Thẻ điện thoại thay bảng — chỉ hiện dưới 640px */
-.kt-the-dt { display: none; }
-.kt-the-dt > div { padding: 14px 16px; border-bottom: 1px solid var(--rule-hair); display: grid; gap: 6px; cursor: pointer; }
-.kt-the-dt > div:last-child { border-bottom: 0; }
-.kt-the-dt__h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.kt-the-dt__h > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kt-the-dt__h > :last-child { white-space: nowrap; }
-
 /* ---------- Bảng đủ cột của hai màn công nợ (06/10/2026) ---------- */
-.kt-du-cot td { vertical-align: top; }
 .kt-ten--xuong { white-space: normal; overflow: visible; line-height: 1.35; }
 .kt-ten--thuong { font-weight: 500; }
-.kt-du-cot .kt-phu.kt-cum { flex-wrap: wrap; margin-top: 4px; white-space: normal; }
-.kt-du-cot td.kt-so .kt-phu { overflow: visible; }
-.kt-vach-tuoi { display: flex; gap: 2px; height: 6px; width: 130px; margin: 6px 0 0 auto; border-radius: 3px; overflow: hidden;
-  background: var(--rule-hair); }
-.kt-vach-tuoi i { display: block; height: 100%; }
-.kt-hai-dong { display: grid; gap: 2px; font-size: var(--fs-sm); }
-.kt-hai-dong > span { display: flex; justify-content: space-between; gap: 10px; white-space: nowrap; }
-.kt-hai-dong i { font-style: normal; color: var(--ash-2); }
-.kt-cham-ten { display: inline-flex; align-items: center; gap: 6px; color: var(--ash); white-space: nowrap; }
-.kt-cham-ten i { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; flex: none;
-  background: var(--rule-hair); border: 1px solid var(--rule-soft); font-style: normal; font-size: 10px; font-weight: 700; color: var(--ash); }
-/* Tiêu đề cột sắp được: chữ như tiêu đề thường + tam giác chỉ chiều; cột đang sắp chữ đậm màu mực. */
-.kt-sx { border: 0; background: none; padding: 0; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
-  cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.kt-sx::after { content: ""; border: 4px solid transparent; border-top-color: var(--rule); transform: translateY(2px); }
-.kt-sx:hover, .kt-sx.on { color: var(--ink); }
-.kt-sx.on::after { border-top-color: var(--ink); }
-.kt-sx--asc::after { border-top-color: transparent; border-bottom-color: var(--ink); transform: translateY(-2px); }
-.kt-sx:focus-visible { outline: 2px solid var(--charcoal); outline-offset: 2px; border-radius: 2px; }
-/* Bảng công nợ đủ cột: ẩn cột theo bề rộng THẬT của khung bảng (thanh bên ăn mất chỗ), không theo
-   bề rộng màn hình — các cột cố định cộng lại 855px (đủ 7 cột từ màn 1366px có thanh bên), theo màn hình thì cột tên bị ép về 0px. Cột tên
-   luôn giữ ≥ 220px; khung hẹp hơn 700px thì chuyển hẳn sang thẻ như điện thoại. */
-.kt-bang--cn { container-type: inline-size; }
-@container (max-width: 1079px) { .kt-du-cot .kt-an-hep { display: none; } }
-@container (max-width: 829px) { .kt-du-cot .kt-an-hep2 { display: none; } }
-@container (max-width: 699px) {
-  .kt-bang--cn table.kt-chinh { display: none; }
-  .kt-bang--cn .kt-the-dt { display: grid; }
-}
-
-/* ---------- Tổng quan công nợ (khuôn thẻ Xero: một thẻ, ba cột) ---------- */
-.kt-tq-khung { container-type: inline-size; margin-bottom: 16px; }
-.kt-tq { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6);
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); box-shadow: var(--shadow-1); }
-.kt-tq > p { grid-column: 1 / -1; padding: 16px 20px; margin: 0; }
-.kt-tq__chinh, .kt-tq__tuoi, .kt-tq__ky { padding: 14px 20px; min-width: 0; display: grid; align-content: start; }
-.kt-tq__tuoi, .kt-tq__ky { border-left: 1px solid var(--rule-hair); }
-.kt-tq__nh { font-size: var(--fs-sm); color: var(--ash); font-weight: 500; }
-.kt-tq__lon { font-size: 22px; font-weight: 600; letter-spacing: -.01em; line-height: 1.25; white-space: nowrap; }
-.kt-tq__phu { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--fs-xs); color: var(--ash-2); }
-.kt-tq__hai { display: grid; margin-top: 10px; }
-.kt-tq__dong { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font: inherit;
-  color: var(--ink); background: none; border: 1px solid transparent; border-radius: var(--r-3); padding: 3px 6px; margin: 0 -7px; text-align: left; }
-.kt-tq__dong > span { font-size: var(--fs-sm); color: var(--ash); white-space: nowrap; }
-.kt-tq__dong b { font-size: var(--fs-md); font-weight: 600; white-space: nowrap; }
-button.kt-tq__dong { cursor: pointer; }
-button.kt-tq__dong:hover { background: var(--rule-hair); }
-button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1px var(--charcoal); }
-.kt-tq__ky { gap: 2px; }
-.kt-tq__ky .kt-tq__nh { margin-bottom: 6px; }
-.kt-tq__ky .kt-tq__dong b { font-size: var(--fs-lg); }
-.kt-tq__ck { display: block; text-align: right; font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; }
-.kt-tq__phu .kt-tq__ck { display: inline; }
-.kt-tq__cot { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; height: 92px; margin-top: 6px; }
-.kt-tq__cot button { display: grid; grid-template-rows: auto 1fr auto; gap: 3px; height: 100%; min-width: 0; padding: 0 2px;
-  font: inherit; color: var(--ink); text-align: center; background: none; border: 1px solid transparent; border-radius: var(--r-3); cursor: pointer; }
-.kt-tq__cot button:hover { background: var(--rule-hair); }
-.kt-tq__cot button.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1px var(--charcoal); }
-.kt-tq__cot button:focus-visible, button.kt-tq__dong:focus-visible { outline: 2px solid var(--charcoal); outline-offset: 1px; }
-.kt-tq__gt { font-size: var(--fs-xs); font-weight: 600; color: var(--ash); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.kt-tq__ong { display: flex; align-items: flex-end; justify-content: center; min-height: 0; }
-.kt-tq__ong i { display: block; width: 70%; max-width: 40px; height: 2px; border-radius: 3px 3px 0 0; }
-.kt-tq__ten { font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; }
-.kt-tq__rong { display: grid; place-items: center; height: 92px; margin: 6px 0 0; border: 1px dashed var(--rule-soft);
-  border-radius: var(--r-5); font-size: var(--fs-sm); color: var(--ash-2); }
-/* Khung hẹp: số chính và số trong kỳ chung hàng, cột tuổi nợ xuống hàng dưới; hẹp nữa thì xếp dọc. */
-@container (max-width: 879px) {
-  .kt-tq { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .kt-tq__ky { order: 2; }
-  .kt-tq__tuoi { order: 3; grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--rule-hair); }
-  .kt-tq__rong { height: auto; padding: 12px; }
-}
-@container (max-width: 519px) {
-  .kt-tq { grid-template-columns: minmax(0, 1fr); }
-  .kt-tq__ky { border-left: 0; border-top: 1px solid var(--rule-hair); }
-}
-/* Sáu mức tuổi nợ: chưa tới hạn → quá hạn trên 90 ngày (xám → amber → đỏ, chỉ từ token). */
-.kt-m0 { background: var(--rule); }
-.kt-m1 { background: var(--amber-soft); }
-.kt-m2 { background: color-mix(in srgb, var(--amber) 60%, var(--amber-soft)); }
-.kt-m3 { background: var(--amber); }
-.kt-m4 { background: color-mix(in srgb, var(--signal) 70%, var(--amber)); }
-.kt-m5 { background: var(--signal); }
-
 /* ---------- Thẻ tài khoản ngân hàng ---------- */
 .kt-tks { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
 .kt-tk { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-6); padding: 18px; display: grid; gap: 14px;
@@ -307,7 +193,7 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 /* ---------- Ngăn phải (NganPhai) — độ rộng chung --kt-ngan-w ---------- */
 .kt-man { position: fixed; inset: 0; background: rgba(15, 23, 42, .24); }
 .kt-man--tren { background: rgba(15, 23, 42, .16); }
-.kt-ngan { position: fixed; top: 0; right: 0; bottom: 0; width: var(--kt-ngan-w, 920px); max-width: 100vw; background: var(--canvas);
+.kt-ngan { position: fixed; top: 0; right: 0; bottom: 0; width: var(--kt-ngan-w, 1180px); max-width: 100vw; background: var(--canvas);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column; outline: none; color: var(--ink); }
 .kt-ngan--keo { user-select: none; }
 .kt-ngan__keo { position: absolute; left: -6px; top: 0; bottom: 0; width: 12px; cursor: col-resize; z-index: 3; display: grid;
@@ -329,7 +215,6 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 .kt-ngan__tieu h2 { margin: 0; font-size: var(--fs-xl); font-weight: 700; letter-spacing: -.01em; }
 .kt-ngan__hd { margin-left: auto; display: flex; gap: 8px; position: relative; }
 .kt-ngan__so { display: flex; align-items: flex-end; gap: 6px 24px; flex-wrap: wrap; margin-top: 16px; }
-.kt-ngan__tien { font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
 .kt-ngan__chu { color: var(--ash); font-size: var(--fs-sm); padding-bottom: 3px; }
 .kt-ngan__su { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; padding: 12px 16px;
   background: var(--paper); border: 1px solid var(--rule-soft); border-radius: var(--r-5); }
@@ -338,15 +223,17 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 .kt-ngan__su b { font-weight: 500; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kt-ngan__su .kt-lon { font-size: var(--fs-lg); font-weight: 700; }
 .kt-ngan__su .kt-hm__vach { margin-top: 4px; }
-.kt-ngan__tab { display: flex; gap: 4px; margin-top: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--rule-soft); overflow-x: auto; }
-.kt-ngan__tab button { height: 32px; padding: 0 12px; border: 0; border-radius: var(--r-3); background: none; color: var(--ash); cursor: pointer;
-  font: inherit; font-weight: 500; font-size: var(--fs-sm); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
-.kt-ngan__tab button:hover { background: var(--rule-hair); color: var(--ink); }
-.kt-ngan__tab button.on { background: var(--charcoal); color: var(--on-charcoal); }
-.kt-ngan__tab .kt-dem { background: var(--rule-hair); color: var(--ash); font-weight: 600; }
-.kt-ngan__tab button.on .kt-dem { background: rgba(255, 255, 255, .18); color: var(--on-charcoal); }
+/* Tab đang mở = GẠCH DƯỚI màu mực (khuôn Stripe/Polaris, chủ chốt 07/10/2026 cho MỌI ngăn) — không tô
+   nền charcoal. Vạch đáy của hàng tab là đường ngăn đầu ngăn với thân; gạch tab chồng lên nó. */
+.kt-ngan__tab { display: flex; gap: 22px; margin-top: 14px; border-bottom: 1px solid var(--rule-soft); overflow-x: auto; }
+.kt-ngan__tab button { height: 36px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none;
+  color: var(--ash-2); cursor: pointer; font: inherit; font-weight: 400; font-size: var(--fs-sm); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; }
+.kt-ngan__tab button:hover { color: var(--ink); }
+.kt-ngan__tab button.on { color: var(--ink); border-bottom-color: var(--ink); }
+.kt-ngan__tab .kt-dem { background: var(--rule-hair); color: var(--ash); font-weight: 500; }
 /* `grid-auto-rows: max-content`: lưới có chiều cao cố định sẽ BÓP ô con có `overflow: hidden` (vd bảng
-   `.kt-nhom`) cho vừa khung thay vì để nó dài ra ⇒ phần dư bị giấu và thân không cuộn được (06/10/2026:
+   `.lds-bang`) cho vừa khung thay vì để nó dài ra ⇒ phần dư bị giấu và thân không cuộn được (06/10/2026:
    khung "Thu hoá đơn" xổ trong bảng bị cắt cụt). Hàng theo đúng chiều cao nội dung thì thân mới cuộn. */
 .kt-ngan__than { flex: 1; overflow-y: auto; padding: 20px 24px 32px; position: relative; container-type: inline-size;
   display: grid; gap: 20px; align-content: start; grid-auto-rows: max-content; }
@@ -373,9 +260,6 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 .kt-luoi2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 20px; align-items: start; }
 @container (max-width: 680px) { .kt-luoi2 { grid-template-columns: minmax(0, 1fr); } }
 .kt-hop { border: 1px solid var(--rule-soft); border-radius: var(--r-5); }
-.kt-hop__tieu { padding: 12px 16px; font-size: var(--fs-sm); font-weight: 600; display: flex; align-items: center; gap: 8px;
-  border-bottom: 1px solid var(--rule-hair); }
-.kt-hop__tieu .kt-lk { margin-left: auto; font-weight: 500; }
 .kt-hop__than { padding: 14px 16px; }
 .kt-kv { display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 10px 16px; margin: 0; font-size: var(--fs-sm); }
 .kt-kv dt { color: var(--ash-2); white-space: nowrap; }
@@ -387,40 +271,6 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 .kt-dt-tien__muc em { font-style: normal; color: var(--ash); font-size: var(--fs-sm); }
 .kt-dt-tien__mui { display: flex; align-items: center; gap: 10px; color: var(--ash); font-size: var(--fs-xs); font-weight: 600; }
 .kt-dt-tien__mui i { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--rule-hair); color: var(--ash); }
-/* Thẻ BIÊN LAI đầu ngăn phiếu (phương án B — khuôn lệnh chuyển của Wise): số tiền ở đầu thẻ, dưới
-   là tuyến Từ → Tới, hai chấm nối bằng một vạch dọc. Chấm "Tới" đặc để mắt biết tiền đi về đâu. */
-.kt-bl { margin-top: 16px; border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: hidden; }
-.kt-bl__so { padding: 16px 20px 14px; border-bottom: 1px solid var(--rule-soft); }
-.kt-bl__dau { font-size: var(--fs-xs); color: var(--ash-2); }
-.kt-bl .kt-ngan__so { margin-top: 2px; }
-.kt-bl__tuyen { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 16px;
-  padding: 14px 20px 16px; background: var(--paper); }
-.kt-bl__mui { align-self: center; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--canvas); border: 1px solid var(--rule-soft); color: var(--ash); }
-.kt-bl__diem { display: grid; gap: 1px; min-width: 0; }
-/* Biên lai nằm ở đầu ngăn (ngoài vùng container của thân ngăn) ⇒ dùng @media. */
-@media (max-width: 640px) {
-  .kt-bl__tuyen { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .kt-bl__mui { transform: rotate(90deg); justify-self: start; }
-}
-.kt-bl__vai { font-size: var(--fs-xs); color: var(--ash-2); }
-.kt-bl__ten { font-size: var(--fs-md); font-weight: 700; overflow-wrap: anywhere; }
-.kt-bl__phu { color: var(--ash); font-size: var(--fs-sm); }
-.kt-so-tk { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
-/* Lưới thông tin hai cột dưới tab Chi tiết: nhãn nhỏ trên, giá trị dưới, kẻ mảnh dưới mỗi ô. */
-.kt-ltt { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 32px; margin: 0 0 20px; font-size: var(--fs-sm); }
-.kt-ltt__o { display: grid; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--rule-hair); min-width: 0; }
-.kt-ltt__o--rong { grid-column: 1 / -1; }
-.kt-ltt dt { font-size: var(--fs-xs); color: var(--ash-2); }
-.kt-ltt dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
-.kt-ltt .kt-thieu { color: var(--amber-deep, #7a5c0f); }
-@container (max-width: 560px) { .kt-ltt { grid-template-columns: minmax(0, 1fr); } }
-.kt-tien-dot { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.kt-tien-dot div { display: grid; gap: 2px; }
-.kt-tien-dot span { font-size: var(--fs-xs); color: var(--ash-2); }
-.kt-tien-dot b { font-size: var(--fs-md); }
-.kt-dong-dot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: var(--fs-sm); }
-.kt-dong-dot .kt-pill { margin-left: auto; }
 .kt-canh { display: flex; gap: 8px; align-items: center; font-size: var(--fs-sm); color: var(--amber-deep); background: var(--amber-soft);
   border-radius: var(--r-3); padding: 8px 12px; margin-top: 10px; }
 .kt-bang-xam { display: flex; gap: 8px; align-items: flex-start; font-size: var(--fs-sm); color: var(--ash); background: var(--paper);
@@ -472,80 +322,20 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 .kt-khung h3 { margin: 0; font-size: var(--fs-lg); display: flex; align-items: center; gap: 8px; }
 .kt-khung h3 .kt-ic { margin-left: auto; }
 .kt-khung p.kt-ghi { margin: -6px 0 0; color: var(--ash); font-size: var(--fs-sm); }
-.kt-hop__than--luoi { display: grid; gap: 12px; }
 .kt-khung__nut { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .kt-khung--do { border-color: var(--signal-soft); }
-/* Nhóm đợt / hoá đơn trong ngăn công nợ */
-.kt-nhom { border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: hidden; }
-.kt-nhom__dau { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 16px; background: var(--paper);
-  border-bottom: 1px solid var(--rule-soft); font-size: var(--fs-sm); }
-.kt-nhom__dau .kt-phai { margin-left: auto; font-weight: 600; }
-.kt-nhom table { width: 100%; border-collapse: collapse; }
-.kt-nhom td, .kt-nhom th { padding: 10px 12px; font-size: var(--fs-sm); text-align: left; border-bottom: 1px solid var(--rule-hair); }
-.kt-nhom th { font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--ash);
-  background: var(--canvas); }
-.kt-nhom tbody tr.kt-dong { cursor: pointer; }
-.kt-nhom tbody tr.kt-dong:hover, .kt-nhom tbody tr.kt-da-tich { background: var(--rule-hair); }
-/* Ô số trong bảng nhóm canh phải; ô chọn đợt mờ khi không chọn được (đơn cũ không theo đợt) */
-.kt-nhom .kt-so { text-align: right; white-space: nowrap; }
+/* Ô chọn đợt mờ khi không chọn được (đơn cũ không theo đợt) */
 .kt-ck:disabled { opacity: .4; cursor: not-allowed; }
-/* Đợt đã trả xong (chỉ nằm đó để dò tiền cọc đi đâu) — chữ mờ */
-.kt-nhom tbody tr.kt-xong td { color: var(--ash-2); }
-.kt-hang-dot > td { background: var(--paper); padding: 0; }
-.kt-hang-dot__ben { padding: 8px 16px 12px 56px; }
-.kt-hang-dot__ben table td, .kt-hang-dot__ben table th { padding: 6px 8px; background: none; border-bottom: 1px solid var(--rule-soft); font-size: var(--fs-xs); }
 .kt-khung-dong > td { padding: 0; background: var(--paper); }
 .kt-khung-dong .kt-khung { margin: 10px 12px 14px; }
-/* Ngăn công nợ phương án 2 — khối số đầu ngăn: Còn nợ | Tuổi nợ | Hạn mức (không đóng hộp nền xám,
-   chỉ viền mảnh; ngăn hẹp thì xếp dọc). */
-.kt-ngan__dau:has(.kt-ndt) { container: ngan-dau / inline-size; }
-.kt-ndt { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) minmax(0, 200px); gap: 24px; padding: 14px 16px;
-  border: 1px solid var(--rule-soft); border-radius: var(--r-5); }
-.kt-ndt__o { display: grid; gap: 4px; align-content: start; min-width: 0; }
-.kt-ndt__nh { font-size: var(--fs-xs); color: var(--ash); }
-.kt-ndt__nh b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.kt-ndt__lon { font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.01em; line-height: 1.2; white-space: nowrap;
-  font-variant-numeric: tabular-nums; }
-.kt-ndt__o > b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.kt-ndt__chua { font-weight: 500 !important; color: var(--ash); }
-.kt-ndt__cho { margin-top: 4px; }
-.kt-ndt__vach { display: flex; gap: 2px; height: 10px; border-radius: 3px; overflow: hidden; margin: 6px 0 4px; background: var(--rule-hair); }
-.kt-ndt__vach i { display: block; height: 100%; flex-basis: 0; min-width: 3px; }
-.kt-ndt__chu { display: flex; flex-wrap: wrap; gap: 2px 6px; margin-left: -6px; }
-.kt-ndt__chu button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border: 1px solid transparent;
-  border-radius: var(--r-3); background: none; font: inherit; font-size: var(--fs-xs); color: var(--ash); cursor: pointer; white-space: nowrap; }
-.kt-ndt__chu button:hover { background: var(--rule-hair); }
-.kt-ndt__chu button.on { border-color: var(--charcoal); color: var(--ink); }
-.kt-ndt__chu button i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
-.kt-ndt__chu b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.kt-ndt__chu b.kt-do { color: var(--signal); }
-.kt-ndt .kt-hm__vach { margin: 2px 0; }
-/* Ngăn kéo hẹp (độ rộng ngăn đổi được, nên đo theo ĐẦU NGĂN chứ không theo màn hình): còn nợ và hạn
-   mức đứng một hàng, tuổi nợ xuống hàng dưới trải hết; hẹp nữa thì xếp dọc. */
-@container ngan-dau (max-width: 719px) {
-  .kt-ndt { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 24px; }
-  .kt-ndt__o:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
-}
-@container ngan-dau (max-width: 459px) {
-  .kt-ndt { grid-template-columns: minmax(0, 1fr); }
-  .kt-ndt__o:nth-child(2) { grid-row: auto; }
-}
 /* Thẻ "đang lọc mốc … n" của tab Còn nợ: thẻ đặc, không có nút xoá bên trong (nút Bỏ lọc đứng cạnh). */
 .kt-chip--loc { padding: 0 12px; gap: 8px; }
-/* Bảng hoá đơn còn nợ: dòng phụ (ký hiệu, đơn, ngày) được xuống hàng thay vì cắt cụt. */
-.kt-no-hd .kt-phu.kt-cum { flex-wrap: wrap; white-space: normal; overflow: visible; }
-.kt-nhom td .kt-phu.kt-cum .kt-pill { margin-top: 2px; }
-/* Sao kê: dòng số dư đầu / cuối kỳ nền giấy, chữ đậm; bảng cuộn ngang khi ngăn hẹp. */
+/* Sao kê: bảng lds-g trong khung lds-bang (cuộn ngang khi ngăn hẹp); dòng số dư đầu / cuối kỳ là `lds-cong`. */
 .kt-sk__chon { height: 32px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas);
   font: inherit; font-size: var(--fs-sm); color: var(--ink); max-width: 100%; }
 .kt-sk__chon:focus { outline: 2px solid var(--charcoal); outline-offset: -1px; border-color: var(--charcoal); }
-.kt-sk-khung { overflow-x: auto; margin-top: 12px; }
+.kt-sk-khung { margin-top: 12px; }
 .kt-sk-khung--tai { opacity: .6; }
-.kt-sk { min-width: 640px; }
-.kt-sk td { font-variant-numeric: tabular-nums; }
-.kt-sk tr.kt-sk__moc td { background: var(--paper); font-weight: 600; }
-.kt-sk tr.kt-sk__moc--cuoi td { border-top: 1px solid var(--rule); border-bottom: 0; }
-.kt-sk td .kt-lk { font: inherit; }
 /* Bản in sao kê: ngày và số chứng từ không gãy giữa chừng ("01/01/202 6"). */
 .psheet table.kt-sk-in td:nth-child(-n+2) { white-space: nowrap; }
 /* Hộp hỏi giữa màn */
@@ -697,26 +487,20 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
   .kt-ph__nut { margin-left: 0; width: 100%; }
   .kt-ph__nut .kt-btn { flex: 1; justify-content: center; }
   .kt-ky__nhan { margin-left: 0; text-align: left; flex-basis: 100%; }
-  .kt-the-loc { display: flex; overflow-x: auto; padding-bottom: 4px; }
-  .kt-the-loc__o { flex: 0 0 auto; }
   .kt-tim { flex-basis: 100%; }
   .kt-tb__dem, .kt-an-dt { display: none; }
   .kt-loc-wrap { position: static; }
   .kt-boloc { left: 0; right: 0; width: auto; }
   .kt-boloc__than { grid-template-columns: 1fr; }
-  .kt-bang table.kt-chinh { display: none; }
-  .kt-the-dt { display: grid; }
   .kt-tks { grid-template-columns: 1fr; }
   .kt-ngan { width: 100vw; }
   .kt-ngan__keo { display: none; }
   .kt-ngan__dau { padding: 12px 16px 0; }
   .kt-ngan__than { padding: 16px 16px 24px; }
   .kt-ngan__chan { padding: 12px 16px; }
-  .kt-ngan__su, .kt-tien-dot, .kt-chi-doc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kt-ngan__su, .kt-chi-doc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kt-kv { grid-template-columns: 1fr; gap: 2px; }
   .kt-kv dd { margin-bottom: 8px; }
-  .kt-nhom { overflow-x: auto; }
-  .kt-nhom table { min-width: 640px; }
   .kt-hoi__than { padding-left: 22px; }
 }
 
@@ -741,14 +525,6 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
 .kt-dc span { display: block; font-size: var(--fs-xs); color: var(--ash-2); }
 .kt-dc b { display: block; font-size: 15px; font-weight: 600; margin-top: 1px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .kt-dc__chot b { font-size: 17px; font-weight: 700; }
-/* Bảng nhỏ trong form (các lần thu trước của hoá đơn). */
-.kt-lt { border: 1px solid var(--rule-soft); border-radius: 8px; overflow: hidden; }
-.kt-lt table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
-.kt-lt th { font-size: var(--fs-xs); font-weight: 500; color: var(--ash-2); text-align: left; padding: 7px 10px;
-  border-bottom: 1px solid var(--rule-soft); background: var(--paper); }
-.kt-lt td { padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); }
-.kt-lt tr:last-child td { border-bottom: 0; }
-.kt-lt .kt-so { text-align: right; }
 .kt-khac { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: var(--fs-sm); color: var(--ash); margin: 0; }
 /* Ô tiền lớn + số bằng chữ + nút "đủ". */
 .kt-o-tien--lon { max-width: none; }
@@ -806,3 +582,105 @@ button.kt-tq__dong.on { border-color: var(--charcoal); box-shadow: inset 0 0 0 1
   .kt-dc > div { padding-left: 0 !important; }
   .kt-sau { grid-template-columns: 1fr !important; }
 }
+
+/* ===== Gọn A (07/10/2026, docs/mockups/ke-toan-gon-3-phuong-an.html) ===== */
+/* Dải nút "Xếp theo" của ngăn công nợ (NganCongNo). Hàng lọc nhanh của danh sách đã chuyển sang
+   `LocNhanhTrangThai` (components/LuoiDs). */
+.kt-dai-tab { display: flex; gap: 2px; flex-wrap: wrap; }
+.kt-dai-tab button { border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 4px 10px; font: inherit;
+  font-size: 13px; color: var(--ash); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.kt-dai-tab button:hover { background: var(--rule-hair); }
+.kt-dai-tab button.on { border-color: var(--rule); background: var(--canvas); color: var(--ink); }
+
+/* Lưới kiểu bảng tính: dòng 34px, chữ 13px, vạch dọc mảnh, cắt chữ bằng "…" (title giữ chữ đủ).
+   Khung cuộn ngang khi hẹp hơn tổng cột: mỗi bảng đặt min-width = Σ cột cố định + chỗ cho cột co giãn,
+   để cột chữ không về 0px trên laptop 1366 hay điện thoại. Ô tiền KHÔNG được để "…" cắt số — cột tiền
+   rộng đủ cho số tỷ (≥128px, dòng Cộng ≥136px). */
+.kt-bang:has(> .kt-g) { overflow-x: auto; }
+/* Ô có style white-space:normal (vd ô Hàng của bảng đợt) thì thẻ nhỏ bên trong cũng xuống dòng, không cắt ngang. */
+.kt-bang .kt-g td[style*="normal"] .kt-the { white-space: normal; max-width: 100%; height: auto; min-height: 20px; line-height: 18px; }
+.kt-bang .kt-g { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.kt-bang .kt-g th, .kt-bang .kt-g td { border-right: 1px solid var(--rule-hair); border-bottom: 1px solid var(--rule-hair);
+  padding: 6px 9px; height: 34px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.kt-bang .kt-g th { height: 32px; background: var(--paper); color: var(--ash-2); font-size: 12px; font-weight: 500;
+  text-transform: none; letter-spacing: 0; text-align: left; border-bottom-color: var(--rule-soft); }
+.kt-bang .kt-g th:last-child, .kt-bang .kt-g td:last-child { border-right: 0; }
+.kt-bang .kt-g .kt-g__so { text-align: right; font-variant-numeric: tabular-nums; }
+.kt-bang .kt-g .kt-g__giua { text-align: center; }
+.kt-bang .kt-g .kt-g__mo { color: var(--ash-2); }
+.kt-bang .kt-g .kt-g__mo3 { color: #94a3b8; }
+.kt-bang .kt-g .kt-g__do { color: var(--tt-do-fg); }
+.kt-bang .kt-g .kt-g__vang { color: var(--tt-vang-fg); }
+.kt-bang .kt-g tr.kt-g__nhom td { background: var(--rule-hair); color: var(--ink); }
+.kt-bang .kt-g tr.kt-g__cong td { background: var(--paper); color: var(--ink); }
+.kt-bang .kt-g tbody tr.kt-dong:hover td, .kt-bang .kt-g tbody tr.kt-dang-xem td { background: var(--rule-hair); }
+.kt-bang .kt-g tbody tr.kt-dong:hover, .kt-bang .kt-g tbody tr.kt-dang-xem { background: transparent; }
+.kt-ghi-chu--thieu { color: var(--tt-vang-fg); }
+
+/* Ngăn kiểu 3: nội dung trái, cột thuộc tính phải 290px cuộn riêng. Hàng PHẢI ghim bằng khung
+   (`minmax(0, 1fr)`): lớp gốc đặt `grid-auto-rows: max-content` nên hàng dài theo cột cao nhất, hai cột
+   không bao giờ tràn để tự cuộn, còn khung `overflow: hidden` cắt cụt phần dưới (07/10/2026). */
+.kt-ngan__than.kt-ngan__than--hai { display: grid; grid-template-columns: minmax(0, 1fr) 290px; grid-template-rows: minmax(0, 1fr);
+  padding: 0; overflow: hidden; }
+.kt-ngan__chinh { overflow-y: auto; padding: 16px 24px 32px; min-width: 0; border-right: 1px solid var(--rule-soft); position: relative; }
+.kt-ngan__cot { overflow-y: auto; padding: 14px 20px 24px; background: #fcfdfe; }
+.kt-ray { margin: 0; }
+.kt-ray__o { padding: 6px 0; border-bottom: 1px solid var(--rule-hair); }
+.kt-ray__o:last-child { border-bottom: 0; }
+.kt-ray dt { font-size: 12px; color: #94a3b8; }
+.kt-ray dd { margin: 1px 0 0; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.kt-ngan__soLon { font-size: 22px; font-weight: 500; letter-spacing: -.015em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kt-ngan__muc { font-size: 12.5px; color: var(--ash-2); margin: 16px 0 6px; display: flex; align-items: baseline; gap: 10px; }
+.kt-ngan__muc:first-child { margin-top: 0; }
+.kt-ngan__muc > :last-child:not(:first-child) { margin-left: auto; }
+.kt-ngan__ly { font-size: 16px; color: var(--ink); margin: 1px 0 14px; }
+@media (max-width: 760px) {
+  .kt-ngan__than.kt-ngan__than--hai { grid-template-columns: 1fr; grid-template-rows: none; overflow-y: auto; }
+  .kt-ngan__chinh { overflow: visible; border-right: 0; }
+  .kt-ngan__cot { overflow: visible; border-top: 1px solid var(--rule-soft); }
+}
+
+/* ===== Phiếu chi / Phiếu thu gọn A (07/10/2026) ===== */
+/* Cột "Chi theo"/"Thu theo": thẻ nhãn rồi mã cách 6px; mã là chữ thường, không đậm. */
+.kt-bang .kt-g .kt-the + .kt-g__ma { margin-left: 6px; }
+.kt-bang .kt-g .kt-g__ma.kt-lk { display: inline; font-weight: 400; }
+/* Tab "Chứng từ gốc" của ngăn: chữ amber "chưa có" nhỏ hơn nhãn tab. */
+.kt-ngan__tab .kt-ghi-chu--thieu { font-size: 12px; }
+/* Bảng "Áp vào hoá đơn" của ngăn phiếu thu: số hoá đơn rồi thẻ "Đã hủy" cách 6px. */
+.kt-bang .kt-g .kt-g__ma + .kt-the { margin-left: 6px; }
+
+/* ===== Công nợ phải trả / phải thu: lưới lds-g (08/10/2026) ===== */
+/* "Hạn sớm nhất": chữ "còn / trễ N ngày" cách ngày 8px. */
+.lds-g .kt-cn-ben { margin-left: 8px; }
+
+/* ===== Ngăn công nợ kiểu 3 (Task 8, 07/10/2026): lưới đợt / hoá đơn + cột thuộc tính ===== */
+.kt-ncn-ben { margin-left: 6px; }
+.kt-ncn-vang { color: var(--tt-vang-fg); }
+.kt-ray .kt-lk { font-weight: 400; }
+.kt-hang-loc.kt-ncn-loc { margin-bottom: 10px; }
+.kt-ngan__muc .kt-dai-tab button { padding: 2px 10px; font-size: 12.5px; }
+.kt-bang .kt-ncn-g .kt-lk { display: inline; font-weight: 400; }
+.kt-bang .kt-ncn-g .kt-ck { vertical-align: middle; }
+.kt-bang .kt-ncn-g tbody tr.kt-dong { cursor: pointer; }
+.kt-bang .kt-ncn-g tbody tr.kt-xong td { color: #94a3b8; }
+.kt-bang .kt-ncn-g td.kt-ncn-nut { padding: 0 6px; }
+.kt-bang .kt-ncn-g td.kt-ncn-nut .kt-btn--nho { height: 24px; padding: 0 8px; font-size: 12.5px; }
+
+/* ===== Bảng trong ngăn Kế toán trên lưới lds-g / khung lds-bang của kit (08/10/2026) ===== */
+/* Mã / nút mở phiếu trong ô: chữ thường, cùng dòng với chữ kế bên. */
+.kt-ngan .lds-g .kt-lk { display: inline; font-weight: 400; }
+.kt-ngan .lds-g .kt-ck { vertical-align: middle; }
+/* Ô có style white-space:normal (ô Hàng của bảng đợt, ô Hoá đơn của "Áp vào hoá đơn"): thẻ nhỏ xuống dòng, không cắt ngang. */
+.kt-ngan .lds-g td[style*="normal"] .kt-the { white-space: normal; max-width: 100%; height: auto; min-height: 20px; line-height: 18px; }
+/* Số hoá đơn rồi thẻ "Đã hủy" cách 6px. */
+.kt-ngan .lds-g .kt-ma-hd + .kt-the { margin-left: 6px; }
+/* Đợt đã trả xong (chỉ để dò cọc): cả dòng mờ. */
+.kt-ngan .lds-g tbody tr.kt-xong td { color: var(--lds-mo); }
+/* Khối "Hàng của đợt" gấp dưới dòng đợt: ô trải hết bảng, cao theo nội dung; bảng con là `lds-bang--long` của kit. */
+.kt-ngan .lds-g tr.kt-hang-dot > td { height: auto; overflow: visible; white-space: normal; }
+
+/* ===== Danh sách kế toán theo khuôn lưới chung lds-* (08/10/2026) ===== */
+/* Phiếu đã hủy: cả dòng mờ (chip trạng thái giữ màu riêng). */
+.lds .lds-g tbody tr.kt-da-huy td { color: var(--lds-mo); }
+/* Ghi chú đầu bảng "Gia công chờ chi". */
+.kt-gc-ghi { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; color: var(--ash-2); }

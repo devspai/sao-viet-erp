@@ -20,7 +20,7 @@ import pytest
 
 from app.models.department import Department
 from app.models.kho_hang import KhoHang
-from app.models.ky_thuat_may import TT_SC_DANG_SUA, TT_YC_DA_TAO_PHIEU, SuaChuaMay
+from app.models.ky_thuat_may import TT_SC_CHO_SUA, TT_YC_DA_TAO_PHIEU, SuaChuaMay
 from app.models.lsx import TT_SAN_SANG, Lsx, LsxCongDoan, LsxCongDoanVatTu
 from app.models.may_thiet_bi import MayThietBi
 from app.models.order import OrderLine
@@ -475,7 +475,7 @@ def test_su_co_keo_theo_phieu_sua(client, seed_credentials, sess, lenh_that):
     phải nối tay, và nối đúng chiều đó.
     """
     phieu = SuaChuaMay(ma="SC-HS-1", may_id=9_001, bo_phan_hong="Cụm cấp giấy",
-                       muc_do="trung_binh", trang_thai=TT_SC_DANG_SUA)
+                       muc_do="trung_binh", trang_thai=TT_SC_CHO_SUA)
     sess.add(phieu)
     sess.flush()
     yc = _su_co(sess, lenh_that, _cvs(sess, lenh_that)[0].id,
@@ -488,7 +488,7 @@ def test_su_co_keo_theo_phieu_sua(client, seed_credentials, sess, lenh_that):
     assert sc[0]["ma"] == "YC-HS-9"
     assert sc[0]["phieu"] is not None, "sự cố mất đường sang phiếu sửa"
     assert sc[0]["phieu"]["ma"] == "SC-HS-1"
-    assert sc[0]["phieu"]["trang_thai"] == TT_SC_DANG_SUA
+    assert sc[0]["phieu"]["trang_thai"] == TT_SC_CHO_SUA
 
 
 # --- Khoảng hụt 6: giao hàng đủ để KHOÁ nút và ĐIỀN SẴN ----------------------------------------

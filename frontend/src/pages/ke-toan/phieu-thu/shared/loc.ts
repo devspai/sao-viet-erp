@@ -30,9 +30,9 @@ export type LocPT = LocNangCao;
 /** Bốn lựa chọn Nguồn thu — mỗi lựa chọn đúng một `source_type`. */
 export const NGUON_LUA_CHON: [string, string][] = [
   ["order_deposit", "Cọc đơn bán"],
-  ["sales_invoice", "Thu hoá đơn"],
-  ["other", "Thu khác"],
-  ["purchase_refund", "Thu lại tiền đã chi"],
+  ["sales_invoice", "Hoá đơn"],
+  ["other", "Khác"],
+  ["purchase_refund", "Thu lại tiền chi"],
 ];
 
 export const CAU_HINH_LOC_PT: CauHinhLocPhieu = {

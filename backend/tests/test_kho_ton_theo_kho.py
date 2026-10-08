@@ -1,6 +1,6 @@
 """Tồn + ngưỡng tồn + báo cáo N-X-T của giấy theo KHOÁ (mã, khổ) — spec 2026-10-01-giay-dem-to-theo-kho §3.2.
 
-Giấy tờ: tồn theo (mã, khổ) đếm tờ nguyên. Giấy cuộn: gom theo mã, đếm kg. Lô giấy cũ chưa có dạng
+Giấy tờ: tồn theo (mã, khổ) đếm tờ. Giấy cuộn: gom theo mã, đếm kg. Lô giấy cũ chưa có dạng
 không vào khoá 4 phần tử nào. Cặp 2 phần tử giữ hành vi cũ (gom mọi lô của mã).
 """
 from __future__ import annotations
@@ -156,14 +156,14 @@ def test_bao_cao_nxt_tach_dong_giay_theo_kho(client):
     assert set(dong) == {(780, 905), (800, 1090), (0, 0)}
     assert dong[(780, 905)]["nhap_sl"] == 1000 and dong[(800, 1090)]["nhap_sl"] == 500
     assert dong[(0, 0)]["nhap_sl"] == 300
-    assert dong[(780, 905)]["dvt"] == "tờ nguyên" and dong[(0, 0)]["dvt"] == "kg"
+    assert dong[(780, 905)]["dvt"] == "tờ" and dong[(0, 0)]["dvt"] == "kg"
     assert dong[(780, 905)]["nhap_gt"] == 2_000_000
 
     # Sổ dòng mang khổ từng dòng phiếu.
     r = client.get("/api/kho/bao-cao/dong", headers=_admin(client), params=q)
     assert r.status_code == 200, r.text
     so = [(x["dang_giay"], x["kho_rong"], x["kho_dai"], x["dvt"]) for x in r.json()["items"]]
-    assert ("to", 780, 905, "tờ nguyên") in so and ("cuon", 1000, 0, "kg") in so
+    assert ("to", 780, 905, "tờ") in so and ("cuon", 1000, 0, "kg") in so
 
     # Không có `kho:view_cost` ⇒ vẫn thấy số lượng, không thấy tiền.
     _nguoi_xem_bao_cao("t_xem_bc")

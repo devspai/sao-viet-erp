@@ -1,7 +1,7 @@
 /** Ngăn mở từ bên phải — vỏ chung của MỌI ngăn ở 5 màn kế toán (đặc tả A.3, A.5, A.6).
  *
  *  - Đầu ngăn cố định: đường dẫn nhỏ + ↑ ↓ | mở rộng | đóng — tiêu đề 20px + thẻ trạng thái + nút
- *    phụ — số lớn — dải tóm tắt 4 ô — hàng tab (tab đang mở nền charcoal).
+ *    phụ — số lớn — dải tóm tắt 4 ô — hàng tab (tab đang mở gạch dưới màu mực — 07/10/2026, không tô nền).
  *  - Độ rộng chung `--kt-ngan-w` (xem `doRongNgan.ts`): kéo thanh ở mép trái, bấm đúp hoặc nút
  *    "Mở rộng" để bật/tắt rộng hết.
  *  - Esc đóng đúng lớp TRÊN CÙNG; lớp đang có nội dung gõ dở (`chanDong` trả true) thì hỏi trước.
@@ -16,7 +16,8 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { batTatRongHet, docDoRong, ghiDoRong } from "./doRongNgan";
 
-export type TabNgan = { id: string; nhan: string; dem?: number };
+/** `nhan` là ReactNode: tab "Chứng từ gốc" có chữ amber "chưa có" thay con số. */
+export type TabNgan = { id: string; nhan: ReactNode; dem?: number };
 
 /** Các ngăn đang mở, theo thứ tự mở — phím chỉ thuộc về ngăn cuối mảng. */
 const chong: symbol[] = [];
@@ -53,6 +54,7 @@ export function NganPhai({
   onDong,
   chanDong,
   tang = 0,
+  cot,
   children,
 }: {
   /** Đường dẫn nhỏ trên cùng, vd "Phiếu chi > UNC-…" — ở ngăn chồng nó cho biết đang ở lớp trên. */
@@ -64,7 +66,8 @@ export function NganPhai({
   the?: ReactNode;
   /** Nút phụ bên phải tiêu đề ("In phiếu", "⋯"). */
   hanhDong?: ReactNode;
-  /** Số tiền lớn + bằng chữ (dùng `.kt-ngan__tien` / `.kt-ngan__chu`). */
+  /** Hàng số lớn dưới tiêu đề (bọc `.kt-ngan__so`). Ngăn phiếu kiểu 3 không dùng: số tiền là tiêu đề,
+   *  chữ số tiền (`ChuSoTien`, `.kt-ngan__chu`) đứng cạnh thẻ trạng thái. */
   soLon?: ReactNode;
   /** Thẻ biên lai (số tiền + Từ → Tới) của ngăn phiếu — đứng thay `soLon` + `tomTat`. */
   bienLai?: ReactNode;
@@ -85,6 +88,8 @@ export function NganPhai({
   chanDong?: () => boolean;
   /** 0 = ngăn thường, 1 = ngăn chồng. */
   tang?: number;
+  /** Cột thuộc tính bên phải (ngăn kiểu 3, 07/10/2026): thân ngăn chia hai cột, cột phải cuộn riêng. */
+  cot?: ReactNode;
   children: ReactNode;
 }) {
   const [keo, setKeo] = useState(false);
@@ -256,7 +261,14 @@ export function NganPhai({
           )}
         </header>
         <DongNgan.Provider value={dongNeuDuoc}>
-          <div className="kt-ngan__than">{children}</div>
+          {cot != null ? (
+            <div className="kt-ngan__than kt-ngan__than--hai">
+              <div className="kt-ngan__chinh">{children}</div>
+              <aside className="kt-ngan__cot" aria-label="Thuộc tính">{cot}</aside>
+            </div>
+          ) : (
+            <div className="kt-ngan__than">{children}</div>
+          )}
           {chan != null && <footer className={`kt-ngan__chan${chanToi ? " kt-ngan__chan--toi" : ""}`}>{chan}</footer>}
         </DongNgan.Provider>
         <ConfirmDialog open={hoiBo} title="Bỏ phiếu đang nhập?" message="Những gì đã gõ sẽ mất."

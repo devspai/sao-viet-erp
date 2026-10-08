@@ -12,6 +12,11 @@ export function vietSo(n: number): string {
   return n.toLocaleString("vi-VN");
 }
 
+/** Số tiền rút gọn theo triệu cho ô hẹp (hạn mức): "100 tr", "96,5 tr"; dưới 1 triệu giữ số đủ. */
+export function trieu(n: number): string {
+  return n >= 1_000_000 ? `${(n / 1_000_000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} tr` : vietSo(n);
+}
+
 /** "05/10/2026" từ "2026-10-05" (mốc thời gian đầy đủ thì lấy ngày theo giờ Việt Nam). */
 export function ngay(iso: string | null | undefined): string {
   return ngayDeDoc(iso);

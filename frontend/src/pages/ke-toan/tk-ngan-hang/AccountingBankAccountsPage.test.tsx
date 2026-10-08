@@ -101,11 +101,11 @@ describe("AccountingBankAccountsPage — tải (lỗi 1)", () => {
     expect(ncc.list).not.toHaveBeenCalled();
     expect(goi.vouchers).not.toHaveBeenCalled();
     expect(goi.receipts).not.toHaveBeenCalled();
-    // Không còn nhãn "KẾ TOÁN" lẫn câu phụ nhắc tài khoản nhà cung cấp.
+    // Không còn nhãn "KẾ TOÁN" lẫn dòng mô tả dưới tiêu đề.
     expect(screen.queryByText(/^Kế toán$/i)).toBeNull();
     expect(screen.queryByText(/nhà cung cấp/)).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Tài khoản ngân hàng" })).toBeInTheDocument();
-    expect(screen.getByText("Tài khoản công ty dùng khi lập phiếu chuyển khoản.")).toBeInTheDocument();
+    expect(screen.queryByText("Tài khoản công ty dùng khi lập phiếu chuyển khoản.")).toBeNull();
   });
 
   it("kỳ có khoảng ⇒ thêm MỘT lời thu/chi cho cùng kỳ năm trước, dòng 'Cùng kỳ' dưới số", async () => {

@@ -65,12 +65,22 @@ def nhan_kho(kho_rong: int, kho_dai: int) -> str:
     return "chưa có khổ"
 
 
-def don_vi_goc_to() -> str:
-    """MÃ đơn vị đếm lô/dòng giấy TỜ = đơn vị đứng ở chặng tờ nguyên (hỏi `dong_giay`, không viết cứng)."""
-    from ..models.don_vi_do import TRAM_TO_NGUYEN
-    from .dong_giay import ban_do_tram, ma_cua_tram
+#: Đơn vị đếm giấy TỜ ở KHO và MUA HÀNG (chủ chốt 07/10/2026): một chữ "tờ" — tờ nào khác tờ nào
+#: là do KHỔ. Chữ "tờ nguyên / tờ in" chỉ còn trong sản xuất (mã chặng, xem `don_vi_do.TRAM_*`).
+DON_VI_TO_KHO = "to"
 
-    return ma_cua_tram(TRAM_TO_NGUYEN, ban_do_tram()) or TRAM_TO_NGUYEN
+
+def la_ma_to_giay(dvt: str | None) -> bool:
+    """Mã đếm TỜ của dòng giấy: đơn vị kho `to` hoặc mã chặng tờ của lệnh (`to_nguyen`, `to`).
+    Qua cửa kho các mã này là MỘT đơn vị, hệ số 1."""
+    from ..models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
+
+    return (dvt or "").strip().lower() in {DON_VI_TO_KHO, TRAM_TO_NGUYEN, TRAM_TO}
+
+
+def don_vi_goc_to() -> str:
+    """MÃ đơn vị đếm lô/dòng giấy TỜ ở kho và mua hàng."""
+    return DON_VI_TO_KHO
 
 
 def goi_y_dong_giay(qc: dict) -> dict:
@@ -96,7 +106,10 @@ def goi_y_dong_giay(qc: dict) -> dict:
         nguon, to = "khổ tờ in", so("to_dau_vao")
     if not (kr and kd):
         kr = kd = 0
-    out = {"kho_rong": kr, "kho_dai": kd, "don_vi": don_vi_goc_to(),
+    from ..models.don_vi_do import TRAM_TO_NGUYEN
+
+    # Dòng giấy của BƯỚC lệnh là dữ liệu SẢN XUẤT ⇒ mã chặng tờ nguyên, không phải đơn vị kho.
+    out = {"kho_rong": kr, "kho_dai": kd, "don_vi": TRAM_TO_NGUYEN,
            "so_luong": None, "dien_giai": None, "ly_do": None}
     if not (kr and kd):
         out["ly_do"] = "Lệnh chưa có khổ giấy — gõ tay."

@@ -183,6 +183,8 @@ def test_mua_hang_toi_thu_mua_ke_toan_va_nguoi_dung_ten(monkeypatch):
         purchases._notify_purchase_changed("PMH-1", event_type="purchase_decision",
                                            decision="approved", actor_user_id=1,
                                            recipient_user_id=9)
+        # Từ 07/10/2026 nhóm `khvt` nhận MỌI sự kiện mua (lưới Kế hoạch vật tư bày bước của phiếu
+        # mua từng ô), trừ hoá đơn mua.
         dot1 = [await _nhan(q) for q in (thu_mua, khvt, nguoi_lap, nhan_su)]
         # Đợt giao đổi ⇒ còn nhích nhóm `khvt` (hàng đang về của Kế hoạch vật tư).
         purchases._notify_purchase_changed("PMH-1", event_type="purchase_delivery_created",
@@ -191,7 +193,7 @@ def test_mua_hang_toi_thu_mua_ke_toan_va_nguoi_dung_ten(monkeypatch):
         return dot1, dot2
 
     dot1, dot2 = _chay(monkeypatch, [purchases], kb)
-    assert dot1 == [["purchase_decision"], [], ["purchase_decision"], []]
+    assert dot1 == [["purchase_decision"], ["purchase_decision"], ["purchase_decision"], []]
     assert dot2 == [["purchase_delivery_created"], ["purchase_delivery_created"], [], []]
 
 

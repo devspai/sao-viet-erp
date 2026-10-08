@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { doiSo, ngay, tien } from "./dinhDang";
+import { doiSo, ngay, tien, trieu } from "./dinhDang";
 
 describe("dinhDang", () => {
   it("tiền có dấu chấm và chữ đ, rỗng thành gạch", () => {
@@ -8,6 +8,14 @@ describe("dinhDang", () => {
     expect(tien(0)).toBe("0 đ");
     expect(tien(null)).toBe("—");
     expect(tien(undefined)).toBe("—");
+  });
+
+  it("triệu rút gọn: từ 1 triệu ghi 'tr' tối đa một chữ số lẻ, dưới 1 triệu giữ số đủ", () => {
+    expect(trieu(100_000_000)).toBe("100 tr");
+    expect(trieu(96_540_000)).toBe("96,5 tr");
+    expect(trieu(1_000_000)).toBe("1 tr");
+    expect(trieu(1_250_000_000)).toBe("1.250 tr");
+    expect(trieu(500_000)).toBe("500.000");
   });
 
   it("ngày dd/mm/yyyy", () => {

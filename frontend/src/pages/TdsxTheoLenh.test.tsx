@@ -42,20 +42,31 @@ function ve(data: TdsxTheoLenhOut | null = DATA, onMo = vi.fn()) {
 }
 
 describe("TdsxTheoLenh · bảng theo lệnh", () => {
-  it("⭐ bảy cột đúng thứ tự", () => {
+  it("⭐ tám cột đúng thứ tự (Mã, Ngày tạo, Hạn SX, Khách, Hàng, Số lượng, Đang ở, Vấn đề)", () => {
     ve();
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Lệnh", "Sản phẩm", "Khách", "Đang ở", "Hạn SX", "Ngày tạo", "Vấn đề",
+      "Lệnh", "Ngày tạo", "Hạn SX", "Khách hàng", "Sản phẩm", "Số lượng", "Đang ở", "Vấn đề",
     ]);
   });
 
-  it("⭐ lệnh trễ: pill 'Trễ 2 ngày' + 'Sự cố đang mở', hạn kèm 'dự kiến 12/10' đỏ, GẤP", () => {
+  it("cột ẩn theo cotAn, thứ tự kéo thả theo thuTu (cột mã đứng yên)", () => {
+    render(
+      <TdsxTheoLenh data={DATA} dangTai={false} rong={<p>RỖNG</p>} onMo={() => {}}
+        cotAn={new Set(["khach", "han"])} thuTu={["van_de", "sp"]} />,
+    );
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Lệnh", "Vấn đề", "Sản phẩm", "Ngày tạo", "Số lượng", "Đang ở",
+    ]);
+  });
+
+  it("⭐ lệnh trễ: chip 'Trễ 2 ngày' + 'Sự cố đang mở', hạn kèm 'dự kiến 12/10' đỏ, GẤP, hạn đủ ngày/tháng/năm", () => {
     ve();
     const tr = screen.getByRole("button", { name: /LSX26-0031/ }).closest("tr")!;
     expect(within(tr).getByText("GẤP")).toBeInTheDocument();
-    expect(within(tr).getByText("Trễ 2 ngày").className).toContain("lsc-pill--signal");
-    expect(within(tr).getByText("Sự cố đang mở")).toBeInTheDocument();
-    expect(within(tr).getByText("dự kiến 12/10").className).toContain("lsc-do");
+    expect(within(tr).getByText("Trễ 2 ngày").className).toContain("lds-chip--do");
+    expect(within(tr).getByText("Sự cố đang mở").className).toContain("lds-chip--cam");
+    expect(within(tr).getByText("dự kiến 12/10").className).toContain("lds-do");
+    expect(within(tr).getByText("10/10/2026")).toBeInTheDocument();
   });
 
   it("⭐ Đang ở: đang SX = dải chặng + bước + 'bước i trên n'; xong SX = chữ khâu", () => {
@@ -72,6 +83,33 @@ describe("TdsxTheoLenh · bảng theo lệnh", () => {
     const onMo = ve();
     await userEvent.click(screen.getByRole("button", { name: /LSX26-0032/ }));
     expect(onMo).toHaveBeenCalledWith(32);
+  });
+
+  it("⭐ bấm vào dòng (không phải nút mã) cũng mở hồ sơ; Enter trên dòng mở một lần", async () => {
+    const onMo = ve();
+    const tr = screen.getByRole("button", { name: /LSX26-0031/ }).closest("tr")!;
+    await userEvent.click(within(tr).getByText("Hộp 31"));
+    expect(onMo).toHaveBeenCalledTimes(1);
+    expect(onMo).toHaveBeenCalledWith(31);
+    tr.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onMo).toHaveBeenCalledTimes(2);
+  });
+
+  it("nút mã không thêm điểm dừng Tab (tabIndex -1); ô Vấn đề có title nối các nhãn bằng khoảng trắng", () => {
+    ve();
+    const nut = screen.getByRole("button", { name: /LSX26-0031/ });
+    expect(nut).toHaveAttribute("tabindex", "-1");
+    expect(nut.closest("tr")).toHaveAttribute("tabindex", "0");
+    const tds = nut.closest("tr")!.querySelectorAll("td");
+    expect(tds[tds.length - 1]).toHaveAttribute("title", "Trễ 2 ngày   Sự cố đang mở");
+  });
+
+  it("dòng đang mở hồ sơ viền đủ cạnh (is-chon)", () => {
+    render(<TdsxTheoLenh data={DATA} dangTai={false} rong={<p>RỖNG</p>} onMo={() => {}} dangMo={32} />);
+    const tr32 = screen.getByRole("button", { name: /LSX26-0032/ }).closest("tr")!;
+    expect(tr32.className).toContain("is-chon");
+    expect(screen.getByRole("button", { name: /LSX26-0031/ }).closest("tr")!.className).not.toContain("is-chon");
   });
 
   it("⭐ máy chủ cắt 200 dòng ⇒ nói 'Hiện 2 trên 350 lệnh, thu hẹp bằng ô tìm.'", () => {

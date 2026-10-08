@@ -339,6 +339,14 @@ class KyThuatMayRepository:
         )
         return int(res.rowcount or 0)
 
+    def ma_lsx_map(self, lsx_ids: list[int | None]) -> dict[int, str]:
+        """{lsx_id: mã lệnh} — cột "Lệnh SX" của bảng yêu cầu: máy hỏng giữa lúc chạy lệnh nào."""
+        from ..models.lsx import Lsx
+        ids = [i for i in dict.fromkeys(lsx_ids) if i]
+        if not ids:
+            return {}
+        return {i: ma for i, ma in self.db.execute(select(Lsx.id, Lsx.ma).where(Lsx.id.in_(ids)))}
+
     def ma_sua_chua_map(self, phieu_ids: list[int]) -> dict[int, dict]:
         """{phieu_id: {ma, trang_thai}} — để danh sách YÊU CẦU chỉ thẳng sang phiếu đã sinh.
 
@@ -431,6 +439,15 @@ class KyThuatMayRepository:
         elif trang_thai == "qua_han":
             conds.append(BaoTriMay.trang_thai.in_(TT_BT_DANG_MO))
             conds.append(BaoTriMay.ngay_ke_hoach < hom_nay)
+        elif trang_thai == "hom_nay":
+            conds.append(BaoTriMay.trang_thai.in_(TT_BT_DANG_MO))
+            conds.append(BaoTriMay.ngay_ke_hoach == hom_nay)
+        elif trang_thai == "sap_toi":
+            # "7 ngày tới": từ mai tới hôm nay + 7. Cùng Quá hạn và Hôm nay là ba lát KHÔNG chồng
+            # nhau của Cần làm — số trên ba nút cộng lại không đếm trùng phiếu nào.
+            conds.append(BaoTriMay.trang_thai.in_(TT_BT_DANG_MO))
+            conds.append(BaoTriMay.ngay_ke_hoach > hom_nay)
+            conds.append(BaoTriMay.ngay_ke_hoach <= hom_nay + timedelta(days=7))
         elif trang_thai:
             conds.append(BaoTriMay.trang_thai == trang_thai)
         base, total = self._paged(select(BaoTriMay), BaoTriMay, conds, page, size)
@@ -454,7 +471,8 @@ class KyThuatMayRepository:
         Trả thêm:
           · `qua_han`     — còn dở mà hạn đã qua;
           · `den_hom_nay` — còn dở và hạn ≤ hôm nay (đúng con số badge thanh bên);
-          · `tuan_nay`    — còn dở và hạn ≤ hôm nay + 6 ngày (bao gồm cả phần quá hạn).
+          · `tuan_nay`    — còn dở và hạn ≤ hôm nay + 6 ngày (bao gồm cả phần quá hạn);
+          · `sap_toi`     — còn dở và hạn từ mai tới hôm nay + 7 (nút "7 ngày tới").
 
         Ba số này phụ thuộc NGÀY nên không suy được từ bảng đếm theo trạng thái — trước đây FE phải
         bịa mẹo "chỉ hiện số Quá hạn khi đang đứng ở tab đó".
@@ -471,17 +489,20 @@ class KyThuatMayRepository:
             _sum(BaoTriMay.ngay_ke_hoach < hom_nay),
             _sum(BaoTriMay.ngay_ke_hoach <= hom_nay),
             _sum(BaoTriMay.ngay_ke_hoach <= cuoi_tuan),
+            _sum(and_(BaoTriMay.ngay_ke_hoach > hom_nay,
+                      BaoTriMay.ngay_ke_hoach <= hom_nay + timedelta(days=7))),
         ).group_by(BaoTriMay.trang_thai)
         for c in self._conds_bao_tri(q=q, may_id=may_id, loai=loai,
                                      tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc):
             stmt = stmt.where(c)
 
-        out: dict[str, int] = {"qua_han": 0, "den_hom_nay": 0, "tuan_nay": 0}
-        for tt, tong, qua, den_nay, tuan in self.db.execute(stmt).all():
+        out: dict[str, int] = {"qua_han": 0, "den_hom_nay": 0, "tuan_nay": 0, "sap_toi": 0}
+        for tt, tong, qua, den_nay, tuan, sap in self.db.execute(stmt).all():
             out[str(tt)] = int(tong)
             out["qua_han"] += int(qua or 0)
             out["den_hom_nay"] += int(den_nay or 0)
             out["tuan_nay"] += int(tuan or 0)
+            out["sap_toi"] += int(sap or 0)
         return out
 
     def dem_theo_may(self, loai: str) -> list[tuple[int, int]]:

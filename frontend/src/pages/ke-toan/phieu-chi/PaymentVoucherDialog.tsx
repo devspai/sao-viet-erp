@@ -37,13 +37,14 @@ import "../ke-toan.css";
 export function PaymentVoucherDialog({
   purchase,
   voucher = null,
+  dotId = null,
   onClose,
   onSaved,
   onMoTaiKhoan,
 }: PaymentVoucherDialogProps & { onMoTaiKhoan?: () => void }) {
   const { token } = useAuth();
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() =>
-    initialForm(purchase, voucher),
+    initialForm(purchase, voucher, dotId),
   );
   const goc = useRef<string | null>(null);
   const [companyAccounts, setCompanyAccounts] = useState<
@@ -235,7 +236,7 @@ export function PaymentVoucherDialog({
       // DORMANT — luôn gửi null. Hạn trả nay là `due_date` của đợt giao.
       planned_payment_date: null,
       invoice_number: optional(form.invoice_number),
-      invoice_date: optional(form.invoice_date),
+      invoice_date: optional(form.invoice_number) ? optional(form.invoice_date) : null,
       contract_number: optional(form.contract_number),
       cash_recipient_name: optional(form.cash_recipient_name),
       cash_recipient_address: optional(form.cash_recipient_address),

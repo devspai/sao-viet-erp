@@ -247,25 +247,12 @@
   white-space: nowrap;
 }
 
-.cc-status-pill--pending {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.cc-status-pill--approved {
-  background: #d1fae5;
-  color: #047857;
-}
-
-.cc-status-pill--rejected {
-  background: #ffe4e6;
-  color: #be123c;
-}
-
-.cc-status-pill--cancelled {
-  background: #f1f5f9;
-  color: var(--ash-2);
-}
+/* Màu từ bộ chip trạng thái chung --tt-* (tokens.css). "Đang xin hủy" cam để không lẫn "Chờ duyệt". */
+.cc-status-pill--pending { background: var(--tt-vang-bg); color: var(--tt-vang-fg); }
+.cc-status-pill--xin-huy { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.cc-status-pill--approved { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.cc-status-pill--rejected { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.cc-status-pill--cancelled { background: var(--tt-xam-bg); color: var(--tt-xam-fg); }
 
 .cc-status-dot {
   width: 6px;
@@ -280,7 +267,10 @@
 }
 
 .cc-status-dot--cancelled {
-  background: #94a3b8;
+  background: var(--tt-xam-dot);
+}
+.cc-status-dot--xin-huy {
+  background: var(--tt-cam-dot);
 }
 
 .cc-btn-approve-sm,

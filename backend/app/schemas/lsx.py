@@ -482,6 +482,9 @@ class LsxOut(BaseModel):
     # `thieu` CHẶN nút "Sẵn sàng lập kế hoạch" (§12). Rổ cảnh báo MỀM §14 (`canh_bao`) đã gỡ
     # 25/08/2026 — server vẫn tính mỗi lần mở lệnh mà không màn nào đọc.
     thieu: list[str] = Field(default_factory=list)
+    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_to_may`, `thieu_nha_gia_cong`, `thieu_khuon`):
+    # màn lệnh gọi đích danh bước nào chặn nút Sẵn sàng, khỏi phải mở từng bước ra dò.
+    thieu_buoc: dict[str, list[int]] = Field(default_factory=dict)
     lead_time: LeadTimeOut | None = None
     # `khoan_tien_tong` gỡ 11/09/2026 cùng tiền khoán ở tầng lệnh — tổng công thợ là số của kế toán
     # lương, tính theo bảng giá TẠI KỲ TÍNH LƯƠNG, không phải Σ ảnh chụp lúc bung lệnh.

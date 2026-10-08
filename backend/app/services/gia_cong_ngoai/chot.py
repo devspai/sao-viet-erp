@@ -30,6 +30,7 @@ from ..san_xuat.san_luong import _toa_san_luong
 from . import GiaCongXungDot, kiem_version, so_vi
 from .giao_thang import ghi_giao_thang, huy_giao_thang
 from .lan import NHANH_KHO, NHANH_TOA, nguon_lan, nhanh_bai_ghep, noi_ve_hop_le
+from .tron_goi import ly_do_khong_nhan_ve
 
 _EPS = 1e-9
 NHAN_NOI_VE = {"xuong": "về xưởng", "kho": "về kho", "khach": "giao thẳng cho khách"}
@@ -232,6 +233,9 @@ def chot(db: Session, *, user, gcn_id: int, expected_version: int | None, sl_cuo
         raise GiaCongXungDot("Lần gia công vừa được chốt — tải lại.")
     if gcn.kieu == KIEU_MOT_PHAN and gcn.mang_di_luc is None:
         raise ValueError("Chưa ghi “Đã mang đi” — bấm Mang đi trước khi nhận về.")
+    chan_giay = ly_do_khong_nhan_ve(repo, gcn)
+    if chan_giay:
+        raise ValueError(chan_giay)
     so = float(sl_cuoi or 0)
     if so <= _EPS:
         raise ValueError("Con số cuối phải lớn hơn 0.")

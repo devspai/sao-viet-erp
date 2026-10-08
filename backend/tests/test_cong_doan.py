@@ -165,12 +165,41 @@ def test_cong_doan_NHIEU_to_giu_thu_tu():
     db.expire_all()
     assert svc.get(cd.id).department_ids == [to_a.id, to_c.id]
 
-    with pytest.raises(CongDoanValidationError, match="Không tìm thấy tổ"):
+    with pytest.raises(CongDoanValidationError, match="tổ cuối trong cây tổ chức"):
         svc.update(cd.id, {**base, "department_ids": [to_a.id, 987654]})
     db.rollback()
 
     cd = svc.update(cd.id, {**base, "department_ids": []})
     assert cd.department_ids == [] and cd.to_mac_dinh_id is None
+
+
+def test_o_chon_to_chi_co_nut_la():
+    """Ô "Phòng ban / Tổ phụ trách" CHỈ bày nút lá (07/10/2026) — nút cha không hiện, kể cả khi đang
+    có công đoạn trỏ tới, và không chọn MỚI được nút cha. Công đoạn đã trỏ nút cha từ trước vẫn
+    sửa được (không khoá đường gỡ)."""
+    db, svc = _svc()
+    cha = Department(name="Tổ bế", code="PB941", la_san_xuat=True)
+    db.add(cha)
+    db.flush()
+    con = Department(name="Bế 1", code="PB942", parent_id=cha.id)
+    db.add(con)
+    db.commit()
+    base = dict(ma="CD-LA", ten="Ép kim", nhom="finishing", pricing_basis="per_finished_qty")
+
+    with pytest.raises(CongDoanValidationError, match="tổ cuối trong cây tổ chức"):
+        svc.create({**base, "department_ids": [cha.id]})
+    db.rollback()
+
+    cd = svc.create({**base, "department_ids": [con.id]})
+    # Dữ liệu cũ trỏ nút cha (trước khi luật có): vẫn không hiện ở ô chọn.
+    cd.department_ids = [cha.id, con.id]
+    db.commit()
+    assert [o["id"] for o in svc.phong_ban_options()] == [con.id]
+
+    cd = svc.update(cd.id, {**base, "department_ids": [cha.id, con.id]})
+    assert cd.department_ids == [cha.id, con.id], "nút cha có sẵn không chặn lưu"
+    cd = svc.update(cd.id, {**base, "department_ids": [con.id]})
+    assert cd.department_ids == [con.id]
 
 
 def _to_va_rate(svc, db, *, ma_to: str, ma_rate: str):

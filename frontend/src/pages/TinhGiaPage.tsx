@@ -2,6 +2,7 @@
 // mode "list" → danh sách phiếu (PhieuTinhGiaListView); mode "detail" → 1 phiếu (PhieuTinhGiaDetailView,
 // chính là form giá vốn bản redesign đã duyệt, nay gắn với phiếu đã lưu).
 import { useState } from "react";
+import { useCan } from "../auth/permissions";
 import { PhieuTinhGiaListView } from "./PhieuTinhGiaListView";
 import { PhieuTinhGiaDetailView } from "./PhieuTinhGiaDetailView";
 import "./tinh-gia.css";
@@ -20,6 +21,8 @@ export function TinhGiaPage({ navigate, openPhieuId, taoMoi, eventTick = 0 }: {
   // Tick nhóm SSE `danh_muc`: nhích khi danh mục nguồn đổi ⇒ phiếu đang mở nạp lại danh mục.
   eventTick?: number;
 } = {}) {
+  // Cột "Báo giá" của danh sách chỉ bấm được khi người xem đọc được màn Báo giá.
+  const xemBaoGia = useCan()("bao_gia", "read");
   const [view, setView] = useState<View>(
     openPhieuId ? { mode: "detail", id: openPhieuId } : taoMoi ? { mode: "detail", id: null } : { mode: "list" },
   );
@@ -41,6 +44,7 @@ export function TinhGiaPage({ navigate, openPhieuId, taoMoi, eventTick = 0 }: {
     <PhieuTinhGiaListView
       onOpen={(id) => setView({ mode: "detail", id })}
       onNew={() => setView({ mode: "detail", id: null })}
+      onMoBaoGia={navigate && xemBaoGia ? (id) => navigate("bao-gia", { openQuoteId: id }) : undefined}
     />
   );
 }

@@ -13,14 +13,20 @@ export function HangCuaDot({ item, soCot }: { item: PayableItemRow; soCot: numbe
   return (
     <tr className="kt-hang-dot">
       <td colSpan={soCot}>
-        <div className="kt-hang-dot__ben">
-          <table aria-label="Hàng của đợt">
+        <div className="lds-bang lds-bang--long">
+          <table className="lds-g" aria-label="Hàng của đợt">
+            <colgroup>
+              <col />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 112 }} />
+              <col style={{ width: 122 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Mặt hàng</th>
-                <th className="kt-so">Số lượng</th>
-                <th className="kt-so">Đơn giá</th>
-                <th className="kt-so">Thành tiền</th>
+                <th className="n">Số lượng</th>
+                <th className="n">Đơn giá</th>
+                <th className="n">Thành tiền</th>
               </tr>
             </thead>
             <tbody>
@@ -38,9 +44,9 @@ export function HangCuaDot({ item, soCot }: { item: PayableItemRow; soCot: numbe
                       )}
                     </Cum>
                   </td>
-                  <td className="kt-so">{`${vietSo(line.quantity)} ${dv(line.unit)}`}</td>
-                  <td className="kt-so">{vietSo(line.unit_price)}</td>
-                  <td className="kt-so">{vietSo(line.thanh_tien)}</td>
+                  <td className="n">{`${vietSo(line.quantity)} ${dv(line.unit)}`}</td>
+                  <td className="n">{vietSo(line.unit_price)}</td>
+                  <td className="n">{vietSo(line.thanh_tien)}</td>
                 </tr>
               ))}
             </tbody>

@@ -47,18 +47,18 @@ export const VOUCHER_METHOD_LABELS: Record<PaymentVoucherType, string> = {
   bank_transfer: "Chuyển khoản",
 };
 
-/** Nguồn của một phiếu để HIỆN: loại (chữ), thẻ phụ ("Đặt cọc") và mã nguồn nếu có.
- *  Phiếu nguồn "Khác" không có mã — máy chủ để nhãn nguồn vào chỗ mã, không hiện lại lần hai. */
+/** Nguồn của một phiếu để HIỆN (cột "Chi theo"): nhãn loại và mã nguồn nếu có. Phiếu đặt cọc của
+ *  đơn mua mang nhãn riêng "Cọc đơn mua" (phương án A, 07/10/2026). Phiếu nguồn "Khác" không có mã —
+ *  máy chủ để nhãn nguồn vào chỗ mã, không hiện lại lần hai. */
 export function nguonPhieu(row: Pick<PaymentVoucherRowNguon, "source_type" | "payment_stage" | "purchase_request_code">): {
   loai: string;
-  phu: string | null;
   ma: string | null;
 } {
   const coMa = row.source_type === "purchase_request" || row.source_type === "gia_cong_ngoai"
     || row.source_type === "salary_advance";
+  const coc = row.source_type === "purchase_request" && row.payment_stage === "advance";
   return {
-    loai: SOURCE_LABELS[row.source_type] ?? row.source_type,
-    phu: row.source_type === "purchase_request" && row.payment_stage === "advance" ? "Đặt cọc" : null,
+    loai: coc ? "Cọc đơn mua" : SOURCE_LABELS[row.source_type] ?? row.source_type,
     ma: coMa && row.purchase_request_code ? row.purchase_request_code : null,
   };
 }

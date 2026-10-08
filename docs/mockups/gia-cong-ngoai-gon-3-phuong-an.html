@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gia công ngoài gọn — 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f5d3a; --moss-soft:#dbe7dd; --moss-deep:#244a2e;
+  --amber:#a07a12; --amber-soft:#efe4c4; --amber-deep:#7a5c0f; --signal:#8a1f1f;
+  --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1120px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;margin:0 0 4px}
+.lead{color:var(--ash);margin:0 0 12px;max-width:860px}
+.loi{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:0 0 40px;max-width:900px;color:var(--ash)}
+.loi b{color:var(--ink)}
+.loi ol{margin:6px 0 0;padding-left:20px}
+.opt{margin-bottom:64px}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.goi-y{font-size:12px;font-weight:600;color:var(--moss-deep);background:var(--moss-soft);border-radius:999px;padding:2px 10px}
+.why{color:var(--ash);margin:0 0 14px;max-width:900px}
+.why b{color:var(--ink)}
+.why ul{margin:6px 0 0;padding-left:18px}
+.nhan-mau{font-size:12px;font-weight:600;color:var(--ash-2);margin:18px 0 8px}
+
+/* Ngữ cảnh: băng số liệu phía trên + dải tab, mờ đi. */
+.ctx{opacity:.5;pointer-events:none}
+.kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.kpi div{border:1px solid var(--rule-soft);border-radius:10px;padding:8px 14px}
+.kpi small{display:block;font-size:11px;font-weight:600;color:var(--ash-2);letter-spacing:.04em}
+.kpi b{font-size:15px}
+.kpi i{font-style:normal;font-size:12px;color:var(--ash-2)}
+.tabs{display:flex;gap:6px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:5px;margin-top:12px}
+.tabs span{padding:6px 16px;border-radius:8px;font-size:13.5px;color:var(--ash)}
+.tabs span.on{background:var(--charcoal);color:#fff;font-weight:600}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;font-weight:600;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--txt{border-color:transparent;background:transparent;color:var(--ash);padding:0 8px}
+.lk{color:var(--rust);font-weight:500;background:none;border:0;padding:0;font:inherit;font-size:13px;cursor:pointer}
+.lk:hover{text-decoration:underline}
+.mo{color:var(--ash-2);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;border-radius:999px;padding:1px 9px;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill--ngoai{background:var(--amber-soft);color:var(--amber-deep)}
+.pill--xong{background:var(--moss-soft);color:var(--moss-deep)}
+.the{display:inline-flex;align-items:center;font-size:12px;color:var(--ash);background:var(--rule-hair);border-radius:5px;padding:0 7px;white-space:nowrap}
+.tel{display:inline-flex;align-items:center;gap:4px;color:var(--rust);font-size:12.5px;text-decoration:none}
+.tel svg{width:11px;height:11px}
+.chev{display:inline-block;font-size:10px;color:var(--ash-2);margin-right:4px}
+
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px}
+
+/* ============ A — Linear: một hàng thuộc tính ============ */
+.a{padding:12px 16px}
+.a-dau{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.a-dau .ten{font-weight:600;font-size:14px}
+.a-dau .nut{margin-left:auto;display:flex;gap:6px}
+.a-hang{display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;margin-top:8px;font-size:13px}
+.a-o{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
+.a-o > .k{color:var(--ash-2);font-size:12px}
+.a-chan{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rule-hair);font-size:12.5px;color:var(--ash-2)}
+
+/* ============ B — Stripe: danh sách chi tiết hai cột ============ */
+.b-dau{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:12px 16px;border-bottom:1px solid var(--rule-hair)}
+.b-dau .ten{font-weight:600}
+.b-dau .nut{margin-left:auto;display:flex;gap:6px}
+.b-moc{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ash-2)}
+.b-moc i{width:7px;height:7px;border-radius:50%;background:var(--rule)}
+.b-moc i.xong{background:var(--moss)}
+.b-moc i.dang{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.b-moc em{width:14px;height:1px;background:var(--rule)}
+.b-dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px;margin:0;padding:6px 16px 4px}
+.b-dl > div{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;font-size:13px;align-items:baseline}
+.b-dl dt{color:var(--ash-2);font-size:12.5px}
+.b-dl dd{margin:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;min-width:0}
+.b-chan{display:flex;flex-wrap:wrap;gap:4px 18px;padding:6px 16px 10px;font-size:12.5px;color:var(--ash-2)}
+
+/* ============ C — Polaris: thẻ fulfillment một câu ============ */
+.c{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:12px 16px}
+.c-icon{flex:none;width:32px;height:32px;border-radius:8px;background:var(--amber-soft);color:var(--amber-deep);display:grid;place-items:center}
+.c-icon svg{width:16px;height:16px}
+.c-than{flex:1 1 360px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.c-cau{font-size:14px}
+.c-cau b{font-weight:600}
+.c-phu{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12.5px;color:var(--ash-2)}
+.c-phu .gach{width:1px;height:12px;background:var(--rule);margin:0 4px}
+.c-nut{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+
+.hai{display:grid;grid-template-columns:minmax(0,1fr) 375px;gap:20px;align-items:start}
+.dt{max-width:375px}
+@media (max-width:900px){.hai{grid-template-columns:minmax(0,1fr)}.b-dl{grid-template-columns:minmax(0,1fr)}}
+.so-sanh{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:-20px 0 48px;max-width:900px}
+.so-sanh div{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--ash)}
+.so-sanh b{display:block;color:var(--ink);font-size:20px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Khối Gia công ngoài: bản gọn</h1>
+  <p class="lead">Dữ liệu thật của LSX26-0005 (trọn gói, Cơ sở Gia công Cán màng Thành Công, xưởng cấp giấy DNX00003 đã xuất đủ bằng PXK00001). Ba phương án đều giữ đủ thao tác và thông tin cần, chỉ khác cách xếp.</p>
+
+  <div class="loi">
+    <b>Bản hiện tại cao khoảng 480 px. Thừa gì và to ở đâu</b>
+    <ol>
+      <li><b>Số đặt 3.000 tờ</b> trùng ô SL ĐẶT ngay băng trên. Bỏ, chỉ hiện khi số đặt gia công KHÁC số lệnh.</li>
+      <li><b>425 tờ nguyên</b> trùng ô GIẤY NGUYÊN ở băng trên. Bỏ, chỉ hiện khi số tờ xin xuất khác nhu cầu.</li>
+      <li>Trạng thái nói hai lần: chip <b>Đang ở nhà gia công</b> và thanh ba đoạn tô tới <b>Đang gia công</b>. Thanh ba đoạn chiếm nguyên một hàng cao chỉ để chở dòng "20:55 06-10 Admin".</li>
+      <li>Tên nhà gia công và "Xưởng cấp" in đậm cỡ tiêu đề, to hơn cả tên khối.</li>
+      <li><b>Lịch sử (2)</b> và <b>Đã huỷ 3 lần</b> mỗi cái chiếm một hàng riêng có kẻ ngăn.</li>
+      <li>Ba cột chia đều cả bề ngang nên cột giữa chỉ chở một con số, khoảng trống lớn.</li>
+    </ol>
+  </div>
+
+  <div class="so-sanh">
+    <div>Phương án A<b>~145 px</b>cao</div>
+    <div>Phương án B<b>~165 px</b>cao</div>
+    <div>Phương án C<b>~70 px</b>cao</div>
+  </div>
+
+  <!-- ======================= A ======================= -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>A. Một hàng thuộc tính</h2>
+      <span class="src">Linear: hàng thuộc tính của issue</span>
+      <span class="goi-y">Đề xuất</span>
+    </div>
+    <div class="why">
+      Linear xếp mọi thuộc tính của một việc thành các cặp "nhãn nhỏ + giá trị" nằm nối nhau trên một hàng, tự xuống dòng khi hẹp. Hợp ở đây vì khối chỉ có ba thứ cần nhìn (ai làm, giấy tới đâu, giao lúc nào) và người kế hoạch quét bằng mắt chứ không đọc.
+      <ul>
+        <li>Đầu khối: nhãn GIA CÔNG NGOÀI, chữ "Trọn gói", chip trạng thái, hai nút cỡ nhỏ bên phải.</li>
+        <li>Mốc "giao việc" thành một ô thuộc tính, bỏ hẳn thanh ba đoạn.</li>
+        <li>Lịch sử và Đã huỷ gom về một hàng chân chữ nhỏ.</li>
+      </ul>
+    </div>
+
+    <div class="ctx">
+      <div class="kpi">
+        <div><small>SL ĐẶT</small><b>3.000</b> <i>tờ</i></div>
+        <div><small>GIẤY NGUYÊN</small><b>425</b> <i>tờ nguyên</i></div>
+        <div><small>VẬT TƯ</small><b>1</b> <i>món</i></div>
+        <div><small>HẠN GIAO</small><b>27/10/2026</b></div>
+      </div>
+    </div>
+
+    <div class="card a">
+      <div class="a-dau">
+        <span class="mo" style="font-weight:600;letter-spacing:.04em;font-size:11px">GIA CÔNG NGOÀI</span>
+        <span class="ten">Trọn gói</span>
+        <span class="pill pill--ngoai">Đang ở nhà gia công</span>
+        <div class="nut">
+          <button class="btn btn--txt">Huỷ gia công</button>
+          <button class="btn btn--pri">Nhận hàng về</button>
+        </div>
+      </div>
+      <div class="a-hang">
+        <div class="a-o">
+          <span class="k">Nhà gia công</span>
+          <span>Cơ sở Gia công Cán màng Thành Công</span>
+          <a class="tel" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg>0910726420</a>
+        </div>
+        <div class="a-o">
+          <span class="k">Giấy xưởng cấp</span>
+          <span class="the">790 × 1090 mm</span>
+          <span class="pill pill--xong">Đã xuất đủ</span>
+          <button class="lk">DNX00003</button>
+          <button class="lk">PXK00001</button>
+        </div>
+        <div class="a-o">
+          <span class="k">Giao việc</span>
+          <span class="num">06/10 20:55</span>
+          <span>Admin</span>
+        </div>
+      </div>
+      <div class="a-chan">
+        <button class="lk" style="color:var(--ash-2);font-size:12.5px"><span class="chev">▶</span>Lịch sử (2)</button>
+        <button class="lk" style="color:var(--ash-2);font-size:12.5px"><span class="chev">▶</span>Đã huỷ 3 lần</button>
+      </div>
+    </div>
+
+    <div class="ctx"><div class="tabs"><span class="on">Thông tin chung</span><span>Quy cách</span><span>Công đoạn</span><span>Vật tư</span><span>Tệp đính kèm</span><span>Nhật ký</span></div></div>
+
+    <p class="nhan-mau">Màn điện thoại 375 px: các ô thuộc tính tự xuống dòng, nút xuống hàng riêng</p>
+    <div class="card a dt">
+      <div class="a-dau">
+        <span class="ten">Trọn gói</span>
+        <span class="pill pill--ngoai">Đang ở nhà gia công</span>
+        <div class="nut" style="margin-left:0;width:100%">
+          <button class="btn btn--txt">Huỷ gia công</button>
+          <button class="btn btn--pri">Nhận hàng về</button>
+        </div>
+      </div>
+      <div class="a-hang">
+        <div class="a-o"><span class="k">Nhà gia công</span><span>Cơ sở Gia công Cán màng Thành Công</span><a class="tel" href="#">0910726420</a></div>
+        <div class="a-o"><span class="k">Giấy xưởng cấp</span><span class="the">790 × 1090 mm</span><span class="pill pill--xong">Đã xuất đủ</span><button class="lk">DNX00003</button><button class="lk">PXK00001</button></div>
+        <div class="a-o"><span class="k">Giao việc</span><span class="num">06/10 20:55</span><span>Admin</span></div>
+      </div>
+      <div class="a-chan"><span><span class="chev">▶</span>Lịch sử (2)</span><span><span class="chev">▶</span>Đã huỷ 3 lần</span></div>
+    </div>
+  </section>
+
+  <!-- ======================= B ======================= -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>B. Danh sách chi tiết hai cột, mốc thu thành chấm</h2>
+      <span class="src">Stripe Dashboard: khối Details của một thanh toán</span>
+    </div>
+    <div class="why">
+      Stripe đặt nhãn xám cố định bề rộng bên trái, giá trị bên phải, hai cột song song, chữ cùng cỡ 13px. Tiến độ nhiều bước của Stripe thu thành dãy chấm nhỏ cạnh tiêu đề. Hợp khi muốn giữ cảm giác "có ba mốc" mà không tốn một hàng.
+      <ul>
+        <li>Ba chấm Giao việc → Đang gia công → Nhận về nằm ngay sau chip, chấm đang ở có viền hổ phách.</li>
+        <li>Nhãn thẳng cột nên dễ dò khi lệnh có thêm dòng (ví dụ "Số đặt" khi khác số lệnh).</li>
+        <li>Cao hơn A khoảng 20 px vì nhãn xếp thành cột.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="b-dau">
+        <span class="ten">Trọn gói</span>
+        <span class="pill pill--ngoai">Đang ở nhà gia công</span>
+        <span class="b-moc"><i class="xong"></i><em></em><i class="dang"></i><em></em><i></i></span>
+        <div class="nut">
+          <button class="btn btn--txt">Huỷ gia công</button>
+          <button class="btn btn--pri">Nhận hàng về</button>
+        </div>
+      </div>
+      <dl class="b-dl">
+        <div><dt>Nhà gia công</dt><dd><span>Cơ sở Gia công Cán màng Thành Công</span><a class="tel" href="#">0910726420</a></dd></div>
+        <div><dt>Giấy</dt><dd><span>Xưởng cấp</span><span class="the">790 × 1090 mm</span></dd></div>
+        <div><dt>Giao việc</dt><dd><span class="num">06/10 20:55</span><span>Admin</span></dd></div>
+        <div><dt>Kho</dt><dd><span class="pill pill--xong">Đã xuất đủ</span><button class="lk">DNX00003</button><button class="lk">PXK00001</button></dd></div>
+      </dl>
+      <div class="b-chan">
+        <span><span class="chev">▶</span>Lịch sử (2)</span>
+        <span><span class="chev">▶</span>Đã huỷ 3 lần</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= C ======================= -->
+  <section class="opt">
+    <div class="opt-head">
+      <h2>C. Thẻ một câu kiểu đơn đang giao</h2>
+      <span class="src">Shopify Polaris: thẻ Fulfillment trong trang đơn hàng</span>
+    </div>
+    <div class="why">
+      Shopify gói tình trạng giao hàng thành một câu đọc được ngay ("Đang ở đâu, từ khi nào") kèm biểu tượng màu trạng thái, chi tiết phụ xuống một dòng chữ nhỏ, nút dồn phải. Gọn nhất, nhưng chip trạng thái được thay bằng câu nên ít "nhãn" hơn hai phương án kia.
+      <ul>
+        <li>Câu chính đã chứa trạng thái, nhà gia công và mốc giao, nên bỏ chip và bỏ ô Giao việc.</li>
+        <li>Dòng phụ: giấy và chứng từ kho, ngăn bằng vạch đứng mảnh, không dùng dấu chấm.</li>
+        <li>Lịch sử và Đã huỷ nằm cuối dòng phụ.</li>
+      </ul>
+    </div>
+
+    <div class="card c">
+      <span class="c-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h11v10H3zM14 10h4l3 3v4h-7"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg></span>
+      <div class="c-than">
+        <div class="c-cau">Trọn gói đang ở <b>Cơ sở Gia công Cán màng Thành Công</b> từ <span class="num">06/10 20:55</span></div>
+        <div class="c-phu">
+          <a class="tel" href="#">0910726420</a>
+          <span class="gach"></span>
+          <span>Giấy xưởng cấp</span><span class="the">790 × 1090 mm</span>
+          <span class="pill pill--xong">Đã xuất đủ</span>
+          <button class="lk">DNX00003</button><button class="lk">PXK00001</button>
+          <span class="gach"></span>
+          <span><span class="chev">▶</span>Lịch sử (2)</span>
+          <span><span class="chev">▶</span>Đã huỷ 3 lần</span>
+        </div>
+      </div>
+      <div class="c-nut">
+        <button class="btn btn--txt">Huỷ gia công</button>
+        <button class="btn btn--pri">Nhận hàng về</button>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

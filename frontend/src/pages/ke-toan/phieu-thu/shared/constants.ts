@@ -12,12 +12,13 @@ export const STATUS_META: Record<PaymentReceiptStatus, { label: string; mau: "xa
   cancelled: { label: "Đã hủy", mau: "xam" },
 };
 
-/** Nhãn nguồn thu — viết đủ, khớp bộ lọc Nguồn thu (đặc tả A.4, PT-1). */
+/** Nhãn "Thu theo" — khớp bộ lọc Nguồn thu (đặc tả A.4, PT-1). Tiêu đề màn đã nói là thu nên giá trị
+ *  không lặp chữ "Thu" (phương án A, 07/10/2026). */
 export const SOURCE_LABELS: Record<PaymentReceiptSource, string> = {
+  sales_invoice: "Hoá đơn",
   order_deposit: "Cọc đơn bán",
-  sales_invoice: "Thu hoá đơn",
-  other: "Thu khác",
-  purchase_refund: "Thu lại tiền đã chi",
+  purchase_refund: "Thu lại tiền chi",
+  other: "Khác",
 };
 
 /** Nhãn hình thức dùng chung hai sổ phiếu: "Tiền mặt | Chuyển khoản" (đặc tả PT-4). */
