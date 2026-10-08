@@ -99,6 +99,16 @@ def test_thong_tin_goi_sau_phat_hanh(db, orders, lsx_svc, xl_svc, admin, custome
     assert len(tt["phien_bans"]) == 1 and tt["phien_bans"][0]["so"] == 1
 
 
+def test_luc_phien_ban_tra_ve_gio_xuong(db, orders, lsx_svc, xl_svc, admin, customer):
+    """`created_at` ghi UTC thật; trả thô thì ngăn Xếp lịch hiện 05:02 khi xưởng đang 12:02."""
+    a, goi = _lsx_da_phat_hanh(db, orders, lsx_svc, xl_svc, admin, customer)
+    pb = db.query(SanXuatPhienBan).filter_by(goi_id=goi.id).one()
+    pb.created_at = datetime(2026, 10, 8, 5, 2, tzinfo=timezone.utc)
+    db.flush()
+    tt = release_update.thong_tin_goi(db, nguon="lsx", id=a.id)
+    assert tt["phien_bans"][0]["luc"].startswith("2026-10-08T12:02")
+
+
 # --- Cập nhật: tái chụp máy + giờ theo lịch hiện tại, tăng phiên bản ----------
 def test_cap_nhat_tai_chup_may_gio_va_tang_phien_ban(db, orders, lsx_svc, xl_svc, admin, customer):
     a, goi = _lsx_da_phat_hanh(db, orders, lsx_svc, xl_svc, admin, customer)

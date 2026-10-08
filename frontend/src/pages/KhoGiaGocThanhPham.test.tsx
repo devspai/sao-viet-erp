@@ -34,16 +34,22 @@ describe("KhoGiaGocThanhPham", () => {
     await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ khoId: undefined })));
   });
 
-  it("ngày 'đến' trước ngày 'từ' thì báo và không hỏi máy chủ", async () => {
+  it("ngày 'đến' trước ngày 'từ': ô không nhận, không hỏi máy chủ", async () => {
     const ds = vi.spyOn(api.kho.baoCao, "thanhPhamChuaGiaGoc").mockResolvedValue(trang([lo({})]));
     render(<KhoGiaGocThanhPham token="t" />);
     await screen.findByText("LOT-TP-00010-260918-01");
     fireEvent.click(screen.getByRole("button", { name: /Lọc nâng cao/ }));
-    fireEvent.change(screen.getByLabelText("Ngày nhập từ"), { target: { value: "2026-09-10" } });
+    // Ô ngày tự vẽ (ChonNgay): gõ dd/mm/yyyy, rời ô là chốt.
+    const tu = screen.getByLabelText("Ngày nhập từ") as HTMLInputElement;
+    fireEvent.change(tu, { target: { value: "10/09/2026" } });
+    fireEvent.blur(tu);
     await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ tu: "2026-09-10" })));
     const soLan = ds.mock.calls.length;
-    fireEvent.change(screen.getByLabelText("Ngày nhập đến"), { target: { value: "2026-09-01" } });
-    expect(screen.getByText(/Ngày "đến" phải từ ngày "từ" trở đi/)).toBeTruthy();
+    // "Đến" có min = ngày "từ": gõ ngày sớm hơn thì ô trả về như cũ, không có lọc ngược nào bay lên máy chủ.
+    const den = screen.getByLabelText("Ngày nhập đến") as HTMLInputElement;
+    fireEvent.change(den, { target: { value: "01/09/2026" } });
+    fireEvent.blur(den);
+    expect(den.value).toBe("");
     expect(ds.mock.calls.length).toBe(soLan);
   });
 

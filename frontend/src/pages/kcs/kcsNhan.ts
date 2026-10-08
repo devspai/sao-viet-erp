@@ -49,19 +49,20 @@ export const KCS_NHOM_TRANG_THAI: Record<string, { nhan: string; cls: string }> 
   closed: { nhan: "Đã đóng", cls: "badge-sem--moss" },
 };
 
-/** Tình trạng kiểm của một công đoạn theo các lần kiểm đã ghi: chưa kiểm · đạt · có lỗi.
- *  Công đoạn GIỮA (`cuoi = false`) KCS chỉ ghi lỗi, không bắt buộc — không có "chưa kiểm"/"đạt":
- *  chỉ "Có lỗi" hoặc "Không lỗi" (19/09/2026). */
+/** Tình trạng kiểm của một công đoạn: chưa kiểm · đạt · có lỗi. `loiCuaMinh` = lỗi TÍNH cho công
+ *  đoạn này — do chính nó gây, bắt ở đâu cũng được (08/10/2026); lỗi nó bắt được mà quy về bước
+ *  khác không làm nó "Có lỗi". Công đoạn GIỮA (`cuoi = false`) KCS chỉ ghi lỗi, không bắt buộc —
+ *  không có "chưa kiểm"/"đạt": chỉ "Có lỗi" hoặc "Không lỗi" (19/09/2026). */
 export function tinhTrangKiem(
-  soLan: number, tongLoi: number, cuoi = true,
+  soLan: number, loiCuaMinh: number, cuoi = true,
 ): { nhan: string; cls: string; loai: "chua" | "dat" | "loi" } {
   if (!cuoi) {
-    return tongLoi > 0
-      ? { nhan: `Có lỗi · ${soLan} lần`, cls: "badge-sem--rust", loai: "loi" }
+    return loiCuaMinh > 0
+      ? { nhan: "Có lỗi", cls: "badge-sem--rust", loai: "loi" }
       : { nhan: "Không lỗi", cls: "badge-sem--moss", loai: "chua" };
   }
   if (soLan <= 0) return { nhan: "Chưa kiểm", cls: "badge-sem--muted", loai: "chua" };
-  if (tongLoi > 0) return { nhan: `Có lỗi · ${soLan} lần`, cls: "badge-sem--rust", loai: "loi" };
+  if (loiCuaMinh > 0) return { nhan: `Có lỗi · ${soLan} lần`, cls: "badge-sem--rust", loai: "loi" };
   return { nhan: `Đạt · ${soLan} lần`, cls: "badge-sem--moss", loai: "dat" };
 }
 

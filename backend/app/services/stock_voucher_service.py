@@ -239,6 +239,10 @@ class StockVoucherService:
         # (kho đích lập từ yêu cầu điều chuyển) đều bật `dieu_chuyen` để báo cáo gắn nhãn + loại khỏi
         # tổng mua/bán. Nhập/xuất thường: yêu cầu `dieu_chuyen=False` → phiếu cũng false. mig 0203.
         header.setdefault("dieu_chuyen", bool(getattr(req, "dieu_chuyen", False)))
+        # Người giao/nhận hàng = NGƯỜI YÊU CẦU, server chốt từ tài khoản — không nhận chữ gõ tay.
+        from ..models.user import User
+        nguoi_yc = self.vouchers.db.get(User, req.nguoi_tao_id) if req.nguoi_tao_id else None
+        header["nguoi_giao_nhan"] = getattr(nguoi_yc, "name", None)
         voucher = self.vouchers.create(
             ma=ma_clean, loai=loai, request_id=req.id, nguoi_lap_id=user.id,
             kho_id=kho_id, ngay=ngay or date.today(), lines=prepared, **header

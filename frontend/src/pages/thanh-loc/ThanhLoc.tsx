@@ -8,6 +8,7 @@
  *  - Điều kiện đã áp thành khối "trường | giá trị | ×": bấm giá trị để sửa, × để bỏ.
  *  Khổ điện thoại: lớp nổi thành tấm sát đáy màn, menu con thay chỗ menu (có nút quay lại).
  */
+import { ChonNgay } from "../../components/ChonNgay";
 import { ArrowLeft, CalendarDays, Check, ChevronDown, ChevronRight, ListFilter, Search, X } from "lucide-react";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -42,6 +43,8 @@ function useDongKhiRaNgoai(ref: RefObject<HTMLElement | null>, mo: boolean, dong
     if (!mo) return;
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // Esc khi lịch của ô ngày (ChonNgay) đang mở: để ô tự đóng lịch, đừng đóng cả menu lọc.
+      if (e.target instanceof Element && e.target.closest(".cn-khung.is-mo")) return;
       e.preventDefault();
       e.stopPropagation();
       if (escRef.current?.()) return;
@@ -49,6 +52,8 @@ function useDongKhiRaNgoai(ref: RefObject<HTMLElement | null>, mo: boolean, dong
     }
     function onBam(e: MouseEvent) {
       const vung = ref.current;
+      // Lịch nổi của ô ngày portal ra body — bấm trong đó không tính là bấm ra ngoài.
+      if (e.target instanceof Element && e.target.closest(".cn-hop")) return;
       if (vung && e.target instanceof Node && !vung.contains(e.target)) dongRef.current();
     }
     document.addEventListener("keydown", onKey, true);
@@ -208,18 +213,18 @@ function NutKy({ ky, moc, onKy }: { ky: KyDS; moc: [string, string][]; onKy: (k:
               <div className="tl-khoang tl-khoang--ngay">
                 <label>
                   <span>Từ ngày</span>
-                  <input type="date" min="2000-01-01" max="2100-12-31" value={tu}
-                    onChange={(e) => {
-                      setTu(e.target.value);
-                      apTuy(e.target.value, den);
+                  <ChonNgay aria-label="Từ ngày" min="2000-01-01" max="2100-12-31" value={tu}
+                    onChange={(v) => {
+                      setTu(v);
+                      apTuy(v, den);
                     }} />
                 </label>
                 <label>
                   <span>Đến ngày</span>
-                  <input type="date" min="2000-01-01" max="2100-12-31" value={den}
-                    onChange={(e) => {
-                      setDen(e.target.value);
-                      apTuy(tu, e.target.value);
+                  <ChonNgay aria-label="Đến ngày" min="2000-01-01" max="2100-12-31" value={den}
+                    onChange={(v) => {
+                      setDen(v);
+                      apTuy(tu, v);
                     }} />
                 </label>
                 {loi && <p className="tl-loi" role="alert">{loi}</p>}

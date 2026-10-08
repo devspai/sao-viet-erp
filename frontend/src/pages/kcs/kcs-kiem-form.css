@@ -251,28 +251,78 @@
 }
 .kkf-ghi__nhan .kkf-h__phu { margin-left: 0; }
 
-.kkf-tc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.kkf-tc__it {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 240px);
-  gap: 6px 12px;
-  align-items: center;
-  padding: 6px 10px;
+/* Thẻ công đoạn ở bước cuối (§3a cách 3) — trung tính; chỉ chữ đỏ cho mục hỏng và "N mục hỏng". */
+.kkf-tcd {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 12px 10px;
   border: 1px solid var(--rule-soft);
-  border-radius: 8px;
+  border-radius: 12px;
+  background: var(--canvas);
 }
-.kkf-tc__it.is-dat { border-color: color-mix(in srgb, var(--moss) 45%, transparent); background: color-mix(in srgb, var(--moss-soft) 50%, transparent); }
-.kkf-tc__chon {
+.kkf-tcd.is-xong { border-color: var(--rule); }
+.kkf-tcd__dau { display: flex; align-items: baseline; gap: 8px; }
+.kkf-tcd__ten { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 15px; color: var(--ink); }
+.kkf-tcd__phu { font-size: 12px; color: var(--ash-2); }
+.kkf-tcd__tt { font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
+.kkf-tcd__tt.is-loi { color: var(--tt-do-fg); }
+.kkf-tcd__doc { margin: 0 0 4px; padding-left: 18px; font-size: 13px; color: var(--ash); }
+.kkf-tcd__doc li { margin: 2px 0; }
+.kkf-tcd__goi { margin: 2px 0 0; font-size: 12.5px; color: var(--ash-2); }
+.kkf-tcd__chon { list-style: none; margin: 0; padding: 0; }
+.kkf-tcd__chon label {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 34px;
+  min-height: 42px;
+  border-bottom: 1px solid var(--rule-hair);
+  font-size: 14px;
+  color: var(--ink);
   cursor: pointer;
   user-select: none;
 }
-.kkf-tc__o { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--moss); cursor: pointer; }
-.kkf-tc__ten { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
-.kkf-tc__gc { flex: none; width: 100%; }
+.kkf-tcd__chon input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--tt-do-fg); cursor: pointer; }
+.kkf-tcd__chon label.is-hong { color: var(--tt-do-fg); }
+.kkf-tcd__loi { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: 12px; }
+.kkf-tcd__nhan { font-size: 12.5px; color: var(--ash-2); }
+.kkf-tcd__mo { color: var(--ash-2); opacity: 0.8; }
+.kkf-tcd__loi textarea {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13.5px;
+  resize: vertical;
+}
+.kkf-tcd__cap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kkf-tcd__cap button {
+  height: 40px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 9px;
+  background: var(--canvas);
+  font: inherit;
+  font-size: 14px;
+  color: var(--ash);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.kkf-tcd__cap button:hover { background: var(--rule-hair); }
+.kkf-tcd__cap button[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+
+/* Thanh đáy ghim (chế độ thẻ): đạt, lỗi, trên N chưa kiểm, lý do khoá, Lưu. */
+.kkf-day { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.kkf-day__ly { margin: 0; font-size: 12.5px; color: var(--tt-vang-fg); }
+.kkf-day__hang { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.kkf-day__so { font-size: 13px; color: var(--ash-2); }
+.kkf-day__so b { font-size: 17px; font-weight: 500; color: var(--ink); margin-right: 3px; font-variant-numeric: tabular-nums; }
+.kkf-day__so.is-loi b { color: var(--tt-do-fg); }
+.kkf-day__tren { font-size: 12.5px; color: var(--ash-2); }
+.kkf-day__nut { margin-left: auto; display: flex; gap: 8px; }
 
 .kkf-loi { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .kkf-loi__o {
@@ -348,6 +398,7 @@
   .kkf-me__gio { grid-area: gio; flex-direction: row; gap: 6px; }
   .kkf-me__giua { grid-area: giua; }
   .kkf-me__phai { grid-area: phai; }
-  .kkf-tc__it { grid-template-columns: minmax(0, 1fr); }
+  .kkf-day__nut { width: 100%; }
+  .kkf-day__nut .btn { flex: 1; }
   .kkf-loi__o { width: 100%; }
 }

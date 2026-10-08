@@ -24,11 +24,8 @@ import {
   LocNhanhTrangThai,
   OTim,
   rongLuoi,
-  soCotGhim,
   tenKhachGon,
-  useCotAn,
-  useThuTuCot,
-  xepCot,
+  useCauHinhLuoi,
   ngayVN,
   type CotLuoi,
   type MauTT,
@@ -520,20 +517,19 @@ function QueueTable({
   /** Kỳ về "Tất cả" + bỏ mọi điều kiện — MỘT lần ghi (hai lần ghi rời thì lần sau đè lần trước). */
   onXoaLoc: () => void;
 }) {
-  const [cotAn, setCotAn] = useCotAn("khsx-hang-cho");
-  const [thuTu, setThuTu] = useThuTuCot("khsx-hang-cho");
-  const cotHien = xepCot(COT_CHO, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("khsx-hang-cho");
+  const cotHien = luoi.rongHien(luoi.xep(COT_CHO).filter((c) => !luoi.an.has(c.key)));
   const coLoc = ky.loai !== "tat_ca" || dieuKien.some((d) => daAp(d, loc));
   return (
     <>
       <section className="lds-loc">
         <div className="lds-loc__thanh tl-thanh" role="search">
           {scopeAll && <ThanhLoc ky={ky} moc={MOC_HANG_CHO} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />}
-          <ChonCot cot={COT_CHO} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_CHO} {...luoi.chonCot} />
         </div>
       </section>
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <caption className="sr-only">Đơn hàng đã chuyển xuống sản xuất, chờ lên lệnh</caption>
             <colgroup>
@@ -546,6 +542,7 @@ function QueueTable({
                 {cotHien.map((c) => (
                   <th key={c.key} className={c.n ? "n" : undefined}>
                     {c.label}
+                    {luoi.keo(c.key)}
                   </th>
                 ))}
               </tr>
@@ -823,9 +820,8 @@ function LenhTable({
   tq: Record<number, LsxTongQuanOut["items"][number]>;
   dem: (key: string) => number;
 }) {
-  const [cotAn, setCotAn] = useCotAn("khsx-lenh");
-  const [thuTu, setThuTu] = useThuTuCot("khsx-lenh");
-  const cotHien = xepCot(COT_LENH, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("khsx-lenh");
+  const cotHien = luoi.rongHien(luoi.xep(COT_LENH).filter((c) => !luoi.an.has(c.key)));
   const coLoc = ttFilter !== "all" || q.trim() !== "" || ky.loai !== "tat_ca"
     || dieuKien.some((d) => daAp(d, loc));
   // Số trên hàng lọc nhanh lấy từ `facets` của máy chủ (qua `dem`), cùng bộ lọc trừ trạng thái.
@@ -842,11 +838,11 @@ function LenhTable({
             ariaLabel="Tìm lệnh sản xuất"
           />
           <ThanhLoc ky={ky} moc={MOC_LENH_KHSX} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />
-          <ChonCot cot={COT_LENH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_LENH} {...luoi.chonCot} />
         </div>
       </section>
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <caption className="sr-only">Danh sách lệnh sản xuất</caption>
             <colgroup>
@@ -859,6 +855,7 @@ function LenhTable({
                 {cotHien.map((c) => (
                   <th key={c.key} className={c.n ? "n" : undefined}>
                     {c.label}
+                    {luoi.keo(c.key)}
                   </th>
                 ))}
               </tr>

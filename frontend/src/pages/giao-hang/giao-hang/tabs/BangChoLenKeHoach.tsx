@@ -14,7 +14,7 @@ import { EmptyRow } from "../../../../components/EmptyState";
 import { fmtDateTime } from "../../../../utils/format";
 import { ChipGh, KhoangTrong } from "../components/giaoHangCells";
 import { hanGiao, ngayThuan } from "../shared/helpers";
-import { CuonLuoi, soCotGhim, rongLuoi, tenKhachGon, xepCot, type CotLuoi } from "../../../../components/LuoiDs";
+import { CuonLuoi, soCotGhim, rongLuoi, tenKhachGon, xepCot, apLuoi, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
 
 // Lưới phương án A (07/10/2026). Thứ tự: chọn, Mã yêu cầu, Ngày tạo, Đơn, Khách, Hàng, Số lượng,
 // Cần giao, Giao tới, Người yêu cầu, nút Lên đơn giao.
@@ -53,6 +53,7 @@ export function BangChoLenKeHoach({
   onMo,
   onLenKeHoach,
   onLenLuot,
+  luoi,
   cotAn,
   thuTu = [],
   pheTrang,
@@ -66,6 +67,8 @@ export function BangChoLenKeHoach({
   /** Lên CHUNG một lượt xe cho các yêu cầu đã tick. */
   onLenLuot?: (rs: DeliveryRequest[]) => void;
   /** Cột người xem đã ẩn (nút "Cột"). */
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
   cotAn?: Set<string>;
   /** Thứ tự cột người xem đã kéo (nút "Cột"). */
   thuTu?: string[];
@@ -108,11 +111,11 @@ export function BangChoLenKeHoach({
     });
   const tatCa = rows.length > 0 && rows.every((r) => chon.has(r.id));
 
-  const cot = xepCot(COT_YC, thuTu).filter((c) => !cotAn?.has(c.key) && (c.key !== "chon" || onLenLuot));
+  const cot = apLuoi(luoi, xepCot(COT_YC, thuTu).filter((c) => !cotAn?.has(c.key) && (c.key !== "chon" || onLenLuot)));
   return (
     <>
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cot)}>
+        <CuonLuoi ghim={soCotGhim(cot, luoi?.ghim)}>
         <table className="lds-g" style={{ minWidth: rongLuoi(cot, 130) }}>
           <colgroup>
             {cot.map((c) => (
@@ -130,6 +133,7 @@ export function BangChoLenKeHoach({
                 ) : (
                   <th key={c.key} className={c.n ? "n" : undefined} aria-label={c.key === "nut" ? "Thao tác" : undefined}>
                     {c.key === "nut" ? null : c.label}
+                    {luoi?.keo(c.key)}
                   </th>
                 ),
               )}

@@ -13,25 +13,27 @@ const lanKiem = [{
   }],
 }] as unknown as SxKcsLanKiem[];
 
-describe("KcsLanKiemList · tiêu chí", () => {
-  it("liệt kê đủ từng tiêu chí Đạt/Không đạt kèm ghi chú, không đạt lên đầu; tên có dấu phẩy vẫn là một dòng", () => {
+describe("KcsLanKiemList · tiêu chí gom theo công đoạn", () => {
+  it("công đoạn có lỗi lên đầu kèm từng mục hỏng; công đoạn đạt một dòng; kết quả cũ thiếu cong_viec_id là của lần kiểm", () => {
     const lk = [{
-      ...lanKiem[0], loi: [],
+      ...lanKiem[0], loi: [], cong_viec_id: 11, cong_doan_ten: "Bế",
       checklist: [
+        { cong_viec_id: 9, thu_tu: 1, dat: true, ghi_chu: null },
         { thu_tu: 1, dat: true, ghi_chu: null },
         { thu_tu: 2, dat: false, ghi_chu: "Xước 3 tờ góc trái" },
       ],
     }] as unknown as SxKcsLanKiem[];
     render(<KcsLanKiemList lanKiem={lk} checklist={[
-      { thu_tu: 1, ten: "Đúng kích thước", bat_buoc: true },
-      { thu_tu: 2, ten: "Không lem mực, không xước bề mặt", bat_buoc: true },
+      { cong_viec_id: 9, ten_cong_doan: "In offset", thu_tu: 1, ten: "Đúng màu", la_lenh_phu: true, ten_lenh: "Bìa", lsx_ma: "LSX26-0004" },
+      { cong_viec_id: 11, ten_cong_doan: "Bế", thu_tu: 1, ten: "Đúng kích thước" },
+      { cong_viec_id: 11, ten_cong_doan: "Bế", thu_tu: 2, ten: "Không lem mực, không xước bề mặt" },
     ]} />);
 
-    expect(screen.getByText("Tiêu chí: 1/2 đạt")).toBeTruthy();
+    expect(screen.getByText("Công đoạn: 1/2 đạt")).toBeTruthy();
     const dong = Array.from(document.querySelectorAll(".kcs-lk__tc-it")).map((d) => d.textContent);
     expect(dong).toEqual([
-      "Không lem mực, không xước bề mặtKhông đạtXước 3 tờ góc trái",
-      "Đúng kích thướcĐạt",
+      "Bế1 mục hỏngKhông lem mực, không xước bề mặt (Xước 3 tờ góc trái)",
+      "In offsetLệnh phụ Bìa LSX26-0004Đạt",
     ]);
   });
 });

@@ -16,6 +16,7 @@
 // khi còn thiếu thì báo lỗi ngay dưới ô và nhảy tới ô sai đầu tiên. Xem trước nằm cạnh nút Lưu.
 //
 // Vẫn giữ: KHÔNG có ô tài khoản / định khoản (việc của phần mềm kế toán — cần nhớ thì ghi chú).
+import { ChonNgay } from "../../components/ChonNgay";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ApiError } from "../../api/client";
 import type { Department } from "../../api/client";
@@ -465,9 +466,9 @@ export function ThemTaiSanDialog({
                 )}
                 <label className="rc-field">
                   <span className="rc-field__label">Bắt đầu dùng từ ngày <em>*</em></span>
-                  <input id="ts-them-ngay" className="rc-input" type="date" min={NGAY_MIN} max={NGAY_MAX}
-                    value={ngaySuDung} disabled={khoaSo} aria-invalid={!!loiO["ts-them-ngay"] || undefined}
-                    onChange={(e) => { setNgaySuDung(e.target.value); setDaDoiSo(true); xoaLoi("ts-them-ngay"); }} />
+                  <ChonNgay id="ts-them-ngay" aria-label="Bắt đầu dùng từ ngày" className={`rc-input${loiO["ts-them-ngay"] ? " is-loi" : ""}`}
+                    min={NGAY_MIN} max={NGAY_MAX} value={ngaySuDung} disabled={khoaSo}
+                    onChange={(v) => { setNgaySuDung(v); setDaDoiSo(true); xoaLoi("ts-them-ngay"); }} />
                   <LoiO loi={loiO["ts-them-ngay"]} />
                 </label>
 

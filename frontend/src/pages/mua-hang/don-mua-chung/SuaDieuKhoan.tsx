@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { ApiError, api, type PurchaseRequestRow } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
+import { ChonNgay } from "../../../components/ChonNgay";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { OGoDinhDang } from "../../../components/OGoDinhDang";
 import { hanTraTuMoc, money } from "../../../utils/format";
@@ -85,7 +86,7 @@ export function SuaDieuKhoan({
         <label className="mh-dk__dong">
           <span className="mh-dk__nhan">Ngày chốt công nợ</span>
           <span className="mh-dk__o">
-            <input className="input mh-dk__ngay" type="date" value={ngayChot} onChange={(e) => setNgayChot(e.target.value)} />
+            <ChonNgay className="input mh-dk__ngay" value={ngayChot ?? ""} onChange={(v) => setNgayChot(v)} />
             <small className="mh-dk__nhac">
               {ngayChot && row.supplier_credit_days != null
                 ? `Nhà cung cấp cho nợ ${row.supplier_credit_days} ngày kể từ mốc này, hạn trả ${hanTraTuMoc(ngayChot, row.supplier_credit_days)}.`

@@ -17,10 +17,11 @@ import {
   type SxSanLuongTo, type SxSlCongDoan, type SxSlKho, type SxSlLenh, type SxSlMe, type SxSlPhatSinh,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { ChonNgay } from "../components/ChonNgay";
 import { Icon } from "../components/Icons";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import {
-  ChonCot, CuonLuoi, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot, type CotLuoi,
+  ChonCot, CuonLuoi, OTim, rongLuoi, useCauHinhLuoi, type CauHinhLuoi, type CotLuoi,
 } from "../components/LuoiDs";
 import { useDebounced } from "../utils/useDebounced";
 import { EmptyState as EmptyStateChung } from "../components/EmptyState";
@@ -274,12 +275,12 @@ function OSl({
  *  là dòng Cộng của lệnh đó — mỗi công đoạn một dòng, vì các bước khác đơn vị (tờ, con, cái) nên cộng
  *  chung một số là sai; tên công đoạn đã nói số nào của ai. */
 function BangMuc({
-  muc, ds, cot,
-}: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[]; cot: CotSl[] }) {
+  muc, ds, cot, luoi,
+}: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[]; cot: CotSl[]; luoi: CauHinhLuoi }) {
   const viTriSl = cot.findIndex((c) => c.key === "sl");
   return (
     <div className="lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cot)}>
+      <CuonLuoi ghim={luoi.soGhim(cot)}>
         <table className="lds-g" style={{ minWidth: rongLuoi(cot) }}>
           <colgroup>
             {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
@@ -289,6 +290,7 @@ function BangMuc({
               {cot.map((c) => (
                 <th key={c.key} className={c.n ? "n" : undefined}>
                   {c.key === "to" && muc === "khach" ? "Tổ chủ mẻ" : c.label}
+                  {luoi.keo(c.key)}
                 </th>
               ))}
             </tr>
@@ -417,9 +419,8 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
   // Điện thoại: ngày + đơn vị THU vào nút "Lọc" — bày hết ra thì bảng chỉ còn 1/4 màn hình.
   const [moLoc, setMoLoc] = useState(false);
   // Cột của lưới: ẩn / đổi chỗ nhớ theo máy người xem; hai lưới (của tổ, tổ khác) dùng chung.
-  const [cotAn, setCotAn] = useCotAn("thsx-sl");
-  const [thuTuCot, setThuTuCot] = useThuTuCot("thsx-sl");
-  const cotHien = xepCot(COT_SL, thuTuCot).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("thsx-sl");
+  const cotHien = luoi.rongHien(luoi.xep(COT_SL).filter((c) => !luoi.an.has(c.key)));
 
   const ngaySai = !!tu && !!den && tu > den;
 
@@ -455,7 +456,7 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
   const dsKhach = useMemo(() => theoMuc(data?.lenh ?? [], "khach"), [data?.lenh]);
   const tenTo = toId == null ? "Cả bàn này" : (data?.cac_to ?? []).find((t) => t.id === toId)?.ten ?? "Một tổ";
   const veMuc = (muc: Muc, ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[]) =>
-    hep ? <TheMuc muc={muc} ds={ds} /> : <BangMuc muc={muc} ds={ds} cot={cotHien} />;
+    hep ? <TheMuc muc={muc} ds={ds} /> : <BangMuc muc={muc} ds={ds} cot={cotHien} luoi={luoi} />;
   // Điện thoại giữ ô tìm cũ (thanh dính trên đầu); máy bàn dùng ô tìm của khuôn lưới.
   const oTimHep = (
     <div className="thsx-search">
@@ -474,13 +475,13 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
     <>
       <label className="thsx-sl__f">
         <span>Từ ngày</span>
-        <input type="date" value={tu} max={den || undefined} min="2000-01-01"
-          onChange={(e) => setTu(e.target.value)} />
+        <ChonNgay value={tu} max={den || undefined} min="2000-01-01" aria-label="Từ ngày"
+          onChange={(v) => setTu(v)} />
       </label>
       <label className="thsx-sl__f">
         <span>Đến ngày</span>
-        <input type="date" value={den} min={tu || undefined} max="2200-12-31"
-          onChange={(e) => setDen(e.target.value)} />
+        <ChonNgay value={den} min={tu || undefined} max="2200-12-31" aria-label="Đến ngày"
+          onChange={(v) => setDen(v)} />
       </label>
       <button type="button" className="thsx-trang__nut"
         onClick={() => { const nay = new Date(); setTu(dauThang(nay)); setDen(ymd(nay)); }}>
@@ -521,7 +522,7 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
           <div className="lds-loc__thanh tl-thanh" role="search">
             <OTim value={tim} onChange={setTim} placeholder="Tìm mã / tên lệnh…" ariaLabel="Tìm lệnh" />
             {truongLoc}
-            <ChonCot cot={COT_SL} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />
+            <ChonCot cot={COT_SL} {...luoi.chonCot} />
           </div>
         </section>
       )}

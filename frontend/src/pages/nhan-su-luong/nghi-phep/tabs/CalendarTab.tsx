@@ -1,17 +1,11 @@
 // Tab "Lịch nghỉ" (HR) (tách từ pages/NghiPhepPage.tsx).
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { api, type LeaveCalendar } from "../../../../api/client";
 import { EmptyState } from "../../../../components/EmptyState";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import {
-  Calendar,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Search,
-  Users,
-} from "lucide-react";
+import { LocNhanhTrangThai, OTim } from "../../../../components/LuoiDs";
+import { MonthPicker } from "../../../../components/MonthPicker";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PAGE_SIZE } from "../shared/constants";
 import { errMsg, getInitials } from "../shared/helpers";
 
@@ -19,7 +13,11 @@ import { errMsg, getInitials } from "../shared/helpers";
 
 const WEEKDAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
-export function CalendarTab({ token }: { token: string }) {
+export function CalendarTab({ token, dau }: {
+  token: string;
+  /** Hàng đầu màn do trang dựng; phần này chỉ gài nút chính vào bên phải. */
+  dau: (phai?: ReactNode) => ReactNode;
+}) {
   const now = new Date();
   const [ym, setYm] = useState<{ year: number; month: number }>({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [data, setData] = useState<LeaveCalendar | null>(null);
@@ -70,18 +68,19 @@ export function CalendarTab({ token }: { token: string }) {
   const isCurrentMonth = now.getFullYear() === ym.year && (now.getMonth() + 1) === ym.month;
   const todayDay = now.getDate();
 
-  // Stats calculation
-  const totalEmployeesOff = data
-    ? data.employees.filter(e => Object.values(e.days).some(d => d.status === "approved" || d.status === "pending")).length
-    : 0;
-
-  const totalPendingRequests = data
-    ? data.employees.reduce((acc, e) => acc + Object.values(e.days).filter(d => d.status === "pending").length, 0)
-    : 0;
-
-  const totalPaidDays = data
-    ? data.employees.reduce((acc, e) => acc + Object.values(e.days).filter(d => d.status === "approved" && d.is_paid).length, 0)
-    : 0;
+  // Số trên hàng lọc nhanh = số NHÂN VIÊN khớp (sau ô tìm tên) — thay ba thẻ số to cũ (Nhân sự nghỉ /
+  // Đơn chờ duyệt / Ngày phép P): cùng thông tin, nói một lần, bấm vào là lọc luôn.
+  const theoTen = data
+    ? data.employees.filter(e => e.employee_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : [];
+  const demCo = (dk: (d: { status: string; is_paid: boolean }) => boolean) =>
+    theoTen.filter(e => Object.values(e.days).some(dk)).length;
+  const mucLoc = [
+    { key: "all", label: "Tất cả", count: data ? theoTen.length : undefined },
+    { key: "paid", label: "Có lương (P)", count: data ? demCo(d => d.status === "approved" && d.is_paid) : undefined, mau: "la" as const },
+    { key: "unpaid", label: "Không lương (KL)", count: data ? demCo(d => d.status === "approved" && !d.is_paid) : undefined, mau: "xam" as const },
+    { key: "pending", label: "Chờ duyệt", count: data ? demCo(d => d.status === "pending") : undefined, mau: "cam" as const },
+  ];
 
   // Filtering employees
   const filteredEmployees = data
@@ -119,117 +118,30 @@ export function CalendarTab({ token }: { token: string }) {
   const ymStr = `${ym.year}-${String(ym.month).padStart(2, "0")}`;
 
   return (
-    <div className="cc-calendar-tab-wrapper">
-      {/* 1. Stats & Quick Search Bar */}
-      <div className="cc-calendar-dashboard">
-        <div className="cc-calendar-search-wrapper">
-          <Search size={16} className="cc-calendar-search-icon" />
-          <input
-            type="text"
-            className="cc-calendar-search-input"
-            placeholder="Tìm theo tên nhân viên..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button className="cc-calendar-search-clear" onClick={() => setSearchQuery("")}>×</button>
-          )}
-        </div>
-        
-        <div className="cc-calendar-stats-strip">
-          <div className="cc-calendar-stat-card">
-            <span className="cc-calendar-stat-icon cc-calendar-stat-icon--users"><Users size={16} /></span>
-            <div className="cc-calendar-stat-info">
-              <span className="cc-calendar-stat-val">{totalEmployeesOff}</span>
-              <span className="cc-calendar-stat-label">Nhân sự nghỉ</span>
-            </div>
-          </div>
-          
-          <div className="cc-calendar-stat-card">
-            <span className="cc-calendar-stat-icon cc-calendar-stat-icon--clock"><Clock size={16} /></span>
-            <div className="cc-calendar-stat-info">
-              <span className="cc-calendar-stat-val">{totalPendingRequests}</span>
-              <span className="cc-calendar-stat-label">Đơn chờ duyệt</span>
-            </div>
-          </div>
-
-          <div className="cc-calendar-stat-card">
-            <span className="cc-calendar-stat-icon cc-calendar-stat-icon--check"><CheckCircle2 size={16} /></span>
-            <div className="cc-calendar-stat-info">
-              <span className="cc-calendar-stat-val">{totalPaidDays}</span>
-              <span className="cc-calendar-stat-label">Ngày phép P</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Month Navigation & Filter Chips Bar */}
-      <div className="cc-calendar-grid-header">
-        <div className="cc-calendar-navigator">
-          <button className="cc-calendar-month-btn" onClick={() => shift(-1)} title="Tháng trước">
-            <ChevronLeft size={16} />
-          </button>
-          
-          <div className="cc-calendar-month-picker-wrapper">
-            <input
-              type="month"
-              className="cc-month-picker-hidden"
-              value={ymStr}
-              onChange={(e) => {
-                if (e.target.value) {
-                  const [y, m] = e.target.value.split("-").map(Number);
-                  setYm({ year: y, month: m });
-                }
-              }}
-              id="cc-calendar-month-picker"
-            />
-            <label htmlFor="cc-calendar-month-picker" className="cc-calendar-month-title-pill" title="Bấm để chọn nhanh tháng">
-              <Calendar size={14} style={{ marginRight: 6 }} />
-              Tháng {ym.month} / {ym.year}
-            </label>
-          </div>
-          
-          <button className="cc-calendar-month-btn" onClick={() => shift(1)} title="Tháng sau">
-            <ChevronRight size={16} />
-          </button>
-
-          {!isCurrentMonth && (
-            <button className="cc-calendar-today-btn" onClick={goToToday} title="Trở về tháng hiện tại">
-              Hôm nay
+    <>
+    {dau()}
+    <div className="cc-calendar-tab-wrapper lds">
+      {/* Thẻ lọc chung (08/10/2026): hàng lọc nhanh rồi thanh tháng + tìm tên — như mọi danh sách. */}
+      <section className="lds-loc">
+        <LocNhanhTrangThai dang={statusFilter} onChon={(k) => setStatusFilter(k as typeof statusFilter)}
+          muc={mucLoc} ariaLabel="Lọc lịch nghỉ" />
+        <div className="lds-loc__thanh" role="search">
+          <OTim value={searchQuery} onChange={setSearchQuery} placeholder="Tìm theo tên nhân viên" ariaLabel="Tìm nhân viên" />
+          <div className="np-thang">
+            <button type="button" className="np-thang__nut" onClick={() => shift(-1)} aria-label="Tháng trước" title="Tháng trước">
+              <ChevronLeft size={16} />
             </button>
+            <MonthPicker value={ymStr} ariaLabel="Chọn tháng" className="np-thang__chon"
+              onChange={(v) => { if (v) { const [y, m] = v.split("-").map(Number); setYm({ year: y, month: m }); } }} />
+            <button type="button" className="np-thang__nut" onClick={() => shift(1)} aria-label="Tháng sau" title="Tháng sau">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+          {!isCurrentMonth && (
+            <button type="button" className="tl-nut" onClick={goToToday} title="Trở về tháng hiện tại">Tháng này</button>
           )}
         </div>
-
-        <div className="cc-calendar-filter-chips">
-          <button
-            className={`cc-calendar-chip ${statusFilter === "all" ? "is-active" : ""}`}
-            onClick={() => setStatusFilter("all")}
-          >
-            Tất cả
-          </button>
-          <button
-            className={`cc-calendar-chip cc-calendar-chip--paid ${statusFilter === "paid" ? "is-active" : ""}`}
-            onClick={() => setStatusFilter(statusFilter === "paid" ? "all" : "paid")}
-          >
-            <span className="cc-calendar-grid-cell-badge cc-calendar-grid-cell-badge--paid">P</span>
-            Có lương
-          </button>
-          <button
-            className={`cc-calendar-chip cc-calendar-chip--unpaid ${statusFilter === "unpaid" ? "is-active" : ""}`}
-            onClick={() => setStatusFilter(statusFilter === "unpaid" ? "all" : "unpaid")}
-          >
-            <span className="cc-calendar-grid-cell-badge cc-calendar-grid-cell-badge--unpaid">KL</span>
-            Không lương
-          </button>
-          <button
-            className={`cc-calendar-chip cc-calendar-chip--pending ${statusFilter === "pending" ? "is-active" : ""}`}
-            onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
-          >
-            <span className="cc-calendar-grid-cell-dot" />
-            Chờ duyệt
-          </button>
-        </div>
-      </div>
+      </section>
 
       {/* 3. Main Leave Grid Table */}
       {loading ? (
@@ -246,7 +158,7 @@ export function CalendarTab({ token }: { token: string }) {
         <EmptyState
           icon="search"
           title="Chưa có nhân viên nào khớp bộ lọc"
-          sub="Thử xoá ô tìm tên hoặc bỏ bớt chip lọc phía trên."
+          sub="Thử xoá ô tìm tên hoặc chọn Tất cả ở hàng lọc phía trên."
         />
       ) : (
         <div className="cc-timesheet-scroll-container cc-calendar-scroll-wrapper">
@@ -430,5 +342,6 @@ export function CalendarTab({ token }: { token: string }) {
         );
       })()}
     </div>
+    </>
   );
 }

@@ -33,6 +33,7 @@ import {
   locBangLuongTuUrl,
   thamSoLocBangLuong,
 } from "./dieu-kien-bang-luong";
+import { ChonNgayGio } from "../../../../components/ChonNgay";
 import { MonthPicker } from "../../../../components/MonthPicker";
 import { GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapSai } from "../../../../lib/gioNhap";
 import { fmtDateTime } from "../../../../utils/format";
@@ -515,23 +516,21 @@ export function BangLuongTab({
           <div className="lg-congbo__grid">
             <label className="lg-congbo__field">
               <span>Mở lúc</span>
-              <input
-                type="datetime-local"
+              <ChonNgayGio
                 min={GIO_NHAP_MIN}
                 max={GIO_NHAP_MAX}
                 value={congBo.mo}
-                onChange={(e) => setCongBo({ ...congBo, mo: e.target.value })}
+                onChange={(v) => setCongBo({ ...congBo, mo: v })}
               />
               <em>{congBo.mo ? "" : "bỏ trống = mở ngay khi bấm"}</em>
             </label>
             <label className="lg-congbo__field">
               <span>Đóng lúc</span>
-              <input
-                type="datetime-local"
+              <ChonNgayGio
                 value={congBo.dong}
                 min={congBo.mo || GIO_NHAP_MIN}
                 max={GIO_NHAP_MAX}
-                onChange={(e) => setCongBo({ ...congBo, dong: e.target.value })}
+                onChange={(v) => setCongBo({ ...congBo, dong: v })}
               />
               <em>{congBo.dong ? "" : "bỏ trống = mở không thời hạn"}</em>
             </label>

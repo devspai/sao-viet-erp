@@ -98,9 +98,9 @@ def test_san_xuat_kcs_tieu_chi_danh_muc(db):
     db.add(tc)
     db.commit()
     db.refresh(tc)
-    assert tc.bat_buoc is True
-    assert tc.active is True
     assert tc.thu_tu == 0
+    for cot in ("bat_buoc", "active", "huong_dan"):      # gỡ ở mg 0381 — một tiêu chí = một câu
+        assert cot not in SanXuatKcsTieuChi.__table__.columns
     assert tc.cong_doan_id == cd.id
 
 

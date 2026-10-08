@@ -26,7 +26,7 @@ import type {
 import { api } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
-import { ChonCot, LocNhanhTrangThai, OTim, useCotAn, useThuTuCot, type MauTT } from "../../../components/LuoiDs";
+import { ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MauTT } from "../../../components/LuoiDs";
 import { Icon } from "../../../components/Icons";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { DrawerChiTiet } from "./components/DrawerChiTiet";
@@ -117,10 +117,8 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
   const [demHan, setDemHan] = useState<Record<string, number>>({});
   // Hàng lọc nhanh "Cần giao" của tab Yêu cầu giao ("" = tất cả).
   const [han, setHan] = useState("");
-  const [cotAnDon, setCotAnDon] = useCotAn("giao-hang-don");
-  const [cotAnYc, setCotAnYc] = useCotAn("giao-hang-yc");
-  const [thuTuDon, setThuTuDon] = useThuTuCot("giao-hang-don");
-  const [thuTuYc, setThuTuYc] = useThuTuCot("giao-hang-yc");
+  const luoiDon = useCauHinhLuoi("giao-hang-don");
+  const luoiYc = useCauHinhLuoi("giao-hang-yc");
   const [choLenKeHoachRows, setChoLenKeHoachRows] = useState<DeliveryRequest[]>([]);
   const [reqPage, setReqPage] = useState(1);
   const [reqSize, setReqSize] = useState(PAGE_SIZE);
@@ -388,7 +386,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
               loc={locMan.locDon}
               onLoc={(locDon) => setLocMan({ ...locMan, locDon })}
             />
-            <ChonCot cot={COT_DON} an={cotAnDon} onAn={setCotAnDon} thuTu={thuTuDon} onThuTu={setThuTuDon} />
+            <ChonCot cot={COT_DON} {...luoiDon.chonCot} />
           </div>
         </section>
       )}
@@ -413,7 +411,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
               loc={locMan.locYc}
               onLoc={(locYc) => setLocMan({ ...locMan, locYc })}
             />
-            <ChonCot cot={COT_YC} an={cotAnYc} onAn={setCotAnYc} thuTu={thuTuYc} onThuTu={setThuTuYc} />
+            <ChonCot cot={COT_YC} {...luoiYc.chonCot} />
           </div>
         </section>
       )}
@@ -422,8 +420,9 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
         <BangKeHoach items={khoi} loading={loading} coLoc={khoaDon !== "{}"}
           canPlan={canPlan} canWrite={canWrite} luotMoi={luotMoi}
           dangMo={ngan?.khoa ?? null} onMoNgan={moNgan} onLamLuot={lamLuot}
-          cotAn={cotAnDon}
-          thuTu={thuTuDon}
+          luoi={luoiDon}
+          cotAn={luoiDon.an}
+          thuTu={luoiDon.thuTu}
           onKetQua={canWrite ? setKetQuaFor : undefined}
           onGuiDeNghi={canPlan ? setXuatKhoFor : undefined}
           onDaLay={canWrite
@@ -459,8 +458,9 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
 
       {tabDang === "cho-len-ke-hoach" && (
         <BangChoLenKeHoach rows={choLenKeHoachRows} loading={loading} coLoc={khoaYc !== "{}"}
-          cotAn={cotAnYc}
-          thuTu={thuTuYc}
+          luoi={luoiYc}
+          cotAn={luoiYc.an}
+          thuTu={luoiYc.thuTu}
           onMo={moChiTiet}
           onLenKeHoach={(r) => setPlanFor({ requests: [r], theoLuot: false })}
           onLenLuot={(rs) => setPlanFor({ requests: rs, theoLuot: true })}

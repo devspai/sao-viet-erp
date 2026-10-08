@@ -2,6 +2,7 @@
 import type React from "react";
 import type { LeaveType } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { CalendarPlus, Calendar, Clock, Info } from "lucide-react";
 
 export function LeaveRequestFormModal({
@@ -130,13 +131,13 @@ export function LeaveRequestFormModal({
                   <Calendar size={14} className="cc-date-card__icon" />
                   <span>Từ ngày *</span>
                 </label>
-                <input
+                <ChonNgay
                   id="leave-start-date"
-                  type="date"
                   className="cc-date-card__input"
-                  value={form.start_date}
-                  onChange={(e) => {
-                    const bd = e.target.value;
+                  value={form.start_date ?? ""}
+                  aria-label="Từ ngày"
+                  xoaDuoc={false}
+                  onChange={(bd) => {
                     setForm({
                       ...form,
                       start_date: bd,
@@ -151,13 +152,14 @@ export function LeaveRequestFormModal({
                   <Calendar size={14} className="cc-date-card__icon" />
                   <span>Đến ngày *</span>
                 </label>
-                <input
+                <ChonNgay
                   id="leave-end-date"
-                  type="date"
                   className="cc-date-card__input"
                   min={form.start_date || undefined}
-                  value={form.end_date}
-                  onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                  value={form.end_date ?? ""}
+                  aria-label="Đến ngày"
+                  xoaDuoc={false}
+                  onChange={(v) => setForm({ ...form, end_date: v })}
                 />
               </div>
             </div>

@@ -4,6 +4,7 @@
 // KHÔNG thấy lô, KHÔNG chọn kho. Yêu cầu chỉ nói "xin cái gì, bao nhiêu"; kho nào là quyết định
 // ở BƯỚC LẬP PHIẾU (thủ kho). SIẾT 2026-08-08: mặt hàng phải có sẵn trong danh mục Giấy / Vật
 // tư khác — không còn gõ tên tự do rồi kho gắn mã sau.
+import { ChonNgay } from "../components/ChonNgay";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -52,8 +53,8 @@ import { dkTheoTab, soDaAp, type DieuKien } from "./thanh-loc/thanh-loc";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { REQUEST_STATUS, DEFAULT_PAGE_SIZE, fmtQty, isOverdue, todayISO } from "./khoShared";
 import {
-  CuonLuoi, soCotGhim, ChipTT, ChonCot, LocNhanhTrangThai, OTim,
-  rongLuoi, useCotAn, useThuTuCot, xepCot, type CotLuoi, type MauTT,
+  CuonLuoi, ChipTT, ChonCot, LocNhanhTrangThai, OTim,
+  rongLuoi, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { EmptyRow } from "../components/EmptyState";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
@@ -106,8 +107,7 @@ export function KhoDeNghiPage({
   const can = useCan();
   // Cột Tiến độ in tên đơn vị ("tờ") chứ không in mã (`to_tp`) — nạp bảng tên đơn vị cho danh sách.
   useNapTenDonVi();
-  const [cotAn, setCotAn] = useCotAn("kho-yeu-cau");
-  const [thuTu, setThuTu] = useThuTuCot("kho-yeu-cau");
+  const luoi = useCauHinhLuoi("kho-yeu-cau");
   const canRequest = can("kho", "request");
 
   const [rows, setRows] = useState<StockRequest[]>([]);
@@ -267,9 +267,12 @@ export function KhoDeNghiPage({
 
   // Yêu cầu KHÔNG gắn kho nên không có tồn để soi → không có cột đèn. Cột "Người yêu cầu" cho thấy
   // AI xin ngay trên bảng; Bộ phận của người đó là cột riêng ở cuối (ẩn được qua nút Cột).
-  const cotHien = xepCot(COT_YC, thuTu)
-    .filter((c) => !cotAn.has(c.key))
-    .map((c) => (c.key === "can" ? { ...c, label: loai === "NHAP" ? "Cần nhập lúc" : "Cần lúc" } : c));
+  const cotHien = luoi.rongHien(
+    luoi
+      .xep(COT_YC)
+      .filter((c) => !luoi.an.has(c.key))
+      .map((c) => (c.key === "can" ? { ...c, label: loai === "NHAP" ? "Cần nhập lúc" : "Cần lúc" } : c)),
+  );
   const muc = tabs.map((t) => ({ key: t.id, label: t.label, count: countOf(t.id), mau: MAU_TAB_YC[t.id] }));
   const khongLoc = !coLoc && !q && tab === "all";
   const nutTao = canRequest && !dieuChuyen ? (
@@ -295,18 +298,25 @@ export function KhoDeNghiPage({
             loc={locMan.loc}
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
-          <ChonCot cot={COT_YC} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_YC} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
             </colgroup>
             <thead>
-              <tr>{cotHien.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
+              <tr>
+                {cotHien.map((c) => (
+                  <th key={c.key}>
+                    {c.label}
+                    {luoi.keo(c.key)}
+                  </th>
+                ))}
+              </tr>
             </thead>
             <tbody>
               {loading && shown.length === 0 ? (
@@ -1320,13 +1330,13 @@ function TaoYeuCauP2({
                 )}
                 <label className="kna-o-truong">
                   <span>{loai === "NHAP" ? "Ngày cần nhập" : "Ngày cần xuất"} <em>*</em></span>
-                  <input
+                  <ChonNgay
                     className="kna-o"
-                    type="date"
+                    aria-label={loai === "NHAP" ? "Ngày cần nhập" : "Ngày cần xuất"}
                     value={ngayCan}
                     min={khoa ? undefined : todayISO()}
                     disabled={khoa}
-                    onChange={(e) => { setDirty(true); setNgayCan(e.target.value); }}
+                    onChange={(v) => { setDirty(true); setNgayCan(v); }}
                   />
                 </label>
                 {!khoa && (

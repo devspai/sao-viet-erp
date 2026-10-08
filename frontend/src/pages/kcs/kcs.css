@@ -68,6 +68,20 @@
   color: inherit;
   outline: none;
 }
+/* Ô ngày tự vẽ (ChonNgay) nằm lọt trong khung lọc: bỏ viền/icon riêng, khung ngoài đã có. */
+.kcs-loc__ngay .cn-khung,
+.kcs-loc__ngay .cn-khung.is-mo,
+.kcs-loc__ngay .cn-khung:focus-within {
+  width: 132px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  padding: 0 var(--sp-1);
+  box-shadow: none;
+}
+.kcs-loc__ngay .cn-khung__ic {
+  display: none;
+}
 .kcs-loc__ngay-sep {
   color: var(--ash-2);
 }
@@ -305,6 +319,7 @@
   }
   .kcs-loc__ngay { flex: 1 1 100%; }
   .kcs-loc__ngay input[type="date"] { flex: 1 1 0; width: auto; min-width: 0; }
+  .kcs-loc__ngay .cn-khung { flex: 1 1 0; width: auto; min-width: 0; }
   .kcs-loc__cd { flex: 1 1 180px; width: auto; }
   .kcs-loc__ma { flex: 1 1 140px; width: auto; }
 
@@ -895,11 +910,16 @@
 
 /* Lỗi bắt ở công đoạn sau, quy về công đoạn này. */
 .kcs-matrix__loi-sau {
-  display: block;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
   margin-top: 3px;
   font-size: 11.5px;
   color: var(--rust-deep);
 }
+.kcs-matrix__loi-sau b { font-weight: 500; }
+.kcs-matrix__bat-o { color: var(--ash); }
 
 .kcs-matrix__actions {
   display: flex;
@@ -1035,6 +1055,9 @@ button.kcs-chuoi__kho-ma {
   font-variant-numeric: tabular-nums;
 }
 .kcs-lk__phu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sp-3);
   margin: 0;
   font-size: 12px;
   color: var(--ash);
@@ -1087,9 +1110,15 @@ button.kcs-chuoi__kho-ma {
   overflow-wrap: anywhere;
 }
 .kcs-lk__tc-it.is-khong .kcs-lk__tc-ic,
-.kcs-lk__tc-it.is-khong .kcs-lk__tc-kq {
-  color: var(--rust-deep);
-  font-weight: var(--fw-bold);
+.kcs-lk__tc-it.is-khong .kcs-lk__tc-kq,
+.kcs-lk__tc-it.is-khong .kcs-lk__tc-gc {
+  color: var(--tt-do-fg);
+}
+.kcs-lk__tc-gc-phu { color: var(--ash); }
+.kcs-lk__tc-lenh {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ash);
 }
 
 /* Lỗi: thụt vào dưới lần kiểm, chỉ một đường mảnh bên trái. */
@@ -1206,3 +1235,6 @@ button.kcs-chuoi__kho-ma {
   border-radius: var(--r-2);
   border: 1px dashed var(--rule-soft);
 }
+
+/* Nút đóng / mở lại bị khoá vì thiếu ô "Đóng lệnh thiếu" — lý do đứng ngay cạnh nút. */
+.kcs-chot__khoa { align-self: center; font-size: 12.5px; color: var(--ash); }

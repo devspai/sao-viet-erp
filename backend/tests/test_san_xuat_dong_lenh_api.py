@@ -11,6 +11,7 @@ from app.security import create_access_token
 from tests.test_san_xuat_kcs import (  # noqa: F401
     _batch, admin, customer, db, lsx_svc, orders,
 )
+from tests.quyen_to_fixtures import cap_dong_thieu
 
 ADMIN = {"username": "admin", "password": "admin123"}
 
@@ -38,7 +39,7 @@ def test_kcs_dong_roi_mo_lai(client, db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     db.get(Lsx, cv.lsx_id).trang_thai = TT_DA_PHAT_HANH
     db.commit()
-    h = _kcs_h(res["nguoi_kcs"])
+    h = _kcs_h(cap_dong_thieu(db, res["nguoi_kcs"]))
     v = SanXuatRepository(db).nhom(cv.nhom_id).version
     url = f"/api/san-xuat/kcs/nhom/{cv.nhom_id}"
 

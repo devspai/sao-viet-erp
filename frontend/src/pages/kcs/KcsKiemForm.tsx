@@ -1,9 +1,10 @@
 // KCS theo LỆNH (mg 0306, docs/design-kcs-theo-lenh.md) — ngăn kéo "Kiểm công đoạn".
 //
 // MỘT thao tác duy nhất: KCS đã mở lệnh, bấm một công đoạn trong chuỗi → tick checklist, ghi Số lỗi.
-// Có lỗi thì bắt mô tả + ít nhất một ảnh. Tổ chịu lỗi = tổ của công đoạn, người kiểm = tài khoản đang
-// đăng nhập — cả hai do máy chủ chốt, form KHÔNG có ô chọn. Ghi xong không trừ số, không đổi trạng
-// thái công việc; kiểm lại bao nhiêu lần cũng được.
+// Có lỗi thì bắt mô tả + ít nhất một ảnh. Mỗi dòng lỗi chọn được công đoạn GÂY lỗi (bước đứng trước,
+// bước cuối thì cả lệnh phụ cùng nhóm) — tổ chịu là tổ của công đoạn đó; người kiểm = tài khoản đang
+// đăng nhập, máy chủ chốt. Ghi xong không trừ số, không đổi trạng thái công việc; kiểm lại bao nhiêu
+// lần cũng được. Lần kiểm đã ghi KHÔNG sửa được (điều chỉnh gỡ 08/10/2026) — ghi sai thì ghi lần mới.
 //
 // Chỉ gõ SỐ LỖI (18/09/2026): mỗi lần kiểm bao trọn phần tổ đã làm mà chưa kiểm, số đạt = phần đó −
 // số lỗi — máy chủ tự tính, form chỉ bày ra cho KCS thấy trước.
@@ -25,6 +26,12 @@
 // không "chờ kiểm"/số đạt, không dải tiến độ; trần Σ lỗi ≤ số tốt tổ đã ghi, ghi lúc nào thấy lỗi.
 // Công đoạn cuối (`la_kcs_cuoi`) giữ nguyên lần kiểm đầy đủ ở trên.
 //
+// Bước cuối xét THEO CÔNG ĐOẠN (08/10/2026, `docs/design-tieu-chi-kcs-lam-lai.md` §3a): tiêu chí
+// gộp cả chuỗi (kể cả lệnh phụ cùng nhóm) bày thành thẻ từng công đoạn — "Đạt" hoặc "Có lỗi" (tick
+// mục hỏng + số lỗi + mô tả + ảnh). Mỗi thẻ có lỗi là MỘT dòng lỗi quy về công đoạn của thẻ; lỗi ở
+// công đoạn không có tiêu chí đi lối "+ Lỗi ở công đoạn khác" (danh sách `nguon_loi` của máy chủ).
+// Nút Lưu khoá kèm MỘT dòng lý do ở thanh đáy.
+//
 // Ảnh lỗi là DANH SÁCH cộng dồn: KCS đứng ở chồng hàng chụp từng tấm một (nút "Chụp ảnh" mở thẳng
 // camera điện thoại) hoặc chọn nhiều tấm có sẵn; mỗi lần thêm là nối vào, không đè. Ảnh nằm chờ trong
 // form (URL `blob:`), bấm Lưu mới gửi cùng lần kiểm — lần kiểm chưa có thì chưa có chỗ gắn ảnh.
@@ -41,9 +48,8 @@ import { Icon } from "../../components/Icons";
 import type { TepXem } from "../../components/tepDinhKem";
 import { coChu, nenAnh } from "../../lib/anhNen";
 
-/** Máy chủ nhận tối đa 10 ảnh cho MỘT lần kiểm (cộng mọi dòng lỗi), quá thì trả 400. Chặn ngay khi
- *  chọn ảnh — để người kiểm biết trước, không phải chụp xong 12 tấm rồi Lưu mới bị từ chối. */
-const TOI_DA_ANH_MOI_LAN = 10;
+/** Chặn số ảnh ngay khi chọn — để người kiểm biết trước, không phải chụp xong 12 tấm rồi Lưu mới bị
+ *  máy chủ từ chối. */
 const LOI_QUA_SO_ANH = `Tối đa ${TOI_DA_ANH_MOI_LAN} ảnh mỗi lần kiểm.`;
 import { Drawer } from "../danh-muc/components/Drawer";
 import { gioNgan, ngay, num } from "../keHoachSxShared";
@@ -52,17 +58,14 @@ import { useNapTenDonVi } from "../tenDonVi";
 import { DongTep } from "../ThsxDongTep";
 import { ThsxQuyCachThe } from "../ThsxQuyCach";
 import { KcsLanKiemList } from "./KcsLanKiemList";
+import { KcsTheCongDoan } from "./KcsTheCongDoan";
+import {
+  type AnhCho, TOI_DA_ANH_MOI_LAN, type TrangThaiThe, datHetConLai, gomThe, ketQuaChecklist, lyDoKhoa,
+  moTaThe,
+} from "./theCongDoan";
 import { KCS_CD_TRANG_THAI } from "./kcsNhan";
 import "../thuc-hien-sx.css";
 import "./kcs-kiem-form.css";
-
-/** Một ảnh đang chờ gửi: file (đã nén nếu lợi) + URL xem ngay + cỡ gốc để nói đã nén bao nhiêu. */
-interface AnhCho {
-  id: number;
-  file: File;
-  url: string;
-  goc: number;
-}
 
 /** Một dòng lỗi đang soạn. `cvId` = công đoạn chịu lỗi. */
 interface DongLoi {
@@ -72,6 +75,16 @@ interface DongLoi {
   moTa: string;
   anh: AnhCho[];
 }
+
+/** Công đoạn nhận được lỗi ở ô "Lỗi do công đoạn". */
+interface NguonLoi {
+  cong_viec_id: number;
+  nhan: string;
+  to_ten: string;
+}
+
+/** Ảnh đang thêm vào đâu — hai ô chọn tệp ẩn dùng chung cho mọi dòng lỗi và mọi thẻ. */
+type DichAnh = { loai: "dong"; key: number } | { loai: "the"; cvId: number };
 
 /** Mẻ kèm phần CHƯA KIỂM của nó (xem đầu tệp). */
 interface MeKiem extends SxKcsMe {
@@ -120,12 +133,16 @@ export function KcsKiemForm({
   const { token } = useAuth();
   // `don_vi` của công đoạn/mẻ là mã CHẶNG dòng giấy (`to` = tờ in) — màn KCS không tự nạp bảng nhãn.
   useNapTenDonVi();
-  // Tiêu chí là ô tick: tick = đạt, để trống = không đạt.
-  const [dat, setDat] = useState<Record<number, boolean>>({});
-  const [ghiChuTc, setGhiChuTc] = useState<Record<number, string>>({});
-  const [dongLoi, setDongLoi] = useState<DongLoi[]>(() => [
+  const cuoi = cd.la_kcs_cuoi;
+  // Thẻ công đoạn (chỉ bước cuối có tiêu chí) — mỗi lần kiểm bắt đầu với mọi thẻ "chưa xét".
+  const the = useMemo(
+    () => (cuoi ? gomThe(cd.checklist, cd.cong_viec_id, tenCongDoan(cd)) : []), [cuoi, cd]);
+  const cheDoThe = the.length > 0;
+  const [ttThe, setTtThe] = useState<Map<number, TrangThaiThe>>(new Map());
+  // Chế độ thẻ: dòng lỗi thủ công chỉ dành cho "+ Lỗi ở công đoạn khác", mặc định không có dòng nào.
+  const [dongLoi, setDongLoi] = useState<DongLoi[]>(() => (cheDoThe ? [] : [
     { key: 1, cvId: cd.cong_viec_id, so: "", moTa: "", anh: [] },
-  ]);
+  ]));
   const [dangNen, setDangNen] = useState(0);
   const [xem, setXem] = useState<TepXem | null>(null);
   const [ghiChu, setGhiChu] = useState("");
@@ -141,11 +158,17 @@ export function KcsKiemForm({
   const chonRef = useRef<HTMLInputElement>(null);
   const idAnh = useRef(0);
   const idDong = useRef(1);
-  // Dòng lỗi đang thêm ảnh — hai ô chọn tệp ẩn dùng chung cho mọi dòng.
-  const dongAnh = useRef(1);
+  const dichAnh = useRef<DichAnh>({ loai: "dong", key: 1 });
+  const anhThe = [...ttThe.values()].flatMap((t) => (t.loai === "loi" ? t.anh : []));
+  const soAnh = dongLoi.reduce((n, d) => n + d.anh.length, 0) + anhThe.length;
   // URL `blob:` không tự mất khi ngăn đóng — dọn tay; ref để bản dọn lúc unmount thấy danh sách mới nhất.
   const anhRef = useRef<AnhCho[]>([]);
-  useEffect(() => { anhRef.current = dongLoi.flatMap((d) => d.anh); }, [dongLoi]);
+  useEffect(() => {
+    anhRef.current = [
+      ...dongLoi.flatMap((d) => d.anh),
+      ...[...ttThe.values()].flatMap((t) => (t.loai === "loi" ? t.anh : [])),
+    ];
+  }, [dongLoi, ttThe]);
   useEffect(() => () => { for (const a of anhRef.current) URL.revokeObjectURL(a.url); }, []);
 
   function suaDong(key: number, sua: (d: DongLoi) => DongLoi) {
@@ -153,18 +176,41 @@ export function KcsKiemForm({
     setError(null);
   }
 
-  function moChonAnh(key: number, o: HTMLInputElement | null) {
-    dongAnh.current = key;
+  function moChonAnh(dich: DichAnh, o: HTMLInputElement | null) {
+    dichAnh.current = dich;
     o?.click();
   }
 
+  /** Sửa thẻ đang "Có lỗi" — thẻ ở trạng thái khác thì thôi. */
+  function suaThe(cvId: number, sua: (t: Extract<TrangThaiThe, { loai: "loi" }>) => TrangThaiThe) {
+    setTtThe((m) => {
+      const t = m.get(cvId);
+      if (t?.loai !== "loi") return m;
+      const moi = new Map(m);
+      moi.set(cvId, sua(t));
+      return moi;
+    });
+    setError(null);
+  }
+
+  /** "Đạt" / "Thôi, đạt" bỏ dòng lỗi của thẻ (dọn ảnh); "Có lỗi" lần nữa không đổi gì. */
+  function datTrangThai(cvId: number, loai: "dat" | "loi") {
+    const cu = ttThe.get(cvId);
+    if (loai === "loi" && cu?.loai === "loi") return;
+    if (loai === "dat" && cu?.loai === "loi") for (const a of cu.anh) URL.revokeObjectURL(a.url);
+    setTtThe((m) => new Map(m).set(cvId, loai === "dat"
+      ? { loai: "dat" }
+      : { loai: "loi", hong: new Set(), so: "", moTa: "", suaTay: false, anh: [] }));
+    setError(null);
+  }
+
   async function themAnh(input: HTMLInputElement) {
-    const key = dongAnh.current;
+    const dich = dichAnh.current;
     const ds = Array.from(input.files ?? []);
     // Xoá giá trị ô chọn: không thì chọn lại đúng tấm vừa bỏ, trình duyệt không bắn `change`.
     input.value = "";
     setError(null);
-    let conDuoc = TOI_DA_ANH_MOI_LAN - dongLoi.reduce((n, d) => n + d.anh.length, 0);
+    let conDuoc = TOI_DA_ANH_MOI_LAN - soAnh;
     for (const f of ds) {
       if (conDuoc <= 0) {
         setError(LOI_QUA_SO_ANH);
@@ -180,7 +226,8 @@ export function KcsKiemForm({
       setDangNen((n) => n - 1);
       conDuoc -= 1;
       const moi = { id: ++idAnh.current, file: kq.file, url: URL.createObjectURL(kq.file), goc: kq.goc };
-      setDongLoi((ds) => ds.map((d) => (d.key === key ? { ...d, anh: [...d.anh, moi] } : d)));
+      if (dich.loai === "the") suaThe(dich.cvId, (t) => ({ ...t, anh: [...t.anh, moi] }));
+      else setDongLoi((ds) => ds.map((d) => (d.key === dich.key ? { ...d, anh: [...d.anh, moi] } : d)));
     }
   }
 
@@ -190,9 +237,21 @@ export function KcsKiemForm({
     suaDong(key, (d) => ({ ...d, anh: d.anh.filter((a) => a.id !== id) }));
   }
 
+  function boAnhThe(cvId: number, id: number) {
+    const t = ttThe.get(cvId);
+    const bo = t?.loai === "loi" ? t.anh.find((a) => a.id === id) : undefined;
+    if (bo) URL.revokeObjectURL(bo.url);
+    suaThe(cvId, (x) => ({ ...x, anh: x.anh.filter((a) => a.id !== id) }));
+  }
+
   function themDong() {
-    // Dòng thêm thường là lỗi của công đoạn KHÁC — gợi sẵn công đoạn ngay trước công đoạn đang kiểm.
-    const goiY = nguonLoi.length > 1 ? nguonLoi[nguonLoi.length - 2].cong_viec_id : cd.cong_viec_id;
+    // Dòng thêm thường là lỗi của công đoạn KHÁC. Chế độ thẻ: gợi sẵn công đoạn chưa có thẻ, gần bước
+    // cuối nhất; không thì công đoạn ngay trước công đoạn đang kiểm.
+    const coThe = new Set(the.map((t) => t.cvId));
+    const khongThe = [...nguonLoi].reverse().find((c) => !coThe.has(c.cong_viec_id));
+    const goiY = cheDoThe
+      ? (khongThe ?? nguonLoi[nguonLoi.length - 1] ?? banThan).cong_viec_id
+      : nguonLoi.length > 1 ? nguonLoi[nguonLoi.length - 2].cong_viec_id : cd.cong_viec_id;
     setDongLoi((ds) => [...ds, { key: ++idDong.current, cvId: goiY, so: "", moTa: "", anh: [] }]);
     setError(null);
   }
@@ -203,27 +262,30 @@ export function KcsKiemForm({
     setError(null);
   }
 
-  // Thông báo chặn là của lần bấm Lưu trước — người đã sửa ô thì nó hết đúng, đừng để treo.
-  function doiTieuChi(thuTu: number, v: boolean) {
-    setDat((d) => ({ ...d, [thuTu]: v }));
-    setError(null);
-  }
-
-  const nSoLoi = dongLoi.reduce((s, d) => s + (Number(d.so) > 0 ? Number(d.so) : 0), 0);
+  const soDuong = (x: string) => (Number(x) > 0 ? Number(x) : 0);
+  const nSoLoi = dongLoi.reduce((s, d) => s + soDuong(d.so), 0)
+    + [...ttThe.values()].reduce((s, t) => s + (t.loai === "loi" ? soDuong(t.so) : 0), 0);
   const dv = nhanChang(cd.don_vi);
-  const cuoi = cd.la_kcs_cuoi;
   // Công đoạn giữa: còn ghi được bao nhiêu lỗi nữa (máy chủ chặn cùng trần).
   const conGhiLoi = Math.max(0, cd.tot - cd.tong_loi);
   const moGhi = cuoi ? chuaKiemCua(cd) > 0 : conGhiLoi > 0;
-  // Công đoạn nhận được lỗi: từ đầu chuỗi tới chính công đoạn đang kiểm (máy chủ kiểm lại y hệt).
+  // Công đoạn nhận được lỗi. Bước cuối: danh sách máy chủ trả (chuỗi gộp, kể cả lệnh phụ cùng nhóm).
+  // Công đoạn giữa: từ đầu chuỗi của lệnh tới chính nó (máy chủ kiểm lại y hệt).
   const viTri = chuoi.findIndex((c) => c.cong_viec_id === cd.cong_viec_id);
-  const nguonLoi = viTri >= 0 ? chuoi.slice(0, viTri + 1) : [cd];
-  const congDoanCua = (id: number) => nguonLoi.find((c) => c.cong_viec_id === id) ?? cd;
+  const nguonLoi: NguonLoi[] = cuoi && cd.nguon_loi?.length
+    ? cd.nguon_loi.map((n) => ({
+      cong_viec_id: n.cong_viec_id,
+      to_ten: n.to_ten,
+      nhan: n.lsx_ma && n.lsx_ma !== lenh.ma ? `${n.ten} (lệnh ${n.lsx_ma})` : n.ten,
+    }))
+    : (viTri >= 0 ? chuoi.slice(0, viTri + 1) : [cd]).map((c) => ({
+      cong_viec_id: c.cong_viec_id, nhan: tenCongDoan(c), to_ten: c.to_ten,
+    }));
+  const banThan: NguonLoi = { cong_viec_id: cd.cong_viec_id, nhan: tenCongDoan(cd), to_ten: cd.to_ten };
+  const congDoanCua = (id: number) => nguonLoi.find((c) => c.cong_viec_id === id) ?? banThan;
   // Phần tổ đã làm mà chưa kiểm — lần kiểm này bao trọn phần đó (máy chủ tính lại cùng công thức).
   const chuaKiem = chuaKiemCua(cd);
   const datLanNay = Math.max(0, chuaKiem - nSoLoi);
-  // Tiêu chí bắt buộc không đạt nghĩa là có hàng lỗi — để trống mà Số lỗi = 0 là quên tick.
-  const batBuocChuaDat = cd.checklist.find((tc) => tc.bat_buoc && !dat[tc.thu_tu]);
   const keHoach = cd.so_luong_ra ?? null;
   const me = useMemo(() => meChuaKiem(cd.me ?? [], chuaKiem), [cd.me, chuaKiem]);
   const soMeChua = me.filter((m) => m.tt !== "da").length;
@@ -243,10 +305,10 @@ export function KcsKiemForm({
   const tongDoan = doan.reduce((s, d) => s + d.so, 0);
   const pctLam = keHoach && keHoach > 0 ? Math.round((cd.tot / keHoach) * 100) : null;
 
-  function kiemTra(): string | null {
-    // Một dòng thì nói như cũ; nhiều dòng thì chỉ rõ dòng nào.
+  function kiemTraDong(): string | null {
+    // Một dòng thì nói như cũ; nhiều dòng (hay dòng thêm cạnh thẻ) thì chỉ rõ dòng nào.
     const truoc = (i: number, cau: string) =>
-      dongLoi.length > 1 ? `Dòng lỗi ${i + 1}: ${cau.charAt(0).toLowerCase()}${cau.slice(1)}` : cau;
+      dongLoi.length > 1 || cheDoThe ? `Dòng lỗi ${i + 1}: ${cau.charAt(0).toLowerCase()}${cau.slice(1)}` : cau;
     for (const [i, d] of dongLoi.entries()) {
       if (d.so.trim() !== "" && (!Number.isFinite(Number(d.so)) || Number(d.so) < 0)) return truoc(i, "Số lỗi không hợp lệ.");
     }
@@ -256,43 +318,51 @@ export function KcsKiemForm({
       if (nSoLoi > conGhiLoi) return `Tổng lỗi vượt số tốt tổ đã ghi (còn ghi được ${num(conGhiLoi)} ${dv}).`;
     }
     if (cuoi && chuaKiem <= 0) return "Tổ chưa ghi thêm sản lượng nào từ lần kiểm trước — chưa có gì để kiểm.";
-    if (cuoi && nSoLoi > chuaKiem) return `Số lỗi vượt phần tổ đã làm mà chưa kiểm (${num(chuaKiem)} ${dv}).`;
-    if (cuoi && batBuocChuaDat && nSoLoi === 0) {
-      return `Tiêu chí bắt buộc "${batBuocChuaDat.ten ?? batBuocChuaDat.ma ?? `#${batBuocChuaDat.thu_tu}`}" chưa tick đạt — đạt thì tick, không đạt thì ghi Số lỗi.`;
-    }
+    if (cuoi && !cheDoThe && nSoLoi > chuaKiem) return `Số lỗi vượt phần tổ đã làm mà chưa kiểm (${num(chuaKiem)} ${dv}).`;
     for (const [i, d] of dongLoi.entries()) {
       if (!(Number(d.so) > 0)) continue;
       if (!d.moTa.trim()) return truoc(i, "Có lỗi thì phải mô tả lỗi.");
       if (d.anh.length === 0) return truoc(i, "Có lỗi thì phải kèm ít nhất một ảnh.");
     }
+    if (cheDoThe) return null;
     const soAnhGui = dongLoi.filter((d) => Number(d.so) > 0).reduce((n, d) => n + d.anh.length, 0);
     if (soAnhGui > TOI_DA_ANH_MOI_LAN) return `${LOI_QUA_SO_ANH} Bỏ bớt ${soAnhGui - TOI_DA_ANH_MOI_LAN} ảnh.`;
     return null;
   }
 
+  // Chế độ thẻ: lý do khoá tính sẵn, bày ở thanh đáy (§3a); dòng lỗi thủ công kiểm sau các thẻ.
+  const lyDo = !cheDoThe ? null
+    : chuaKiem <= 0 ? "Chưa có gì để kiểm"
+      : lyDoKhoa(the, ttThe, { chuaKiem, tongLoi: nSoLoi, soAnh }) ?? kiemTraDong();
+
   async function luu() {
     if (!token || saving || dangNen > 0) return;
-    const loi = kiemTra();
+    const loi = cheDoThe ? lyDo : kiemTraDong();
     if (loi) { setError(loi); return; }
     setSaving(true);
     setError(null);
-    const checklist: SxKcsChecklistKetQuaIn[] = !cuoi ? [] : cd.checklist.map((tc) => ({
-      thu_tu: tc.thu_tu,
-      dat: dat[tc.thu_tu] === true,
-      ghi_chu: ghiChuTc[tc.thu_tu]?.trim() || null,
-    }));
+    const checklist: SxKcsChecklistKetQuaIn[] = cheDoThe ? ketQuaChecklist(the, ttThe) : [];
+    const dongThe = the.flatMap((t) => {
+      const s = ttThe.get(t.cvId);
+      return s?.loai === "loi" ? [{
+        cong_viec_id: t.cvId === cd.cong_viec_id ? null : t.cvId,
+        so_luong: Number(s.so),
+        mo_ta: moTaThe(t, s).trim() || "Lỗi",
+        files: s.anh.map((a) => a.file),
+      }] : [];
+    });
     try {
       const r = await api.sanXuat.kiemCongDoan(token, cd.cong_viec_id, {
         so_loi: nSoLoi,
         checklist,
         ghi_chu: ghiChu.trim() || null,
         lsx_id: lenh.id,
-        loi: dongLoi.filter((d) => Number(d.so) > 0).map((d) => ({
+        loi: [...dongThe, ...dongLoi.filter((d) => Number(d.so) > 0).map((d) => ({
           cong_viec_id: d.cvId === cd.cong_viec_id ? null : d.cvId,
           so_luong: Number(d.so),
           mo_ta: d.moTa.trim(),
           files: d.anh.map((a) => a.file),
-        })),
+        }))],
       });
       onSaved(r);
     } catch (e) {
@@ -302,18 +372,33 @@ export function KcsKiemForm({
   }
 
   const tenCd = tenCongDoan(cd);
-  const duSoAnh = dongLoi.reduce((n, d) => n + d.anh.length, 0) >= TOI_DA_ANH_MOI_LAN;
+  const duSoAnh = soAnh >= TOI_DA_ANH_MOI_LAN;
   const meHien = moHetMe ? me : me.slice(0, ME_HIEN);
   const lkHien = moHetLk ? lanKiem : lanKiem.slice(0, LAN_KIEM_HIEN);
-  const soTcDat = cd.checklist.filter((tc) => dat[tc.thu_tu]).length;
-  const tatCaDat = cd.checklist.length > 0 && soTcDat === cd.checklist.length;
+  const conChuaXet = the.filter((t) => (ttThe.get(t.cvId)?.loai ?? "chua") === "chua").length;
 
   return (
     <Drawer
       kicker={cuoi ? "Kiểm công đoạn" : "Ghi lỗi công đoạn"}
       title={tenCd}
       onClose={onClose}
-      foot={(
+      foot={cheDoThe ? (
+        <div className="kkf-day">
+          {lyDo && moGhi && <p className="kkf-day__ly" role="status">{lyDo}</p>}
+          <div className="kkf-day__hang">
+            <span className="kkf-day__so"><b>{num(datLanNay)}</b> đạt</span>
+            <span className={`kkf-day__so${nSoLoi > 0 ? " is-loi" : ""}`}><b>{num(nSoLoi)}</b> lỗi</span>
+            <span className="kkf-day__tren">trên {num(chuaKiem)} {dv} chưa kiểm</span>
+            <span className="kkf-day__nut">
+              <button type="button" className="btn btn--ghost" onClick={onClose} disabled={saving}>Huỷ</button>
+              <button type="button" className="btn btn--accent" onClick={luu}
+                disabled={saving || dangNen > 0 || !moGhi || lyDo != null}>
+                {saving ? "Đang lưu…" : dangNen > 0 ? "Đang xử lý ảnh…" : "Lưu kết quả kiểm"}
+              </button>
+            </span>
+          </div>
+        </div>
+      ) : (
         <>
           <button type="button" className="btn btn--ghost" onClick={onClose} disabled={saving}>Huỷ</button>
           <button type="button" className="btn btn--accent" onClick={luu}
@@ -480,55 +565,52 @@ export function KcsKiemForm({
             </p>
           )}
 
-          {cuoi && cd.checklist.length > 0 && (
+          {cheDoThe && moGhi && (
             <div className="kkf-ghi__khoi">
               <div className="kkf-ghi__nhan">
-                Tiêu chí kiểm <span className="kkf-h__phu">{soTcDat}/{cd.checklist.length} đạt · để trống là không đạt</span>
-                <button type="button" className="kkf-them kkf-them--phai"
-                  onClick={() => {
-                    setDat(Object.fromEntries(cd.checklist.map((tc) => [tc.thu_tu, !tatCaDat])));
-                    setError(null);
-                  }}>
-                  {tatCaDat ? "Bỏ tick hết" : "Tất cả đạt"}
-                </button>
+                Đã xét {the.length - conChuaXet}/{the.length} công đoạn
+                {conChuaXet > 0 && (
+                  <button type="button" className="kkf-them kkf-them--phai"
+                    onClick={() => { setTtThe((m) => datHetConLai(the, m)); setError(null); }}>
+                    Đạt hết {conChuaXet} công đoạn còn lại
+                  </button>
+                )}
               </div>
-              <ul className="kkf-tc">
-                {cd.checklist.map((tc) => {
-                  const ten = tc.ten ?? tc.ma ?? `Tiêu chí #${tc.thu_tu}`;
-                  const v = !!dat[tc.thu_tu];
-                  return (
-                    <li key={tc.thu_tu} className={`kkf-tc__it${v ? " is-dat" : ""}`}>
-                      <label className="kkf-tc__chon">
-                        <input type="checkbox" className="kkf-tc__o" checked={v}
-                          onChange={(e) => doiTieuChi(tc.thu_tu, e.target.checked)} />
-                        <span className="kkf-tc__ten">
-                          {ten}
-                          {tc.bat_buoc && <span className="kcs-check-row__req" title="Bắt buộc"> *</span>}
-                        </span>
-                      </label>
-                      <input
-                        type="text" className="kcs-check-row__note kkf-tc__gc" placeholder="Ghi chú (nếu có)"
-                        aria-label={`Ghi chú ${ten}`}
-                        value={ghiChuTc[tc.thu_tu] ?? ""}
-                        onChange={(e) => setGhiChuTc((g) => ({ ...g, [tc.thu_tu]: e.target.value }))}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
+              {the.map((t) => (
+                <KcsTheCongDoan key={t.cvId} the={t} tt={ttThe.get(t.cvId) ?? { loai: "chua" }} dv={dv}
+                  duSoAnh={duSoAnh}
+                  dangNen={dangNen > 0 && dichAnh.current.loai === "the" && dichAnh.current.cvId === t.cvId}
+                  onDat={() => datTrangThai(t.cvId, "dat")}
+                  onCoLoi={() => datTrangThai(t.cvId, "loi")}
+                  onDoiHong={(thuTu) => suaThe(t.cvId, (x) => {
+                    const hong = new Set(x.hong);
+                    if (hong.has(thuTu)) hong.delete(thuTu); else hong.add(thuTu);
+                    return { ...x, hong };
+                  })}
+                  onSo={(v) => suaThe(t.cvId, (x) => ({ ...x, so: v }))}
+                  onMoTa={(v) => suaThe(t.cvId, (x) => ({ ...x, moTa: v, suaTay: true }))}
+                  onChup={() => moChonAnh({ loai: "the", cvId: t.cvId }, chupRef.current)}
+                  onChon={() => moChonAnh({ loai: "the", cvId: t.cvId }, chonRef.current)}
+                  onBoAnh={(id) => boAnhThe(t.cvId, id)}
+                  onXem={setXem} />
+              ))}
             </div>
           )}
 
           <div className="kkf-ghi__khoi">
-            <div className="kkf-ghi__nhan">Số lỗi ({dv || "đơn vị công đoạn"})</div>
+            {(!cheDoThe || dongLoi.length > 0) && (
+              <div className="kkf-ghi__nhan">
+                {cheDoThe ? `Lỗi ở công đoạn khác (${dv || "đơn vị công đoạn"})` : `Số lỗi (${dv || "đơn vị công đoạn"})`}
+              </div>
+            )}
             {moGhi ? (
               <>
                 {dongLoi.map((d, i) => {
                   const chiu = congDoanCua(d.cvId);
                   const khac = chiu.cong_viec_id !== cd.cong_viec_id;
-                  const nhanSo = i === 0 ? "Số lỗi" : `Số lỗi dòng ${i + 1}`;
+                  const nhanSo = i === 0 && !cheDoThe ? "Số lỗi" : `Số lỗi dòng ${i + 1}`;
                   return (
-                    <div key={d.key} className={`kkf-dl${dongLoi.length > 1 ? " kkf-dl--nhieu" : ""}`}>
+                    <div key={d.key} className={`kkf-dl${dongLoi.length > 1 || cheDoThe ? " kkf-dl--nhieu" : ""}`}>
                       <div className="kkf-loi">
                         <input type="number" min={0} inputMode="decimal" value={d.so} placeholder="0"
                           className="kkf-loi__o" aria-label={nhanSo}
@@ -536,18 +618,18 @@ export function KcsKiemForm({
                         {nguonLoi.length > 1 && (
                           <label className="kkf-dl__nguon">
                             <span>Lỗi do công đoạn</span>
-                            <select value={d.cvId} aria-label={i === 0 ? "Lỗi do công đoạn" : `Lỗi do công đoạn dòng ${i + 1}`}
+                            <select value={d.cvId} aria-label={i === 0 && !cheDoThe ? "Lỗi do công đoạn" : `Lỗi do công đoạn dòng ${i + 1}`}
                               onChange={(e) => suaDong(d.key, (x) => ({ ...x, cvId: Number(e.target.value) }))}>
                               {nguonLoi.map((c) => (
                                 <option key={c.cong_viec_id} value={c.cong_viec_id}>
-                                  {tenCongDoan(c)}{c.to_ten ? ` · ${c.to_ten}` : ""}
+                                  {c.nhan}{c.to_ten ? ` · ${c.to_ten}` : ""}
                                   {c.cong_viec_id === cd.cong_viec_id ? " (đang kiểm)" : ""}
                                 </option>
                               ))}
                             </select>
                           </label>
                         )}
-                        {dongLoi.length > 1 && (
+                        {(dongLoi.length > 1 || cheDoThe) && (
                           <button type="button" className="kkf-dl__bo" aria-label={`Bỏ dòng lỗi ${i + 1}`}
                             title="Bỏ dòng lỗi" onClick={() => boDong(d.key)}>
                             <Icon name="x" size={14} />
@@ -558,12 +640,12 @@ export function KcsKiemForm({
                         <div className="kcs-drawer__loi">
                           <p className="kcs-drawer__anh-hint">
                             {khac
-                              ? <>Lỗi tính cho công đoạn <b>{tenCongDoan(chiu)}</b> — báo về <b>{chiu.to_ten || "tổ làm công đoạn đó"}</b>. Số của công đoạn đó không đổi.</>
+                              ? <>Lỗi tính cho công đoạn <b>{chiu.nhan}</b> — báo về <b>{chiu.to_ten || "tổ làm công đoạn đó"}</b>. Số của công đoạn đó không đổi.</>
                               : <>Lỗi sẽ báo về <b>{cd.to_ten || "tổ làm công đoạn này"}</b>.</>}
                           </p>
                           <div className="kcs-drawer__field">
                             <label htmlFor={`kcs-mo-ta-loi-${d.key}`}>
-                              {dongLoi.length > 1 ? `Mô tả lỗi dòng ${i + 1}` : "Mô tả lỗi"}
+                              {dongLoi.length > 1 || cheDoThe ? `Mô tả lỗi dòng ${i + 1}` : "Mô tả lỗi"}
                             </label>
                             <textarea id={`kcs-mo-ta-loi-${d.key}`} value={d.moTa}
                               onChange={(e) => suaDong(d.key, (x) => ({ ...x, moTa: e.target.value }))}
@@ -574,18 +656,18 @@ export function KcsKiemForm({
                               <span id={`kcs-anh-loi-nhan-${d.key}`} className="kcs-drawer__anh-nhan">Ảnh lỗi (ít nhất 1)</span>
                               <span className="kcs-drawer__anh-dem">
                                 {d.anh.length > 0 ? `${d.anh.length} ảnh` : "Chưa có ảnh"}
-                                {dangNen > 0 && dongAnh.current === d.key && " · đang xử lý…"}
+                                {dangNen > 0 && dichAnh.current.loai === "dong" && dichAnh.current.key === d.key && " · đang xử lý…"}
                               </span>
                             </div>
                             <div className="kcs-drawer__anh-nut">
                               <button type="button" className="btn btn--ghost" disabled={duSoAnh}
                                 title={duSoAnh ? LOI_QUA_SO_ANH : undefined}
-                                onClick={() => moChonAnh(d.key, chupRef.current)}>
+                                onClick={() => moChonAnh({ loai: "dong", key: d.key }, chupRef.current)}>
                                 <Icon name="camera" size={14} /> Chụp ảnh
                               </button>
                               <button type="button" className="btn btn--ghost" disabled={duSoAnh}
                                 title={duSoAnh ? LOI_QUA_SO_ANH : undefined}
-                                onClick={() => moChonAnh(d.key, chonRef.current)}>
+                                onClick={() => moChonAnh({ loai: "dong", key: d.key }, chonRef.current)}>
                                 <Icon name="upload" size={14} /> Chọn ảnh có sẵn
                               </button>
                             </div>
@@ -610,12 +692,16 @@ export function KcsKiemForm({
                   aria-label="Chụp ảnh lỗi" onChange={(e) => void themAnh(e.currentTarget)} />
                 <input ref={chonRef} type="file" accept="image/*" multiple hidden
                   aria-label="Chọn ảnh lỗi" onChange={(e) => void themAnh(e.currentTarget)} />
-                {nguonLoi.length > 1 && nSoLoi > 0 && (
+                {cheDoThe ? (
+                  <button type="button" className="kkf-them" onClick={themDong}>
+                    + Lỗi ở công đoạn khác
+                  </button>
+                ) : nguonLoi.length > 1 && nSoLoi > 0 && (
                   <button type="button" className="kkf-them" onClick={themDong}>
                     + Thêm dòng lỗi do công đoạn khác
                   </button>
                 )}
-                {cuoi && (
+                {cuoi && !cheDoThe && (
                   <>
                     <div className="kkf-loi__kq">
                       <span>Kiểm <b>{num(chuaKiem)}</b></span>
@@ -640,7 +726,7 @@ export function KcsKiemForm({
           </div>
 
           <div className="kcs-drawer__field">
-            <label htmlFor="kcs-ghi-chu">Ghi chú (nếu có)</label>
+            <label htmlFor="kcs-ghi-chu">{cheDoThe ? "Ghi chú chung (nếu có)" : "Ghi chú (nếu có)"}</label>
             <input id="kcs-ghi-chu" type="text" className="kcs-check-row__note" value={ghiChu}
               onChange={(e) => setGhiChu(e.target.value)} />
           </div>

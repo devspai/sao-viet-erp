@@ -3962,6 +3962,8 @@ button.rc-formula__nhan--nut.is-chon {
 .rc-goi__o select.rc-input { width: auto; }
 /* Ô ngày trình bày dài hơn ô số — để `auto` thì Chrome/Firefox mỗi nơi một bề rộng. */
 .rc-goi__o--ngay .rc-input { width: 148px; }
+/* Ô ngày tự vẽ (ChonNgay): khung chứa icon + nút xoá nên rộng hơn ô ngày cũ một chút; cao bằng ô số bên cạnh. */
+.rc-goi__o--ngay .cn-khung.rc-input { width: 168px; height: 32px; }
 
 /* Kỳ tới — CHỈ ĐỌC, đi ra từ phiếu bảo trì gần nhất (màn Phiếu bảo trì). Ghi kèm "tính từ đâu" vì
    một cái ngày trần không kiểm lại được, còn biết nguồn thì người khai tự soi ra sai ở chỗ nào. */

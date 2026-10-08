@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 
 import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
+import { ChonNgay } from "../../components/ChonNgay";
 import { DiscardChangesDialog } from "../../components/DiscardChangesDialog";
 import { useTre } from "../../lib/useTre";
 import { ApiError } from "../../api/client";
@@ -452,8 +453,8 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
           </label>
         ) : f.type === "date" ? (
           <div className="rc-input-wrapper">
-            <input className="rc-input" type="date"
-              value={String(form[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value)} />
+            <ChonNgay className="rc-input" aria-label={cleanLabel}
+              value={String(form[f.key] ?? "")} onChange={(v) => set(f.key, v)} />
           </div>
         ) : f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta" ? (
           <div className="rc-input-wrapper">

@@ -181,13 +181,37 @@ button.kna-hang__anh:hover { border-color: var(--rule); }
 .kna-phu__goi--sai { color: var(--rust); }
 
 /* Lập phiếu NHẬP: hàng cất hàng */
-.kna-cat { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.kna-cat .kna-o-truong > span { font-size: var(--fs-xs); }
 .kna-kho-giay { display: flex; gap: 6px; align-items: center; }
 .kna-kho-giay select { width: 72px; flex: none; }
 /* Rộng/dài co giãn theo cột — cố định 72px thì cột thứ ba tràn khỏi thẻ ở ngăn 1180px. */
 .kna-kho-giay .kna-o--so { flex: 1 1 0; min-width: 48px; width: auto; }
-@container (max-width: 640px) { .kna-cat { grid-template-columns: minmax(0, 1fr); } }
+
+/* Lập phiếu NHẬP kiểu bảng tính (08/10/2026): mỗi mặt hàng MỘT dòng, Vị trí / Hạn dùng / khổ giấy là cột của
+   lưới chứ không phải hàng nhãn-trên-ô bên dưới. Ô nhập thấp, đệm ô hẹp; hàng phụ chỉ còn lý do thiếu, quy đổi. */
+.lds-bang.lds-bang--nhap .lds-g.kna-luoi-nhap tbody td { padding: 5px 8px; }
+.kna-luoi-nhap .kna-o--nho { height: 28px; padding: 0 8px; border-color: var(--rule-soft); border-radius: 6px; }
+.kna-luoi-nhap .kna-o--nho:hover { border-color: var(--rule); }
+.kna-luoi-nhap .kna-o--thieu { color: var(--tt-cam-fg); }
+/* Ô Vật tư trong MỌI bảng của ngăn kho (lập phiếu, dòng phiếu, vật tư của yêu cầu): tên, mã, khổ đứng
+   chung một dòng như lưới danh sách, ảnh 26px — chật mới xuống dòng. */
+.kna .lds-g td:has(> .kna-hang) { white-space: normal; }
+.kna .lds-g .kna-hang { gap: 8px; }
+.kna .lds-g .kna-hang > div { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 2px; }
+.kna .lds-g .kna-hang > div { min-width: 0; }
+/* Bảng xem (chi tiết yêu cầu, dòng phiếu): đúng một dòng — tên co lại cắt "…", mã + khổ giữ nguyên. Bảng lập
+   phiếu (`kna-luoi-nhap`) chật hơn nên cho mã xuống dòng thứ hai thay vì bóp tên còn vài chữ. */
+.kna .lds-g:not(.kna-luoi-nhap) .kna-hang > div { flex-wrap: nowrap; }
+.kna .lds-g:not(.kna-luoi-nhap) .kna-hang__ten { flex: 0 1 auto; }
+.kna .lds-g:not(.kna-luoi-nhap) .kna-hang__phu { flex: none; flex-wrap: nowrap; }
+.kna .lds-g .kna-hang__ten { min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kna .lds-g .kna-hang__phu { margin-top: 0; }
+.kna .lds-g .kna-hang__anh { width: 26px; height: 26px; border-radius: 6px; }
+.kna .lds-g .kna-hang__anh svg { width: 14px; height: 14px; }
+.kna-luoi-nhap .kna-kho-giay select { width: 64px; }
+label.kna-hang__anh--them { cursor: pointer; border-style: dashed; }
+label.kna-hang__anh--them:hover { border-color: var(--rule); color: var(--ink); }
+/* Đổi / xoá ảnh trong khung phóng to. */
+.kna-anh-nut { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; cursor: default; }
 
 /* Chứng từ: ô thả file + danh sách file */
 .kna-tha { display: block; border: 1.5px dashed var(--rule); border-radius: 10px; padding: 14px; text-align: center; font-size: 12.5px;

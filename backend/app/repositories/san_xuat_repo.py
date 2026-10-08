@@ -279,15 +279,13 @@ class SanXuatRepository:
         ]
 
     def checklist_theo_cong_doan(self, cong_doan_ids: set[int]) -> dict[int, list[SanXuatKcsTieuChi]]:
-        """{cong_doan_id: [hạng mục kiểm active, sort thu_tu rồi id]} — MỘT truy vấn cho cả gói."""
+        """{cong_doan_id: [tiêu chí kiểm, sort thu_tu rồi id]} — MỘT truy vấn cho cả gói. Không còn
+        lọc "ngừng dùng": cột `active` gỡ ở mg `0381`, tiêu chí bỏ thì xoá."""
         if not cong_doan_ids:
             return {}
         rows = self.db.execute(
             select(SanXuatKcsTieuChi)
-            .where(
-                SanXuatKcsTieuChi.cong_doan_id.in_(cong_doan_ids),
-                SanXuatKcsTieuChi.active.is_(True),
-            )
+            .where(SanXuatKcsTieuChi.cong_doan_id.in_(cong_doan_ids))
             .order_by(SanXuatKcsTieuChi.thu_tu, SanXuatKcsTieuChi.id)
         ).scalars()
         out: dict[int, list[SanXuatKcsTieuChi]] = {}

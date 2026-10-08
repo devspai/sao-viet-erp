@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import type { TdsxTheoLenhDong, TdsxTheoLenhOut } from "../api/client";
 import { EmptyRow } from "../components/EmptyState";
 import {
-  ChipTT, CuonLuoi, ngayVN, rongLuoi, soCotGhim, soVN, tenKhachGon, xepCot,
+  ChipTT, CuonLuoi, ngayVN, rongLuoi, soCotGhim, soVN, tenKhachGon, xepCot, apLuoi, type CauHinhLuoi,
   type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
@@ -58,6 +58,7 @@ export function TdsxTheoLenh({
   rong,
   onMo,
   dangMo = null,
+  luoi,
   cotAn = TRONG,
   thuTu = [],
 }: {
@@ -68,13 +69,15 @@ export function TdsxTheoLenh({
   onMo: (lsxId: number) => void;
   /** Lệnh đang mở hồ sơ — dòng đó viền đủ cạnh. */
   dangMo?: number | null;
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
   cotAn?: Set<string>;
   thuTu?: string[];
 }) {
-  const cotHien = xepCot(COT_LENH, thuTu).filter((c) => !cotAn.has(c.key));
+  const cotHien = apLuoi(luoi, xepCot(COT_LENH, thuTu).filter((c) => !cotAn.has(c.key)));
   return (
     <div className="lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cotHien)}>
+      <CuonLuoi ghim={soCotGhim(cotHien, luoi?.ghim)}>
         <table className="lds-g tdsx-lenh" style={{ minWidth: rongLuoi(cotHien) }}>
           <caption className="sr-only">Lệnh đang sản xuất và vấn đề của từng lệnh</caption>
           <colgroup>
@@ -87,6 +90,7 @@ export function TdsxTheoLenh({
               {cotHien.map((c) => (
                 <th key={c.key} scope="col" className={c.n ? "n" : undefined}>
                   {c.label}
+                  {luoi?.keo(c.key)}
                 </th>
               ))}
             </tr>

@@ -16,6 +16,7 @@ import type { DeliveryDriver, DeliveryDriverPick, DeliveryRequest } from "../../
 import { api } from "../../../../api/client";
 import type { Row } from "../../../../api/rebuildCatalog";
 import { Button } from "../../../../components/Button";
+import { ChonNgayGio } from "../../../../components/ChonNgay";
 import { boDau, khopGanDung } from "../../../../utils/timGanDung";
 import {
   GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapHopLe, gioNhapSai,
@@ -427,13 +428,13 @@ export function DialogLenKeHoach({
             <h3 className="gh-ld__tieu">Thời gian</h3>
             <div className="gh-ld__dong-o">
               <label htmlFor="gh-ld-lay">Lấy hàng <span className="gh-bat-buoc">*</span></label>
-              <input id="gh-ld-lay" className="input gh-ld__nhap" type="datetime-local" min={GIO_NHAP_MIN}
-                max={GIO_NHAP_MAX} value={lay} onChange={(e) => setLay(e.target.value)} />
+              <ChonNgayGio id="gh-ld-lay" className="input gh-ld__nhap" min={GIO_NHAP_MIN} aria-label="Lấy hàng"
+                max={GIO_NHAP_MAX} value={lay} onChange={(v) => setLay(v)} />
             </div>
             <div className="gh-ld__dong-o">
               <label htmlFor="gh-ld-giao">Dự kiến giao <span className="gh-bat-buoc">*</span></label>
-              <input id="gh-ld-giao" className="input gh-ld__nhap" type="datetime-local" min={GIO_NHAP_MIN}
-                max={GIO_NHAP_MAX} value={giao} onChange={(e) => setGiao(e.target.value)} />
+              <ChonNgayGio id="gh-ld-giao" className="input gh-ld__nhap" min={GIO_NHAP_MIN} aria-label="Dự kiến giao"
+                max={GIO_NHAP_MAX} value={giao} onChange={(v) => setGiao(v)} />
             </div>
             {gioSai && (
               <div className="banner banner--warn" role="status" style={{ margin: 0 }}>

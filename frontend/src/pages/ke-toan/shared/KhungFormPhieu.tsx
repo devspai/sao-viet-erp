@@ -16,6 +16,7 @@
  *  (`OTienLon`); dải "sau phiếu này" đổi theo từng phím gõ (`SauPhieu`); gợi ý người nộp / nhận bằng
  *  chip (`GoiYTen`). Đầu ngăn có hàng thẻ thông tin (`phuDe`).
  */
+import { ChonNgay } from "../../../components/ChonNgay";
 import { Banknote, CircleAlert, Landmark } from "lucide-react";
 import { OGoDinhDang } from "../../../components/OGoDinhDang";
 import { useEffect, useId, useRef, useState } from "react";
@@ -188,8 +189,8 @@ export function ONgayPhieu({
 }) {
   return (
     <OF khoa={khoa} nhan={nhan} batBuoc ngay loi={loi} goi={goi}>
-      <input id={idO(khoa)} type="date" min={min} max={homNayVN()} value={value}
-        aria-invalid={loi ? true : undefined} onChange={(e) => onChange(e.target.value)} />
+      <ChonNgay id={idO(khoa)} aria-label={nhan} min={min} max={homNayVN()} value={value}
+        onChange={(v) => onChange(v)} />
     </OF>
   );
 }

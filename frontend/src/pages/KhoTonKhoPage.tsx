@@ -27,7 +27,7 @@ import { CodeLink } from "../components/CodeLink";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { Button } from "../components/Button";
 import {
-  CuonLuoi, soCotGhim, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, soVN, useCotAn, useThuTuCot, xepCot,
+  CuonLuoi, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, soVN, useCauHinhLuoi,
   type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { EmptyRow as DongTrongLds } from "../components/EmptyState";
@@ -351,10 +351,8 @@ export function KhoTonKhoPage({
   // Điều chuyển HÀNG LOẠT: mở popup cho các mã đã tick → gộp vào 1 yêu cầu điều chuyển.
   const [dcBulkOpen, setDcBulkOpen] = useState(false);
   // Cột ẩn / thứ tự cột người xem đã chọn — nhớ theo màn, mỗi lưới một khoá.
-  const [cotAnTon, setCotAnTon] = useCotAn("kho-ton");
-  const [thuTuTon, setThuTuTon] = useThuTuCot("kho-ton");
-  const [cotAnPhieu, setCotAnPhieu] = useCotAn("kho-phieu-kho");
-  const [thuTuPhieu, setThuTuPhieu] = useThuTuCot("kho-phieu-kho");
+  const luoiTon = useCauHinhLuoi("kho-ton");
+  const luoiPhieu = useCauHinhLuoi("kho-phieu-kho");
   // Popup đặt ngưỡng cho MỘT mã — mở khi bấm ô Min/Max hoặc badge Trạng thái (cần set_threshold).
   const [nguongFor, setNguongFor] = useState<MaterialGroup | null>(null);
   // Nhóm lọc nhanh của bảng tồn (phương án C): Tất cả · Cần mua · Vượt tối đa · Chưa đặt mức · Sắp hết hạn.
@@ -627,11 +625,11 @@ export function KhoTonKhoPage({
   const selectable = canCreate || coTheMua;
   const cotTonDs = COT_TON.filter(
     (c) => (c.key !== "chon" || selectable) && (c.key !== "hsd" || coHsd) && (c.key !== "giatri" || canViewCost));
-  const cotTon = xepCot(cotTonDs, thuTuTon).filter((c) => !cotAnTon.has(c.key));
+  const cotTon = luoiTon.rongHien(luoiTon.xep(cotTonDs).filter((c) => !luoiTon.an.has(c.key)));
   const cotPhieuDs = COT_PHIEU
     .filter((c) => c.key !== "giavon" || canViewCost)
     .map((c) => (c.key === "ngaypx" ? { ...c, label: NHAN_NGAY_PHIEU[tab] ?? c.label } : c));
-  const cotPhieu = xepCot(cotPhieuDs, thuTuPhieu).filter((c) => !cotAnPhieu.has(c.key));
+  const cotPhieu = luoiPhieu.rongHien(luoiPhieu.xep(cotPhieuDs).filter((c) => !luoiPhieu.an.has(c.key)));
 
   // Hàng lọc nhanh của bảng tồn — số do máy chủ đếm trên tập đã lọc bởi ô tìm, kỳ Nhập và các khoảng; bỏ riêng bộ lọc nhóm (không theo trang).
   const mucTon: { key: NhomTon; label: string; count: number; mau?: MauTT }[] = [
@@ -736,15 +734,15 @@ export function KhoTonKhoPage({
               />
             )}
             {tab === "ton"
-              ? <ChonCot cot={cotTonDs} an={cotAnTon} onAn={setCotAnTon} thuTu={thuTuTon} onThuTu={setThuTuTon} />
-              : <ChonCot cot={cotPhieuDs} an={cotAnPhieu} onAn={setCotAnPhieu} thuTu={thuTuPhieu} onThuTu={setThuTuPhieu} />}
+              ? <ChonCot cot={cotTonDs} {...luoiTon.chonCot} />
+              : <ChonCot cot={cotPhieuDs} {...luoiPhieu.chonCot} />}
           </div>
         )}
       </section>
 
       <div className="lds-sheet">
         {tab === "ton" ? (
-          <CuonLuoi ghim={soCotGhim(cotTon)}>
+          <CuonLuoi ghim={luoiTon.soGhim(cotTon)}>
             <table className="lds-g" style={{ minWidth: rongLuoi(cotTon) }}>
               <colgroup>
                 {cotTon.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
@@ -761,7 +759,12 @@ export function KhoTonKhoPage({
                           checked={tatCaTrang}
                           onChange={toggleTrang}
                         />
-                      ) : c.label}
+                      ) : (
+                        <>
+                          {c.label}
+                          {luoiTon.keo(c.key)}
+                        </>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -807,13 +810,13 @@ export function KhoTonKhoPage({
             </table>
           </CuonLuoi>
         ) : (
-          <CuonLuoi ghim={soCotGhim(cotPhieu)}>
+          <CuonLuoi ghim={luoiPhieu.soGhim(cotPhieu)}>
             <table className="lds-g" style={{ minWidth: rongLuoi(cotPhieu) }}>
               <colgroup>
                 {cotPhieu.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
               </colgroup>
               <thead>
-                <tr>{cotPhieu.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}</tr>
+                <tr>{cotPhieu.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoiPhieu.keo(c.key)}</th>)}</tr>
               </thead>
               <tbody>
                 {loadingV && vouchers.length === 0 ? (

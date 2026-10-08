@@ -10,6 +10,10 @@
 // Lỗi quy về công đoạn khác (19/09/2026): KCS bắt ở bước sau nhưng tính cho bước trước — dòng lỗi gắn
 // nhãn "Tính cho …".
 //
+// Kết quả tiêu chí gom THEO CÔNG ĐOẠN (08/10/2026, §3a): bước cuối xét tiêu chí gộp cả chuỗi, mỗi
+// kết quả khoá theo cặp (`cong_viec_id`, `thu_tu`) — kết quả cũ thiếu `cong_viec_id` là của chính
+// công việc lần kiểm. Công đoạn có lỗi lên đầu, mỗi mục hỏng một dòng; công đoạn đạt một dòng "Đạt".
+//
 // Bàn tổ (tab KCS) KHÔNG dùng danh sách lần kiểm này mà dùng `KcsLoiCuaTo` — chỉ lỗi tổ chịu, phẳng,
 // không lần kiểm đạt/số đạt/tiêu chí (19/09/2026). Danh sách lần kiểm đầy đủ là của phía KCS.
 import { useState } from "react";
@@ -22,13 +26,42 @@ import { ngayGio, num } from "../keHoachSxShared";
 import { nhanDonVi } from "../lsxBuoc";
 import { DongTep } from "../ThsxDongTep";
 import { KCS_KET_LUAN } from "./kcsNhan";
+import { nhanLenhPhu, tenTieuChi } from "./theCongDoan";
 import "../thuc-hien-sx.css";
+
+export interface NhomKetQua {
+  cvId: number | null;
+  ten: string;
+  /** "Lệnh phụ …" khi công đoạn thuộc lệnh phụ — hai lệnh cùng có bước In thì phải phân biệt được. */
+  phu: string | null;
+  hong: { ten: string; ghiChu: string | null }[];
+}
+
+/** Gom kết quả một lần kiểm theo công đoạn nguồn: có lỗi lên đầu, giữ thứ tự xuất hiện. */
+export function ketQuaTheoCongDoan(lk: SxKcsLanKiem, checklist: SxKcsChiTietTieuChi[]): NhomKetQua[] {
+  const cvCua = (id: number | null | undefined) => id ?? lk.cong_viec_id ?? null;
+  const tenTc = new Map(checklist.map((t) => [`${cvCua(t.cong_viec_id)}:${t.thu_tu}`, tenTieuChi(t)]));
+  const tenCd = new Map(checklist.map((t) => [cvCua(t.cong_viec_id), t.ten_cong_doan]));
+  const phuCd = new Map(checklist.map((t) => [cvCua(t.cong_viec_id), nhanLenhPhu(t)]));
+  const nhom = new Map<number | null, NhomKetQua>();
+  for (const c of lk.checklist) {
+    const cv = cvCua(c.cong_viec_id);
+    let g = nhom.get(cv);
+    if (!g) {
+      g = { cvId: cv, ten: tenCd.get(cv) || (cv === lk.cong_viec_id ? lk.cong_doan_ten : null) || "Công đoạn", phu: phuCd.get(cv) ?? null, hong: [] };
+      nhom.set(cv, g);
+    }
+    if (!c.dat) g.hong.push({ ten: tenTc.get(`${cv}:${c.thu_tu}`) ?? `Tiêu chí #${c.thu_tu}`, ghiChu: c.ghi_chu ?? null });
+  }
+  const ds = [...nhom.values()];
+  return [...ds.filter((g) => g.hong.length > 0), ...ds.filter((g) => g.hong.length === 0)];
+}
 
 export function KcsLanKiemList({
   lanKiem: tatCa, checklist = [], chiLoi = false,
 }: {
   lanKiem: SxKcsLanKiem[];
-  /** Snapshot tiêu chí của công đoạn — để đổi `thu_tu` trong kết quả ra tên tiêu chí. */
+  /** Tiêu chí (gộp ở bước cuối) — để đổi cặp (`cong_viec_id`, `thu_tu`) trong kết quả ra tên. */
   checklist?: SxKcsChiTietTieuChi[];
   /** Công đoạn GIỮA: KCS chỉ ghi lỗi — bỏ lần ghi không lỗi (dữ liệu cũ), không bày đạt/tiêu chí. */
   chiLoi?: boolean;
@@ -38,17 +71,15 @@ export function KcsLanKiemList({
   if (lanKiem.length === 0) {
     return <p className="kcs-lk__trong">{chiLoi ? "Chưa ghi lỗi nào." : "Chưa có lần kiểm nào."}</p>;
   }
-  const tenTc = new Map(checklist.map((t) => [t.thu_tu, t.ten ?? t.ma ?? `Tiêu chí #${t.thu_tu}`]));
   return (
     <>
       <ul className="kcs-lk">
         {lanKiem.map((lk) => {
           const kl = KCS_KET_LUAN[lk.ket_luan] ?? { nhan: lk.ket_luan, cls: "" };
           const dv = nhanDonVi(lk.don_vi);
-          const soDat = lk.checklist.filter((c) => c.dat).length;
-          // Không đạt lên đầu, còn lại giữ thứ tự tiêu chí. Mỗi tiêu chí một dòng: tên tiêu chí có thể
-          // tự chứa dấu phẩy nên không nối chung một câu được.
-          const tieuChi = [...lk.checklist].sort((a, b) => Number(a.dat) - Number(b.dat) || a.thu_tu - b.thu_tu);
+          // Mỗi mục hỏng một dòng: tên tiêu chí có thể tự chứa dấu phẩy nên không nối chung một câu được.
+          const nhomKq = ketQuaTheoCongDoan(lk, checklist);
+          const soCdLoi = nhomKq.filter((g) => g.hong.length > 0).length;
           return (
             // Hàng phẳng: vạch trái mang màu kết luận, không badge/chip/viên thuốc (19/09/2026).
             <li key={lk.id} className={`kcs-lk__it kcs-lk__it--${chiLoi ? "dat_mot_phan" : lk.ket_luan}`}>
@@ -69,17 +100,24 @@ export function KcsLanKiemList({
                 <span className="kcs-lk__luc">{ngayGio(lk.luc)}</span>
               </div>
               <p className="kcs-lk__phu">
-                {lk.nguoi_kiem ?? "—"}
-                {!chiLoi && lk.checklist.length > 0 && <>{" · "}<span>Tiêu chí: {soDat}/{lk.checklist.length} đạt</span></>}
+                <span>{lk.nguoi_kiem ?? "—"}</span>
+                {!chiLoi && nhomKq.length > 0 && <span>Công đoạn: {nhomKq.length - soCdLoi}/{nhomKq.length} đạt</span>}
               </p>
-              {!chiLoi && lk.checklist.length > 0 && (
+              {!chiLoi && nhomKq.length > 0 && (
                   <ul className="kcs-lk__tc-ds">
-                    {tieuChi.map((c) => (
-                      <li key={c.thu_tu} className={`kcs-lk__tc-it${c.dat ? "" : " is-khong"}`}>
-                        <Icon name={c.dat ? "check" : "x"} size={12} className="kcs-lk__tc-ic" />
-                        <span className="kcs-lk__tc-ten">{tenTc.get(c.thu_tu) ?? `Tiêu chí #${c.thu_tu}`}</span>
-                        <span className="kcs-lk__tc-kq">{c.dat ? "Đạt" : "Không đạt"}</span>
-                        {c.ghi_chu && <span className="kcs-lk__tc-gc">{c.ghi_chu}</span>}
+                    {nhomKq.map((g) => (
+                      <li key={g.cvId ?? "x"} className={`kcs-lk__tc-it${g.hong.length ? " is-khong" : ""}`}>
+                        <Icon name={g.hong.length ? "x" : "check"} size={12} className="kcs-lk__tc-ic" />
+                        <span className="kcs-lk__tc-ten">
+                          {g.ten}
+                          {g.phu && <span className="kcs-lk__tc-lenh">{g.phu}</span>}
+                        </span>
+                        <span className="kcs-lk__tc-kq">{g.hong.length ? `${g.hong.length} mục hỏng` : "Đạt"}</span>
+                        {g.hong.map((h, i) => (
+                          <span key={i} className="kcs-lk__tc-gc">
+                            {h.ten}{h.ghiChu && <span className="kcs-lk__tc-gc-phu"> ({h.ghiChu})</span>}
+                          </span>
+                        ))}
                       </li>
                     ))}
                   </ul>

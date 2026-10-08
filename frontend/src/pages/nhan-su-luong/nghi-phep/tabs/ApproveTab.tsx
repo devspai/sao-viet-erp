@@ -1,13 +1,13 @@
 // Tab "Duyệt đơn" (HR) (tách từ pages/NghiPhepPage.tsx).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type LeaveRequest, type XinHuyChoDuyet } from "../../../../api/client";
 import { trangHopLe } from "../../../../components/Pager";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
-import { StatusTabs } from "../../../../components/StatusTabs";
 import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
 import { thamSoKy } from "../../../thanh-loc/ky-danh-sach";
 import { soDaAp } from "../../../thanh-loc/thanh-loc";
-import { dkTabDon, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import { dkTabDon, mucLocNhanh, tabTrangThai, useLocTab } from "../../dieu-kien-don";
+import { ChonCot, LocNhanhTrangThai, useCauHinhLuoi } from "../../../../components/LuoiDs";
 import {
   LOC_NP_TRONG,
   MAN_NGHI_PHEP,
@@ -19,7 +19,7 @@ import {
   type LocNghiPhep,
 } from "../dieu-kien-nghi-phep";
 import { fmtDate } from "../../../../utils/format";
-import { LeaveTable } from "../components/LeaveTable";
+import { cotDonNghi, LeaveTable } from "../components/LeaveTable";
 import { PAGE_SIZE } from "../shared/constants";
 import { errMsg } from "../shared/helpers";
 import { LyDoDialog, XinHuyHangDoi } from "../../xin-huy/XinHuy";
@@ -30,13 +30,16 @@ const tomTat = (r: LeaveRequest) =>
 
 // --- Tab: Duyệt đơn (HR) ----------------------------------------------------
 
-export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
+export function ApproveTab({ token, dau, onChanged, focusEmployeeId, eventTick }: {
   token: string; onChanged?: () => void; focusEmployeeId?: number;
+  /** Hàng đầu màn do trang dựng; phần này chỉ gài nút chính vào bên phải. */
+  dau: (phai?: ReactNode) => ReactNode;
   /** Nhích theo mỗi sự kiện real-time — thợ gửi đơn / xin hủy là hàng đợi tự tươi (23/09/2026). */
   eventTick?: number;
 }) {
   const [items, setItems] = useState<LeaveRequest[]>([]);
   const [total, setTotal] = useState(0);
+  const luoi = useCauHinhLuoi("nghi-phep-duyet");
   const [dem, setDem] = useState<Record<string, number> | null>(null);
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(PAGE_SIZE);
@@ -151,20 +154,22 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
   }
 
   return (
-    <div>
-      <div className="cc-ts-toolbar tl-thanh">
-        <ThanhLoc
-          ky={locTab.ky}
-          moc={MOC_NP}
-          onKy={(ky) => setLocTab({ ...locTab, ky })}
-          dieuKien={dkTabDon(dieuKien, tabTrangThai(dem))}
-          loc={locTab}
-          onLoc={setLocTab}
-        />
-      </div>
-      <div style={{ marginBottom: 12 }}>
-        <StatusTabs tabs={tabTrangThai(dem)} active={status} onChange={(tt) => setLocTab({ ...locTab, tt })} />
-      </div>
+    <>
+      {dau()}
+      <section className="lds-loc">
+        <LocNhanhTrangThai dang={status} onChon={(tt) => setLocTab({ ...locTab, tt })} muc={mucLocNhanh(dem)} />
+        <div className="lds-loc__thanh tl-thanh">
+          <ThanhLoc
+            ky={locTab.ky}
+            moc={MOC_NP}
+            onKy={(ky) => setLocTab({ ...locTab, ky })}
+            dieuKien={dkTabDon(dieuKien, tabTrangThai(dem))}
+            loc={locTab}
+            onLoc={setLocTab}
+          />
+          <ChonCot cot={cotDonNghi({ selectable: true, showEmployee: true, nguoiDuyet: true })} {...luoi.chonCot} />
+        </div>
+      </section>
       {sel.size > 0 && (
         <div className="cc-bulk-actions-floating">
           <span className="cc-bulk-label">{sel.size} đơn đã chọn</span>
@@ -192,28 +197,28 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
           <button type="button" className="btn btn--ghost" onClick={() => setLoiDuyet(null)}>Đóng</button>
         </div>
       )}
-      <LeaveTable items={shown} showEmployee onApprove={approve}
+      <LeaveTable items={shown} showEmployee onApprove={approve} luoi={luoi}
         onHuyDaDuyet={(r) => { setHuyErr(null); setHuyDon(r); }}
         onReject={(r) => { setRejectTarget(r); setRejectNote(""); setError(null); }}
         selectable selected={sel} onToggle={toggle} onToggleAll={toggleAll} allPendingCount={pendingIds.length}
         loading={loadingList} listError={listError} onRetry={load}
         emptyTitle={coLoc ? "Không có đơn nào khớp bộ lọc" : "Chưa có đơn xin nghỉ nào"}
-        emptySub={coLoc ? "Đổi kỳ hoặc bỏ bớt điều kiện lọc ở trên." : status === "pending" ? "Không còn đơn nào chờ duyệt. Chọn tab Tất cả để xem đơn đã xử lý." : "Thử chọn tab trạng thái khác."} />
-      {/* Giữ chân trong lúc tải trang kế (nút đã khoá qua `loading`) — ẩn đi rồi hiện lại thì
-          dãy số trang nhảy khỏi chỗ con trỏ. */}
-      {!listError && total > 0 && (
-        <PhanTrangDayDu
-          trang={page} size={size} tong={total} soDong={shown.length}
-          loading={loadingList}
-          donVi="đơn"
-          onTrang={setPage}
-          onSize={(n) => { setSize(n); setPage(1); }}
-          // Nói THẲNG giới hạn của nút hàng loạt: ô tick "chọn tất cả" chỉ quét trang đang xem.
-          // Không nói thì người duyệt bấm "Duyệt 25" rồi tưởng đã dọn sạch hàng đợi.
-          ghiChu={total > size ? "chọn hàng loạt chỉ áp cho trang đang xem" : undefined}
-          ariaLabel="Phân trang đơn cần duyệt"
-        />
-      )}
+        emptySub={coLoc ? "Đổi kỳ hoặc bỏ bớt điều kiện lọc ở trên." : status === "pending" ? "Không còn đơn nào chờ duyệt. Chọn tab Tất cả để xem đơn đã xử lý." : "Thử chọn tab trạng thái khác."}
+        // Giữ chân trong lúc tải trang kế (nút đã khoá qua `loading`) — ẩn đi rồi hiện lại thì
+        // dãy số trang nhảy khỏi chỗ con trỏ.
+        chan={!listError && total > 0 && (
+          <PhanTrangDayDu
+            trang={page} size={size} tong={total} soDong={shown.length}
+            loading={loadingList}
+            donVi="đơn"
+            onTrang={setPage}
+            onSize={(n) => { setSize(n); setPage(1); }}
+            // Nói THẲNG giới hạn của nút hàng loạt: ô tick "chọn tất cả" chỉ quét trang đang xem.
+            // Không nói thì người duyệt bấm "Duyệt 25" rồi tưởng đã dọn sạch hàng đợi.
+            ghiChu={total > size ? "chọn hàng loạt chỉ áp cho trang đang xem" : undefined}
+            ariaLabel="Phân trang đơn cần duyệt"
+          />
+        )} />
       <LyDoDialog
         open={huyDon !== null}
         title="Hủy đơn đã duyệt"
@@ -260,6 +265,6 @@ export function ApproveTab({ token, onChanged, focusEmployeeId, eventTick }: {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -73,6 +73,33 @@ def test_lich_cua_so_nguoc_thi_400(client):
     assert r.status_code == 400
 
 
+def test_lich_tra_ngay_dac_biet_ca_va_cum(client):
+    """Mục 6 mockup: trục ghi TÊN lễ và tô làm bù — ba khoá mới phải đi qua `response_model`."""
+    from app.models.work_calendar import SpecialDay
+
+    db = SessionLocal()
+    try:
+        db.query(SpecialDay).filter(SpecialDay.day.in_([date(2027, 3, 3), date(2027, 3, 6)])).delete()
+        db.add(SpecialDay(day=date(2027, 3, 3), kind="off", name="Lễ thử"))
+        db.add(SpecialDay(day=date(2027, 3, 6), kind="work", name="Làm bù thử"))
+        db.commit()
+    finally:
+        db.close()
+    body = client.get(f"{GOC}/lich?tu=2027-03-01&den=2027-03-07", headers=_hd(client)).json()
+    assert {"ngay": "2027-03-03", "loai": "off", "ten": "Lễ thử"} in body["ngay_dac_biet"]
+    assert {"ngay": "2027-03-06", "loai": "work", "ten": "Làm bù thử"} in body["ngay_dac_biet"]
+    assert "cac_ca" in body and body["cum"] == []
+
+
+def test_vat_tu_tra_den_theo_lo(client):
+    lid = _lenh("LSX-XL3-VT")
+    r = client.get(f"{GOC}/vat-tu?lsx_ids={lid}", headers=_hd(client))
+    assert r.status_code == 200
+    assert [d["lsx_id"] for d in r.json()] == [lid]
+    assert r.json()[0]["muc"] in ("ok", "vang", "do")
+    assert client.get(f"{GOC}/vat-tu?lsx_ids=a,b", headers=_hd(client)).status_code == 400
+
+
 def test_lich_tra_kem_ngay_nghi_cua_dung_cua_so(client):
     """`ngay_nghi` phải ĐI QUA được `response_model` — `LichOut` không khai thì Pydantic nuốt im
     lặng và FE lại quay về đoán "T7 + CN" (xưởng này làm thứ 7)."""
@@ -96,6 +123,21 @@ def test_dat_moc_roi_doc_lai_ra_dung_moc(client):
     ct = client.get(f"{GOC}/lenh/{lid}", headers=h).json()
     assert ct["bat_dau_at"].startswith("2026-09-11T08:00")
     assert lid not in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
+
+
+def test_thu_moc_xem_truoc_khong_ghi(client):
+    lid, h = _lenh("LSX-XL3-THU", han_hoan_thanh_sx=date(2026, 9, 1)), _hd(client)
+    r = client.get(f"{GOC}/lenh/{lid}/thu?bat_dau=2026-09-11T08:00:00", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["bat_dau"].startswith("2026-09-11T08:00") and r.json()["ket_thuc"]
+    assert lid in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
+    assert client.get(f"{GOC}/lenh/999999/thu?bat_dau=2026-09-11T08:00:00", headers=h).status_code == 404
+    # Lọc nhanh "trễ hạn" + đếm đi qua response_model.
+    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
+    body = client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20&nhanh=tre", headers=h).json()
+    assert lid in [d["lsx_id"] for d in body["dong"]] and body["dem"]["tre"] >= 1
+    assert "so_buoc_chua_gio" in body["dong"][0]
+    assert client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20&nhanh=x", headers=h).status_code == 422
 
 
 def test_chot_cu_thi_409(client):

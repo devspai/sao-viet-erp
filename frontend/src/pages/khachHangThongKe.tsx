@@ -22,6 +22,7 @@ import {
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import {
   LOAI_KY,
   TEN_BUOC,
@@ -364,29 +365,27 @@ export function ThanhKy({ sl }: { sl: SoLieuKhach }) {
       </div>
       {sl.loai === "tuy" && (
         <div className="khtk__tuy">
-          <input
-            type="date"
+          <ChonNgay
             className="input"
             aria-label="Từ ngày"
             min="2000-01-01"
             max="2100-12-31"
             value={tu}
-            onChange={(e) => {
-              setTu(e.target.value);
-              apTuy(e.target.value, den);
+            onChange={(v) => {
+              setTu(v);
+              apTuy(v, den);
             }}
           />
           <span>đến</span>
-          <input
-            type="date"
+          <ChonNgay
             className="input"
             aria-label="Đến ngày"
             min="2000-01-01"
             max="2100-12-31"
             value={den}
-            onChange={(e) => {
-              setDen(e.target.value);
-              apTuy(tu, e.target.value);
+            onChange={(v) => {
+              setDen(v);
+              apTuy(tu, v);
             }}
           />
           {loi && <span className="khtk__loi">{loi}</span>}

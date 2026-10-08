@@ -17207,3 +17207,49 @@ def _migrate_loai_mua(db: Session) -> None:
 
 
 MIGRATIONS.append(("0380_loai_mua", _migrate_loai_mua))
+
+
+def _migrate_kcs_tieu_chi_mot_cau(db) -> None:
+    """mg 0381 — Tiêu chí KCS chỉ còn MỘT câu chữ (08/10/2026, `docs/design-tieu-chi-kcs-lam-lai.md`):
+    xoá dòng ngừng dùng TRƯỚC (gỡ cột `active` rồi thì chúng sống lại), đánh lại `thu_tu` 1..n mỗi
+    công đoạn (server tự gán từ nay; dữ liệu cũ hay để 0 nên khoá kết quả kiểm `thu_tu` từng trùng),
+    rồi DROP `bat_buoc`, `active`, `huong_dan`. Lệnh đã phát hành không đụng — checklist của nó là
+    ảnh chụp trong `san_xuat_cong_viec.kcs_tieu_chi_json`. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "san_xuat_kcs_tieu_chi" not in insp.get_table_names():
+        return
+    cols = _existing_columns(insp, "san_xuat_kcs_tieu_chi")
+    if "active" in cols:
+        db.execute(text("DELETE FROM san_xuat_kcs_tieu_chi WHERE active = false"))
+    rows = db.execute(text(
+        "SELECT id, cong_doan_id, thu_tu FROM san_xuat_kcs_tieu_chi "
+        "ORDER BY cong_doan_id, thu_tu, id")).all()
+    dem: dict[int, int] = {}
+    for id_, cd, tt in rows:
+        dem[cd] = dem.get(cd, 0) + 1
+        if tt != dem[cd]:
+            db.execute(text("UPDATE san_xuat_kcs_tieu_chi SET thu_tu = :t WHERE id = :i"),
+                       {"t": dem[cd], "i": id_})
+    for cot in ("bat_buoc", "active", "huong_dan"):
+        if cot in cols:
+            db.execute(text(f"ALTER TABLE san_xuat_kcs_tieu_chi DROP COLUMN {cot}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0381_kcs_tieu_chi_mot_cau", _migrate_kcs_tieu_chi_mot_cau))
+
+
+def _migrate_quyen_dong_lenh_thieu(db) -> None:
+    """mg 0382 — ô "Đóng lệnh thiếu" trên dòng quyền theo tổ (08/10/2026,
+    `docs/design-kcs-quy-trach-nhiem.md` §2.4): `role_permissions.can_close_short`. Không cấp sẵn
+    cho vai nào — trước đây mọi người KCS đóng thiếu được, nay phải bật ô. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "role_permissions" not in insp.get_table_names():
+        return
+    if "can_close_short" not in _existing_columns(insp, "role_permissions"):
+        db.execute(text(
+            "ALTER TABLE role_permissions ADD COLUMN can_close_short BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0382_quyen_dong_lenh_thieu", _migrate_quyen_dong_lenh_thieu))

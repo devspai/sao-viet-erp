@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { DeliveryDriverPick, DeliveryTrip } from "../../../../api/client";
 import { api } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { ChonNgayGio } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapHopLe, gioNhapSai } from "../../../../lib/gioNhap";
 
@@ -113,13 +114,13 @@ export function DialogDoiChuyen({
               </label>
               <label>
                 Giờ lấy hàng
-                <input className="input" type="datetime-local" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-                  value={lay} onChange={(e) => setLay(e.target.value)} />
+                <ChonNgayGio className="input" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX} aria-label="Giờ lấy hàng"
+                  value={lay} onChange={(v) => setLay(v)} />
               </label>
               <label>
                 Giờ dự kiến giao
-                <input className="input" type="datetime-local" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX}
-                  value={giao} onChange={(e) => setGiao(e.target.value)} />
+                <ChonNgayGio className="input" min={GIO_NHAP_MIN} max={GIO_NHAP_MAX} aria-label="Giờ dự kiến giao"
+                  value={giao} onChange={(v) => setGiao(v)} />
               </label>
               {(gioNhapSai(lay) || gioNhapSai(giao)) && (
                 <div className="banner banner--warn" role="status" style={{ margin: 0 }}>

@@ -17,6 +17,7 @@ import {
   type OrderRow,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { ChonNgay } from "../components/ChonNgay";
 import { money } from "../utils/format";
 import { ToastStack, useToasts } from "./LsxToast";
 
@@ -287,7 +288,7 @@ function OrderDepositDialog({
             </label>
             <label className="acct-field">
               <span>Ngày thu</span>
-              <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <ChonNgay className="input" aria-label="Ngày thu" value={date} onChange={(v) => setDate(v)} />
             </label>
           </div>
           <label className="acct-field">

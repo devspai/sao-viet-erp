@@ -154,6 +154,7 @@ READ_IMPLYING_KEYS = (
     "can_run_order",
     "can_confirm_output",
     "can_warehouse",
+    "can_close_short",
 )
 
 
@@ -323,7 +324,9 @@ class RoleService:
             else:
                 i, dept_id, cap = vi_tri
                 dong_to.append((i, {
-                    "key": m.key, "label": m.label, "viec_chet": [],
+                    # Ô "Đóng lệnh thiếu" chỉ có nghĩa trên dòng tổ KCS (mg 0382).
+                    "key": m.key, "label": m.label,
+                    "viec_chet": [] if dept_id in cay.kcs else ["close_short"],
                     "department_id": dept_id, "cap": cap,
                     "la_kcs": dept_id in cay.kcs,
                 }))
@@ -406,6 +409,7 @@ class RoleService:
                     "can_run_order": bool(p.can_run_order) if p else False,
                     "can_confirm_output": bool(p.can_confirm_output) if p else False,
                     "can_warehouse": bool(p.can_warehouse) if p else False,
+                    "can_close_short": bool(p.can_close_short) if p else False,
                 }
             )
         return rows
@@ -491,6 +495,7 @@ class RoleService:
                 can_run_order=normalized.get("can_run_order", False),
                 can_confirm_output=normalized.get("can_confirm_output", False),
                 can_warehouse=normalized.get("can_warehouse", False),
+                can_close_short=normalized.get("can_close_short", False),
                 commit=False,
                 co_san=co_san,
             )

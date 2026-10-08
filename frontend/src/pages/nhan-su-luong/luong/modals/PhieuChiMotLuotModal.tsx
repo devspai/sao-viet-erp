@@ -12,6 +12,7 @@ import {
   type SalaryAdvance,
   type VoucherBatchResult,
 } from "../../../../api/client";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { errText, money, todayYmd, vuongIds } from "../shared/helpers";
 
 const coTaiKhoan = (a: SalaryAdvance) => !!a.bank_account?.trim() && !!a.bank_name?.trim();
@@ -149,7 +150,7 @@ export function PhieuChiMotLuotModal({
             </label>
             <label className="ns-field">
               <span className="ns-field__label">Ngày chứng từ *</span>
-              <input type="date" max={homNay} value={ngay} onChange={(e) => setNgay(e.target.value)} />
+              <ChonNgay max={homNay} value={ngay} onChange={setNgay} />
             </label>
           </div>
 

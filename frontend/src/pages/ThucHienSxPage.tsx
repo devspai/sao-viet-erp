@@ -22,7 +22,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Icon } from "../components/Icons";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
-import { ChonCot, OTim, useCotAn, useThuTuCot } from "../components/LuoiDs";
+import { ChonCot, OTim, useCauHinhLuoi } from "../components/LuoiDs";
 import "../components/empty-state.css";
 import { BangLoi, EmptyState, ngay, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { useNapTenDonVi } from "./tenDonVi";
@@ -185,8 +185,7 @@ export function ThucHienSxPage({
   const [q, setQ] = useState("");
   const qd = useDebounced(q, 200);
   // Cột của lưới bước (view Bảng): ẩn / đổi chỗ nhớ theo máy người xem, dùng chung mọi lệnh.
-  const [cotAn, setCotAn] = useCotAn("thsx-ds");
-  const [thuTuCot, setThuTuCot] = useThuTuCot("thsx-ds");
+  const luoi = useCauHinhLuoi("thsx-ds");
   const choMap = useMemo(() => choTheoViec(choXn), [choXn]);
   const soChoXn = tongCho(choXn);
   const dieuKienBan = useMemo(() => dieuKienBanTo(soChoXn), [soChoXn]);
@@ -782,7 +781,7 @@ export function ThucHienSxPage({
                 <span className="thsx-digest__chip thsx-digest__chip--released"><Icon name="clock" size={12} /> <b className="thsx-num">{digest.released}</b> chờ làm</span>
                 <span className="thsx-digest__chip thsx-digest__chip--done"><Icon name="check" size={12} /> <b className="thsx-num">{digest.completed}</b> hoàn thành</span>
               </div>
-              <ChonCot cot={COT_THSX} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />
+              <ChonCot cot={COT_THSX} {...luoi.chonCot} />
             </div>
           </section>
         </div>
@@ -875,8 +874,9 @@ export function ThucHienSxPage({
                   selectedId={selectedId}
                   onPick={pickViec}
                   cho={choMap}
-                  cotAn={cotAn}
-                  thuTu={thuTuCot}
+                  luoi={luoi}
+                  cotAn={luoi.an}
+                  thuTu={luoi.thuTu}
                 />
                 {/* Chân phân trang theo LỆNH (máy chủ cắt trang), nằm sau các lưới của trang. */}
                 {tongLenh > 0 && (

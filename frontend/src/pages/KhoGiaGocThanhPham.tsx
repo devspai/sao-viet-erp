@@ -7,6 +7,7 @@
 //
 // Lọc nâng cao (khoảng ngày nhập · kho nhập · khách hàng) cùng khuôn "Lọc nâng cao" của màn danh mục:
 // nút cạnh ô tìm, mở ra hàng ô; gập lại mà còn lọc thì hàng nhãn "Kho nhập: … ✕".
+import { ChonNgay } from "../components/ChonNgay";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { OGoDinhDang } from "../components/OGoDinhDang";
 import { Search } from "lucide-react";
@@ -31,7 +32,7 @@ function docGia(s: string): number | null {
   const so = s.replace(/\D/g, "");
   return so === "" ? null : Number(so);
 }
-/** Ô `type="date"` nhận được cả năm 6 chữ số — giá trị rác gửi lên là 422 câm. Chỉ nhận YYYY-MM-DD. */
+/** Chốt chặn cuối: giá trị rác (vd năm 6 chữ số) gửi lên là 422 câm. Chỉ nhận YYYY-MM-DD. */
 const ngayHopLe = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 type Loc = { tu: string; den: string; khoId: number | null; khachId: number | null };
@@ -235,13 +236,13 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
           <div className="rc__locnc-field rc__locnc-field--rong">
             <span className="rc__locnc-label">Ngày nhập</span>
             <div className="kgg-loc__ngay">
-              <input type="date" className="rc-input" aria-label="Ngày nhập từ" value={loc.tu}
+              <ChonNgay className="rc-input" aria-label="Ngày nhập từ" value={loc.tu}
                 min="2000-01-01" max={den || "2099-12-31"}
-                onChange={(e) => setLoc((l) => ({ ...l, tu: e.target.value }))} />
+                onChange={(v) => setLoc((l) => ({ ...l, tu: v }))} />
               <span className="kgg-loc__den">đến</span>
-              <input type="date" className="rc-input" aria-label="Ngày nhập đến" value={loc.den}
+              <ChonNgay className="rc-input" aria-label="Ngày nhập đến" value={loc.den}
                 min={tu || "2000-01-01"} max="2099-12-31"
-                onChange={(e) => setLoc((l) => ({ ...l, den: e.target.value }))} />
+                onChange={(v) => setLoc((l) => ({ ...l, den: v }))} />
             </div>
             {nguocNgay && <span className="rc-field__hint rc-field__hint--loi">Ngày "đến" phải từ ngày "từ" trở đi.</span>}
           </div>

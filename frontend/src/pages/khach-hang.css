@@ -4611,6 +4611,9 @@
   cursor: pointer;
 }
 
+/* Ô ngày tự vẽ (ChonNgay) nằm lọt trong khung kh__tl-custom-dates cao 32px. */
+.cn-khung.kh__tl-date-input { height: 26px; gap: 4px; box-shadow: none; }
+
 .kh__tl-date-input:focus {
   color: var(--rust);
 }

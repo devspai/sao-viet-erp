@@ -329,16 +329,16 @@ def _checklist(cd, tieu_chi_theo_cd: dict[int, list]) -> list[dict] | None:
     "tiêu chí rỗng".
 
     Nguồn DUY NHẤT là danh mục — ô "Tiêu chí KCS bổ sung" của bước lệnh đã gỡ ở mg `0283`.
+    Một tiêu chí chỉ là MỘT câu chữ (mg `0381`): bỏ `huong_dan`, `bat_buoc`, `nguon` khỏi ảnh chụp.
+    `thu_tu` chụp theo VỊ TRÍ 1..n, không theo cột — nó là nửa khoá kết quả kiểm, phải duy nhất
+    trong một công việc kể cả khi danh mục lỡ có hai dòng cùng `thu_tu`.
     """
     ds = tieu_chi_theo_cd.get(cd.cong_doan_id) if cd.cong_doan_id else None
     if not ds:
         return None
     return [
-        {
-            "tieu_chi_id": tc.id, "ma": tc.ma, "ten": tc.ten, "huong_dan": tc.huong_dan,
-            "bat_buoc": bool(tc.bat_buoc), "nguon": "danh_muc", "thu_tu": tc.thu_tu,
-        }
-        for tc in ds
+        {"tieu_chi_id": tc.id, "ma": tc.ma, "ten": tc.ten, "thu_tu": i}
+        for i, tc in enumerate(ds, start=1)
     ]
 
 

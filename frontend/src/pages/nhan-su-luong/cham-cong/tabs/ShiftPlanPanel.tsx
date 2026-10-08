@@ -23,6 +23,7 @@ import {
   Users,
   Repeat,
 } from "lucide-react";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { EmptyState } from "../../../../components/EmptyState";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import {
@@ -1582,12 +1583,13 @@ export function ShiftPlanPanel({
               </label>
               <label className="cc-sp-basepop__row">
                 <span>Áp dụng từ</span>
-                <input
+                <ChonNgay
                   className="cc-input-text"
-                  type="date"
                   min={isoToday()}
-                  value={baseFrom}
-                  onChange={(e) => setBaseFrom(e.target.value)}
+                  value={baseFrom ?? ""}
+                  onChange={(v) => setBaseFrom(v)}
+                  aria-label="Áp dụng từ"
+                  xoaDuoc={false}
                 />
               </label>
               {baseShift === "none" && (

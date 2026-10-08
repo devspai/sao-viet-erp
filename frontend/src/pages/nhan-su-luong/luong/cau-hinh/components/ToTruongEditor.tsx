@@ -16,6 +16,7 @@ import {
   type ToTruongMoc,
 } from "../../../../../api/client";
 import { Button } from "../../../../../components/Button";
+import { ChonNgay } from "../../../../../components/ChonNgay";
 import { ConfirmDialog } from "../../../../../components/ConfirmDialog";
 import { RowActionButton } from "../../../../../components/RowActionButton";
 import { fmtYmd, money, todayYmd } from "../../shared/helpers";
@@ -245,11 +246,10 @@ export function ToTruongEditor({
                 <div className="cl-totruong__form">
                   <label className="rc-field">
                     <span className="rc-field__label">Áp dụng từ ngày</span>
-                    <input
+                    <ChonNgay
                       className="rc-input"
-                      type="date"
                       value={ngay}
-                      onChange={(e) => setNgay(e.target.value)}
+                      onChange={setNgay}
                     />
                   </label>
                   <label className="rc-field">

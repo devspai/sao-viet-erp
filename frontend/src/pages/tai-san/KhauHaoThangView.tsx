@@ -18,13 +18,13 @@
 // một dòng ("Khấu hao tháng", "Còn lại" — tháng đã ghi to ở trên).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api/client";
-import { taiSanApi, type BangThang } from "../../api/taiSan";
+import { taiSanApi, type BangThang, type HangBangThang } from "../../api/taiSan";
 import { useAuth } from "../../auth/useAuth";
 import { useCan } from "../../auth/permissions";
 import { Button } from "../../components/Button";
 import { Icon } from "../../components/Icons";
 import { MonthPicker } from "../../components/MonthPicker";
-import { CuonLuoi, rongLuoi, soCotGhim, type CotLuoi } from "../../components/LuoiDs";
+import { ChonCot, CuonLuoi, rongLuoi, useCauHinhLuoi, type CotLuoi } from "../../components/LuoiDs";
 import { EmptyRow } from "../../components/EmptyState";
 import { ChiTietDialog } from "./ChiTietDialog";
 import { THANG_NAY, taiXuong, tien, tienDon } from "./chung";
@@ -47,6 +47,57 @@ const COT_THANG: CotThang[] = [
   { key: "ghi_chu", label: "Ghi chú tháng" },
 ];
 
+/** Ô của một dòng theo khoá cột (cột ẩn / đổi chỗ / ghim được qua nút "Cột"). */
+function oThang(key: string, r: HangBangThang, conLai: number, thoi: boolean) {
+  switch (key) {
+    case "ma":
+      return <td key={key} className="lds-mu" title={r.ma}>{r.ma}</td>;
+    case "ten":
+      return (
+        <td key={key} title={r.ten}>
+          {r.ten}
+          {r.so_luong > 1 && <>{" "}<span className="lds-tag">{r.so_luong} cái</span></>}
+        </td>
+      );
+    case "bo_phan":
+      return (
+        <td key={key} className={r.bo_phan_ten ? undefined : "lds-mu"} title={r.bo_phan_ten ?? undefined}>
+          {r.bo_phan_ten ?? "Chưa chọn"}
+        </td>
+      );
+    case "gia":
+      return <td key={key} className="n">{tien(r.nguyen_gia)}</td>;
+    case "muc":
+      return <td key={key} className="n">{tien(r.muc_trich)}</td>;
+    case "luy_ke":
+      return <td key={key} className="n">{tien(r.luy_ke)}</td>;
+    case "con_lai":
+      return (
+        <td key={key} className={conLai <= 0 ? "n lds-mu" : "n"} title={thoi ? "Còn lại lúc thôi dùng" : undefined}>
+          {tien(conLai)}
+        </td>
+      );
+    case "ghi_chu":
+      return (
+        <td key={key}>
+          {/* Chip ngắn, câu đầy đủ ở tooltip và ngăn chi tiết — không chèn cả câu vào
+              bảng kẻo dòng cao gấp ba (chủ 08/09: "xấu"). */}
+          {r.su_kien.length > 0 && (
+            <div className="ts-chips">
+              {r.su_kien.map((s, i) => (
+                <span key={i} className={`ts-chip ts-chip--${s.loai}`} title={s.chi_tiet}>
+                  {s.nhan}
+                </span>
+              ))}
+            </div>
+          )}
+        </td>
+      );
+    default:
+      return <td key={key} />;
+  }
+}
+
 export function KhauHaoThangView() {
   const { token } = useAuth();
   const can = useCan();
@@ -58,6 +109,10 @@ export function KhauHaoThangView() {
   const [ban, setBan] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
   const [xemId, setXemId] = useState<number | null>(null);
+  const luoi = useCauHinhLuoi("tai-san-khau-hao-thang");
+  const cot = luoi.rongHien(luoi.xep(COT_THANG).filter((c) => !luoi.an.has(c.key)));
+  // Dòng Tổng: số tổng đứng đúng dưới cột "Khấu hao tháng" dù cột bị đổi chỗ; ẩn cột đó thì chỉ còn nhãn.
+  const viTriMuc = cot.findIndex((c) => c.key === "muc");
   const [daChep, setDaChep] = useState(false);
 
   const [nam, thang] = thangChon.split("-").map(Number);
@@ -145,6 +200,7 @@ export function KhauHaoThangView() {
           <Button variant="ghost" type="button" onClick={() => setThangChon(THANG_NAY)}>Tháng này</Button>
         )}
         <div className="ts-loc__phai">
+          <ChonCot cot={COT_THANG} {...luoi.chonCot} />
           {xuatDuoc && (
             <Button variant="secondary" disabled={ban || rong} onClick={xuatExcel}>
               <Icon name="fileText" size={15} /> Xuất Excel
@@ -182,24 +238,24 @@ export function KhauHaoThangView() {
       </div>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(COT_THANG)}>
-          <table className="lds-g" style={{ minWidth: rongLuoi(COT_THANG) }}>
+        <CuonLuoi ghim={luoi.soGhim(cot)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cot) }}>
             <colgroup>
-              {COT_THANG.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+              {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
             </colgroup>
             <thead>
               <tr>
-                {COT_THANG.map((c) => (
-                  <th key={c.key} className={c.n ? "n" : undefined} title={c.tip}>{c.label}</th>
+                {cot.map((c) => (
+                  <th key={c.key} className={c.n ? "n" : undefined} title={c.tip}>{c.label}{luoi.keo(c.key)}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {dangTai && !bang ? (
-                <EmptyRow colSpan={COT_THANG.length} trangThai="dang-tai" />
+                <EmptyRow colSpan={cot.length} trangThai="dang-tai" />
               ) : rong ? (
                 <tr>
-                  <td colSpan={COT_THANG.length} className="lds-trong ts-trong-td">
+                  <td colSpan={cot.length} className="lds-trong ts-trong-td">
                     <div className="ts-trong">
                       <h3>Tháng {nhanThang} không có tài sản nào khấu hao</h3>
                       <p>Chưa tới ngày bắt đầu dùng, đã khấu hao hết, hoặc đã thôi dùng từ trước.</p>
@@ -229,43 +285,17 @@ export function KhauHaoThangView() {
                             if (ke?.classList.contains("lds-dong")) ke.focus();
                           }
                         }}>
-                        <td className="lds-mu" title={r.ma}>{r.ma}</td>
-                        <td title={r.ten}>
-                          {r.ten}
-                          {r.so_luong > 1 && <>{" "}<span className="lds-tag">{r.so_luong} cái</span></>}
-                        </td>
-                        <td className={r.bo_phan_ten ? undefined : "lds-mu"} title={r.bo_phan_ten ?? undefined}>
-                          {r.bo_phan_ten ?? "Chưa chọn"}
-                        </td>
-                        <td className="n">{tien(r.nguyen_gia)}</td>
-                        <td className="n">{tien(r.muc_trich)}</td>
-                        <td className="n">{tien(r.luy_ke)}</td>
-                        <td className={conLai <= 0 ? "n lds-mu" : "n"} title={thoi ? "Còn lại lúc thôi dùng" : undefined}>
-                          {tien(conLai)}
-                        </td>
-                        <td>
-                          {/* Chip ngắn, câu đầy đủ ở tooltip và ngăn chi tiết — không chèn cả câu vào
-                              bảng kẻo dòng cao gấp ba (chủ 08/09: "xấu"). */}
-                          {r.su_kien.length > 0 && (
-                            <div className="ts-chips">
-                              {r.su_kien.map((s, i) => (
-                                <span key={i} className={`ts-chip ts-chip--${s.loai}`} title={s.chi_tiet}>
-                                  {s.nhan}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
+                        {cot.map((c) => oThang(c.key, r, conLai, thoi))}
                       </tr>
                     );
                   })}
                   {/* Dòng TỔNG: đây là con số kế toán chép sang phần mềm kế toán. */}
                   <tr className="lds-cong lds-nhom">
-                    <td className="lead" colSpan={4}>
+                    <td className="lead" colSpan={viTriMuc > 0 ? viTriMuc : cot.length}>
                       <span className="lds-dinh-trai">Tổng tháng {nhanThang} ({dong.length} tài sản)</span>
                     </td>
-                    <td className="n">{tien(bang?.tong_muc_trich)}</td>
-                    <td colSpan={3} />
+                    {viTriMuc > 0 && <td className="n">{tien(bang?.tong_muc_trich)}</td>}
+                    {viTriMuc > 0 && cot.length - viTriMuc - 1 > 0 && <td colSpan={cot.length - viTriMuc - 1} />}
                   </tr>
                 </>
               )}

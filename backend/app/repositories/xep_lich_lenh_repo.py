@@ -9,8 +9,9 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
+from ..models.bai_ghep import BaiGhepThanhVien
 from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import DonViDo
@@ -20,7 +21,7 @@ from ..models.san_xuat import (
     GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatCongViecLichSu, SanXuatGoiPhatHanh,
 )
 from ..models.san_xuat_thuc_thi import SanXuatPhienChay
-from ..models.order import Order
+from ..models.order import Order, OrderLine
 from ..models.xep_lich_lenh import XepLichLenh
 from .loc_danh_sach import dk_khoang_ngay
 
@@ -268,6 +269,112 @@ class XepLichLenhRepository:
         for r in rows:
             out.setdefault(r.lsx_id, []).append(r)
         return out
+
+    def cum_lien_thong(self, lsx_ids) -> list[set[int]]:
+        """Chia lệnh thành CỤM liên thông, mỗi cụm một tập — cùng ba quan hệ của
+        `san_xuat.component.thanh_phan_lien_thong` (bài ghép · cùng nhóm thành phẩm · phụ thuộc
+        chéo), tức đúng đơn vị mà nút Phát hành thả xuống xưởng.
+
+        Khác hàm kia ở hai chỗ: trả TỪNG cụm chứ không gộp một tập, và chỉ hỏi theo tập đang lan
+        (hàm kia quét cả bảng cạnh + cả bảng lệnh có nhóm mỗi vòng — chấp nhận được cho một lần
+        phát hành, không chấp nhận được cho mỗi lần vẽ bàn). Ba truy vấn mỗi vòng lan, thường một
+        hai vòng là hết.
+        """
+        cha: dict[int, int] = {}
+
+        def goc(x: int) -> int:
+            cha.setdefault(x, x)
+            while cha[x] != x:
+                cha[x] = cha[cha[x]]
+                x = cha[x]
+            return x
+
+        def noi(ds) -> None:
+            ds = [int(i) for i in ds]
+            for a in ds[1:]:
+                ra, rb = goc(ds[0]), goc(a)
+                if ra != rb:
+                    cha[rb] = ra
+
+        da_xet: set[int] = set()
+        moi = {int(i) for i in lsx_ids if i}
+        for i in moi:
+            goc(i)
+        while moi:
+            xet = sorted(moi)
+            da_xet |= moi
+            # (1) bài ghép
+            bg = set(self.db.execute(
+                select(BaiGhepThanhVien.bai_ghep_id).where(BaiGhepThanhVien.lsx_id.in_(xet))
+            ).scalars())
+            if bg:
+                theo_bai: dict[int, list[int]] = {}
+                for bid, lid in self.db.execute(
+                    select(BaiGhepThanhVien.bai_ghep_id, BaiGhepThanhVien.lsx_id)
+                    .where(BaiGhepThanhVien.bai_ghep_id.in_(sorted(bg)))
+                ).all():
+                    theo_bai.setdefault(bid, []).append(lid)
+                for ds in theo_bai.values():
+                    noi(ds)
+            # (2) cùng nhóm thành phẩm — dòng không có `nhom` không kéo ai
+            khoa = {(oid, nhom) for oid, nhom in self.db.execute(
+                select(Lsx.order_id, OrderLine.nhom)
+                .join(OrderLine, Lsx.order_line_id == OrderLine.id)
+                .where(Lsx.id.in_(xet), OrderLine.nhom.is_not(None))
+            ).all()}
+            if khoa:
+                theo_nhom: dict[tuple, list[int]] = {}
+                for lid, oid, nhom in self.db.execute(
+                    select(Lsx.id, Lsx.order_id, OrderLine.nhom)
+                    .join(OrderLine, Lsx.order_line_id == OrderLine.id)
+                    .where(Lsx.order_id.in_(sorted({k[0] for k in khoa})), OrderLine.nhom.is_not(None))
+                ).all():
+                    if (oid, nhom) in khoa:
+                        theo_nhom.setdefault((oid, nhom), []).append(lid)
+                for ds in theo_nhom.values():
+                    noi(ds)
+            # (3) phụ thuộc chéo
+            Truoc = aliased(LsxCongDoan)
+            Sau = aliased(LsxCongDoan)
+            for a, b in self.db.execute(
+                select(Truoc.lsx_id, Sau.lsx_id)
+                .select_from(LsxCongDoanPhuThuoc)
+                .join(Truoc, LsxCongDoanPhuThuoc.buoc_truoc_id == Truoc.id)
+                .join(Sau, LsxCongDoanPhuThuoc.buoc_sau_id == Sau.id)
+                .where(or_(Truoc.lsx_id.in_(xet), Sau.lsx_id.in_(xet)), Truoc.lsx_id != Sau.lsx_id)
+            ).all():
+                noi([a, b])
+            moi = set(cha) - da_xet
+        cum: dict[int, set[int]] = {}
+        for i in cha:
+            cum.setdefault(goc(i), set()).add(i)
+        return list(cum.values())
+
+    def nhom_theo_lsx(self, lsx_ids) -> dict[int, tuple[int | None, str | None]]:
+        """`{lsx_id: (order_id, nhãn nhóm thành phẩm)}` — tên hàng tiêu đề cụm trên bàn."""
+        ids = sorted({int(i) for i in lsx_ids if i})
+        if not ids:
+            return {}
+        return {int(lid): (oid, nhom) for lid, oid, nhom in self.db.execute(
+            select(Lsx.id, Lsx.order_id, OrderLine.nhom)
+            .outerjoin(OrderLine, Lsx.order_line_id == OrderLine.id)
+            .where(Lsx.id.in_(ids))
+        ).all()}
+
+    def canh_cheo(self, lsx_ids) -> list[tuple[int, int]]:
+        """Cạnh phụ thuộc `(bước trước, bước sau)` nối HAI lệnh khác nhau, cả hai đầu trong tập."""
+        ids = sorted({int(i) for i in lsx_ids if i})
+        if not ids:
+            return []
+        Truoc = aliased(LsxCongDoan)
+        Sau = aliased(LsxCongDoan)
+        return [(int(a), int(b)) for a, b in self.db.execute(
+            select(LsxCongDoanPhuThuoc.buoc_truoc_id, LsxCongDoanPhuThuoc.buoc_sau_id)
+            .join(Truoc, LsxCongDoanPhuThuoc.buoc_truoc_id == Truoc.id)
+            .join(Sau, LsxCongDoanPhuThuoc.buoc_sau_id == Sau.id)
+            .where(Truoc.lsx_id.in_(ids), Sau.lsx_id.in_(ids), Truoc.lsx_id != Sau.lsx_id)
+            .order_by(LsxCongDoanPhuThuoc.buoc_truoc_id, LsxCongDoanPhuThuoc.buoc_sau_id)
+        ).all()]
 
     def phu_thuoc_theo_lo(self, cd_ids: list[int]) -> list[tuple[int, int]]:
         """Cạnh `(bước trước, bước sau)` giữa các bước TRONG tập đã cho. MỘT truy vấn."""

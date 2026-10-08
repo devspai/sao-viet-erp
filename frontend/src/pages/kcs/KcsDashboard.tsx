@@ -13,6 +13,7 @@
 import type { ReactNode } from "react";
 import { type SxKcsBaoCao, type SxKcsCongDoanLoc } from "../../api/client";
 import { MonthBars, MixDonut } from "../../components/charts";
+import { ChonNgay } from "../../components/ChonNgay";
 import { EmptyState } from "../../components/EmptyState";
 import { Icon, type IconName } from "../../components/Icons";
 import { Select, type SelectOption } from "../../components/Select";
@@ -60,14 +61,14 @@ export function KcsBaoCaoLoc({
     <div className="kcs-loc" role="group" aria-label="Lọc báo cáo KCS">
       <div className="kcs-loc__ngay">
         <Icon name="calendar" size={14} className="kcs-loc__ngay-ic" />
-        <input
-          type="date" value={filters.tu} aria-label="Từ ngày" max={filters.den || undefined}
-          onChange={(e) => onFiltersChange({ ...filters, tu: e.target.value })}
+        <ChonNgay
+          value={filters.tu} aria-label="Từ ngày" max={filters.den || undefined}
+          onChange={(v) => onFiltersChange({ ...filters, tu: v })}
         />
         <span className="kcs-loc__ngay-sep" aria-hidden="true">–</span>
-        <input
-          type="date" value={filters.den} aria-label="Đến ngày" min={filters.tu || undefined}
-          onChange={(e) => onFiltersChange({ ...filters, den: e.target.value })}
+        <ChonNgay
+          value={filters.den} aria-label="Đến ngày" min={filters.tu || undefined}
+          onChange={(v) => onFiltersChange({ ...filters, den: v })}
         />
       </div>
       <div className="kcs-loc__cd">

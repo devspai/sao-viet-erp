@@ -71,8 +71,14 @@ _PREFIX_2_PERMISSION: dict[tuple[str, str], tuple[str, ...]] = {
 
 def _xem_ban_to(db: Session, thu_muc: str, user) -> bool:
     """Ảnh của Bàn tổ (`san-xuat/…`, ảnh lỗi KCS) còn mở cho người XEM được một tổ theo dòng quyền
-    theo tổ (mg 0302) — thợ/tổ trưởng không nhất thiết có ô tĩnh `san_xuat`."""
-    return thu_muc == "san-xuat" and quyen_to_cua(db, user).co_viec(VIEC_XEM)
+    theo tổ (mg 0302) — thợ/tổ trưởng không nhất thiết có ô tĩnh `san_xuat`. Người thuộc phòng ban
+    "Tổ KCS" cũng xem được: họ vào màn KCS bằng tư cách phòng ban (mg 0306), không giữ ô quyền nào,
+    nên trước đây chụp ảnh lỗi xong mở lịch sử lần kiểm lại gặp 403 ngay trên ảnh của chính mình."""
+    if thu_muc != "san-xuat":
+        return False
+    from ..services.san_xuat.kcs import la_nguoi_kcs
+
+    return quyen_to_cua(db, user).co_viec(VIEC_XEM) or la_nguoi_kcs(db, user)
 
 
 # Khoá tệp KHÔNG BAO GIỜ trỏ sang nội dung khác: mọi chỗ ghi đều sinh khoá mới có đoạn ngẫu nhiên

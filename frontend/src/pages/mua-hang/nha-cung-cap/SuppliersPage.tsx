@@ -29,7 +29,7 @@ import { useAuth } from "../../../auth/useAuth";
 import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
 import { useCan } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
-import { ChipTT, ChonCot, useCotAn, useThuTuCot, xepCot } from "../../../components/LuoiDs";
+import { ChipTT, ChonCot, useCauHinhLuoi } from "../../../components/LuoiDs";
 import { Star } from "lucide-react";
 import { COT_NCC, SuppliersTable } from "./components/SuppliersTable";
 import { ttNcc } from "./shared/trang-thai-ncc";
@@ -106,9 +106,8 @@ export function SuppliersPage({
   const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocNcc(locMan.loc) });
   const [sort, setSort] = useState<SortNcc>("name");
   // Cột ẩn/hiện và thứ tự cột người xem đã kéo — nhớ theo màn trên trình duyệt này.
-  const [cotAn, setCotAn] = useCotAn("nha-cung-cap");
-  const [thuTuCot, setThuTuCot] = useThuTuCot("nha-cung-cap");
-  const cotHien = xepCot(COT_NCC, thuTuCot).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("nha-cung-cap");
+  const cotHien = luoi.rongHien(luoi.xep(COT_NCC).filter((c) => !luoi.an.has(c.key)));
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -542,7 +541,7 @@ export function SuppliersPage({
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
         }
-        chonCot={<ChonCot cot={COT_NCC} an={cotAn} onAn={setCotAn} thuTu={thuTuCot} onThuTu={setThuTuCot} />}
+        chonCot={<ChonCot cot={COT_NCC} {...luoi.chonCot} />}
         canCreate={canCreate}
         openCreate={openCreate}
         banner={
@@ -574,6 +573,7 @@ export function SuppliersPage({
         size={size}
         onSize={doiCoTrang}
         cotHien={cotHien}
+        luoi={luoi}
       />
 
       {/* Ngăn kiểu 3 (08/10/2026, khuôn ngăn Phiếu thu): vỏ `NganPhai` chung — tên + nhãn trạng thái +

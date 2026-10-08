@@ -32,8 +32,7 @@ import type { NavigateFn } from "../../components/AppShell";
 import "../rebuild-catalog.css";
 import { EmptyRow } from "../../components/EmptyState";
 import {
-  CuonLuoi, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MucLocNhanh,
+  CuonLuoi, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi, type MucLocNhanh,
 } from "../../components/LuoiDs";
 
 /** Số dòng mỗi trang MẶC ĐỊNH của mọi màn danh mục — người dùng đổi được ở ô "Dòng/trang" dưới
@@ -125,8 +124,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   // (`?man=<id màn>`) và nhớ theo màn; lọc + đếm + cắt trang đều ở máy chủ.
   const man = config.man ?? manTuPrefix(config.prefix);
   // Ẩn / hiện / đổi chỗ cột: nhớ theo TỪNG danh mục (mỗi màn một khoá), mất thì về mặc định.
-  const [cotAn, setCotAn] = useCotAn(`dm-${man}`);
-  const [thuTu, setThuTu] = useThuTuCot(`dm-${man}`);
+  const luoi = useCauHinhLuoi(`dm-${man}`);
   const macDinh = useMemo(() => locMacDinh(config), [config]);
   const [locMan, setLocMan] = useLocMan<LocManDM>(man, macDinh,
     (p) => docLocDM(p, config), (t) => ghiLocDM(t, config));
@@ -267,7 +265,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const cotTatCa: CotDM[] = coCotNut
     ? [...cotDuLieu, { key: "nut", label: "Hành động", coDinh: true, w: rongCotNut }]
     : cotDuLieu;
-  const cotHien = xepCot(cotTatCa, thuTu).filter((c) => !cotAn.has(c.key));
+  const cotHien = luoi.rongHien(luoi.xep(cotTatCa).filter((c) => !luoi.an.has(c.key)));
   const dangMo = editing && editing !== "new" ? editing.id : null;
   const cotCuaConfig = new Map(config.columns.map((c) => [c.key, c]));
 
@@ -450,19 +448,19 @@ export function CatalogListPage({ config, onMutate, navigate }: {
             loc={locMan.loc}
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
-          <ChonCot cot={cotDuLieu} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={cotDuLieu} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
             </colgroup>
             <thead>
               <tr>
-                {cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}</th>)}
+                {cotHien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi.keo(c.key)}</th>)}
               </tr>
             </thead>
             <tbody>

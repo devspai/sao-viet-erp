@@ -12,6 +12,7 @@
 // phận thì khung đó là hai thẻ "Đang ở → Chuyển sang" nằm trên cùng.
 // Nút lưu luôn bấm được: thiếu ô nào thì báo ngay dưới ô đó và đưa con trỏ tới (nút mờ đi thì
 // người dùng không biết vì sao không bấm được).
+import { ChonNgay } from "../../components/ChonNgay";
 import { useEffect, useState, type ReactNode } from "react";
 import { ApiError } from "../../api/client";
 import type { Department } from "../../api/client";
@@ -192,10 +193,9 @@ export function ChuyenBoPhanKhung({ token, taiSan, boPhan, onClose, onDone }: Ch
         </div>
         <label className="rc-field ts-o--ngay">
           <span className="rc-field__label">Ngày chuyển <em>*</em></span>
-          <input id="ts-chuyen-ngay" className="rc-input" type="date"
+          <ChonNgay id="ts-chuyen-ngay" aria-label="Ngày chuyển" className={`rc-input${loiO["ts-chuyen-ngay"] ? " is-loi" : ""}`}
             min={taiSan.ngay_su_dung.slice(0, 10)} max={NGAY_MAX} value={ngay}
-            aria-invalid={!!loiO["ts-chuyen-ngay"] || undefined}
-            onChange={(e) => setNgay(e.target.value)} />
+            onChange={(v) => setNgay(v)} />
           <LoiO loi={loiO["ts-chuyen-ngay"]} />
         </label>
       </div>
@@ -310,10 +310,9 @@ export function SuaChuaLonKhung({ token, taiSan, lich, onClose, onDone }: Chung 
         </label>
         <label className="rc-field ts-o--ngay">
           <span className="rc-field__label">Ngày sửa xong <em>*</em></span>
-          <input id="ts-sua-ngay" className="rc-input" type="date"
+          <ChonNgay id="ts-sua-ngay" aria-label="Ngày sửa xong" className={`rc-input${loiO["ts-sua-ngay"] ? " is-loi" : ""}`}
             min={taiSan.ngay_su_dung.slice(0, 10)} max={NGAY_MAX} value={ngay}
-            aria-invalid={!!loiO["ts-sua-ngay"] || undefined}
-            onChange={(e) => setNgay(e.target.value)} />
+            onChange={(v) => setNgay(v)} />
           <LoiO loi={loiO["ts-sua-ngay"]} />
         </label>
       </div>
@@ -404,10 +403,9 @@ export function ThoiDungKhung({ token, taiSan, lich, onClose, onDone }: Chung & 
       <div className="ts-form__hang">
         <label className="rc-field ts-o--ngay">
           <span className="rc-field__label">Ngày thôi dùng <em>*</em></span>
-          <input id="ts-thoi-ngay" className="rc-input" type="date"
+          <ChonNgay id="ts-thoi-ngay" aria-label="Ngày thôi dùng" className={`rc-input${loiO["ts-thoi-ngay"] ? " is-loi" : ""}`}
             min={taiSan.ngay_su_dung.slice(0, 10)} max={NGAY_MAX} value={ngay}
-            aria-invalid={!!loiO["ts-thoi-ngay"] || undefined}
-            onChange={(e) => setNgay(e.target.value)} />
+            onChange={(v) => setNgay(v)} />
           <LoiO loi={loiO["ts-thoi-ngay"]} />
         </label>
         <label className="rc-field">

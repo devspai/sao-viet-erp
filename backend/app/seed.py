@@ -1999,8 +1999,10 @@ def seed_attendance(db: Session) -> None:
     from .repositories.employee_repo import EmployeeRepository
     from .repositories.user_repo import UserRepository
 
+    from .models.attendance import AttendanceLog
+
     repo = AttendanceRepository(db)
-    if repo.list_all(limit=1):
+    if db.query(AttendanceLog.id).first() is not None:
         return
     loc = repo.list_locations(active_only=True)
     if not loc:

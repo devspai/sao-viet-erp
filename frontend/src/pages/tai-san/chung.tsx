@@ -55,11 +55,11 @@ export function thangNhan(v?: string | null): string {
   return `${v.slice(5, 7)}/${v.slice(0, 4)}`;
 }
 
-/** Khoảng ngày chấp nhận được của mọi ô `type="date"` trong module.
+/** Khoảng ngày chấp nhận được của mọi ô ngày (ChonNgay) trong module.
  *
  *  Vì sao phải chặn hai đầu: ô ngày của trình duyệt cho gõ tay, và người dùng đã từng gõ ra năm
  *  SÁU chữ số — request bay lên rồi ăn 422 câm, không ô nào đỏ, họ ngồi bấm Lưu lại mãi. Chặn
- *  bằng `min`/`max` thì trình duyệt tự chặn ngay tại ô. Trên 1990 vì tài sản mua trước đó thì
+ *  bằng `min`/`max` thì ô tự chặn ngay khi gõ/chọn. Trên 1990 vì tài sản mua trước đó thì
  *  cũng đã khấu hao hết từ lâu; dưới +10 năm để còn ghi ngày dự kiến đưa vào dùng. */
 export const NGAY_MIN = "1990-01-01";
 export const NGAY_MAX = `${new Date().getFullYear() + 10}-12-31`;

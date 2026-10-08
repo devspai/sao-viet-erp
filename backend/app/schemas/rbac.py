@@ -459,6 +459,7 @@ class PermissionRow(BaseModel):
     can_run_order: bool = False        # Thực hiện lệnh
     can_confirm_output: bool = False   # Xác nhận sản lượng
     can_warehouse: bool = False        # Kho
+    can_close_short: bool = False      # Đóng lệnh thiếu — chỉ dòng tổ KCS
 
 
 class PermissionMatrixIn(BaseModel):

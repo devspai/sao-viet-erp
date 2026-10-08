@@ -268,6 +268,28 @@ class SanXuatKcsRepository:
         ).all()
         return {cid: (int(n), float(d or 0), float(l or 0)) for cid, n, d, l in rows}
 
+    def batch_co_loi_cua_to(self, to_ids) -> set[int]:
+        """Id lần kiểm có ít nhất một dòng lỗi quy về một trong các tổ `to_ids`."""
+        ids = {i for i in to_ids if i}
+        if not ids:
+            return set()
+        return set(self.db.scalars(
+            select(SanXuatKcsLoi.kcs_batch_id).where(SanXuatKcsLoi.to_chiu_id.in_(ids)).distinct()
+        ))
+
+    def loi_do_cong_doan_nhieu(self, cong_viec_ids) -> dict[int, float]:
+        """{cong_viec_id: Σ số lỗi KCS quy về công đoạn đó} — lỗi tính theo nơi GÂY, bắt ở đâu cũng
+        được (08/10/2026). Số theo đơn vị nơi bắt, chỉ dùng để biết có lỗi bao nhiêu dòng."""
+        ids = {i for i in cong_viec_ids if i}
+        if not ids:
+            return {}
+        rows = self.db.execute(
+            select(SanXuatKcsLoi.cong_doan_ref_id, func.coalesce(func.sum(SanXuatKcsLoi.so_luong), 0))
+            .where(SanXuatKcsLoi.cong_doan_ref_id.in_(ids))
+            .group_by(SanXuatKcsLoi.cong_doan_ref_id)
+        ).all()
+        return {cid: float(l or 0) for cid, l in rows}
+
     # --- Lỗi ---------------------------------------------------------------------------------
     def loi(self, loi_id: int) -> SanXuatKcsLoi | None:
         return self.db.get(SanXuatKcsLoi, loi_id)
@@ -297,6 +319,40 @@ class SanXuatKcsRepository:
                 ),
             )
             .order_by(SanXuatKcsBatch.ket_thuc, SanXuatKcsBatch.id)
+        ))
+
+    def batch_quy_loi_ve_nhieu(self, cong_viec_ids) -> list[SanXuatKcsBatch]:
+        """Lần kiểm có ÍT NHẤT một lỗi quy về một trong `cong_viec_ids` — gồm cả lần kiểm ở LỆNH KHÁC
+        cùng nhóm (KCS cuối của thân chính quy lỗi về bước của lệnh phụ). Cũ trước."""
+        ids = {i for i in cong_viec_ids if i}
+        if not ids:
+            return []
+        return list(self.db.scalars(
+            select(SanXuatKcsBatch)
+            .where(SanXuatKcsBatch.id.in_(
+                select(SanXuatKcsLoi.kcs_batch_id).where(SanXuatKcsLoi.cong_doan_ref_id.in_(ids))
+            ))
+            .order_by(SanXuatKcsBatch.ket_thuc, SanXuatKcsBatch.id)
+        ))
+
+    # --- Nhóm thành phẩm (gộp tiêu chí ở KCS cuối, 08/10/2026) --------------------------------
+    def nhom(self, nhom_id: int | None) -> SanXuatNhom | None:
+        return self.db.get(SanXuatNhom, nhom_id) if nhom_id else None
+
+    def nhom_id_cua_lsx(self, lsx_id: int | None) -> int | None:
+        """Nhóm thành phẩm mà lệnh là thành viên (mỗi lệnh tối đa một nhóm)."""
+        if not lsx_id:
+            return None
+        return self.db.scalar(
+            select(SanXuatNhomLsx.nhom_id).where(SanXuatNhomLsx.lsx_id == lsx_id)
+        )
+
+    def lsx_trong_nhom(self, nhom_id: int | None) -> list[int]:
+        """Id các lệnh thành viên của một nhóm thành phẩm."""
+        if not nhom_id:
+            return []
+        return list(self.db.scalars(
+            select(SanXuatNhomLsx.lsx_id).where(SanXuatNhomLsx.nhom_id == nhom_id)
         ))
 
     def loi_chua_xem_nhieu_to(self, department_ids) -> list[SanXuatKcsLoi]:

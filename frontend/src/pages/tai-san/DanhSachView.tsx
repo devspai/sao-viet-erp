@@ -34,8 +34,7 @@ import { EmptyRow } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { ImportExcelDialog } from "../../components/ImportExcelDialog";
 import {
-  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MucLocNhanh,
+  ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi, type MucLocNhanh,
 } from "../../components/LuoiDs";
 import { trangHopLe } from "../../components/Pager";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
@@ -262,9 +261,8 @@ export function DanhSachView({ dau }: { dau?: (phai: ReactNode) => ReactNode }) 
   const [nhapExcel, setNhapExcel] = useState(false);
   const [xemId, setXemId] = useState<number | null>(null);
   const bangRef = useRef<HTMLTableSectionElement>(null);
-  const [cotAn, setCotAn] = useCotAn("tai-san");
-  const [thuTu, setThuTu] = useThuTuCot("tai-san");
-  const cotHien = xepCot(COT_TS, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("tai-san");
+  const cotHien = luoi.rongHien(luoi.xep(COT_TS).filter((c) => !luoi.an.has(c.key)));
 
   // Máy chủ tính "Đã khấu hao" tới hết tháng TRƯỚC (tháng đang chạy chưa hết thì chưa tính). Mốc
   // ấy nằm ở tooltip tiêu đề cột — chủ 08/09/2026 không muốn dòng "hết MM/YYYY" hiện ra bảng.
@@ -438,12 +436,12 @@ export function DanhSachView({ dau }: { dau?: (phai: ReactNode) => ReactNode }) 
               ))}
             </div>
           </div>
-          <ChonCot cot={COT_TS} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_TS} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
             <colgroup>
               {cotHien.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
@@ -455,6 +453,7 @@ export function DanhSachView({ dau }: { dau?: (phai: ReactNode) => ReactNode }) 
                     title={c.key === "da_kh" && denThang ? `Tính tới hết tháng ${denThang}`
                       : c.key === "thang" ? "Mức khấu hao của tháng này" : undefined}>
                     {c.label}
+                    {luoi.keo(c.key)}
                   </th>
                 ))}
               </tr>

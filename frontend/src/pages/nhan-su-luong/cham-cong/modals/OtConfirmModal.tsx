@@ -20,6 +20,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { EmptyState } from "../../../../components/EmptyState";
 
 // `viec` = VIỆC NGƯỜI PHẢI LÀM khi máy không tự bù được (chủ 10/09/2026: *"vẫn thấy tên nhân viên
@@ -323,11 +324,11 @@ export function OtConfirmModal({
           <div className="cc-otc-toolbar-level1">
             <label className="cc-otc-filter-field">
               <span className="cc-otc-filter-label">Ngày công</span>
-              <input
-                type="date"
+              <ChonNgay
                 className="cc-otc-input cc-otc-date-input"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                value={date ?? ""}
+                onChange={(v) => setDate(v)}
+                aria-label="Ngày công"
               />
             </label>
             <label className="cc-otc-filter-field">

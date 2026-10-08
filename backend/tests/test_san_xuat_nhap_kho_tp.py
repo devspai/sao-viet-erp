@@ -270,19 +270,6 @@ def test_kho_huy_khi_chua_nhan_tra_ca(db, orders, lsx_svc, admin, customer):
     assert _gui(db, cv, rb)["so_luong"] == 30
 
 
-def test_dieu_chinh_khong_ha_duoi_so_da_gui(db, orders, lsx_svc, admin, customer):
-    _to, cv, rb = _batch(db, orders, lsx_svc, admin, customer, dat=80, khong_dat=20, cuoi=True)
-    _gui(db, cv, rb)
-    with pytest.raises(ValueError, match="không được thấp hơn"):
-        kcs.dieu_chinh_ket_qua(db, user=rb["nguoi_kcs"], kcs_batch_id=rb["kcs_batch_id"],
-                               so_luong_dat=70, so_luong_khong_dat=30, expected_version=1)
-    # Tăng đạt thì luôn được — chỉ chặn hạ dưới số kho đang giữ.
-    kcs.dieu_chinh_ket_qua(db, user=rb["nguoi_kcs"], kcs_batch_id=rb["kcs_batch_id"],
-                           so_luong_dat=90, so_luong_khong_dat=10, expected_version=1)
-    assert _gui(db, cv, rb)["so_luong"] == 10
-
-
-# --- Real-time + đọc cho Giao hàng -----------------------------------------------------------
 def test_phat_su_kien_kho_bao_nguoi_tao(monkeypatch):
     phat, rieng = [], []
     monkeypatch.setattr(kho.hub, "gui", lambda ev, **_k: phat.append(ev))

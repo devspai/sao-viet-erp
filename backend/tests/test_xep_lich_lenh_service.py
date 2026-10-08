@@ -289,12 +289,16 @@ def test_chi_tiet_lenh_chua_xep_van_mo_duoc(svc3, lenh):
     assert ct["cong_doans"]
 
 
-def test_bang_cong_doan_KHONG_co_moc_tung_buoc(svc3, lenh):
-    """§4: mốc từng bước là số THỪA ở màn cấp LỆNH — bốn chỗ khác cần thì lấy đường riêng."""
+def test_bang_cong_doan_co_gio_du_kien_tung_buoc(svc3, lenh):
+    """Ngăn chi tiết mục 7 (08/10/2026) ghi giờ từng bước — khớp đúng mốc của đường riêng."""
     svc3.dat_moc(lenh.id, datetime(2026, 9, 11, 8, 0))
-    cd = svc3.chi_tiet(lenh.id)["cong_doans"][0]
-    assert "bat_dau" not in cd and "ket_thuc" not in cd
-    assert cd["mau_index"] in (0, 1, 2, 3)
+    cds = svc3.chi_tiet(lenh.id)["cong_doans"]
+    moc = {b.lsx_cong_doan_id: b for b in svc3.moc_cong_doan([lenh.id])[lenh.id]}
+    for cd in cds:
+        assert cd["du_kien_bat_dau"] == moc[cd["id"]].bat_dau
+        assert cd["du_kien_ket_thuc"] == moc[cd["id"]].ket_thuc
+        assert cd["cho_tu"] is None and cd["lien"] == []
+    assert cds[0]["mau_index"] in (0, 1, 2, 3)
 
 
 def test_moc_tung_buoc_van_lay_duoc_qua_duong_rieng(svc3, lenh):
@@ -312,7 +316,8 @@ def test_lich_khong_N_cong_1_truy_van_routing(db, svc3, hai_lenh):
 
     def _bat(conn, cur, stmt, params, ctx, many):
         s = stmt.strip().lower()
-        if s.startswith("select") and "lsx_cong_doan" in s:
+        # Câu lan cụm qua bảng phụ thuộc (5b) chạy theo số VÒNG LAN, không theo số lệnh — không tính.
+        if s.startswith("select") and "lsx_cong_doan" in s and "lsx_cong_doan_phu_thuoc" not in s:
             dem["n"] += 1
 
     event.listen(db.get_bind(), "before_cursor_execute", _bat)
@@ -836,3 +841,69 @@ def test_thu_hoi_GIU_da_lap_ke_hoach_khi_lenh_con_dong_xep_lich_cua_man_2(db, sv
     kq = _svc_moi(db).thu_hoi(lenh.id, actor=admin, ly_do="đổi máy in")
 
     assert kq["trang_thai"] == TT_DA_LAP_KE_HOACH
+
+
+# ============================================================== thu hồi CẢ CỤM
+# Phát hành thả cả cụm xuống chung một gói, nhưng thu hồi từng chỉ hạ đúng lệnh được bấm — lệnh kia
+# vẫn ghi "Đã phát hành" mà bàn tổ trống (08/10/2026).
+
+def _cum_hai_lenh(db, svc3, hai_lenh, admin):
+    """Hai lệnh cùng nhóm thành phẩm ⇒ một cụm; đặt mốc lệnh đầu rồi phát hành cả cụm."""
+    from app.models.order import OrderLine
+
+    a, b = hai_lenh
+    for x in (a, b):
+        db.get(OrderLine, x.order_line_id).nhom = "Sách A5"
+    db.commit()
+    svc3.dat_moc(a.id, datetime(2026, 9, 11, 8, 0))
+    kq = svc3.phat_hanh(a.id, actor=admin)
+    assert set(kq["cum_lsx"]) == {a.id, b.id}
+    return a, b
+
+
+def test_thu_hoi_mot_lenh_rut_CA_CUM_ve_lai(db, svc3, hai_lenh, admin):
+    from app.models.lsx import TT_DA_PHAT_HANH, TT_SAN_SANG
+    from app.models.san_xuat import GOI_DA_THU_HOI, SanXuatGoiPhatHanh
+
+    a, b = _cum_hai_lenh(db, svc3, hai_lenh, admin)
+    db.refresh(b)
+    assert b.trang_thai == TT_DA_PHAT_HANH
+
+    kq = _svc_moi(db).thu_hoi(b.id, actor=admin, ly_do="khách đổi giấy")
+
+    assert set(kq["cum_lsx"]) == {a.id, b.id}
+    db.refresh(a)
+    db.refresh(b)
+    assert a.trang_thai == TT_SAN_SANG
+    assert b.trang_thai == TT_SAN_SANG
+    assert all(g.trang_thai == GOI_DA_THU_HOI for g in db.query(SanXuatGoiPhatHanh).all())
+
+
+def test_thu_hoi_ca_cum_moi_lenh_co_vet_rieng(db, svc3, hai_lenh, admin):
+    from app.models.audit import AuditLog
+
+    a, b = _cum_hai_lenh(db, svc3, hai_lenh, admin)
+    _svc_moi(db).thu_hoi(a.id, actor=admin, ly_do="khách đổi giấy")
+
+    vet = {r.target: r.detail for r in db.query(AuditLog).filter(
+        AuditLog.action == "xep_lich_go_phat_hanh")}
+    assert f"lsx:{a.id}" in vet and f"lsx:{b.id}" in vet
+    assert "khách đổi giấy" in vet[f"lsx:{b.id}"]
+
+
+def test_cum_co_viec_da_bat_dau_thi_KHONG_lenh_nao_lui(db, svc3, hai_lenh, admin):
+    from app.models.lsx import TT_DA_PHAT_HANH
+    from app.models.san_xuat import CV_HOAN_THANH
+    from app.services.xep_lich_service import XepLichConflict
+
+    a, b = _cum_hai_lenh(db, svc3, hai_lenh, admin)
+    cv = _cv_dau(db, b.id)
+    cv.trang_thai = CV_HOAN_THANH
+    db.commit()
+
+    with pytest.raises(XepLichConflict):
+        _svc_moi(db).thu_hoi(a.id, actor=admin, ly_do="khách đổi giấy")
+
+    db.expire_all()
+    assert db.get(type(a), a.id).trang_thai == TT_DA_PHAT_HANH
+    assert db.get(type(b), b.id).trang_thai == TT_DA_PHAT_HANH

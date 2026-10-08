@@ -1,5 +1,6 @@
 // Báo cáo kho (kế toán) — sổ nhập-xuất (phiếu ĐÃ GHI SỔ) + khóa kỳ THEO KHOẢNG (chốt/mở) +
 // tab Lịch sử thao tác + export MISA. docs/spec-bao-cao-kho.md. Chỉ quyền `close_book` vào.
+import { ChonNgay } from "../components/ChonNgay";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ResponsiveContainer,
@@ -1579,10 +1580,10 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
             <label className="kho-baocao__daterow">
               <span>Từ ngày</span>
               {/* ĐẦU KỲ khóa cứng — không cho sửa tay. Đổi bằng cách chọn "Kỳ" hoặc bấm "Tháng này". */}
-              <input type="date" className="rc-input" value={nxtTu}
+              <ChonNgay className="rc-input" aria-label="Từ ngày" value={nxtTu}
                 disabled={kyList.length > 0} readOnly={kyList.length > 0}
                 max={nxtDen || undefined}
-                onChange={(e) => setNxtTu(e.target.value)}
+                onChange={(v) => setNxtTu(v)}
                 title={kyList.length > 0
                   ? "Đầu kỳ cố định theo kỳ đã khóa — đổi bằng ô “Kỳ”"
                   : "Chưa khóa kỳ nào — chọn khoảng ngày tự do"} />
@@ -1590,13 +1591,13 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
             <label className="kho-baocao__daterow">
               <span>đến</span>
               {/* ĐẾN NGÀY tự do trong kỳ: không sớm hơn đầu kỳ, không vượt ngày cuối kỳ đã khóa. */}
-              <input type="date" className="rc-input" value={nxtDen}
+              <ChonNgay className="rc-input" aria-label="Đến ngày" value={nxtDen}
                 min={(nxtKyIdx >= 0 ? kyList[nxtKyIdx]?.tu_ngay.slice(0, 10) : nxtTu) || undefined}
                 max={nxtKyIdx >= 0 ? kyList[nxtKyIdx]?.den_ngay.slice(0, 10) : undefined}
                 title={nxtKyIdx >= 0
                   ? `Chọn ngày bất kỳ trong kỳ (tối đa ${fmtDate(kyList[nxtKyIdx]?.den_ngay ?? null)})`
                   : "Chọn ngày kết thúc để xem"}
-                onChange={(e) => setNxtDen(e.target.value)} />
+                onChange={(v) => setNxtDen(v)} />
             </label>
             {/* "Tháng này" CHỈ dùng khi chưa khóa kỳ nào — có kỳ rồi thì nó đẩy "Từ ngày" ra ngoài
                 kỳ và gây kẹt (Từ ngày khóa cứng, ô "đến" không lùi về trước được). */}
@@ -2064,11 +2065,11 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           <div className="kho-khoa__row">
             <div className="kho-khoa__field">
               <label className="kho-khoa__label" htmlFor="khoa-tu">Từ ngày</label>
-              <input id="khoa-tu" type="date" className="rc-input" value={khoaTu} max={khoaDen || undefined} onChange={(e) => setKhoaTu(e.target.value)} />
+              <ChonNgay id="khoa-tu" aria-label="Từ ngày" className="rc-input" value={khoaTu} max={khoaDen || undefined} onChange={(v) => setKhoaTu(v)} />
             </div>
             <div className="kho-khoa__field">
               <label className="kho-khoa__label" htmlFor="khoa-den">Đến ngày</label>
-              <input id="khoa-den" type="date" className="rc-input" value={khoaDen} min={khoaTu || undefined} onChange={(e) => setKhoaDen(e.target.value)} />
+              <ChonNgay id="khoa-den" aria-label="Đến ngày" className="rc-input" value={khoaDen} min={khoaTu || undefined} onChange={(v) => setKhoaDen(v)} />
             </div>
           </div>
 

@@ -13,8 +13,7 @@ import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
 import { EmptyRow } from "../components/EmptyState";
 import {
-  ChipTT, ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soCotGhim, soVN, tenKhachGon, ngayVN, useCotAn, useThuTuCot, xepCot,
-  type CotLuoi, type MauTT,
+  ChipTT, ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, rongLuoi, soVN, tenKhachGon, ngayVN, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
@@ -111,9 +110,8 @@ export function LenhSanXuatPage({
   const timRef = useRef<HTMLInputElement | null>(null);
   const trangRef = useRef<HTMLElement | null>(null);
   const [q, setQ] = useState("");
-  const [cotAn, setCotAn] = useCotAn("ho-so-lenh");
-  const [thuTu, setThuTu] = useThuTuCot("ho-so-lenh");
-  const cotHien = xepCot(COT_LENH, thuTu).filter((c) => !cotAn.has(c.key));
+  const luoi = useCauHinhLuoi("ho-so-lenh");
+  const cotHien = luoi.rongHien(luoi.xep(COT_LENH).filter((c) => !luoi.an.has(c.key)));
   const qTre = useTre(q);
   const [locMan, setLocMan] = useLocMan("lenh-san-xuat", LOC_MAN_TRONG, docLocMan, ghiLocMan);
   const dieuKien = useDieuKienHoSoLenh();
@@ -276,12 +274,12 @@ export function LenhSanXuatPage({
               Xoá bộ lọc
             </button>
           )}
-          <ChonCot cot={COT_LENH} an={cotAn} onAn={setCotAn} thuTu={thuTu} onThuTu={setThuTu} />
+          <ChonCot cot={COT_LENH} {...luoi.chonCot} />
         </div>
       </section>
 
       <div className="lds-sheet">
-        <CuonLuoi ghim={soCotGhim(cotHien)}>
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 180) }}>
             <caption className="sr-only">Danh sách lệnh sản xuất đã phát hành</caption>
             <colgroup>
@@ -294,6 +292,7 @@ export function LenhSanXuatPage({
                 {cotHien.map((c) => (
                   <th key={c.key} scope="col" className={c.n ? "n" : undefined}>
                     {c.label}
+                    {luoi.keo(c.key)}
                   </th>
                 ))}
               </tr>

@@ -20,6 +20,7 @@ import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { BaiGhepDagCanvas, mauNhanh } from "../components/BaiGhepDagCanvas";
 import { Button } from "../components/Button";
+import { ChonNgay } from "../components/ChonNgay";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
@@ -814,7 +815,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
         <PanelHead icon="pencil" title="Thông tin kế hoạch" action={dirty ? <><Button variant="ghost" onClick={() => setForm(toForm(d))}>Hoàn tác</Button><Button variant="primary" loading={saving} onClick={save}>Lưu</Button></> : null} />
         <div className="bg2-form-grid">
           <label className="khsx-field"><span>Tên bài ghép</span><input disabled={!suaDuoc} value={form.ten} onChange={(e) => setForm({ ...form, ten: e.target.value })} /></label>
-          <label className="khsx-field"><span>Hạn hoàn thành sản xuất</span><input type="date" disabled={!suaDuoc} value={form.han_hoan_thanh_sx ?? ""} onChange={(e) => setForm({ ...form, han_hoan_thanh_sx: e.target.value || null })} /></label>
+          <label className="khsx-field"><span>Hạn hoàn thành sản xuất</span><ChonNgay disabled={!suaDuoc} aria-label="Hạn hoàn thành sản xuất" value={form.han_hoan_thanh_sx ?? ""} onChange={(v) => setForm({ ...form, han_hoan_thanh_sx: v || null })} /></label>
           <label className="khsx-field"><span>Người phụ trách</span><select disabled={!suaDuoc} value={form.nguoi_phu_trach_id ?? ""} onChange={(e) => setForm({ ...form, nguoi_phu_trach_id: e.target.value ? Number(e.target.value) : null })}><option value="">— chưa phân công —</option>{form.nguoi_phu_trach_id != null && !owners.some((x) => x.id === form.nguoi_phu_trach_id) && <option value={form.nguoi_phu_trach_id}>{d.nguoi_phu_trach_ten || `Người dùng #${form.nguoi_phu_trach_id}`}</option>}{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.ten}</option>)}</select></label>
           <label className="bg2-check"><input type="checkbox" disabled={!suaDuoc} checked={form.is_rush} onChange={(e) => setForm({ ...form, is_rush: e.target.checked })} /><span>Hàng gấp · ưu tiên ở xưởng</span></label>
           <label className="khsx-field bg2-form-wide"><span>Ghi chú kế hoạch</span><textarea rows={3} disabled={!suaDuoc} value={form.ghi_chu ?? ""} onChange={(e) => setForm({ ...form, ghi_chu: e.target.value })} /></label>

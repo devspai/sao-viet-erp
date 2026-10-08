@@ -93,7 +93,7 @@ _VT_YEN_TAM = ("xanh", "xam")
 # hỏi, còn "chưa rõ kết luận" thì tự nói được là hệ chưa biết.
 _KCS_KET_LUAN_NHAN = {
     "dat": "Đạt",
-    "dat_mot_phan": "Đạt một phần",
+    "dat_mot_phan": "Có lỗi",  # cùng chữ màn KCS + Excel (08/10/2026)
     "khong_dat": "Không đạt",
 }
 

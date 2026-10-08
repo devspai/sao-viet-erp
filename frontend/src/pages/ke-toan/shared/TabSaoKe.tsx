@@ -10,6 +10,7 @@
  *
  *  Kỳ mặc định = kỳ đang xem ở trang. "In sao kê" ở đầu ngăn mở bản in của đúng bảng đang hiện.
  */
+import { ChonNgay } from "../../../components/ChonNgay";
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api, type KyXem, type SoChiTietCongNo, type SoChiTietDong } from "../../../api/client";
@@ -207,10 +208,10 @@ export function TabSaoKe({
         </select>
         {chon === "tuy" && (
           <>
-            <input type="date" className="kt-sk__chon" aria-label="Từ ngày" min="2000-01-01" max={homNay} value={tuy.tu}
-              onChange={(e) => setTuy({ ...tuy, tu: e.target.value })} />
-            <input type="date" className="kt-sk__chon" aria-label="Đến ngày" min="2000-01-01" max={homNay} value={tuy.den}
-              onChange={(e) => setTuy({ ...tuy, den: e.target.value })} />
+            <ChonNgay className="kt-sk__chon" aria-label="Từ ngày" min="2000-01-01" max={homNay} value={tuy.tu}
+              onChange={(v) => setTuy({ ...tuy, tu: v })} />
+            <ChonNgay className="kt-sk__chon" aria-label="Đến ngày" min="2000-01-01" max={homNay} value={tuy.den}
+              onChange={(v) => setTuy({ ...tuy, den: v })} />
           </>
         )}
         <span className="kt-mo">{c.soDu}</span>

@@ -116,7 +116,7 @@ export function BangYeuCau({
   const cotHien = cot.hien.filter((c) => c.key !== "chon" || coOChon);
   return (
     <div className="lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cotHien)}>
+      <CuonLuoi ghim={soCotGhim(cotHien, cot.luoi?.ghim)}>
         <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
           <colgroup>
             {cotHien.map((c) => (
@@ -131,6 +131,7 @@ export function BangYeuCau({
                 ) : (
                   <th key={c.key} className={c.n ? "n" : undefined}>
                     {c.label}
+                    {cot.luoi?.keo(c.key)}
                   </th>
                 ),
               )}

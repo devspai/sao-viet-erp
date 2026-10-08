@@ -26,7 +26,7 @@ function tt(over: Partial<SxDongLenhTinhTrang> = {}): SxDongLenhTinhTrang {
       { ma: "chua_gui_kho", cau: "Còn 300 hộp đạt chưa gửi yêu cầu nhập kho." },
       { ma: "thieu_muc_tieu", cau: "Đạt 9.690 / 10.000 hộp — thiếu 310." },
     ],
-    dong_boi: null, dong_luc: null, ...over,
+    dong_boi: null, dong_luc: null, duoc_dong_thieu: true, ...over,
   };
 }
 
@@ -67,6 +67,28 @@ describe("KcsDongLenh", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Mở lại" }));
     fireEvent.click(screen.getByRole("button", { name: "Xác nhận mở lại" }));
     await waitFor(() => expect(moLai).toHaveBeenCalledWith("token-test", 4, { expected_version: 3 }));
+  });
+
+  it("thiếu ô Đóng lệnh thiếu: còn cảnh báo thì nút khoá kèm lý do + danh sách việc", async () => {
+    tinhTrang.mockResolvedValueOnce(tt({ duoc_dong_thieu: false }));
+    render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
+    const nut = await screen.findByRole("button", { name: "Đóng lệnh" });
+    expect((nut as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Còn 2 việc chưa xong — cần quyền Đóng lệnh thiếu.")).toBeTruthy();
+    expect(screen.getByText("Còn 300 hộp đạt chưa gửi yêu cầu nhập kho.")).toBeTruthy();
+  });
+
+  it("thiếu ô Đóng lệnh thiếu: hết cảnh báo vẫn đóng được, nhưng không mở lại được", async () => {
+    tinhTrang.mockResolvedValueOnce(tt({ duoc_dong_thieu: false, canh_bao: [] }));
+    const { unmount } = render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
+    expect(((await screen.findByRole("button", { name: "Đóng lệnh" })) as HTMLButtonElement).disabled)
+      .toBe(false);
+    unmount();
+    tinhTrang.mockResolvedValueOnce(tt({ duoc_dong_thieu: false, canh_bao: [], trang_thai: "closed" }));
+    render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
+    expect(((await screen.findByRole("button", { name: "Mở lại" })) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect(screen.getByText("Cần quyền Đóng lệnh thiếu để mở lại.")).toBeTruthy();
   });
 
   it("không phải người KCS thì không có nút", async () => {

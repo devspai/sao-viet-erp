@@ -221,7 +221,7 @@ export function fmtNgayGio(v: string | null | undefined): string {
   return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-/** `yyyy-mm-dd` của HÔM NAY theo giờ máy người dùng — dùng cho <input type="date">. */
+/** `yyyy-mm-dd` của HÔM NAY theo giờ máy người dùng — giá trị của ô ngày (`ChonNgay`). */
 export function homNay(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

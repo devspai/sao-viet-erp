@@ -114,7 +114,7 @@ export function BangDonMua({
   const cotHien = cot.hien;
   return (
     <div className="lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cotHien)}>
+      <CuonLuoi ghim={soCotGhim(cotHien, cot.luoi?.ghim)}>
         {/* Cột co giãn cuối (Tiền: chấm + "hạn dd/mm") cần ≥ 200px, hơn mức 150 mặc định. */}
         <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 200) }}>
           <colgroup>
@@ -127,6 +127,7 @@ export function BangDonMua({
               {cotHien.map((c) => (
                 <th key={c.key} className={c.n ? "n" : undefined}>
                   {c.label}
+                  {cot.luoi?.keo(c.key)}
                 </th>
               ))}
             </tr>

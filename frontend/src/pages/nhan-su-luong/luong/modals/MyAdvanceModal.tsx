@@ -1,6 +1,7 @@
 // Modal nhân viên tự đề nghị tạm ứng (tách từ pages/LuongPage.tsx).
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../api/client";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { MonthPicker } from "../../../../components/MonthPicker";
 import { curYm, errText, khoangKyUng, ymLabel } from "../shared/helpers";
 
@@ -145,10 +146,9 @@ export function MyAdvanceModal({
             </label>
             <label className="ns-field">
               <span className="ns-field__label">Ngày ứng</span>
-              <input
-                type="date"
+              <ChonNgay
                 value={dateStr}
-                onChange={(e) => setDateStr(e.target.value)}
+                onChange={setDateStr}
               />
             </label>
             <label className="ns-field">

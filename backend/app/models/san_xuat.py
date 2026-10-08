@@ -254,7 +254,9 @@ class SanXuatCongViec(Base):
     )
     # SNAPSHOT checklist KCS của bước tại lúc PHÁT HÀNH, lấy từ danh mục tiêu chí gắn theo công
     # đoạn (nguồn DUY NHẤT từ mg `0283`). Hình dạng:
-    # list[{tieu_chi_id, ma, ten, huong_dan, bat_buoc, nguon, thu_tu}].
+    # list[{tieu_chi_id, ma, ten, thu_tu}], `thu_tu` = vị trí 1..n (mg `0381`; ảnh chụp cũ còn
+    # khoá `huong_dan`/`bat_buoc`/`nguon`, không ai đọc nữa). Bước KCS cuối xét GỘP ảnh chụp của cả
+    # chuỗi (`services/san_xuat/kcs_checklist.py`).
     # NULL ⇔ công đoạn chưa gắn tiêu chí nào ở danh mục — đừng ghi `[]` thay NULL.
     # `none_as_null=True` là BẮT BUỘC ở cột này: mặc định của kiểu JSON ghi Python `None` thành
     # chuỗi JSON `'null'` chứ KHÔNG phải NULL của SQL, đọc ORM ra vẫn thấy `None` nên nhìn không

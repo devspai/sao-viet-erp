@@ -12,9 +12,11 @@ from app.services.san_xuat import dong_lenh, kcs, san_luong
 from tests.test_san_xuat_kcs import (  # noqa: F401
     _batch, _nguoi_o_to, admin, customer, db, lsx_svc, orders,
 )
+from tests.quyen_to_fixtures import cap_dong_thieu
 
 
 def _dong(db, cv, res):
+    cap_dong_thieu(db, res["nguoi_kcs"])
     dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=None)
 
 
@@ -64,6 +66,7 @@ def test_mo_lai_thi_viec_hien_lai(db, orders, lsx_svc, admin, customer):
     repo = SanXuatRepository(db)
     cv.trang_thai = CV_TAM_DUNG
     db.commit()
+    cap_dong_thieu(db, res["nguoi_kcs"])
     kq = dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=None)
     assert cv.id not in _ids_to(repo, cv)
     dong_lenh.mo_lai(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=kq["version"])
@@ -108,6 +111,7 @@ def test_da_dong_chan_bat_dau_nhung_van_ket_thuc_duoc(db, orders, lsx_svc, admin
 def test_dong_hai_lan_cung_version_bi_tu_choi(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     v = SanXuatRepository(db).nhom(cv.nhom_id).version
+    cap_dong_thieu(db, res["nguoi_kcs"])
     dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=v)
     with pytest.raises(ValueError, match="đã đóng rồi"):
         dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=v)

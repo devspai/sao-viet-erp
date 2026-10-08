@@ -56,6 +56,7 @@ export const READ_IMPLYING_ACTIONS: ActionKey[] = [
   "can_run_order",
   "can_confirm_output",
   "can_warehouse",
+  "can_close_short",
 ];
 
 /** Đã kéo sơ đồ cây ít nhất 1 lần → không nhắc "kéo để di chuyển" nữa. */

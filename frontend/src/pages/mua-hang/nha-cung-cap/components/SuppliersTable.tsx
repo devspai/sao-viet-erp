@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronRight, Clock, Copy, Package, Phone, Star } from "lucide-react";
 import type { SupplierRow } from "../../../../api/client";
 import { EmptyRow } from "../../../../components/EmptyState";
-import { CuonLuoi, ChipTT, rongLuoi, soCotGhim, tenKhachGon, type CotLuoi } from "../../../../components/LuoiDs";
+import { CuonLuoi, ChipTT, rongLuoi, soCotGhim, tenKhachGon, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { soNgayVi } from "../shared/helpers";
 import { ttNcc } from "../shared/trang-thai-ncc";
@@ -283,6 +283,7 @@ export function SuppliersTable({
   size,
   onSize,
   cotHien,
+  luoi,
 }: {
   loading: boolean;
   listError: string | null;
@@ -302,6 +303,8 @@ export function SuppliersTable({
   onSize: (size: number) => void;
   /** Cột đang hiện theo thứ tự người xem đã chọn (`COT_NCC` sau `xepCot` + lọc cột ẩn). */
   cotHien: CotNcc[];
+  /** Cấu hình lưới của màn cha — có thì ghim + kéo độ rộng được. */
+  luoi?: CauHinhLuoi;
 }) {
   // Tên đơn vị cho bảng giá xem nhanh ("đ/tờ" chứ không "đ/to").
   useNapTenDonVi();
@@ -314,7 +317,7 @@ export function SuppliersTable({
 
   return (
     <section className="lds-sheet">
-      <CuonLuoi ghim={soCotGhim(cotHien)}>
+      <CuonLuoi ghim={soCotGhim(cotHien, luoi?.ghim)}>
         <table className="lds-g ncc-g" style={{ minWidth: rongLuoi(cotHien, RONG_TEN) }}>
           <colgroup>
             {cotHien.map((c) => (
@@ -330,9 +333,10 @@ export function SuppliersTable({
                       {c.label}
                       {sortSao ? <span aria-hidden="true">{sort === "rating" ? "↑" : "↓"}</span> : null}
                     </button>
+                    {luoi?.keo(c.key)}
                   </th>
                 ) : (
-                  <th key={c.key}>{c.label}</th>
+                  <th key={c.key}>{c.label}{luoi?.keo(c.key)}</th>
                 ),
               )}
             </tr>

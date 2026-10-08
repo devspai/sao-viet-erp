@@ -7,6 +7,7 @@ import {
   type TranThangOut,
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { fmtDateISO } from "../../../../utils/format";
 import { TRAN_NGUONG_VANG } from "../shared/constants";
 import {
@@ -235,10 +236,11 @@ export function OvertimeFormModal({
             )}
             <label className="ns-field">
               <span className="ns-field__label">Ngày công *</span>
-              <input
-                type="date"
-                value={workDate}
-                onChange={(e) => setWorkDate(e.target.value)}
+              <ChonNgay
+                value={workDate ?? ""}
+                onChange={(v) => setWorkDate(v)}
+                aria-label="Ngày công"
+                xoaDuoc={false}
               />
             </label>
             <label className="ns-field">

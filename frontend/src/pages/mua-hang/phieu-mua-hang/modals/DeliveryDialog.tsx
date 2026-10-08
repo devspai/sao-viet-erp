@@ -13,6 +13,7 @@ import {
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
@@ -527,12 +528,11 @@ export function DeliveryDialog({
                 <label className="kna-o-truong">
                   <span>Ngày nhận <em>*</em></span>
                   {/* Chặn TƯƠNG LAI; quá khứ vẫn cho — hàng về hôm qua mới ghi hôm nay là thường. */}
-                  <input
+                  <ChonNgay
                     className="kna-o"
-                    type="date"
                     max={todayInputValue()}
                     value={ngayGiao}
-                    onChange={(e) => setNgayGiao(e.target.value)}
+                    onChange={(v) => setNgayGiao(v)}
                   />
                 </label>
                 <div className="kna-o-truong">
@@ -546,13 +546,12 @@ export function DeliveryDialog({
                       onChange={(e) => setSoHoaDon(e.target.value)}
                       placeholder="Số hoá đơn"
                     />
-                    <input
+                    <ChonNgay
                       className="kna-o"
-                      type="date"
                       aria-label="Ngày hoá đơn"
                       max={todayInputValue()}
                       value={ngayHoaDon}
-                      onChange={(e) => setNgayHoaDon(e.target.value)}
+                      onChange={(v) => setNgayHoaDon(v)}
                     />
                   </div>
                   <div className="ycf-pick" role="group" aria-label="Chọn nhanh hoá đơn">

@@ -564,6 +564,7 @@ class RoleRepository:
         can_run_order: bool = False,
         can_confirm_output: bool = False,
         can_warehouse: bool = False,
+        can_close_short: bool = False,
         commit: bool = True,
         co_san: dict[str, RolePermission] | None = None,
     ) -> RolePermission:
@@ -636,6 +637,7 @@ class RoleRepository:
         perm.can_run_order = can_run_order
         perm.can_confirm_output = can_confirm_output
         perm.can_warehouse = can_warehouse
+        perm.can_close_short = can_close_short
         if commit:
             self.db.commit()
             self.db.refresh(perm)

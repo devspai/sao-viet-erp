@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngăn Xếp lịch gọn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8; --chu-5:#cbd5e1;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --vien-3:#f5f7f9;
+  --xanh:#2563eb; --xanh-nhat:#dbeafe; --xanh-dam:#1d4ed8;
+  --la:#16a34a; --do:#dc2626; --do-chu:#b91c1c; --vang-chu:#a16207; --cam:#c2410c; --tim:#7c3aed;
+  --bong:0 1px 2px rgba(15,23,42,.06);
+  --bong-ngan:-18px 0 48px rgba(15,23,42,.14);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1260px;margin:0 auto;padding:36px 20px 96px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 18px;max-width:1000px}
+.hop{background:var(--trang);border-radius:12px;padding:18px 22px;margin:0 0 20px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ul{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:4px 0}
+.pa{margin:48px 0 0}
+.pa-dau{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:22px;align-items:start;margin:0 0 16px}
+.pa-dau h2{font-size:18px;font-weight:500;margin:0 0 6px}
+.pa-dau p{margin:0 0 6px;color:var(--chu-2)}
+.pa-dau ul{margin:6px 0 0;padding-left:20px;color:var(--chu-2)}
+.pa-dau li{margin:3px 0}
+.pa-dau figure{margin:0}
+.pa-dau img{width:100%;border-radius:8px;border:1px solid var(--vien);display:block}
+.pa-dau figcaption{font-size:12.5px;color:var(--chu-3);margin-top:6px}
+svg.i{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---------- vỏ ngăn dùng chung ---------- */
+.ngan{width:1180px;max-width:100%;margin-left:auto;background:var(--trang);border-radius:12px 0 0 12px;box-shadow:var(--bong-ngan);overflow:hidden;display:flex;flex-direction:column}
+.ng-dau{padding:14px 20px 0;border-bottom:1px solid var(--vien-2)}
+.ng-h1{display:flex;align-items:center;gap:10px}
+.ng-h1 h3{margin:0;font-size:17px;font-weight:500}
+.ng-h1 .gian{flex:1}
+.ng-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px}
+.tab{display:flex;gap:20px}
+.tab span{padding:6px 0 9px;font-size:13px;color:var(--chu-3);border-bottom:2px solid transparent}
+.tab span.on{color:var(--chu);border-color:var(--chu)}
+.ng-than{padding:14px 20px 16px}
+.ng-chan{display:flex;align-items:center;gap:10px;padding:10px 20px;border-top:1px solid var(--vien-2);background:#fbfcfd}
+.ng-chan .gian{flex:1}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--vien);background:var(--trang);border-radius:7px;font:inherit;font-size:13px;color:var(--chu);white-space:nowrap}
+.btn--o{width:30px;padding:0;justify-content:center;color:var(--chu-3)}
+.btn--do{color:var(--do-chu);border-color:#fecaca}
+.btn--xanh{background:var(--xanh);border-color:var(--xanh);color:#fff}
+.btn--nho{height:24px;padding:0 8px;font-size:12px;border-radius:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:6px;background:var(--vien-3);color:var(--chu-2);font-size:12.5px;white-space:nowrap}
+.chip svg.i{width:13px;height:13px;color:var(--chu-4)}
+.tt{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:12.5px;white-space:nowrap}
+.tt::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.tt--chua{background:#e0ecff;color:#1d4ed8}
+.mo{color:var(--chu-3)} .mo2{color:var(--chu-4)}
+.vien-tron{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;font-size:11.5px;white-space:nowrap}
+.vt-du{background:#dcfce7;color:#15803d}
+.vt-thieu{background:#fee2e2;color:#b91c1c}
+.vt-ngoai{background:#ffedd5;color:#c2410c}
+.vt-gio{background:#e0ecff;color:#1d4ed8}
+.vt-cho{background:#fef3c7;color:#a16207}
+.av{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;font-size:11px}
+.oic{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:6px;flex:none}
+.oic svg.i{width:14px;height:14px}
+.oic--cat{background:#fef3c7;color:#b45309}
+.oic--in{background:#e0f2fe;color:#0369a1}
+.oic--can{background:#f3e8ff;color:#7e22ce}
+.oic--ngoai{background:#ffedd5;color:#c2410c}
+.oic--to{background:#dcfce7;color:#15803d}
+.so-tron{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--chu-5);color:var(--chu-3);font-size:11px;flex:none}
+.o-ngay{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--vien);border-radius:7px;font-size:13px;background:var(--trang)}
+.o-ngay svg.i{color:var(--chu-4);width:14px;height:14px}
+.o-ngay--xong{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.mui{color:var(--chu-4)}
+
+/* ================= PHƯƠNG ÁN A — hàng thuộc tính kiểu Linear ================= */
+.a-hang{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;align-items:center;min-height:34px;padding:3px 0}
+.a-hang + .a-hang{border-top:1px solid var(--vien-3)}
+.a-nhan{font-size:12.5px;color:var(--chu-3)}
+.a-gt{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.a-thoi{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.a-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;width:220px;background:var(--vien-2)}
+.a-bar i{display:block;height:100%}
+.a-chu{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--chu-2)}
+.a-chu b{font-weight:400;color:var(--chu)}
+.a-cham{width:8px;height:8px;border-radius:2px;flex:none}
+.a-qt{margin-top:12px;border:1px solid var(--vien-2);border-radius:10px;overflow:hidden}
+.a-qt-dau{display:flex;align-items:center;gap:8px;padding:7px 12px;background:#fbfcfd;border-bottom:1px solid var(--vien-2);font-size:12.5px;color:var(--chu-3)}
+.a-qt-dau .gian{flex:1}
+.a-buoc{display:grid;grid-template-columns:20px 24px minmax(0,1.3fr) minmax(0,1.4fr) 90px 104px minmax(0,1.5fr);gap:10px;align-items:center;padding:6px 12px;font-size:13px}
+.a-buoc + .a-buoc{border-top:1px solid var(--vien-3)}
+.a-buoc .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.a-buoc .may{color:var(--chu-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px}
+.a-buoc .may svg.i{width:13px;height:13px;color:var(--chu-4)}
+.a-buoc .sl{color:var(--chu-2);text-align:right;white-space:nowrap}
+.a-buoc .khoang{color:var(--chu-3);font-size:12.5px;white-space:nowrap;text-align:right}
+.a-noi{grid-column:3/-1;display:flex;align-items:center;gap:8px;margin-top:2px;font-size:12px;color:var(--xanh-dam)}
+.a-noi svg.i{width:13px;height:13px}
+
+/* ================= PHƯƠNG ÁN B — bảng bước + thanh kiểu Bryntum ================= */
+.b-so{display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr 1.2fr;border:1px solid var(--vien-2);border-radius:10px;overflow:hidden}
+.b-o{padding:8px 12px;min-width:0}
+.b-o + .b-o{border-left:1px solid var(--vien-2)}
+.b-o .n{font-size:12px;color:var(--chu-3);display:flex;align-items:center;gap:6px}
+.b-o .n svg.i{width:13px;height:13px;color:var(--chu-4)}
+.b-o .g{font-size:15px;margin-top:2px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.b-o .g .btn--nho{height:22px}
+.b-o--xong{background:#f5f9ff}
+.b-o--xong .g{color:var(--xanh-dam)}
+.b-gantt{margin-top:12px;border:1px solid var(--vien-2);border-radius:10px;overflow:hidden}
+.b-hang{display:grid;grid-template-columns:300px 60px 112px minmax(0,1fr);align-items:stretch;font-size:13px}
+.b-hang + .b-hang{border-top:1px solid var(--vien-3)}
+.b-hang > div{padding:0 10px;display:flex;align-items:center;min-height:38px}
+.b-hang > div + div{border-left:1px solid var(--vien-3)}
+.b-hang--dau{background:#fbfcfd;font-size:12px;color:var(--chu-3)}
+.b-hang--dau > div{min-height:30px}
+.b-ten{gap:8px;min-width:0}
+.b-ten .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-ten .m{font-size:12px;color:var(--chu-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-ten .cot{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.b-sl{justify-content:flex-end;color:var(--chu-2)}
+.b-gio{justify-content:flex-end}
+.b-truc{position:relative;padding:0 !important}
+.b-truc .ngay{position:absolute;top:0;bottom:0;border-left:1px solid var(--vien-2);font-size:11.5px;color:var(--chu-3);padding:6px 0 0 6px;white-space:nowrap}
+.b-truc .dem{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,#f6f7f9 0 4px,#fff 4px 8px)}
+.b-truc .thanh{position:absolute;top:12px;height:14px;border-radius:4px;background:#dbe8ff}
+.b-truc .thanh i{position:absolute;top:0;bottom:0;background:#3b82f6;border-radius:3px}
+.b-truc .thoi{position:absolute;top:12px;width:12px;height:12px;transform:translateX(-6px) rotate(45deg);border:1.5px solid #ea580c;background:#fff;border-radius:2px}
+.b-truc .nhan{position:absolute;top:10px;font-size:11.5px;color:var(--chu-3);white-space:nowrap}
+.b-truc .cham{position:absolute;top:13px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--xanh)}
+.b-chan{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;margin-top:12px}
+.b-khoi{border:1px solid var(--vien-2);border-radius:10px;padding:9px 12px}
+.b-khoi h4{margin:0 0 6px;font-size:12.5px;font-weight:400;color:var(--chu-3);display:flex;align-items:center;gap:6px}
+.b-khoi h4 svg.i{width:13px;height:13px}
+.b-dong{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;font-size:13px}
+.b-chu-thich{display:flex;gap:14px;font-size:12px;color:var(--chu-3);padding:6px 10px;border-top:1px solid var(--vien-3);background:#fbfcfd}
+.b-chu-thich span{display:inline-flex;align-items:center;gap:6px}
+.b-chu-thich i{display:inline-block;width:14px;height:8px;border-radius:2px}
+
+/* ================= PHƯƠNG ÁN C — một trục cả cụm kiểu Linear timeline ================= */
+.c-truc{border:1px solid var(--vien-2);border-radius:10px;position:relative}
+.c-truc .c-ngay{border-radius:10px 10px 0 0}
+.c-than{overflow:visible}
+.c-ngay{display:grid;grid-template-columns:repeat(4,1fr);background:#fbfcfd;border-bottom:1px solid var(--vien-2);font-size:12px;color:var(--chu-3);margin-left:0}
+.c-ngay div{padding:6px 10px;border-left:1px solid var(--vien-2)}
+.c-ngay div:first-child{border-left:0}
+.c-than{position:relative;height:200px}
+.c-cot{position:absolute;top:0;bottom:0;border-left:1px dashed var(--vien-2)}
+.c-dem{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,#f8f9fb 0 4px,#fff 4px 8px)}
+.c-nay{position:absolute;top:0;bottom:0;border-left:1.5px solid rgba(197,64,10,.45)}
+.c-lenh{position:absolute;left:0;right:0}
+.c-ten{position:absolute;display:flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap}
+.c-ten .ma{color:var(--chu-3)}
+.c-ten--on{color:var(--chu)}
+.c-thanh{position:absolute;height:22px;border-radius:6px;background:#e8f0ff;border:1px solid #c7dafe}
+.c-thanh--on{background:#dbe8ff;border-color:#93b4fb;box-shadow:0 0 0 3px rgba(37,99,235,.10)}
+.c-thanh--mo{background:#f1f5f9;border-color:var(--vien)}
+.c-doan{position:absolute;top:3px;bottom:3px;border-radius:4px;background:#3b82f6}
+.c-doan--mo{background:#94a3b8}
+.c-cho{position:absolute;top:3px;bottom:3px;border-radius:4px;background:repeating-linear-gradient(135deg,#fde68a 0 4px,#fef3c7 4px 8px)}
+.c-moc{position:absolute;top:5px;width:11px;height:11px;transform:translateX(-5.5px) rotate(45deg);background:#fff;border:1.5px solid #475569;border-radius:2px}
+.c-moc--ngoai{border-color:#ea580c}
+.c-nhan-moc{position:absolute;top:26px;font-size:11.5px;color:var(--chu-3);transform:translateX(-50%);white-space:nowrap}
+.c-the{position:absolute;width:330px;background:var(--trang);border:1px solid var(--vien);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14);padding:9px 12px;font-size:12.5px;z-index:3}
+.c-the .h{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:4px}
+.c-the .d{display:flex;justify-content:space-between;color:var(--chu-2);padding:2px 0}
+.c-the .d span:first-child{color:var(--chu-3)}
+.c-luoi{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:0;margin-top:12px;border:1px solid var(--vien-2);border-radius:10px;overflow:hidden}
+.c-cot2{padding:8px 12px}
+.c-cot2 + .c-cot2{border-left:1px solid var(--vien-2)}
+.c-dl{display:grid;grid-template-columns:104px minmax(0,1fr);gap:4px 10px;align-items:center;font-size:13px}
+.c-dl dt{color:var(--chu-3);font-size:12.5px}
+.c-dl dd{margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.c-buoc-gon{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.c-buoc-gon .chip{background:var(--trang);border:1px solid var(--vien)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="flag" viewBox="0 0 24 24"><path d="M4 22V4M4 4h13l-2 4 2 4H4"/></symbol>
+  <symbol id="truck" viewBox="0 0 24 24"><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/></symbol>
+  <symbol id="cut" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></symbol>
+  <symbol id="print" viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z"/></symbol>
+  <symbol id="hand" viewBox="0 0 24 24"><path d="M17 20H7l-3-6 3-1 2 2V5a1.5 1.5 0 0 1 3 0v6l5 1a2 2 0 0 1 1.6 2.3L17 20z"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c.8-3.5 3.6-5.5 7-5.5s6.2 2 7 5.5M16 4.2a3.5 3.5 0 0 1 0 7M18 14.8c2 .7 3.4 2.4 4 5.2"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></symbol>
+  <symbol id="ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="max" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+  <symbol id="send" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></symbol>
+  <symbol id="undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></symbol>
+  <symbol id="box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/></symbol>
+  <symbol id="layers" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+  <symbol id="alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+</svg>
+
+<div class="page">
+  <h1>Ngăn Xếp lịch gọn lại: ba phương án</h1>
+  <p class="lead">Số liệu thật của lệnh LSX26-0004 Bìa sách A5 (cụm với LSX26-0003 Ruột sách A5 64 trang) lúc 08/10. Ba phương án cùng giữ đủ thông tin của ngăn đang chạy, chỉ khác cách bày để <b style="font-weight:500">một lần nhìn thấy hết</b>, không phải cuộn. Ngăn vẫn rộng 1180px như mọi ngăn khác, vẫn có tab Chi tiết và Lịch sử phát hành.</p>
+
+  <div class="hop">
+    <h2>Ngăn đang chạy to ở đâu (đo trên màn thật)</h2>
+    <ul>
+      <li>Mỗi khối là một thẻ có viền, đệm 14px, tiêu đề riêng, ô biểu tượng 34px: bảy thẻ chồng nhau nên cao gần gấp đôi màn hình.</li>
+      <li>Số chính 16 đến 20px ở mọi ô (Máy chạy, Ngoài ca, Dự kiến xong, Sản lượng đặt), không ô nào nổi hơn ô nào nên mắt không biết nhìn đâu trước.</li>
+      <li>Mỗi bước quy trình là một thẻ cao 70 đến 90px, giờ từng bước nằm góc phải, khoảng thời gian nằm dòng dưới. Bốn bước đã chiếm hết cột phải.</li>
+      <li>Thông tin cụm lặp ba lần: thẻ "Phát hành cùng nhau", dải xanh dưới bước Cắt thành phẩm, và dòng chữ ở chân ngăn.</li>
+    </ul>
+  </div>
+
+  <!-- ======================================================= A ======================================================= -->
+  <section class="pa">
+    <div class="pa-dau">
+      <div>
+        <h2>Phương án A: hàng thuộc tính, bước là dòng bảng</h2>
+        <p>Khuôn trang dự án của Linear: mọi thuộc tính dồn vào vài HÀNG, nhãn xám bên trái, giá trị là thẻ nhỏ xếp ngang. Không còn thẻ to.</p>
+        <ul>
+          <li>Năm hàng: Lịch, Hạn, Thời gian, Đi cùng, Quy cách. Mỗi hàng cao 34px.</li>
+          <li>Thời gian còn một thanh mảnh chia màu và hai dòng chữ, bỏ hai ô số to.</li>
+          <li>Quy trình thành bảng dòng 36px: bảy cột thẳng hàng, so giờ các bước bằng một lần liếc dọc.</li>
+          <li>Dải "lệnh khác chờ bước này" thu thành một dòng chữ xanh dưới đúng bước đó, thẻ cụm riêng bỏ.</li>
+        </ul>
+      </div>
+      <figure>
+        <img src="tham-khao-ngan-xep-lich/ref-linear-project.png" alt="Trang dự án Linear">
+        <figcaption>Linear, trang dự án: nhãn Properties, Labels, Resources bên trái; giá trị là chip một dòng. Học được: gom thuộc tính vào hàng thay vì mỗi thứ một thẻ.</figcaption>
+      </figure>
+    </div>
+
+    <div class="ngan">
+      <div class="ng-dau">
+        <div class="ng-h1">
+          <h3>Bìa sách A5</h3>
+          <span class="tt tt--chua">Có lịch, chưa phát hành</span>
+          <span class="gian"></span>
+          <span class="btn"><svg class="i"><use href="#ext"/></svg>Mở ở Kế hoạch sản xuất</span>
+          <span class="btn btn--o"><svg class="i"><use href="#max"/></svg></span>
+          <span class="btn btn--o"><svg class="i"><use href="#x"/></svg></span>
+        </div>
+        <div class="ng-chips">
+          <span class="chip">LSX26-0004<svg class="i"><use href="#copy"/></svg></span>
+          <span class="chip"><svg class="i"><use href="#users"/></svg>CÔNG TY CỔ PHẦN BIBICA</span>
+          <span class="chip"><svg class="i"><use href="#file"/></svg>Đơn DH002</span>
+          <span class="chip">PO PO451263</span>
+          <span class="chip"><svg class="i"><use href="#user"/></svg>Phụ trách admin</span>
+        </div>
+        <div class="tab"><span class="on">Chi tiết</span><span>Lịch sử phát hành</span></div>
+      </div>
+
+      <div class="ng-than">
+        <div class="a-hang">
+          <div class="a-nhan">Lịch</div>
+          <div class="a-gt">
+            <span class="o-ngay"><svg class="i"><use href="#cal"/></svg>T5 08/10 18:15</span>
+            <span class="mui">→</span>
+            <span class="o-ngay o-ngay--xong"><svg class="i"><use href="#flag"/></svg>Xong T7 10/10 19:54</span>
+            <span class="chip">2 ngày 2 giờ</span>
+            <span class="btn btn--nho">−15 phút</span><span class="btn btn--nho">+15 phút</span>
+            <span class="btn btn--nho"><svg class="i" style="width:13px;height:13px"><use href="#undo"/></svg>Hoàn tác</span>
+            <span class="mo2" style="font-size:12px">hoặc kéo thanh trên lịch</span>
+          </div>
+        </div>
+        <div class="a-hang">
+          <div class="a-nhan">Hạn</div>
+          <div class="a-gt">
+            <span class="chip"><svg class="i"><use href="#flag"/></svg>Hạn xong sản xuất chưa có</span>
+            <span class="chip"><svg class="i"><use href="#truck"/></svg>Giao khách T6 06/11</span>
+            <span class="vien-tron vt-du">còn dư 27 ngày</span>
+          </div>
+        </div>
+        <div class="a-hang">
+          <div class="a-nhan">Thời gian</div>
+          <div class="a-gt">
+            <div class="a-bar"><i style="width:36%;background:#3b82f6"></i><i style="width:64%;background:#cbd5e1"></i></div>
+            <span class="a-chu"><span class="a-cham" style="background:#3b82f6"></span>Máy chạy <b>17 giờ 39 phút</b> <span class="mo2">36%</span></span>
+            <span class="a-chu"><span class="a-cham" style="background:#cbd5e1"></span>Ngoài ca <b>1 ngày 8 giờ</b> <span class="mo2">64%</span></span>
+            <span class="mo2" style="font-size:12px">2 đêm máy dừng giữa hai ca</span>
+          </div>
+        </div>
+        <div class="a-hang">
+          <div class="a-nhan">Đi cùng</div>
+          <div class="a-gt">
+            <span class="chip" style="background:#f3e8ff;color:#6d28d9"><svg class="i" style="color:#7c3aed"><use href="#link"/></svg>Phát hành cùng nhau</span>
+            <span class="chip">LSX26-0003 Ruột sách A5 64 trang<svg class="i"><use href="#ext"/></svg></span>
+            <span class="vien-tron vt-cho">chờ lệnh này ở bước 4</span>
+          </div>
+        </div>
+        <div class="a-hang">
+          <div class="a-nhan">Quy cách</div>
+          <div class="a-gt">
+            <span class="chip"><svg class="i"><use href="#box"/></svg>1.000 cuốn</span>
+            <span class="chip"><svg class="i"><use href="#file"/></svg>350 tờ in</span>
+            <span class="chip">4 con một tờ</span>
+            <span class="chip"><svg class="i"><use href="#layers"/></svg>4 tấm kẽm</span>
+            <span class="chip">GIẤY IVORY 210--230-250GSM</span>
+            <span class="vien-tron vt-thieu">còn thiếu 2 mặt hàng</span>
+            <span class="chip"><span class="av">N</span>nguyenthihuyen</span>
+          </div>
+        </div>
+
+        <div class="a-qt">
+          <div class="a-qt-dau"><span>Quy trình sản xuất</span><span class="mo2">4 bước</span><span class="gian"></span><span>Giờ</span><span style="width:150px;text-align:right">Từ đến</span></div>
+          <div class="a-buoc">
+            <span class="so-tron">0</span><span class="oic oic--cat"><svg class="i"><use href="#cut"/></svg></span>
+            <span class="ten">Cắt tờ</span>
+            <span class="may"><svg class="i"><use href="#print"/></svg>Máy cắt tờ ITO 100</span>
+            <span class="sl">175 tờ nguyên</span>
+            <span style="text-align:right"><span class="vien-tron vt-gio">22 phút</span></span>
+            <span class="khoang">T5 08/10 18:15 đến 18:36</span>
+          </div>
+          <div class="a-buoc">
+            <span class="so-tron">1</span><span class="oic oic--in"><svg class="i"><use href="#print"/></svg></span>
+            <span class="ten">Bài in 3 màu 4 màu (CMYK)</span>
+            <span class="may"><svg class="i"><use href="#print"/></svg>Máy in 5 màu Mitsubishi 54×79</span>
+            <span class="sl">350 tờ</span>
+            <span style="text-align:right"><span class="vien-tron vt-gio">1 giờ 17 phút</span></span>
+            <span class="khoang">T5 08/10 18:36 đến 19:54</span>
+          </div>
+          <div class="a-buoc">
+            <span class="so-tron">2</span><span class="oic oic--can"><svg class="i"><use href="#spark"/></svg></span>
+            <span class="ten">Cán màng</span>
+            <span class="may"><svg class="i"><use href="#print"/></svg>Máy cán màng 1080 số 1</span>
+            <span class="sl">250 tờ</span>
+            <span style="text-align:right"><span class="vien-tron vt-gio">16 giờ</span></span>
+            <span class="khoang">T5 08/10 19:54 đến T7 10/10 19:54</span>
+          </div>
+          <div class="a-buoc">
+            <span class="so-tron">3</span><span class="oic oic--ngoai"><svg class="i"><use href="#hand"/></svg></span>
+            <span class="ten">Cắt thành phẩm</span>
+            <span class="may"><svg class="i"><use href="#users"/></svg>Cơ sở Gia công Cán màng Thành Công</span>
+            <span class="sl">250 tờ</span>
+            <span style="text-align:right"><span class="vien-tron vt-ngoai">Gia công ngoài</span></span>
+            <span class="khoang mo2">không tính giờ</span>
+            <span class="a-noi"><svg class="i"><use href="#link"/></svg>LSX26-0003 Ruột sách chờ bước này xong mới vào bước 4 Xén 3 mặt<span class="btn btn--nho" style="margin-left:4px">Mở lệnh</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ng-chan">
+        <span class="btn">Đóng</span><span class="gian"></span>
+        <span class="mo" style="font-size:12.5px">LSX26-0003 xuống xưởng cùng lúc</span>
+        <span class="btn btn--do"><svg class="i"><use href="#trash"/></svg>Bỏ lịch</span>
+        <span class="btn btn--xanh"><svg class="i"><use href="#send"/></svg>Phát hành cả cụm, 2 lệnh</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= B ======================================================= -->
+  <section class="pa">
+    <div class="pa-dau">
+      <div>
+        <h2>Phương án B: dải số một hàng, bước có thanh thời gian</h2>
+        <p>Khuôn Gantt của Bryntum: bên trái là bảng tên việc, bên phải là thanh nằm đúng ngày giờ. Đưa thu nhỏ vào trong ngăn, chỉ cho riêng lệnh này.</p>
+        <ul>
+          <li>Đầu thân là một dải năm ô số thấp 52px: Bắt đầu, Dự kiến xong, Tổng, Máy chạy, Hạn giao.</li>
+          <li>Mỗi bước một dòng 38px, cột cuối là thanh trên trục ba ngày: thấy ngay Cán màng chiếm gần hết thời gian và máy nghỉ qua đêm (vùng gạch).</li>
+          <li>Hình thoi cam ở cuối là chỗ lệnh Ruột đang chờ, bấm vào mở lệnh đó.</li>
+          <li>Cụm và Quy cách thành hai khối thấp ở đáy, mỗi khối một hai dòng.</li>
+        </ul>
+      </div>
+      <figure>
+        <img src="tham-khao-ngan-xep-lich/ref-bryntum-gantt.png" alt="Bryntum Gantt">
+        <figcaption>Bryntum Gantt: cột tên việc bên trái, thanh theo ngày bên phải, đường nối phụ thuộc. Học được: so thời lượng các bước bằng mắt, khỏi đọc số.</figcaption>
+      </figure>
+    </div>
+
+    <div class="ngan">
+      <div class="ng-dau">
+        <div class="ng-h1">
+          <h3>Bìa sách A5</h3>
+          <span class="tt tt--chua">Có lịch, chưa phát hành</span>
+          <span class="gian"></span>
+          <span class="btn"><svg class="i"><use href="#ext"/></svg>Mở ở Kế hoạch sản xuất</span>
+          <span class="btn btn--o"><svg class="i"><use href="#max"/></svg></span>
+          <span class="btn btn--o"><svg class="i"><use href="#x"/></svg></span>
+        </div>
+        <div class="ng-chips">
+          <span class="chip">LSX26-0004<svg class="i"><use href="#copy"/></svg></span>
+          <span class="chip"><svg class="i"><use href="#users"/></svg>CÔNG TY CỔ PHẦN BIBICA</span>
+          <span class="chip"><svg class="i"><use href="#file"/></svg>Đơn DH002</span>
+          <span class="chip">PO PO451263</span>
+          <span class="chip"><svg class="i"><use href="#user"/></svg>Phụ trách admin</span>
+        </div>
+        <div class="tab"><span class="on">Chi tiết</span><span>Lịch sử phát hành</span></div>
+      </div>
+
+      <div class="ng-than">
+        <div class="b-so">
+          <div class="b-o"><div class="n"><svg class="i"><use href="#cal"/></svg>Bắt đầu</div><div class="g">T5 08/10 18:15 <span class="btn btn--nho">−15</span><span class="btn btn--nho">+15</span></div></div>
+          <div class="b-o b-o--xong"><div class="n"><svg class="i"><use href="#flag"/></svg>Dự kiến xong</div><div class="g">T7 10/10 19:54</div></div>
+          <div class="b-o"><div class="n"><svg class="i"><use href="#clock"/></svg>Từ đầu tới xong</div><div class="g">2 ngày 2 giờ</div></div>
+          <div class="b-o"><div class="n"><svg class="i"><use href="#print"/></svg>Máy chạy</div><div class="g">17 giờ 39 phút <span class="mo2" style="font-size:12px">36%</span></div></div>
+          <div class="b-o"><div class="n"><svg class="i"><use href="#truck"/></svg>Hạn giao khách</div><div class="g">T6 06/11 <span class="vien-tron vt-du">còn dư 27 ngày</span></div></div>
+        </div>
+
+        <div class="b-gantt">
+          <div class="b-hang b-hang--dau">
+            <div>Bước</div><div style="justify-content:flex-end">SL</div><div style="justify-content:flex-end">Giờ</div>
+            <div class="b-truc">
+              <span class="ngay" style="left:0">T5 08/10</span>
+              <span class="ngay" style="left:33.33%">T6 09/10</span>
+              <span class="ngay" style="left:66.66%">T7 10/10</span>
+            </div>
+          </div>
+
+          <!-- trục 72 giờ: T5 00:00 → CN 00:00; ca 14:00–22:00 -->
+          <div class="b-hang">
+            <div class="b-ten"><span class="so-tron">0</span><span class="oic oic--cat"><svg class="i"><use href="#cut"/></svg></span><span class="cot"><span class="t">Cắt tờ</span><span class="m">Máy cắt tờ ITO 100</span></span></div>
+            <div class="b-sl">175</div><div class="b-gio"><span class="vien-tron vt-gio">22 phút</span></div>
+            <div class="b-truc">
+              <span class="dem" style="left:0;width:19.44%"></span><span class="dem" style="left:30.55%;width:22.22%"></span><span class="dem" style="left:63.88%;width:22.22%"></span><span class="dem" style="left:97.22%;width:2.78%"></span>
+              <span class="thanh" style="left:25.35%;width:0.5%;background:#3b82f6"></span>
+              <span class="nhan" style="left:26.2%">18:15 đến 18:36</span>
+            </div>
+          </div>
+          <div class="b-hang">
+            <div class="b-ten"><span class="so-tron">1</span><span class="oic oic--in"><svg class="i"><use href="#print"/></svg></span><span class="cot"><span class="t">Bài in 3 màu 4 màu (CMYK)</span><span class="m">Máy in 5 màu Mitsubishi 54×79</span></span></div>
+            <div class="b-sl">350</div><div class="b-gio"><span class="vien-tron vt-gio">1 giờ 17 phút</span></div>
+            <div class="b-truc">
+              <span class="dem" style="left:0;width:19.44%"></span><span class="dem" style="left:30.55%;width:22.22%"></span><span class="dem" style="left:63.88%;width:22.22%"></span><span class="dem" style="left:97.22%;width:2.78%"></span>
+              <span class="thanh" style="left:25.83%;width:1.8%;background:#3b82f6"></span>
+              <span class="nhan" style="left:28.2%">18:36 đến 19:54</span>
+            </div>
+          </div>
+          <div class="b-hang">
+            <div class="b-ten"><span class="so-tron">2</span><span class="oic oic--can"><svg class="i"><use href="#spark"/></svg></span><span class="cot"><span class="t">Cán màng</span><span class="m">Máy cán màng 1080 số 1</span></span></div>
+            <div class="b-sl">250</div><div class="b-gio"><span class="vien-tron vt-gio">16 giờ</span></div>
+            <div class="b-truc">
+              <span class="dem" style="left:0;width:19.44%"></span><span class="dem" style="left:30.55%;width:22.22%"></span><span class="dem" style="left:63.88%;width:22.22%"></span><span class="dem" style="left:97.22%;width:2.78%"></span>
+              <span class="thanh" style="left:27.63%;width:66.67%">
+                <i style="left:0;width:4.4%"></i>
+                <i style="left:37.7%;width:16.7%"></i>
+                <i style="left:87.7%;width:12.3%"></i>
+              </span>
+            </div>
+          </div>
+          <div class="b-hang">
+            <div class="b-ten"><span class="so-tron">3</span><span class="oic oic--ngoai"><svg class="i"><use href="#hand"/></svg></span><span class="cot"><span class="t">Cắt thành phẩm</span><span class="m">Cơ sở Gia công Cán màng Thành Công</span></span></div>
+            <div class="b-sl">250</div><div class="b-gio"><span class="vien-tron vt-ngoai">Gia công ngoài</span></div>
+            <div class="b-truc">
+              <span class="dem" style="left:0;width:19.44%"></span><span class="dem" style="left:30.55%;width:22.22%"></span><span class="dem" style="left:63.88%;width:22.22%"></span><span class="dem" style="left:97.22%;width:2.78%"></span>
+              <span class="thoi" style="left:94.3%"></span>
+              <span class="nhan" style="right:7.5%;color:#c2410c">LSX26-0003 chờ ở đây</span>
+            </div>
+          </div>
+          <div class="b-chu-thich">
+            <span><i style="background:#3b82f6"></i>Máy chạy trong ca</span>
+            <span><i style="background:#dbe8ff"></i>Đã vào máy, đang qua đêm</span>
+            <span><i style="background:repeating-linear-gradient(135deg,#e5e7eb 0 3px,#fff 3px 6px)"></i>Ngoài ca 14:00 đến 22:00</span>
+            <span><i style="width:9px;height:9px;transform:rotate(45deg);border:1.5px solid #ea580c;background:#fff"></i>Lệnh khác chờ</span>
+          </div>
+        </div>
+
+        <div class="b-chan">
+          <div class="b-khoi">
+            <h4><svg class="i" style="color:#7c3aed"><use href="#link"/></svg>Phát hành cùng nhau, 2 lệnh cùng đơn DH002</h4>
+            <div class="b-dong"><span>LSX26-0003 Ruột sách A5 64 trang</span><span class="vien-tron vt-cho">chờ lệnh này ở bước 4 Xén 3 mặt</span><span class="btn btn--nho"><svg class="i" style="width:12px;height:12px"><use href="#ext"/></svg>Mở</span></div>
+          </div>
+          <div class="b-khoi">
+            <h4><svg class="i"><use href="#box"/></svg>Quy cách và vật tư</h4>
+            <div class="b-dong">
+              <span class="chip">1.000 cuốn</span><span class="chip">350 tờ in</span><span class="chip">4 con một tờ</span><span class="chip">4 tấm kẽm</span>
+              <span class="chip">GIẤY IVORY 210--230-250GSM</span><span class="vien-tron vt-thieu">còn thiếu 2 mặt hàng</span>
+              <span class="chip"><span class="av">N</span>nguyenthihuyen</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ng-chan">
+        <span class="btn">Đóng</span><span class="gian"></span>
+        <span class="btn btn--do"><svg class="i"><use href="#trash"/></svg>Bỏ lịch</span>
+        <span class="btn btn--xanh"><svg class="i"><use href="#send"/></svg>Phát hành cả cụm, 2 lệnh</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= C ======================================================= -->
+  <section class="pa">
+    <div class="pa-dau">
+      <div>
+        <h2>Phương án C: một trục cho cả cụm, bước là mốc trên thanh</h2>
+        <p>Khuôn dòng thời gian của Linear: mỗi dự án một thanh, các mốc là hình thoi có nhãn, rê vào mới hiện thẻ chi tiết. Ở đây mỗi LỆNH của cụm là một thanh.</p>
+        <ul>
+          <li>Đầu thân là trục bốn ngày, hai thanh Ruột và Bìa, lệnh đang mở được viền đậm. Thấy ngay Ruột chờ Bìa 1 ngày 3 giờ (đoạn sọc vàng).</li>
+          <li>Bước là hình thoi tại lúc bước xong, nhãn tên ngắn bên dưới; rê vào hình thoi hiện thẻ máy, số lượng, giờ.</li>
+          <li>Dưới trục là ba cột thuộc tính chữ nhỏ: Lịch, Thời gian, Quy cách. Không còn thẻ bước riêng.</li>
+          <li>Gọn nhất trong ba, nhưng xem giờ từng bước phải rê chuột.</li>
+        </ul>
+      </div>
+      <figure>
+        <img src="tham-khao-ngan-xep-lich/ref-linear-moc-thoi-gian.png" alt="Linear timeline có mốc">
+        <figcaption>Linear Timeline: mỗi dự án một thanh, mốc hình thoi có nhãn, rê vào hiện thẻ nhỏ. Học được: thấy toàn cảnh trước, chi tiết để sau một lần rê.</figcaption>
+      </figure>
+    </div>
+
+    <div class="ngan">
+      <div class="ng-dau">
+        <div class="ng-h1">
+          <h3>Bìa sách A5</h3>
+          <span class="tt tt--chua">Có lịch, chưa phát hành</span>
+          <span class="gian"></span>
+          <span class="btn"><svg class="i"><use href="#ext"/></svg>Mở ở Kế hoạch sản xuất</span>
+          <span class="btn btn--o"><svg class="i"><use href="#max"/></svg></span>
+          <span class="btn btn--o"><svg class="i"><use href="#x"/></svg></span>
+        </div>
+        <div class="ng-chips">
+          <span class="chip">LSX26-0004<svg class="i"><use href="#copy"/></svg></span>
+          <span class="chip"><svg class="i"><use href="#users"/></svg>CÔNG TY CỔ PHẦN BIBICA</span>
+          <span class="chip"><svg class="i"><use href="#file"/></svg>Đơn DH002</span>
+          <span class="chip">PO PO451263</span>
+          <span class="chip"><svg class="i"><use href="#user"/></svg>Phụ trách admin</span>
+        </div>
+        <div class="tab"><span class="on">Chi tiết</span><span>Lịch sử phát hành</span></div>
+      </div>
+
+      <div class="ng-than">
+        <div class="c-truc">
+          <div class="c-ngay"><div>T4 07/10</div><div>T5 08/10</div><div>T6 09/10</div><div>T7 10/10</div></div>
+          <!-- trục 96 giờ: T4 00:00 → CN 00:00 -->
+          <div class="c-than">
+            <span class="c-dem" style="left:0;width:14.58%"></span><span class="c-dem" style="left:22.92%;width:16.67%"></span><span class="c-dem" style="left:47.92%;width:16.67%"></span><span class="c-dem" style="left:72.92%;width:16.67%"></span><span class="c-dem" style="left:97.92%;width:2.08%"></span>
+            <span class="c-cot" style="left:25%"></span><span class="c-cot" style="left:50%"></span><span class="c-cot" style="left:75%"></span>
+            <span class="c-nay" style="left:39%"></span>
+
+            <!-- RUỘT: 14:00 T4 (h14) → 21:20 T7 (h93.33) -->
+            <div class="c-ten" style="left:14.6%;top:8px"><span class="ma">LSX26-0003</span>Ruột sách A5 64 trang<span class="mo2" style="font-size:12px">Xong T7 10/10 21:20</span></div>
+            <div class="c-thanh" style="left:14.58%;width:82.64%;top:30px">
+              <span class="c-doan" style="left:0;width:3.2%"></span>
+              <span class="c-doan" style="left:3.2%;width:6.8%;background:#4ade80"></span>
+              <span class="c-doan" style="left:30.2%;width:10.1%;background:#4ade80"></span>
+              <span class="c-doan" style="left:60.5%;width:3.2%;background:#4ade80"></span>
+              <span class="c-cho" style="left:63.7%;width:34.4%"></span>
+              <span class="c-doan" style="left:97.5%;width:2.5%"></span>
+              <span class="c-moc" style="left:0.6%"></span>
+              <span class="c-moc" style="left:3.2%"></span>
+              <span class="c-moc" style="left:63.7%"></span>
+              <span class="c-moc" style="left:100%"></span>
+            </div>
+            <span class="c-nhan-moc" style="left:17.6%;top:58px">Cắt tờ, In</span>
+            <span class="c-nhan-moc" style="left:67.2%;top:58px">Bắt tay + vào keo 16 giờ</span>
+            <span class="c-nhan-moc" style="left:82%;top:58px;color:#a16207">chờ Bìa 1 ngày 3 giờ</span>
+            <span class="c-nhan-moc" style="left:97.2%;top:58px">Xén</span>
+
+            <!-- BÌA: 18:15 T5 (h42.25) → 19:54 T7 (h91.9) -->
+            <div class="c-ten c-ten--on" style="left:44%;top:94px"><span class="ma">LSX26-0004</span>Bìa sách A5<span class="mo2" style="font-size:12px">Xong T7 10/10 19:54</span><span class="mo2" style="font-size:12px">lệnh đang mở</span></div>
+            <div class="c-thanh c-thanh--on" style="left:44.01%;width:51.71%;top:116px">
+              <span class="c-doan" style="left:0;width:3.3%"></span>
+              <span class="c-doan" style="left:3.3%;width:4.2%;opacity:.55"></span>
+                            <span class="c-doan" style="left:39.8%;width:16.1%;opacity:.55"></span>
+              <span class="c-doan" style="left:88.1%;width:11.9%;opacity:.55"></span>
+              <span class="c-moc" style="left:0.7%"></span>
+              <span class="c-moc" style="left:3.3%"></span>
+              <span class="c-moc" style="left:100%"></span>
+              <span class="c-moc c-moc--ngoai" style="left:100%;top:5px;transform:translateX(8px) rotate(45deg)"></span>
+            </div>
+            <span class="c-nhan-moc" style="left:45.5%;top:144px">Cắt tờ, In</span>
+            <span class="c-nhan-moc" style="left:69%;top:144px">Cán màng 16 giờ, qua 2 đêm</span>
+            <span class="c-nhan-moc" style="left:96.4%;top:144px;color:#c2410c">Cắt TP ngoài</span>
+
+            <!-- đường nối: bìa xong → ruột xén -->
+            <svg style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none" viewBox="0 0 1140 200" preserveAspectRatio="none">
+              <path d="M1093 127 C1112 127,1112 41,1100 41" fill="none" stroke="#2563eb" stroke-width="1.6" stroke-dasharray="4 4"/>
+            </svg>
+
+            <div class="c-the" style="left:52%;top:150px">
+              <div class="h"><span class="oic oic--can"><svg class="i"><use href="#spark"/></svg></span>Bước 2 Cán màng</div>
+              <div class="d"><span>Máy</span><span>Máy cán màng 1080 số 1</span></div>
+              <div class="d"><span>Số lượng</span><span>250 tờ</span></div>
+              <div class="d"><span>Giờ</span><span class="vien-tron vt-gio">16 giờ</span></div>
+              <div class="d"><span>Từ đến</span><span>T5 08/10 19:54 đến T7 10/10 19:54</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="c-luoi">
+          <div class="c-cot2">
+            <dl class="c-dl">
+              <dt>Bắt đầu</dt><dd><span class="o-ngay" style="height:26px">T5 08/10 18:15</span><span class="btn btn--nho">−15</span><span class="btn btn--nho">+15</span></dd>
+              <dt>Dự kiến xong</dt><dd style="color:var(--xanh-dam)">T7 10/10 19:54</dd>
+              <dt>Hạn xong SX</dt><dd class="mo">chưa có</dd>
+              <dt>Giao khách</dt><dd>T6 06/11<span class="vien-tron vt-du">còn dư 27 ngày</span></dd>
+            </dl>
+          </div>
+          <div class="c-cot2">
+            <dl class="c-dl">
+              <dt>Từ đầu tới xong</dt><dd>2 ngày 2 giờ</dd>
+              <dt>Máy chạy</dt><dd>17 giờ 39 phút<span class="mo2">36%</span></dd>
+              <dt>Ngoài ca</dt><dd>1 ngày 8 giờ<span class="mo2">64%</span></dd>
+              <dt>Đi cùng</dt><dd><span class="vien-tron" style="background:#f3e8ff;color:#6d28d9">phát hành cùng LSX26-0003</span></dd>
+            </dl>
+          </div>
+          <div class="c-cot2">
+            <dl class="c-dl">
+              <dt>Sản lượng</dt><dd>1.000 cuốn</dd>
+              <dt>Tờ in</dt><dd>350 tờ<span class="mo2">4 con một tờ</span></dd>
+              <dt>Kẽm và giấy</dt><dd>4 tấm<span class="chip" style="height:22px">IVORY 210--230-250GSM</span></dd>
+              <dt>Vật tư</dt><dd><span class="vien-tron vt-thieu">còn thiếu 2 mặt hàng</span></dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="ng-chan">
+        <span class="btn">Đóng</span><span class="gian"></span>
+        <span class="btn btn--do"><svg class="i"><use href="#trash"/></svg>Bỏ lịch</span>
+        <span class="btn btn--xanh"><svg class="i"><use href="#send"/></svg>Phát hành cả cụm, 2 lệnh</span>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

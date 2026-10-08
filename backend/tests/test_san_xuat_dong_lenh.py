@@ -1,7 +1,7 @@
 """Đóng lệnh THỦ CÔNG (spec 2026-09-29) — tầng service `services/san_xuat/dong_lenh.py`.
 
-Không cổng: còn dở chỉ ra CẢNH BÁO. Đóng/mở lại theo NHÓM, ghi cả nhóm lẫn mọi lệnh. Mọi người KCS
-bấm được; người ngoài KCS bị chặn."""
+Không cổng: còn dở chỉ ra CẢNH BÁO. Đóng/mở lại theo NHÓM, ghi cả nhóm lẫn mọi lệnh. Đóng đủ: mọi người KCS;
+đóng khi còn cảnh báo và mở lại: phải có ô "Đóng lệnh thiếu" (08/10/2026); người ngoài KCS bị chặn."""
 from __future__ import annotations
 
 import pytest
@@ -15,6 +15,7 @@ from app.services.san_xuat import dong_lenh
 from tests.test_san_xuat_kcs import (  # noqa: F401
     _batch, _ghi_tot, _to_kiem, admin, customer, db, lsx_svc, orders,
 )
+from tests.quyen_to_fixtures import cap_dong_thieu
 
 
 def _cvs(db, nhom_id):
@@ -71,6 +72,7 @@ def test_dong_khi_con_do_van_dong_duoc_va_dong_moi_lenh(db, orders, lsx_svc, adm
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     _muc_tieu(db, cv.nhom_id, 10_000)
     _phat_hanh(db, cv.lsx_id)
+    cap_dong_thieu(db, res["nguoi_kcs"])
     nhom = SanXuatRepository(db).nhom(cv.nhom_id)
     kq = dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=nhom.version)
     assert DongLenhKetQuaOut.model_validate(kq).kieu == "dong"
@@ -82,7 +84,7 @@ def test_dong_khi_con_do_van_dong_duoc_va_dong_moi_lenh(db, orders, lsx_svc, adm
 
 def test_mo_lai_tra_ve_nhu_truoc(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
-    k = res["nguoi_kcs"]
+    k = cap_dong_thieu(db, res["nguoi_kcs"])
     _phat_hanh(db, cv.lsx_id)
     kq = dong_lenh.dong(db, user=k, nhom_id=cv.nhom_id, expected_version=None)
     kq2 = dong_lenh.mo_lai(db, user=k, nhom_id=cv.nhom_id, expected_version=kq["version"])
@@ -93,7 +95,7 @@ def test_mo_lai_tra_ve_nhu_truoc(db, orders, lsx_svc, admin, customer):
 
 def test_dong_hai_lan_va_mo_lai_nhom_dang_mo_bi_chan(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
-    k = res["nguoi_kcs"]
+    k = cap_dong_thieu(db, res["nguoi_kcs"])
     with pytest.raises(ValueError, match="chưa đóng"):
         dong_lenh.mo_lai(db, user=k, nhom_id=cv.nhom_id, expected_version=None)
     dong_lenh.dong(db, user=k, nhom_id=cv.nhom_id, expected_version=None)
@@ -113,10 +115,34 @@ def test_nguoi_ngoai_kcs_bi_chan(db, orders, lsx_svc, admin, customer):
         dong_lenh.dong(db, user=admin, nhom_id=cv.nhom_id, expected_version=None)
 
 
-def test_thanh_vien_kcs_thuong_dong_duoc(db, orders, lsx_svc, admin, customer):
+def test_dong_thieu_phai_co_o_dong_lenh_thieu(db, orders, lsx_svc, admin, customer):
+    """Còn cảnh báo (đạt 90 chưa gửi kho…) ⇒ người KCS thường bị chặn, kể cả trưởng phòng; bật ô
+    "Đóng lệnh thiếu" trên dòng tổ KCS của vai thì đóng được (08/10/2026)."""
     _to, cv, _res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
-    _d, thuong = _to_kiem(db, ten="Tổ KCS 2", ma="KCS-2", truong=False)
+    _d, thuong = _to_kiem(db, ten="Tổ KCS 2", ma="KCS-2", truong=True)
+    assert dong_lenh.tinh_trang_dong(db, cv.nhom_id, thuong)["duoc_dong_thieu"] is False
+    with pytest.raises(PermissionError, match="Đóng lệnh thiếu"):
+        dong_lenh.dong(db, user=thuong, nhom_id=cv.nhom_id, expected_version=None)
+    assert SanXuatRepository(db).nhom(cv.nhom_id).trang_thai == NHOM_DANG_SX
+    cap_dong_thieu(db, thuong)
+    assert dong_lenh.tinh_trang_dong(db, cv.nhom_id, thuong)["duoc_dong_thieu"] is True
     dong_lenh.dong(db, user=thuong, nhom_id=cv.nhom_id, expected_version=None)
+    assert SanXuatRepository(db).nhom(cv.nhom_id).trang_thai == NHOM_DONG
+
+
+def test_dong_du_khong_can_o_nhung_mo_lai_thi_can(db, orders, lsx_svc, admin, customer):
+    """Hết cảnh báo ⇒ mọi người KCS đóng được như cũ; mở lại thì vẫn phải có ô."""
+    from app.services.san_xuat import kho
+
+    _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)   # đạt 90 · lỗi 10
+    _muc_tieu(db, cv.nhom_id, 90)
+    _hoan_thanh_het(db, cv.nhom_id)
+    k = res["nguoi_kcs"]
+    kho.tao_yeu_cau_nhap_kho_cong_doan(db, user=k, cong_viec_id=cv.id)
+    assert dong_lenh.tinh_trang_dong(db, cv.nhom_id, k)["canh_bao"] == []
+    kq = dong_lenh.dong(db, user=k, nhom_id=cv.nhom_id, expected_version=None)
+    with pytest.raises(PermissionError, match="mở lại"):
+        dong_lenh.mo_lai(db, user=k, nhom_id=cv.nhom_id, expected_version=kq["version"])
     assert SanXuatRepository(db).nhom(cv.nhom_id).trang_thai == NHOM_DONG
 
 
@@ -125,6 +151,7 @@ def test_audit_chup_so_luc_dong(db, orders, lsx_svc, admin, customer):
 
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     _muc_tieu(db, cv.nhom_id, 10_000)
+    cap_dong_thieu(db, res["nguoi_kcs"])
     dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=None)
     a = db.query(AuditLog).filter_by(action="san_xuat_dong_lenh").one()
     assert a.target == f"san_xuat_nhom:{cv.nhom_id}"
@@ -134,6 +161,7 @@ def test_audit_chup_so_luc_dong(db, orders, lsx_svc, admin, customer):
 def test_chan_neu_da_dong(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     dong_lenh.chan_neu_da_dong(db, cv)                 # nhóm mở ⇒ không ném
+    cap_dong_thieu(db, res["nguoi_kcs"])
     dong_lenh.dong(db, user=res["nguoi_kcs"], nhom_id=cv.nhom_id, expected_version=None)
     with pytest.raises(ValueError, match="Lệnh đã đóng"):
         dong_lenh.chan_neu_da_dong(db, cv)

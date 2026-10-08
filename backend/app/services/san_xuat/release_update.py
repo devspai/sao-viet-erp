@@ -49,6 +49,7 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
 from ..dong_giay import ban_do_tram
+from ..gio_xuong import thuc_te_hien_thi
 from . import ho_tro
 from .snapshot import _dinh_muc, _hanh_ly, _SoPhatHanh
 
@@ -207,7 +208,8 @@ def thong_tin_goi(db: Session, *, nguon: str, id: int) -> dict:
                 "loai": p.loai,
                 "ly_do": p.ly_do,
                 "phat_hanh_by_id": p.phat_hanh_by_id,
-                "luc": p.created_at.isoformat() if p.created_at else None,
+                # `created_at` là UTC thật — đưa về giờ xưởng như mọi mốc thực thi khác.
+                "luc": thuc_te_hien_thi(p.created_at).isoformat() if p.created_at else None,
             }
             for p in phien_bans
         ],

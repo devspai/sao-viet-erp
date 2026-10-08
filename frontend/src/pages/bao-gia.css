@@ -1820,6 +1820,9 @@ select.input {
   color: var(--ink, #1e293b);
 }
 
+/* Ô ngày tự vẽ (ChonNgay) mang lớp datepill-edit trên khung — giữ cỡ gọn như ô cũ. */
+.rdx-quote .cn-khung.datepill-edit { height: 30px; }
+
 .rdx-quote .validity-date-str {
   font-family: var(--ff-sans);
   font-size: 13px;

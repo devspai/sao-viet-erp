@@ -3,10 +3,9 @@
 //   • Duyệt đơn (HR) — chờ duyệt → duyệt / từ chối; xem toàn bộ.
 //   • Loại nghỉ (HR) — khai loại nghỉ (có lương / hạn mức).
 // (tách từ pages/NghiPhepPage.tsx).
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan, useSelfService } from "../../../auth/permissions";
-import { Calendar, ClipboardCheck, FileText, Sliders } from "lucide-react";
 import { ApproveTab } from "./tabs/ApproveTab";
 import { CalendarTab } from "./tabs/CalendarTab";
 import { LeaveTypesTab } from "./tabs/LeaveTypesTab";
@@ -55,52 +54,44 @@ export function NghiPhepPage({ onChanged, focusEmployeeId, eventTick }: {
     if (focusEmployeeId && canManage) setTab("approve");
   }, [focusEmployeeId, canManage]);
 
-  return (
-    <main className="ns">
-      <header className="ns__head">
-        <div>
-          {/* Eyebrow = tên SECTION trên sidebar, chép nguyên văn, MỘT cấp (không ghi tên
-              item "Nghỉ phép" — tiêu đề ngay dưới đã nói rồi). Lớp phải là `eyebrow`. */}
-          <p className="eyebrow">Nhân sự &amp; Lương</p>
-          <h1 className="ns__title">Nghỉ phép</h1>
+  // Loại nghỉ theo quyền riêng (khác 3 phần trên dùng APPROVE) — giữ đúng phân quyền, đừng gộp về canManage.
+  const phan: [Tab, string][] = ([
+    ["me", "Đơn của tôi", tuPhucVu],
+    ["approve", "Duyệt đơn", canManage],
+    ["calendar", "Lịch nghỉ", canManage],
+    ["types", "Loại nghỉ", canTypes],
+  ] as [Tab, string, boolean][]).filter(([, , co]) => co).map(([k, nhan]) => [k, nhan]);
+  // Bị gỡ ô Tự phục vụ thì "Đơn của tôi" không có ⇒ mở phần đầu tiên còn quyền, không để màn trống.
+  const dang: Tab | undefined = phan.some(([k]) => k === tab) ? tab : phan[0]?.[0];
+
+  // Đầu trang khuôn lưới chung (08/10/2026, như Tăng ca / Tài sản): tên màn + nút chuyển phần dạng
+  // viên thay hàng tab gạch dưới + nút chính dạt phải. Mỗi phần tự gài nút chính của mình qua `dau`.
+  const dau = (phai?: ReactNode) => (
+    <header className="lds-dau">
+      <h1 className="lds-dau__ten">Nghỉ phép</h1>
+      {phan.length > 1 && (
+        <div className="lds-xem" role="group" aria-label="Phần của màn Nghỉ phép">
+          {phan.map(([k, nhan]) => (
+            <button key={k} type="button" className={`lds-xem__nut${dang === k ? " is-active" : ""}`}
+              aria-pressed={dang === k} onClick={() => setTab(k)}>
+              {nhan}
+            </button>
+          ))}
         </div>
-      </header>
-      <nav className="ns-tabs cc-tabs lg-tabs" aria-label="Phân hệ Nghỉ phép">
-        <div className="lg-tabs__group">
-          {tuPhucVu && (
-            <button className={`lg-tab-btn ${tab === "me" ? "is-active" : ""}`} onClick={() => setTab("me")} title="Đơn xin nghỉ cá nhân">
-              <FileText className="lg-tab-btn__icon" />
-              <span>Đơn của tôi</span>
-            </button>
-          )}
-          {canManage && (
-            <button className={`lg-tab-btn ${tab === "approve" ? "is-active" : ""}`} onClick={() => setTab("approve")} title="Duyệt đơn xin nghỉ nhân viên">
-              <ClipboardCheck className="lg-tab-btn__icon" />
-              <span>Duyệt đơn</span>
-            </button>
-          )}
-          {canManage && (
-            <button className={`lg-tab-btn ${tab === "calendar" ? "is-active" : ""}`} onClick={() => setTab("calendar")} title="Lịch nghỉ toàn công ty">
-              <Calendar className="lg-tab-btn__icon" />
-              <span>Lịch nghỉ</span>
-            </button>
-          )}
-          {/* Loại nghỉ theo quyền UPDATE (khác 3 tab trên dùng APPROVE) — giữ đúng phân quyền
-              của dev, đừng gộp về canManage. */}
-          {canTypes && (
-            <button className={`lg-tab-btn ${tab === "types" ? "is-active" : ""}`} onClick={() => setTab("types")} title="Cấu hình loại nghỉ">
-              <Sliders className="lg-tab-btn__icon" />
-              <span>Loại nghỉ</span>
-            </button>
-          )}
-        </div>
-      </nav>
-      {tab === "me" && tuPhucVu && (
-        <MyLeaveTab token={token!} onChanged={onChanged} coQuyenGhi={tuPhucVuGhi} coQuyenHuy={coQuyenHuy} eventTick={eventTick} />
       )}
-      {tab === "approve" && canManage && <ApproveTab token={token!} onChanged={onChanged} focusEmployeeId={focusEmployeeId} eventTick={eventTick} />}
-      {tab === "calendar" && canManage && <CalendarTab token={token!} />}
-      {tab === "types" && canTypes && <LeaveTypesTab token={token!} />}
+      <div className="lds-dau__nut">{phai}</div>
+    </header>
+  );
+
+  return (
+    <main className="ns lds np-a">
+      {dang === "me" && (
+        <MyLeaveTab token={token!} dau={dau} onChanged={onChanged} coQuyenGhi={tuPhucVuGhi} coQuyenHuy={coQuyenHuy} eventTick={eventTick} />
+      )}
+      {dang === "approve" && <ApproveTab token={token!} dau={dau} onChanged={onChanged} focusEmployeeId={focusEmployeeId} eventTick={eventTick} />}
+      {dang === "calendar" && <CalendarTab token={token!} dau={dau} />}
+      {dang === "types" && <LeaveTypesTab token={token!} dau={dau} />}
+      {!dang && dau()}
     </main>
   );
 }

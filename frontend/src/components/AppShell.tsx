@@ -76,7 +76,7 @@ const HoSoCuaToiPage = lazy(() =>
   import("../pages/nhan-su-luong/ho-so-cua-toi").then((m) => ({ default: m.HoSoCuaToiPage })));
 const NoiQuyPage = lazy(() => import("../pages/nhan-su-luong/noi-quy").then((m) => ({ default: m.NoiQuyPage })));
 const NhanSuPage = lazy(() => import("../pages/nhan-su-luong/nhan-su").then((m) => ({ default: m.NhanSuPage })));
-const KcsKhaiBaoPage = lazy(() => import("../pages/danh-muc/KcsKhaiBaoPage").then((m) => ({ default: m.KcsKhaiBaoPage })));
+const KcsTieuChiPage = lazy(() => import("../pages/danh-muc/kcs-tieu-chi/KcsTieuChiPage").then((m) => ({ default: m.KcsTieuChiPage })));
 const RebuildCatalogPage = lazy(() =>
   import("../pages/RebuildCatalogPage").then((m) => ({ default: m.RebuildCatalogPage })));
 const KhoTonKhoPage = lazy(() => import("../pages/KhoTonKhoPage").then((m) => ({ default: m.KhoTonKhoPage })));
@@ -1239,7 +1239,7 @@ export function AppShell() {
     // Tiêu chí KCS KHÔNG dùng nền danh mục phẳng: khai theo cây Giai đoạn → Công đoạn → hạng
     // mục kiểm (08/09/2026, `docs/design-kcs-theo-cong-doan.md` mục 5).
     if (baseId === "kcs-tieu-chi") {
-      return <KcsKhaiBaoPage key="kcs-tieu-chi" />;
+      return <KcsTieuChiPage key="kcs-tieu-chi" />;
     }
     // Danh mục rebuild (Máy · Vật liệu Kho · Công đoạn · Loại SP · Giấy) — 1 trang generic theo config.
     if (REBUILD_CONFIGS[baseId]) {
@@ -1380,7 +1380,7 @@ export function AppShell() {
           />
         );
       case "xep-lich":
-        return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} />;
+        return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} navigate={navigate} />;
       case "sua-chua-may":
         // `eventTick` nhích theo sự kiện nhóm kỹ thuật ⇒ danh sách yêu cầu tự nạp lại khi có lời báo mới
         // hoặc khi người khác vừa tiếp nhận — không để hai người cùng lập phiếu cho một cái máy.

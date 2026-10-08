@@ -1,6 +1,7 @@
 // Kho — mảnh dùng chung cho MÀN YÊU CẦU và MÀN HỘP YÊU CẦU (spec-kho-de-nghi §D).
 // Hai màn nhìn cùng một chứng từ ở hai đầu luồng nên nhãn/màu trạng thái phải khớp tuyệt
 // đối; để mỗi màn tự khai một bảng là kiểu gì cũng lệch sau vài lần sửa.
+import { ChonNgay } from "../components/ChonNgay";
 import { useEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes } from "react";
 import type { StockRequestKind, StockRequestStatus, StockVoucherStatus } from "../api/client";
 import { useCan } from "../auth/permissions";
@@ -372,6 +373,8 @@ export function DateFilterHead({
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
+      // Lịch nổi của ô ngày (ChonNgay) portal ra body — bấm trong đó không phải bấm ra ngoài.
+      if ((e.target as Element | null)?.closest?.(".cn-hop")) return;
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
@@ -395,13 +398,13 @@ export function DateFilterHead({
         <div className="kho-colfil__pop" role="dialog">
           <label className="kho-colfil__row">
             <span>Từ</span>
-            <input type="date" className="rc-input" value={from} max={to || undefined}
-              onChange={(e) => onChange(e.target.value, to)} />
+            <ChonNgay className="rc-input" aria-label="Từ ngày" value={from} max={to || undefined}
+              onChange={(v) => onChange(v, to)} />
           </label>
           <label className="kho-colfil__row">
             <span>Đến</span>
-            <input type="date" className="rc-input" value={to} min={from || undefined}
-              onChange={(e) => onChange(from, e.target.value)} />
+            <ChonNgay className="rc-input" aria-label="Đến ngày" value={to} min={from || undefined}
+              onChange={(v) => onChange(from, v)} />
           </label>
           {active && (
             <button type="button" className="rc__link-btn kho-colfil__clear"

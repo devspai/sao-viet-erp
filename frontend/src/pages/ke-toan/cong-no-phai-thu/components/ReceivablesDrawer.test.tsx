@@ -288,11 +288,17 @@ describe("ReceivablesDrawer — Sao kê và Lịch sử", () => {
       { tuNgay: expect.stringMatching(/-01-01$/), denNgay: expect.stringMatching(/-12-31$/) }));
     saoKeDoiTac.mockClear();
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Kỳ sao kê" }), "tuy");
+    // Ô ngày tự vẽ (ChonNgay): gõ dd/mm/yyyy, rời ô (Tab) là chốt; max = hôm nay nên lùi "đến" trước rồi đẩy "từ" qua nó.
+    const den = screen.getByLabelText("Đến ngày");
+    await userEvent.clear(den);
+    await userEvent.type(den, "02/10/2026");
+    await userEvent.tab();
     const tu = screen.getByLabelText("Từ ngày");
     await userEvent.clear(tu);
-    await userEvent.type(tu, "2026-12-01");
+    await userEvent.type(tu, "05/10/2026");
+    await userEvent.tab();
     expect(await screen.findByText("Ngày bắt đầu phải trước ngày kết thúc.")).toBeInTheDocument();
-    expect(saoKeDoiTac).not.toHaveBeenCalledWith("token-test", "receivables", 12, { tuNgay: "2026-12-01", denNgay: KY.den });
+    expect(saoKeDoiTac).not.toHaveBeenCalledWith("token-test", "receivables", 12, { tuNgay: "2026-10-05", denNgay: "2026-10-02" });
   });
 
   it("In sao kê: sang tab Sao kê và mở bản in có tên, mã, kỳ, bảng và chỗ ký", async () => {

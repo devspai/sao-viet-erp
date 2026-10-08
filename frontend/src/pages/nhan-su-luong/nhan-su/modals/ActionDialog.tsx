@@ -7,6 +7,7 @@ import {
   type EmployeeTransitionInput,
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { ChonNgay } from "../../../../components/ChonNgay";
 import { ACTION_TITLE } from "../shared/constants";
 import { errMsg } from "../shared/helpers";
 import { Field } from "../components/form-fields";
@@ -84,11 +85,10 @@ export function ActionDialog({
               label="Ngày hiệu lực"
               hint="Không chọn được ngày sau hôm nay: máy đổi trạng thái / phòng ban và khoá tài khoản ngay lúc bấm — tới ngày đó hãy bấm."
             >
-              <input
-                type="date"
+              <ChonNgay
                 value={effective}
                 max={today}
-                onChange={(e) => setEffective(e.target.value)}
+                onChange={setEffective}
               />
             </Field>
           )}

@@ -210,6 +210,7 @@ gets on that module.
 | `can_run_order` | `Boolean` → `BOOLEAN` | — | no | `false` | Quyền chi tiết của **dòng quyền theo tổ** `to_sx_<id>` (mg 0302) — **Thực hiện lệnh**: giao/rút người · bắt đầu, tạm dừng, đổi máy, kết thúc · báo sự cố · nhận/trả khuôn · ghi mẻ + lô đầu vào. Phạm vi của dòng quyết định làm được trên tổ nào (`services/quyen_to.py`). |
 | `can_confirm_output` | `Boolean` → `BOOLEAN` | — | no | `false` | Dòng quyền theo tổ (mg 0302) — **Xác nhận sản lượng**: chia sản lượng (tính, chốt, mở lại, bù trừ, loại trừ chấm công) · bàn giao/nhận · hỗ trợ chéo. |
 | `can_warehouse` | `Boolean` → `BOOLEAN` | — | no | `false` | Dòng quyền theo tổ (mg 0302) — **Kho**: đề nghị vật tư · xác nhận nhận vật tư · yêu cầu nhập kho · huỷ phần chưa nhận. |
+| `can_close_short` | `Boolean` → `BOOLEAN` | — | no | `false` | Dòng quyền theo tổ (mg 0382) — **Đóng lệnh thiếu**, chỉ có nghĩa trên dòng tổ `is_kcs`: đóng nhóm thành phẩm khi còn cảnh báo (chưa kiểm · chưa gửi kho · thiếu số · việc dở) và mở lại nhóm đã đóng. Mức trọn tổ. |
 
 **Keys & indexes**
 
@@ -4739,7 +4740,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `loai_buoc` | `String(16)` | — | no | `may` | `may`/`to`/`thue_ngoai`. |
 | `department_id` | `Integer` FK→`departments.id` | IX | yes | — | Snapshot tổ thực hiện (§2.2). |
 | `la_kcs_cuoi` | `Boolean` | — | no | `false` | CÔNG ĐOẠN CUỐI của nhóm thành phẩm, bất kể tổ nào làm (đúng một bước/nhóm, mọi phân đoạn của bước đó; mg `0306`, `docs/design-kcs-theo-lenh.md` mục 6). Phần KCS kiểm đạt ở bước này là số đề nghị nhập kho. |
-| `kcs_tieu_chi_json` | `JSON` | — | yes | — | SNAPSHOT checklist KCS của bước tại lúc PHÁT HÀNH, lấy từ danh mục `san_xuat_kcs_tieu_chi` gắn theo công đoạn (nguồn DUY NHẤT từ mg `0283` — ô "bổ sung" ở lệnh đã gỡ). **NULL ⇔ công đoạn chưa gắn tiêu chí nào** — đừng ghi `[]` thay NULL. |
+| `kcs_tieu_chi_json` | `JSON` | — | yes | — | SNAPSHOT checklist KCS của bước tại lúc PHÁT HÀNH, lấy từ danh mục `san_xuat_kcs_tieu_chi` gắn theo công đoạn (nguồn DUY NHẤT từ mg `0283` — ô "bổ sung" ở lệnh đã gỡ). **NULL ⇔ công đoạn chưa gắn tiêu chí nào** — đừng ghi `[]` thay NULL. Từ mg `0381` mỗi mục `{tieu_chi_id, ma, ten, thu_tu}`, `thu_tu` = vị trí 1..n (ảnh chụp cũ còn khoá `huong_dan`/`bat_buoc`/`nguon`, không ai đọc nữa). |
 | `may_id` | `Integer` | — | yes | — | Snapshot máy — soft → `may_thiet_bi.id`. Migration `0237` GỠ khoá ngoại cứng cũ trỏ `machines`: máy của bước lấy từ danh mục đang chạy `may_thiet_bi`, id lệch hẳn `machines` (danh mục đời tính giá) nên lệnh nào có bước chạy máy ngoài dải đó cũng vỡ lúc phát hành, kẹt lại `da_phat_hanh` mà không có công việc. |
 | `du_kien_bat_dau` | `DateTime(timezone=True)` | — | yes | — | Thời gian dự kiến bắt đầu. |
 | `du_kien_ket_thuc` | `DateTime(timezone=True)` | — | yes | — | Thời gian dự kiến kết thúc. |
@@ -5209,7 +5210,7 @@ KHÔNG còn cột TIỀN nào: `don_gia` đã bỏ (mg 0296, 11/09/2026) — s�
 | `don_vi` | `String(24)` | — | no | — | Đơn vị. |
 | `ket_luan` | `String(16)` | — | no | `dat` | `dat` \| `dat_mot_phan` \| `khong_dat`. |
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú. |
-| `checklist_json` | `JSON` | — | yes | — | Kết quả tick tiêu chí `[{thu_tu, dat}]`, khớp `san_xuat_cong_viec.kcs_tieu_chi_json`. NULL = công đoạn không có tiêu chí. |
+| `checklist_json` | `JSON` | — | yes | — | Kết quả xét tiêu chí `[{cong_viec_id, thu_tu, dat, ghi_chu}]`. Bước KCS cuối xét tiêu chí GỘP của cả chuỗi (cả lệnh phụ trong nhóm — `services/san_xuat/kcs_checklist.py`), khoá theo cặp (công việc nguồn, `thu_tu` trong `kcs_tieu_chi_json` của nó). Phần tử cũ thiếu `cong_viec_id` = của chính công việc lần kiểm. NULL = không có tiêu chí. |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
 | `created_by` | `Integer` FK→`users.id` | — | yes | — | Người kiểm. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
@@ -5271,17 +5272,15 @@ KHÔNG còn cột TIỀN nào: `don_gia` đã bỏ (mg 0296, 11/09/2026) — s�
 | `ma` | `String(30)` | **U**, IX | no | — | Mã hạng mục, sinh ngầm `KM####` (UI không có ô nhập mã). |
 | `cong_doan_id` | `Integer` FK→`cong_doan.id` (CASCADE) | IX | no | — | Công đoạn sở hữu hạng mục (mg `0285`). |
 | `ten` | `String(200)` | — | no | — | Câu chữ hạng mục kiểm. |
-| `huong_dan` | `String(500)` | — | yes | — | Hướng dẫn kiểm cho KCS. |
-| `bat_buoc` | `Boolean` | — | no | `true` | Chưa trả lời mục này thì KCS không gửi được kết luận. |
-| `thu_tu` | `Integer` | — | no | `0` | Thứ tự hiển thị trong checklist của công đoạn. |
-| `active` | `Boolean` | — | no | `true` | Ngừng dùng: màn khai báo vẫn thấy, đường phát hành bỏ qua. |
+| `thu_tu` | `Integer` | — | no | `0` | Thứ tự trong checklist của công đoạn — MÁY CHỦ gán (thêm = cuối, kéo thả `PUT /sap-xep` = đánh lại 1..n); mg `0381` đánh lại dữ liệu cũ. |
+| ~~`huong_dan`~~ ~~`bat_buoc`~~ ~~`active`~~ | — | — | — | — | 🔴 GỠ 08/10/2026 (mg `0381`): một tiêu chí chỉ là MỘT câu chữ, mọi tiêu chí đều phải xét, bỏ thì xoá (dòng `active=false` bị xoá trước khi gỡ cột). |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now (UTC) | onupdate = now. |
 
 **Ràng buộc:** UNIQUE(`cong_doan_id`, `ten`) — một công đoạn không khai trùng câu chữ.
 
-**Tất cả cột:** `id`, `ma`, `cong_doan_id`, `ten`, `huong_dan`, `bat_buoc`, `thu_tu`, `active`, `version`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `cong_doan_id`, `ten`, `thu_tu`, `version`, `created_at`, `updated_at`.
 
 ---
 
