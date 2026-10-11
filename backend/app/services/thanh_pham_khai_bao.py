@@ -1,5 +1,17 @@
 """Khai THÀNH PHẨM của một khách vào danh mục — MỘT hàm, hai nơi gọi.
 
+⭐ LUẬT HIỆN HÀNH (11/10/2026, mg 0394 — plan 2026-10-11-thanh-pham-theo-khach-tai-ban): thành phẩm
+THUỘC VỀ KHÁCH (`vat_tu_in_an.customer_id`), và danh tính do người lập phiếu CHỌN chứ không đoán
+bằng tên. Ô "Sản phẩm tái bản" ở phiếu tính giá chỉ hiện mã của khách đầu phiếu; chọn ⇒ thẻ mang
+`tai_ban_thanh_pham_id`; chốt đơn gắn cụm vào đúng mã đó và đóng dấu `order_lines.thanh_pham_id`.
+Cụm từ phiếu tính giá mà KHÔNG gắn ⇒ sản phẩm mới, đẻ mã mới (không so tên). Dòng nhập tay (không
+qua phiếu tính giá, không có ô để chọn) ⇒ tìm-hoặc-khai theo (khách, tên). Chỗ ĐỌC dùng
+`thanh_pham_cua_cum`: dấu trên dòng trước, không có (đơn chốt trước 11/10) mới tìm theo (khách, tên).
+Tồn của mã là hàng của khách ⇒ đơn sau dùng được hàng làm dư của đơn trước (giao hàng đọc tồn theo
+mã, không theo "đơn nguồn" của lô nữa).
+
+Phần dưới là lịch sử các lần đổi khoá, giữ để hiểu vì sao.
+
 Vì sao có file này (docs/prd-thanh-pham.md):
 
 Sản phẩm in là hàng ĐẶT RIÊNG. "Hộp thuốc 10 vỉ — in 2 màu, cán bóng" của khách A không có sẵn ở
@@ -107,39 +119,34 @@ def _ma_ke_tiep(db) -> str:
     return f"{goc}{n:05d}"
 
 
-def tim_theo_ten(db, ten: str | None) -> VatTuInAn | None:
-    """Thành phẩm đã khai có tên chuẩn hoá trùng `ten` — KHÔNG đẻ dòng mới (mặt đọc dùng hàm này)."""
+class ThanhPhamKhacKhach(ValueError):
+    """Thẻ phiếu tính giá gắn tái bản vào mã KHÔNG thuộc khách của đơn (đổi khách sau khi gắn, hoặc
+    mã đã mất). Chốt đơn phải dừng — gắn sang mã khách khác là giao hàng của khách này cho khách kia."""
+
+
+def tim_theo_khach_ten(db, customer_id: int | None, ten: str | None) -> VatTuInAn | None:
+    """Thành phẩm CỦA KHÁCH có tên chuẩn hoá trùng `ten` — KHÔNG đẻ dòng mới.
+
+    Chỉ dùng cho hai việc: dòng đơn nhập tay (không có ô tái bản để chọn) và đơn chốt trước
+    11/10/2026 (dòng chưa có dấu `thanh_pham_id`). Đơn từ phiếu tính giá thì danh tính là thứ người
+    lập phiếu CHỌN, không đi qua đây."""
     khoa = chuan_ten(ten)
-    if not khoa:
+    if not khoa or not customer_id:
         return None
-    # Nạp cả rổ THÀNH PHẨM rồi so trong Python: `chuan_ten` gộp gạch ngang và khoảng trắng,
-    # SQL `lower()` không làm được. Lọc `la_thanh_pham` để không đụng vào mực/kẽm/hoá chất
-    # bên màn Vật tư — trùng tên với vật tư là chuyện có thể xảy ra.
-    for h in db.query(VatTuInAn).filter(VatTuInAn.la_thanh_pham.is_(True)).all():
+    # Nạp rổ thành phẩm của khách rồi so trong Python: `chuan_ten` gộp gạch ngang và khoảng trắng,
+    # SQL `lower()` không làm được. Lọc `la_thanh_pham` để không đụng vào mực/kẽm/hoá chất.
+    for h in (db.query(VatTuInAn)
+              .filter(VatTuInAn.la_thanh_pham.is_(True), VatTuInAn.customer_id == customer_id)
+              .order_by(VatTuInAn.id).all()):
         if chuan_ten(h.ten) == khoa:
             return h
     return None
 
 
-def tim_hoac_khai(db, *, customer_id: int | None = None, ten: str, dvt: str | None = None,
-                  order_id: int | None = None, order_line_id: int | None = None) -> VatTuInAn:
-    """Get-or-create theo TÊN ĐÃ CHUẨN HOÁ. Trả về dòng danh mục.
-
-    ⚠️ Khoá gộp trùng ĐỔI ngày 21/08/2026, từ `(khách, tên)` sang `tên`. Chủ: "thành phẩm này là
-    một cái tên hàng, nêu chưa khai để tái sử dụng, tránh phình lên" — hai khách cùng đặt "Hộp
-    thuốc 10 vỉ" nay dùng CHUNG một dòng, không đẻ hai dòng nữa.
-
-    `customer_id` vẫn nhận để ghi lại khách ĐẦU TIÊN đặt món này (tra nguồn gốc), KHÔNG còn là
-    khoá — đừng dùng nó để lọc.
-
-    `flush()` chứ không `commit()`: nơi gọi làm chủ giao dịch. `confirm()` chốt đơn và khai thành
-    phẩm phải đi CHUNG một giao dịch — chốt xong mà khai hỏng thì đơn đã `ordered` nhưng kho
-    không có gì để nhập, và không ai biết cho tới lúc cần giao.
-    """
-    co_san = tim_theo_ten(db, ten)
-    if co_san is not None:
-        return co_san
-
+def _khai_moi(db, *, customer_id: int | None, ten: str, dvt: str | None,
+              order_id: int | None = None, order_line_id: int | None = None) -> VatTuInAn:
+    """Đẻ một mã thành phẩm MỚI thuộc `customer_id`. `flush()` chứ không `commit()`: nơi gọi làm chủ
+    giao dịch — `confirm()` chốt đơn và khai thành phẩm phải đi CHUNG một giao dịch."""
     obj = VatTuInAn(
         ma=_ma_ke_tiep(db),
         la_thanh_pham=True,
@@ -150,7 +157,7 @@ def tim_hoac_khai(db, *, customer_id: int | None = None, ten: str, dvt: str | No
         don_gia=0,
         customer_id=customer_id,
         # `order_id` / `order_line_id` = đơn ĐẦU TIÊN đặt món này, giữ để tra nguồn gốc. KHÔNG
-        # dùng làm khoá định danh nữa và KHÔNG cập nhật ở lần đặt sau (xem đầu file).
+        # dùng làm khoá định danh và KHÔNG cập nhật ở lần đặt sau (xem đầu file).
         order_id=order_id,
         order_line_id=order_line_id,
         ghi_chu=None,
@@ -158,6 +165,16 @@ def tim_hoac_khai(db, *, customer_id: int | None = None, ten: str, dvt: str | No
     db.add(obj)
     db.flush()
     return obj
+
+
+def tim_hoac_khai(db, *, customer_id: int | None = None, ten: str, dvt: str | None = None,
+                  order_id: int | None = None, order_line_id: int | None = None) -> VatTuInAn:
+    """Get-or-create theo (KHÁCH, TÊN ĐÃ CHUẨN HOÁ) — cho dòng nhập tay và đơn cũ (xem đầu file)."""
+    co_san = tim_theo_khach_ten(db, customer_id, ten)
+    if co_san is not None:
+        return co_san
+    return _khai_moi(db, customer_id=customer_id, ten=ten, dvt=dvt,
+                     order_id=order_id, order_line_id=order_line_id)
 
 
 # --- CỤM BÁN (docs/design-nhap-kho-thanh-pham-qua-yeu-cau-nhap-xuat.md §3) --------------------
@@ -237,16 +254,33 @@ def gia_ban_cum(cum: CumBan) -> int | None:
     return int(round(cum.thanh_tien / cum.so_luong))
 
 
+def thanh_pham_cua_cum(db, order, cum: CumBan) -> VatTuInAn | None:
+    """Mã thành phẩm của cụm — CHỈ ĐỌC. Dấu `order_lines.thanh_pham_id` trước (đóng lúc chốt đơn);
+    dòng chưa có dấu (đơn chốt trước 11/10/2026) thì tìm theo (khách của đơn, tên cụm)."""
+    for ln in cum.dong:
+        tp_id = getattr(ln, "thanh_pham_id", None)
+        if tp_id:
+            tp = db.get(VatTuInAn, tp_id)
+            if tp is not None:
+                return tp
+    return tim_theo_khach_ten(db, getattr(order, "customer_id", None), cum.ten)
+
+
+def _dong_dau(cum: CumBan, tp: VatTuInAn) -> VatTuInAn:
+    for ln in cum.dong:
+        if getattr(ln, "thanh_pham_id", None) != tp.id:
+            ln.thanh_pham_id = tp.id
+    return tp
+
+
 def khai_cum(db, order, cum: CumBan) -> VatTuInAn:
-    """Thành phẩm của MỘT cụm bán — khoá gộp trùng vẫn là tên đã chuẩn hoá (`tim_hoac_khai`)."""
-    return tim_hoac_khai(
-        db,
-        customer_id=order.customer_id,
-        ten=cum.ten,
-        dvt=cum.dvt,
-        order_id=order.id,
-        order_line_id=cum.dong_dau.id,
-    )
+    """Thành phẩm của MỘT cụm bán: có rồi thì dùng (`thanh_pham_cua_cum`), chưa có thì đẻ mã mới
+    thuộc khách của đơn. Luôn đóng dấu mã lên mọi dòng của cụm để lần đọc sau khỏi tra tên."""
+    tp = thanh_pham_cua_cum(db, order, cum)
+    if tp is None:
+        tp = _khai_moi(db, customer_id=order.customer_id, ten=cum.ten, dvt=cum.dvt,
+                       order_id=order.id, order_line_id=cum.dong_dau.id)
+    return _dong_dau(cum, tp)
 
 
 def khai_mot_dong(db, order, order_line) -> VatTuInAn:
@@ -260,11 +294,62 @@ def khai_mot_dong(db, order, order_line) -> VatTuInAn:
     return khai_cum(db, order, cum)
 
 
-def khai_cho_don(db, order) -> list[VatTuInAn]:
-    """Khai mọi CỤM bán của một đơn. Gọi từ `OrderService.confirm()`.
+def _thanh_phan_cua_cum(db, cum: CumBan) -> list:
+    """`PhieuThanhPhan` nguồn của các dòng cụm, theo thứ tự dòng (dòng nhập tay bỏ qua)."""
+    from ..models.phieu_tinh_gia import PhieuThanhPhan
 
-    KHÔNG commit — `confirm()` commit chung một lượt (xem `tim_hoac_khai`).
+    ra = []
+    for ln in cum.dong:
+        if getattr(ln, "phieu_thanh_phan_id", None):
+            ptp = db.get(PhieuThanhPhan, ln.phieu_thanh_phan_id)
+            if ptp is not None:
+                ra.append(ptp)
+    return ra
+
+
+def khai_cho_don(db, order) -> list[VatTuInAn]:
+    """Gắn mã thành phẩm cho mọi CỤM bán của đơn lúc CHỐT. Gọi từ `OrderService.confirm()`.
+
+    Mỗi cụm:
+      1. thẻ phiếu tính giá gắn tái bản (`tai_ban_thanh_pham_id`) ⇒ đúng mã đó — mã phải là thành
+         phẩm của CHÍNH khách đơn, không thì `ThanhPhamKhacKhach`;
+      2. cụm từ phiếu tính giá mà không gắn ⇒ sản phẩm mới, đẻ mã mới (không so tên với đơn KHÁC).
+         Trong CÙNG đơn, cụm cùng tên vẫn là một món (ruột + bìa khác SL ⇒ hai cụm cùng nhãn) ⇒
+         dùng chung mã vừa đẻ;
+      3. cụm nhập tay ⇒ `khai_cum` (tìm theo khách + tên, không có thì đẻ).
+    Rồi đóng dấu mã lên dòng, và cụm có phiếu tính giá thì chụp cấu hình kỹ thuật từng thành phần vào
+    mã (`cau_hinh_tai_ban`) — nguồn của ô tái bản lần sau.
+
+    KHÔNG commit — `confirm()` commit chung một lượt.
     """
+    from datetime import datetime, timezone
+
+    from .san_pham_tai_ban_service import cau_hinh_tu_thanh_phan
+
     if order is None or not order.customer_id:
         return []
-    return [khai_cum(db, order, cum) for cum in cum_ban(order)]
+    ra: list[VatTuInAn] = []
+    cung_ten: dict[str, VatTuInAn] = {}
+    for cum in cum_ban(order):
+        nguon = _thanh_phan_cua_cum(db, cum)
+        gan = next((p.tai_ban_thanh_pham_id for p in nguon if p.tai_ban_thanh_pham_id), None)
+        if gan:
+            tp = db.get(VatTuInAn, gan)
+            if tp is None or not tp.la_thanh_pham or tp.customer_id != order.customer_id:
+                ma = f" {tp.ma}" if tp is not None else ""
+                raise ThanhPhamKhacKhach(
+                    f"«{cum.ten}» đang gắn tái bản mã{ma} không thuộc khách của đơn — mở phiếu tính "
+                    "giá, bấm Tách thành sản phẩm mới hoặc chọn lại sản phẩm tái bản")
+        elif nguon:
+            tp = cung_ten.get(chuan_ten(cum.ten)) or _khai_moi(
+                db, customer_id=order.customer_id, ten=cum.ten, dvt=cum.dvt,
+                order_id=order.id, order_line_id=cum.dong_dau.id)
+        else:
+            tp = khai_cum(db, order, cum)
+        cung_ten.setdefault(chuan_ten(cum.ten), tp)
+        _dong_dau(cum, tp)
+        if nguon:
+            tp.cau_hinh_tai_ban = [cau_hinh_tu_thanh_phan(p) for p in nguon]
+            tp.tai_ban_luc = datetime.now(timezone.utc)
+        ra.append(tp)
+    return ra

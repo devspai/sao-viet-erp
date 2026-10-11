@@ -1,17 +1,8 @@
 /* Form lập / sửa đơn mua — bản A (mockup A4). Thân dùng `kna-*` + ô `ycf-*` của form yêu cầu. */
 .dfa-dau { display: flex; align-items: baseline; gap: 12px; }
 .dfa-dau h3 { margin: 0; font-size: var(--fs-md, 15px); }
-.dfa-the { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.dfa-ncc-dau { gap: 10px; }
-.dfa-av {
-  width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center;
-  background: var(--tt-cam-bg); color: var(--tt-cam-fg); font-size: 11px; font-weight: 700; flex: none;
-}
 .dfa-ten { display: flex; align-items: flex-start; gap: 10px; }
-.dfa-yc { margin-left: 8px; font-size: 11.5px; }
 .dfa-ten > input[type="checkbox"] { margin-top: 3px; }
-.dfa-ncc select { height: 28px; font-size: var(--fs-xs); max-width: 300px; padding: 0 6px; }
-.dfa-tuy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .ycf-gi.dfa-gi { width: 100%; height: 30px; }
 .ycf-gi.dfa-gi--nho { width: 108px; height: 30px; }
 .dfa-vat { height: 30px; width: 72px; padding: 0 6px; }
@@ -33,6 +24,17 @@
 .dga-anh { cursor: pointer; border: 0; font: inherit; }
 .dga-chan { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .dgd-hd { display: grid; grid-template-columns: 1fr 140px; gap: 6px; }
+/* Hộp Ghi đợt giao: chọn nhanh hoá đơn cách ô số một nhịp; vùng thả tệp giãn đủ bề ngang khối
+   (là <button> nên mặc định co theo chữ); ô ảnh CHƯA LƯU phân biệt bằng viền đứt xám + nhãn tối
+   nằm gọn trong ảnh, không dùng màu cam nhấn. */
+.dgd-pick { margin-top: 8px; }
+.dgd-tha { width: 100%; }
+.dgd-tep { margin-top: 10px; }
+.dgd-tep .pdot__thumb--cho { outline: 1.5px dashed var(--ash-2); outline-offset: -1.5px; }
+.dgd-tep .pdot__tilebadge {
+  left: 4px; right: 4px; bottom: 4px; padding: 1px 0; border-radius: 4px;
+  background: rgba(20, 20, 20, .66); color: #fff; font-weight: 400; font-size: 11px;
+}
 
 /* Form tạo yêu cầu nhập xuất P2 — ô lệnh gọn dưới tên vật tư. */
 .tyc-lenh .kho-combo { min-width: 0 !important; }
@@ -56,13 +58,63 @@
 /* Cột phải 280px: chữ gợi ý cạnh tiêu đề thẻ ở cỡ 12px (như mockup P2) cho khỏi rớt xuống hàng riêng. */
 .dfa-luoi .kna-the__dau .dga-nut { font-size: 12px; }
 
-/* Bảng nhập theo lưới `lds-g` (08/10/2026) ở form lập đơn và hộp ghi đợt giao: ô nhập đứng ngang dòng tên
-   vật tư (cột Vật tư cao vì có khổ + chọn NCC). Cột cuối của form lập đơn là chữ Thành tiền, hạ xuống cho
-   ngang chữ trong ô nhập 30px. Dòng không vào đơn mờ đi (lưới `lds-g` tô --ink lên ô nên không thừa hưởng).
+/* Bảng nhập theo lưới `lds-g` (08/10/2026) ở form lập đơn và hộp ghi đợt giao. Dòng không vào đơn mờ đi (lưới `lds-g` tô --ink lên ô nên không thừa hưởng).
    Ô nhập đứng ngang dòng tên: lớp `kna-tren` của bảng (kho-ngan-a.css). Bảng có `minWidth` (cột Vật tư không
    bao giờ dưới ~200px): ngăn hẹp hơn thì khung bảng tự cuộn ngang. Menu thả xuống của ô chọn dựng qua portal
    nên khung cuộn không cắt chúng. */
-.lds-bang.lds-bang--nhap.dfa-bang--tien .lds-g tbody td:last-child { padding-top: 14px; }
 .lds-bang.dfa-bang .lds-g tbody tr.kna-mo td { color: var(--ash-2); }
 .lds-bang.lds-bang--nhap.dfa-bang { overflow-x: auto; }
 .lds-bang.dfa-bang .ycf-gi { padding: 0 8px; }
+
+/* Form lập đơn phương án A "bảng phẳng" (10/10/2026, mockup mua-hang-lap-don-gop-3-phuong-an.html).
+   Mỗi món một dòng thấp: tên + một hàng thẻ nhỏ (khổ, mã yêu cầu, bộ phận, mua cho); ô nhập giữa dòng. */
+.dfa-chung { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: start; }
+.dfa-chung--sua { grid-template-columns: minmax(0, 1.2fr) 180px 180px minmax(0, 1.4fr); }
+@container (max-width: 760px) { .dfa-chung, .dfa-chung--sua { grid-template-columns: minmax(0, 1fr); } }
+.dfa-chung small { font-size: var(--fs-xs); }
+.lds-bang.dfa-bang .lds-g.dfa-g tbody td { vertical-align: middle; padding-top: 6px; padding-bottom: 6px; }
+.dfa-g .dfa-ten { align-items: center; }
+.dfa-ten__than { min-width: 0; flex: 1; }
+.dfa-ten__chu { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dfa-phu { display: flex; align-items: center; gap: 6px; margin-top: 2px; min-width: 0; overflow: hidden;
+  font-size: var(--fs-xs); color: var(--ash-2); }
+.dfa-the-nho { flex: none; font: inherit; font-size: 11.5px; line-height: 18px; padding: 0 6px; border-radius: 5px;
+  border: 1px solid transparent; background: var(--rule-hair); color: var(--ash-2); white-space: nowrap; }
+.dfa-the-nho--bam { cursor: pointer; }
+.dfa-the-nho--bam:hover { border-color: var(--rule); color: var(--ink); }
+.dfa-phu .mc-o { flex: none; }
+.dfa-ncc { display: block; }
+.dfa-ncc select { width: 100%; height: 30px; font-size: var(--fs-sm); padding: 0 6px; }
+.dfa-nut-tuy { width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent; background: none; color: var(--ash-2); }
+.dfa-nut-tuy:hover, .dfa-nut-tuy.is-mo { border-color: var(--rule-soft); background: var(--canvas); color: var(--ink); }
+.lds-bang.dfa-bang .lds-g tbody tr.dfa-dong-tuy > td { background: var(--paper); padding-top: 6px; padding-bottom: 8px; }
+.dfa-tuy { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-left: 26px; }
+.dfa-tuy__o { display: inline-flex; align-items: center; gap: 8px; }
+.dfa-tuy__ghi { flex: 1 1 260px; max-width: 520px; margin: 0; }
+
+/* Nút "9 yêu cầu, 5 bộ phận" cạnh tiêu đề + bảng nổi các mã. */
+.dfa-nguon { position: relative; display: inline-flex; }
+.dfa-nguon__nut { font: inherit; font-size: var(--fs-sm); padding: 2px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--rule-soft); background: var(--rule-hair); color: var(--ash); }
+.dfa-nguon__nut:hover, .dfa-nguon__nut[aria-expanded="true"] { border-color: var(--rule); color: var(--ink); }
+.dfa-nguon__ds { position: absolute; left: 0; top: calc(100% + 6px); z-index: 40; min-width: 400px; padding: 6px 0;
+  background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-5, 10px); box-shadow: var(--shadow-lg); }
+.dfa-nguon__dong { display: grid; grid-template-columns: 150px minmax(0, 1fr) 72px; gap: 10px; padding: 4px 14px;
+  font-size: var(--fs-sm); color: var(--ash); }
+.dfa-nguon__dong > span:first-child { color: var(--ink); }
+.dfa-nguon__dong--dau { font-size: var(--fs-xs); color: var(--ash-3); }
+.dfa-nguon__dong--dau > span:first-child { color: var(--ash-3); }
+
+/* Chân ngăn: dải "Sẽ tạo" là hàng riêng trên hàng nút. */
+.dfa-se-tao { flex: 1 0 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 10px;
+  margin-bottom: 2px; border-bottom: 1px solid var(--rule-hair); font-size: var(--fs-sm); }
+/* Thẻ đơn và ô Tổng KHÔNG co (flex: none) + không xuống dòng: hết chỗ thì cả thẻ rớt xuống hàng
+   dưới nhờ flex-wrap của dải, chứ không bẻ "1.234.567 đ" làm hai hay bị khung cắt mép phải. Tên NCC
+   quá dài thì thẻ chạm bề ngang dải và tên tự cắt "…". */
+.dfa-don { flex: none; max-width: 100%; min-width: 0; display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 2px 10px; border-radius: 8px; border: 1px solid var(--rule-soft); background: var(--canvas); white-space: nowrap; }
+.dfa-don__ten { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dfa-don .kna-mo { font-size: var(--fs-xs); }
+.dfa-se-tao__tong { flex: none; margin-left: auto; display: inline-flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.dfa-se-tao__tong .kna-so { font-size: var(--fs-md, 15px); color: var(--ink); }

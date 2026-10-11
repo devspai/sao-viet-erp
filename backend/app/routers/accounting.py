@@ -33,6 +33,7 @@ from ..schemas.accounting import (
     NganHangLocOut,
     ApproveAndCreateVoucherIn,
     BaoCaoCongNoOut,
+    KhoanConNoListOut,
     SoChiTietCongNoOut,
     CongNoKhoaSoIn,
     CongNoKhoaSoRow,
@@ -201,6 +202,10 @@ def accounting_inbox(
     moc: str = Query(default="tao", pattern="^(tao|can)$"),
     deposit_status: str | None = Query(default=None),
     tien: str | None = Query(default=None, pattern="^(chua_tra|mot_phan|qua_han|da_tra)$"),
+    # Ba vai người trên đơn (10/10/2026): NV yêu cầu / NV mua hàng (người lập) / NV duyệt.
+    nv_yc_id: int | None = Query(default=None),
+    nv_mua_id: int | None = Query(default=None),
+    nv_duyet_id: int | None = Query(default=None),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
@@ -216,6 +221,9 @@ def accounting_inbox(
         den_ngay=den_ngay,
         moc=moc,
         deposit_status=deposit_status,
+        nv_yc_id=nv_yc_id,
+        nv_mua_id=nv_mua_id,
+        nv_duyet_id=nv_duyet_id,
         # Đơn NHÁP là thu mua còn đang sửa, CHƯA gửi duyệt — không thuộc hộp thư kế toán (chủ
         # 04/08/2026). Chặn ở API chứ không chỉ giấu ở giao diện.
         exclude_statuses=[PR_DRAFT],
@@ -239,6 +247,19 @@ def accounting_inbox_loc_ncc(
     return [
         LuaChonLoc(id=i, ten=t, so=n)
         for i, t, n in purchases.dem_theo_ncc(actor=user, exclude_statuses=[PR_DRAFT])
+    ]
+
+
+@router.get("/api/accounting/inbox/loc-nguoi", response_model=list[LuaChonLoc])
+def accounting_inbox_loc_nguoi(
+    purchases: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    vai: str = Query(pattern="^(yc|mua|duyet)$"),
+) -> list[LuaChonLoc]:
+    """Ô NV yêu cầu / NV mua hàng / NV duyệt của hộp Đơn mua hàng (không tính đơn nháp)."""
+    return [
+        LuaChonLoc(id=i, ten=t, so=n)
+        for i, t, n in purchases.dem_theo_nguoi(vai, actor=user, exclude_statuses=[PR_DRAFT])
     ]
 
 
@@ -390,9 +411,10 @@ def accounting_receivables_sao_ke(
     den_ngay: date = Query(...),
 ) -> SoChiTietCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
-    return SoChiTietCongNoOut(
-        **svc.so_chi_tiet_phai_thu(doi_tuong_id=customer_id, tu_ngay=tu_ngay, den_ngay=den_ngay)
-    )
+    return SoChiTietCongNoOut(**bao_cao_cong_no.cat_trang_so_chi_tiet(
+        svc.so_chi_tiet_phai_thu(doi_tuong_id=customer_id, tu_ngay=tu_ngay, den_ngay=den_ngay),
+        page=1, size=None,
+    ))
 
 
 @router.get("/api/accounting/payables/{supplier_id}/so-chi-tiet", response_model=SoChiTietCongNoOut)
@@ -404,9 +426,10 @@ def accounting_payables_sao_ke(
     den_ngay: date = Query(...),
 ) -> SoChiTietCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
-    return SoChiTietCongNoOut(
-        **svc.so_chi_tiet_phai_tra(doi_tuong_id=supplier_id, tu_ngay=tu_ngay, den_ngay=den_ngay)
-    )
+    return SoChiTietCongNoOut(**bao_cao_cong_no.cat_trang_so_chi_tiet(
+        svc.so_chi_tiet_phai_tra(doi_tuong_id=supplier_id, tu_ngay=tu_ngay, den_ngay=den_ngay),
+        page=1, size=None,
+    ))
 
 
 # --- BÁO CÁO TỔNG HỢP CÔNG NỢ THEO KỲ (docs/prd-bao-cao-cong-no.md §5.1) -------------------
@@ -492,14 +515,17 @@ def bao_cao_tong_hop_phai_thu(
     aging_bucket: str | None = Query(default=None),
     #: Tìm mã / tên đối tượng (không dấu) — lọc DÒNG như `aging_bucket`.
     q: str | None = Query(default=None, max_length=100),
+    #: Hàng lọc nhanh: `all` · `con_no` · `qua_han` · `tra_truoc` (khoá lạ = tất cả).
+    the: str | None = Query(default=None, max_length=20),
+    page: int = Query(default=1, ge=1),
+    #: Bỏ trống = trả hết dòng (người gọi cũ).
+    size: int | None = Query(default=None, ge=1, le=200),
 ) -> BaoCaoCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
-    return BaoCaoCongNoOut(
-        **_loc_tim_so(
-            _loc_ro(svc.bao_cao_phai_thu(tu_ngay=tu_ngay, den_ngay=den_ngay), aging_bucket),
-            q,
-        )
+    bc = _loc_tim_so(
+        _loc_ro(svc.bao_cao_phai_thu(tu_ngay=tu_ngay, den_ngay=den_ngay), aging_bucket), q
     )
+    return BaoCaoCongNoOut(**bao_cao_cong_no.loc_the_va_cat_trang(bc, the=the, page=page, size=size))
 
 
 @router.get("/api/accounting/reports/payables", response_model=BaoCaoCongNoOut)
@@ -513,14 +539,17 @@ def bao_cao_tong_hop_phai_tra(
     aging_bucket: str | None = Query(default=None),
     #: Tìm mã / tên đối tượng (không dấu) — lọc DÒNG như `aging_bucket`.
     q: str | None = Query(default=None, max_length=100),
+    #: Hàng lọc nhanh: `all` · `con_no` · `qua_han` · `tra_truoc` (khoá lạ = tất cả).
+    the: str | None = Query(default=None, max_length=20),
+    page: int = Query(default=1, ge=1),
+    #: Bỏ trống = trả hết dòng (người gọi cũ).
+    size: int | None = Query(default=None, ge=1, le=200),
 ) -> BaoCaoCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
-    return BaoCaoCongNoOut(
-        **_loc_tim_so(
-            _loc_ro(svc.bao_cao_phai_tra(tu_ngay=tu_ngay, den_ngay=den_ngay), aging_bucket),
-            q,
-        )
+    bc = _loc_tim_so(
+        _loc_ro(svc.bao_cao_phai_tra(tu_ngay=tu_ngay, den_ngay=den_ngay), aging_bucket), q
     )
+    return BaoCaoCongNoOut(**bao_cao_cong_no.loc_the_va_cat_trang(bc, the=the, page=page, size=size))
 
 
 # SỔ CHI TIẾT của MỘT đối tượng (PRD §5.1) — mở ra khi bấm một dòng ở sổ tổng hợp.
@@ -532,12 +561,47 @@ def so_chi_tiet_phai_thu(
     tu_ngay: date = Query(...),
     den_ngay: date = Query(...),
     doi_tuong_id: int | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    #: Gửi `size` ⇒ một trang, mới nhất lên đầu (xem `cat_trang_so_chi_tiet`).
+    size: int | None = Query(default=None, ge=1, le=200),
 ) -> SoChiTietCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
     return SoChiTietCongNoOut(
-        **svc.so_chi_tiet_phai_thu(
-            doi_tuong_id=doi_tuong_id, tu_ngay=tu_ngay, den_ngay=den_ngay
+        **bao_cao_cong_no.cat_trang_so_chi_tiet(
+            svc.so_chi_tiet_phai_thu(doi_tuong_id=doi_tuong_id, tu_ngay=tu_ngay, den_ngay=den_ngay),
+            page=page,
+            size=size,
         )
+    )
+
+
+@router.get("/api/accounting/reports/receivables/khoan-con-no", response_model=KhoanConNoListOut)
+def khoan_con_no_phai_thu(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_BAO_CAO, "read"))],
+    tu_ngay: date = Query(...),
+    den_ngay: date = Query(...),
+    doi_tuong_id: int | None = Query(default=None),
+) -> KhoanConNoListOut:
+    """Hoá đơn bán còn nợ của một khách TẠI ngày cuối kỳ — giải thích các cột tuổi nợ của dòng."""
+    _khoang_ngay(tu_ngay, den_ngay)
+    return KhoanConNoListOut(
+        **svc.khoan_con_no_phai_thu(doi_tuong_id=doi_tuong_id, den_ngay=den_ngay)
+    )
+
+
+@router.get("/api/accounting/reports/payables/khoan-con-no", response_model=KhoanConNoListOut)
+def khoan_con_no_phai_tra(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_BAO_CAO, "read"))],
+    tu_ngay: date = Query(...),
+    den_ngay: date = Query(...),
+    doi_tuong_id: int | None = Query(default=None),
+) -> KhoanConNoListOut:
+    """Đợt giao còn nợ của một NCC TẠI ngày cuối kỳ — giải thích các cột tuổi nợ của dòng."""
+    _khoang_ngay(tu_ngay, den_ngay)
+    return KhoanConNoListOut(
+        **svc.khoan_con_no_phai_tra(doi_tuong_id=doi_tuong_id, den_ngay=den_ngay)
     )
 
 
@@ -548,11 +612,16 @@ def so_chi_tiet_phai_tra(
     tu_ngay: date = Query(...),
     den_ngay: date = Query(...),
     doi_tuong_id: int | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    #: Gửi `size` ⇒ một trang, mới nhất lên đầu (xem `cat_trang_so_chi_tiet`).
+    size: int | None = Query(default=None, ge=1, le=200),
 ) -> SoChiTietCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
     return SoChiTietCongNoOut(
-        **svc.so_chi_tiet_phai_tra(
-            doi_tuong_id=doi_tuong_id, tu_ngay=tu_ngay, den_ngay=den_ngay
+        **bao_cao_cong_no.cat_trang_so_chi_tiet(
+            svc.so_chi_tiet_phai_tra(doi_tuong_id=doi_tuong_id, tu_ngay=tu_ngay, den_ngay=den_ngay),
+            page=page,
+            size=size,
         )
     )
 

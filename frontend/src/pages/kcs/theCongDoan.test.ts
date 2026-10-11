@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { SxKcsChiTietTieuChi } from "../../api/client";
 import {
-  type AnhCho, type TrangThaiThe, datHetConLai, gomThe, ketQuaChecklist, lyDoKhoa, moTaThe, moTaTuDien,
+  type AnhCho, type DongKiem, KHAC, gomThe, ketQuaChecklist, khoaTc, lyDoKiem, nhomTheoLenh,
 } from "./theCongDoan";
 
 const tc = (cv: number | null, ten_cong_doan: string, thu_tu: number, ten: string, phu?: string): SxKcsChiTietTieuChi => ({
@@ -19,53 +19,41 @@ const DS = [
 ];
 const THE = gomThe(DS, 12);
 const anh = { id: 1, file: new File(["x"], "a.jpg"), url: "blob:a", goc: 1 } as AnhCho;
-const loi = (p: Partial<Extract<TrangThaiThe, { loai: "loi" }>> = {}): TrangThaiThe =>
-  ({ loai: "loi", hong: new Set([1]), so: "30", moTa: "", suaTay: false, anh: [anh], ...p });
+const dong = (khoa: string, ten: string, p: Partial<DongKiem> = {}) =>
+  ({ khoa, ten, d: { cvId: 11, so: "30", ghi: "", anh: [anh], ...p } });
 
-describe("gomThe", () => {
-  it("gom theo công việc nguồn, giữ thứ tự, mục cũ thiếu cong_viec_id về công việc đang kiểm", () => {
+describe("gomThe / nhomTheoLenh", () => {
+  it("gom theo công việc nguồn, giữ thứ tự; mục cũ thiếu cong_viec_id về công việc đang kiểm", () => {
     expect(THE.map((t) => [t.cvId, t.ten, t.tieuChi.length])).toEqual([[7, "In offset", 2], [11, "Bế cấn", 2], [12, "Dán máy", 1]]);
-    expect(THE[0].phu).toBe("Lệnh phụ Ruột LSX-0412");
-    expect(THE[1].phu).toBeNull();
+  });
+  it("lệnh phụ thành một nhóm riêng, tên lệnh nói một lần", () => {
+    expect(nhomTheoLenh(THE).map((n) => [n.laPhu, n.tenLenh, n.lsxMa, n.cd.map((c) => c.cvId)])).toEqual([
+      [true, "Ruột", "LSX-0412", [7]],
+      [false, null, null, [11, 12]],
+    ]);
   });
 });
 
-describe("moTaTuDien / moTaThe", () => {
-  it("mỗi mục hỏng một dòng; đã sửa tay thì thôi tự điền", () => {
-    expect(moTaTuDien(THE[1], new Set([2, 1]))).toBe("Bế đúng đường\nMép không xơ");
-    const s = loi({ hong: new Set([1, 2]) }) as Extract<TrangThaiThe, { loai: "loi" }>;
-    expect(moTaThe(THE[1], s)).toBe("Bế đúng đường\nMép không xơ");
-    expect(moTaThe(THE[1], { ...s, suaTay: true, moTa: "Xơ mép góc trái" })).toBe("Xơ mép góc trái");
+describe("lyDoKiem", () => {
+  const ctx = { chuaKiem: 1000, dv: "hộp" };
+  it("không tick gì là lưu được (tất cả đạt); chưa có gì để kiểm thì chặn", () => {
+    expect(lyDoKiem([], ctx)).toBeNull();
+    expect(lyDoKiem([], { ...ctx, chuaKiem: 0 })).toBe("Tổ chưa ghi thêm sản lượng từ lần kiểm trước");
   });
-});
-
-describe("datHetConLai", () => {
-  it("chỉ thẻ chưa xét sang Đạt, không đè thẻ đã chọn Có lỗi", () => {
-    const tt = datHetConLai(THE, new Map([[11, loi()]]));
-    expect(tt.get(7)).toEqual({ loai: "dat" });
-    expect(tt.get(11)?.loai).toBe("loi");
-    expect(tt.get(12)).toEqual({ loai: "dat" });
-  });
-});
-
-describe("lyDoKhoa", () => {
-  const ctx = { chuaKiem: 1000, tongLoi: 30, soAnh: 1 };
-  it("đúng thứ tự: chưa xét → tick → số → ảnh → vượt chưa kiểm → quá ảnh", () => {
-    expect(lyDoKhoa(THE, new Map([[7, { loai: "dat" }]]), ctx)).toBe("Còn 2 công đoạn chưa xét");
-    const nen = (s: TrangThaiThe) => new Map<number, TrangThaiThe>([[7, { loai: "dat" }], [11, s], [12, { loai: "dat" }]]);
-    expect(lyDoKhoa(THE, nen(loi({ hong: new Set(), so: "", anh: [] })), ctx)).toBe("Tick mục hỏng của bế cấn");
-    expect(lyDoKhoa(THE, nen(loi({ so: "", anh: [] })), ctx)).toBe("Gõ số lỗi cho bế cấn");
-    expect(lyDoKhoa(THE, nen(loi({ anh: [] })), ctx)).toBe("Chụp ít nhất một ảnh lỗi bế cấn");
-    expect(lyDoKhoa(THE, nen(loi()), { ...ctx, tongLoi: 1200 })).toBe("Tổng lỗi vượt phần chưa kiểm (1.000)");
-    expect(lyDoKhoa(THE, nen(loi()), { ...ctx, soAnh: 11 })).toBe("Tối đa 10 ảnh mỗi lần kiểm");
-    expect(lyDoKhoa(THE, nen(loi()), ctx)).toBeNull();
+  it("đúng thứ tự: số → ghi chú Lỗi khác → ảnh → vượt chưa kiểm → quá ảnh", () => {
+    expect(lyDoKiem([dong("11:1", "Bế đúng đường", { so: "" })], ctx)).toBe("Nhập số lỗi cho Bế đúng đường");
+    expect(lyDoKiem([dong(KHAC, "Lỗi khác")], ctx)).toBe("Ghi chú Lỗi khác là lỗi gì");
+    expect(lyDoKiem([dong("11:1", "Bế đúng đường", { anh: [] })], ctx)).toBe("Chụp ít nhất một ảnh cho Bế đúng đường");
+    expect(lyDoKiem([dong("11:1", "Bế đúng đường", { so: "1200" })], ctx)).toBe("Tổng lỗi vượt số chưa kiểm (1.000 hộp)");
+    const nhieu = Array.from({ length: 11 }, (_, i) => ({ ...anh, id: i }));
+    expect(lyDoKiem([dong("11:1", "Bế đúng đường", { anh: nhieu })], ctx)).toBe("Tối đa 10 ảnh mỗi lần kiểm, bỏ bớt 1 ảnh");
+    expect(lyDoKiem([dong("11:1", "Bế đúng đường"), dong(KHAC, "Lỗi khác", { ghi: "Rách" })], ctx)).toBeNull();
   });
 });
 
 describe("ketQuaChecklist", () => {
-  it("dat từng mục, mang cong_viec_id của thẻ, ghi chú null", () => {
-    const kq = ketQuaChecklist(THE, new Map<number, TrangThaiThe>([[7, { loai: "dat" }], [11, loi({ hong: new Set([2]) })], [12, { loai: "dat" }]]));
-    expect(kq).toEqual([
+  it("tiêu chí đang tick là không đạt, còn lại đạt; mang cong_viec_id của công đoạn", () => {
+    expect(ketQuaChecklist(THE, new Set([khoaTc(11, 2), KHAC]))).toEqual([
       { cong_viec_id: 7, thu_tu: 1, dat: true, ghi_chu: null },
       { cong_viec_id: 7, thu_tu: 2, dat: true, ghi_chu: null },
       { cong_viec_id: 11, thu_tu: 1, dat: true, ghi_chu: null },

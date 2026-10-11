@@ -13,8 +13,6 @@ SỬA SO VỚI BẢN NHÁP TRONG BRIEF (31/08/2026) — bốn chỗ bản nháp 
   · `muc_do` hợp lệ là `nhe|trung_binh|nghiem_trong` (`models.ky_thuat_may.MUC_DO`) — bản nháp
     dùng "cao"/"thap" vốn bị `_validate_yeu_cau` chặn, nên test sẽ đỏ vì lý do KHÔNG phải điều
     nó muốn chứng minh.
-  · Test "dừng sản xuất bắt buộc lý do" trong bản nháp gửi `bo_phan_hong=""` nên rơi vào cửa
-    "chưa ghi chỗ hỏng" trước, không bao giờ chạm tới cửa lý do. Tách làm hai bài.
   · Bài API không khẳng định thẳng 200/403 mà so ĐƯỜNG DÂY QUYỀN với `tam-dung` — quyền của tài
     khoản seed là chuyện của seed (từ mg 0302 là dòng quyền theo tổ, admin không có bypass) — cùng
     khuôn với `tests/test_san_xuat_doi_may.py::test_api_doi_may_gate_quyen`.
@@ -132,7 +130,7 @@ def cv_khong_may(db, orders, lsx_svc, admin, customer) -> SanXuatCongViec:
 def test_dung_san_xuat_tam_dung_va_dong_phien(db, cv_dang_chay, to_truong):
     cv = cv_dang_chay
     kq = su_co.bao_su_co(
-        db, user=to_truong, cong_viec_id=cv.id, bo_phan_hong="cụm cấp giấy",
+        db, user=to_truong, cong_viec_id=cv.id,
         mo_ta="kẹt giấy liên tục", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
     )
 
@@ -163,7 +161,7 @@ def test_dung_san_xuat_tam_dung_va_dong_phien(db, cv_dang_chay, to_truong):
 def test_van_chay_khong_dung_dong_ho(db, cv_dang_chay, to_truong):
     cv = cv_dang_chay
     su_co.bao_su_co(
-        db, user=to_truong, cong_viec_id=cv.id, bo_phan_hong="đèn báo",
+        db, user=to_truong, cong_viec_id=cv.id,
         mo_ta="chập chờn", muc_do=MUC_DO_NHE, dung_san_xuat=False,
     )
 
@@ -173,32 +171,29 @@ def test_van_chay_khong_dung_dong_ho(db, cv_dang_chay, to_truong):
     assert db.query(SanXuatPhienChay).filter_by(cong_viec_id=cv.id, ket_thuc=None).count() == 1
 
 
-# --- Bốn cửa chặn ---------------------------------------------------------------------------
-def test_dung_san_xuat_bat_buoc_ly_do(db, cv_dang_chay, to_truong):
-    """Bỏ trống MÔ TẢ khi chọn "Dừng sản xuất" — đây là mốc mất giờ máy của lệnh, không cho trống.
-    (Chỗ hỏng vẫn ghi đủ, để không rơi nhầm vào cửa "chưa ghi chỗ hỏng" bên dưới.)"""
-    with pytest.raises(ValueError, match="lý do"):
-        su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
-            mo_ta="   ", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
-        )
-    assert db.query(YeuCauSuaChua).count() == 0
-    assert cv_dang_chay.trang_thai == CV_DANG_CHAY
-
-
-def test_thieu_cho_hong_bi_chan(db, cv_dang_chay, to_truong):
-    with pytest.raises(ValueError, match="chỗ hỏng"):
-        su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="  ",
-            mo_ta="máy kêu to", muc_do=MUC_DO_NHE, dung_san_xuat=False,
-        )
-    assert db.query(YeuCauSuaChua).count() == 0
+# --- Cửa chặn --------------------------------------------------------------------------------
+def test_dung_san_xuat_khong_can_trieu_chung(db, cv_dang_chay, to_truong):
+    """Không hỏi bộ phận hỏng, triệu chứng không bắt buộc kể cả khi máy dừng (11/10/2026)."""
+    su_co.bao_su_co(
+        db, user=to_truong, cong_viec_id=cv_dang_chay.id,
+        mo_ta="   ", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
+    )
+    yc = db.query(YeuCauSuaChua).filter_by(cong_viec_id=cv_dang_chay.id).one()
+    assert (yc.bo_phan_hong, yc.mo_ta) == ("", None)
+    assert cv_dang_chay.trang_thai == CV_TAM_DUNG
+    phien = (
+        db.query(SanXuatPhienChay)
+        .filter_by(cong_viec_id=cv_dang_chay.id)
+        .order_by(SanXuatPhienChay.so_thu_tu.desc())
+        .first()
+    )
+    assert phien.ly_do == f"Sự cố {yc.ma}"
 
 
 def test_bao_su_co_tren_viec_chua_bat_dau_bi_chan(db, cv_chua_bat_dau, to_truong):
     with pytest.raises(ValueError, match="đang chạy|tạm dừng"):
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_chua_bat_dau.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_chua_bat_dau.id,
             mo_ta="kẹt", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
         )
     assert db.query(YeuCauSuaChua).count() == 0
@@ -208,7 +203,7 @@ def test_viec_khong_chay_may_bi_chan(db, cv_khong_may, to_truong):
     """Không có máy thì không có gì để báo hỏng — chặn ở service, không tin FE che nút."""
     with pytest.raises(ValueError, match="máy"):
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_khong_may.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_khong_may.id,
             mo_ta="kẹt", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=False,
         )
 
@@ -218,7 +213,7 @@ def test_muc_do_la_bi_chan_bang_valueerror(db, cv_dang_chay, to_truong):
     để `KyThuatMayValidationError` lọt lên là 500 thay vì 400."""
     with pytest.raises(ValueError, match="Mức độ"):
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_dang_chay.id,
             mo_ta="kẹt", muc_do="cao", dung_san_xuat=False,
         )
     assert db.query(YeuCauSuaChua).count() == 0
@@ -229,7 +224,7 @@ def test_khong_phai_to_truong_bi_chan(db, cv_dang_chay):
     with pytest.raises(PermissionError):
         su_co.bao_su_co(
             db, user=SimpleNamespace(id=999_999), cong_viec_id=cv_dang_chay.id,
-            bo_phan_hong="cụm cấp giấy", mo_ta="kẹt", muc_do=MUC_DO_NHE, dung_san_xuat=False,
+            mo_ta="kẹt", muc_do=MUC_DO_NHE, dung_san_xuat=False,
         )
     assert db.query(YeuCauSuaChua).count() == 0
 
@@ -248,7 +243,7 @@ def test_gay_khi_tam_dung_thi_khong_de_lai_yeu_cau_lo_lung(db, cv_dang_chay, to_
     monkeypatch.setattr(thuc_thi, "_tam_dung_lo", _no)
     with pytest.raises(RuntimeError):
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_dang_chay.id,
             mo_ta="kẹt giấy liên tục", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
         )
 
@@ -271,7 +266,7 @@ def test_gay_giua_chung_thi_khong_bao_to_sua_chua(db, cv_dang_chay, to_truong, m
 
     with pytest.raises(RuntimeError):
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_dang_chay.id,
             mo_ta="kẹt", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
         )
     assert goi == []
@@ -293,7 +288,7 @@ def test_bao_to_sua_chua_chay_SAU_commit(db, cv_dang_chay, to_truong, monkeypatc
     monkeypatch.setattr(su_co.hub, "gui", lambda *a, **k: moc.append("gui"))
     try:
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_dang_chay.id,
             mo_ta="kẹt", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
         )
     finally:
@@ -318,7 +313,7 @@ def test_yeu_cau_hien_o_hop_thu_sua_chua(client, seed_credentials, db, cv_dang_c
     n0 = goc.json()["total"]
 
     su_co.bao_su_co(
-        db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+        db, user=to_truong, cong_viec_id=cv_dang_chay.id,
         mo_ta="kẹt", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
     )
 
@@ -351,7 +346,7 @@ def test_api_su_co_cung_cua_quyen_voi_tam_dung(client, seed_credentials, db, cv_
     )
     r_su_co = client.post(
         f"/api/san-xuat/work-items/{cv_id}/su-co",
-        json={"bo_phan_hong": "cụm cấp giấy", "mo_ta": "kẹt",
+        json={"mo_ta": "kẹt",
               "muc_do": MUC_DO_NGHIEM_TRONG, "dung_san_xuat": True},
         headers=headers,
     )
@@ -408,14 +403,14 @@ def test_muc_do_rong_khong_am_tham_thanh_trung_binh(db, cv_dang_chay, to_truong)
 
     with pytest.raises(ValueError, match="Mức độ"):
         su_co.bao_su_co(
-            db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+            db, user=to_truong, cong_viec_id=cv_dang_chay.id,
             mo_ta="kẹt", muc_do="", dung_san_xuat=False,
         )
     assert db.query(YeuCauSuaChua).count() == 0
     assert cv_dang_chay.trang_thai == CV_DANG_CHAY
 
     with pytest.raises(ValidationError):
-        SuCoIn(bo_phan_hong="cụm cấp giấy", mo_ta="kẹt", muc_do="", dung_san_xuat=False)
+        SuCoIn(mo_ta="kẹt", muc_do="", dung_san_xuat=False)
 
 
 def test_bao_tin_gay_sau_commit_khong_lam_hong_ket_qua(db, cv_dang_chay, to_truong, monkeypatch):
@@ -433,7 +428,7 @@ def test_bao_tin_gay_sau_commit_khong_lam_hong_ket_qua(db, cv_dang_chay, to_truo
 
     monkeypatch.setattr(ktm.KyThuatMayService, "bao_to_sua_chua", _no)
     kq = su_co.bao_su_co(
-        db, user=to_truong, cong_viec_id=cv_dang_chay.id, bo_phan_hong="cụm cấp giấy",
+        db, user=to_truong, cong_viec_id=cv_dang_chay.id,
         mo_ta="kẹt giấy liên tục", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
     )
 
@@ -441,3 +436,67 @@ def test_bao_tin_gay_sau_commit_khong_lam_hong_ket_qua(db, cv_dang_chay, to_truo
     assert kq["yeu_cau_id"] == yc.id and kq["yeu_cau_ma"] == yc.ma
     assert kq["trang_thai"] == CV_TAM_DUNG           # dựng dict TRƯỚC khi báo tin nên không rỗng
     assert db.get(SanXuatCongViec, cv_dang_chay.id).trang_thai == CV_TAM_DUNG
+
+
+# --- Dòng "Máy" ở ngăn bàn tổ: báo hỏng còn mở (11/10/2026) ------------------------------------
+def test_ngan_ban_to_hien_bao_hong_cua_may_den_khi_xu_ly_xong(db, cv_dang_chay, to_truong, monkeypatch):
+    """Gửi ⇒ hiện "chờ tiếp nhận"; nhận sửa ⇒ cùng lần hỏng thành phiếu (không đếm hai lần, giữ cờ
+    máy dừng); sửa xong ⇒ rụng. Mỗi bước tổ sửa chữa làm đều đẩy tin tới đúng tổ đang có việc trên
+    máy, để ngăn đang mở tự đổi."""
+    from app.models.ky_thuat_may import TT_SC_DA_SUA_XONG
+    from app.repositories.ky_thuat_may_repo import KyThuatMayRepository
+    from app.services import ky_thuat_may_service as ktm
+    from app.services.san_xuat import board
+    from tests.test_san_xuat_board import _authz
+
+    gui: list[tuple[dict, dict]] = []
+    monkeypatch.setattr(ktm.hub, "gui", lambda ev, **k: gui.append((ev, k)))
+    monkeypatch.setattr(ktm.hub, "publish", lambda *a, **k: None)
+    monkeypatch.setattr(ktm.KyThuatMayService, "_kiem_anh_chung_thuc", lambda *a, **k: None)
+
+    def _hong():
+        return board.chi_tiet_cong_viec(
+            db, to_truong, _authz(db), cong_viec_id=cv_dang_chay.id)["bao_hong_may"]
+
+    assert _hong() == []
+    su_co.bao_su_co(
+        db, user=to_truong, cong_viec_id=cv_dang_chay.id,
+        mo_ta="kẹt giấy", muc_do=MUC_DO_NGHIEM_TRONG, dung_san_xuat=True,
+    )
+    yc = db.query(YeuCauSuaChua).filter_by(cong_viec_id=cv_dang_chay.id).one()
+    [d] = _hong()
+    assert (d["loai"], d["ma"], d["trang_thai"], d["may_dung"], d["trieu_chung"]) == (
+        "yeu_cau", yc.ma, TT_YC_CHO_TIEP_NHAN, True, "kẹt giấy")
+
+    svc = ktm.KyThuatMayService(db, KyThuatMayRepository(db))
+    gui.clear()
+    phieu, _ = svc.tao_phieu_tu_yeu_cau(yc.id, actor_id=to_truong.id)
+    [d] = _hong()
+    assert (d["loai"], d["ma"], d["trang_thai"], d["may_dung"]) == ("phieu", phieu.ma, "cho_sua", True)
+    [(ev, k)] = gui
+    assert ev["type"] == "san_xuat_cong_viec_changed" and ev["may_id"] == cv_dang_chay.may_id
+    assert k["to"] == [cv_dang_chay.department_id]
+
+    gui.clear()
+    svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_DA_SUA_XONG, actor_id=to_truong.id)
+    assert _hong() == []
+    assert len(gui) == 1
+
+
+def test_tu_choi_bao_hong_thi_rung_khoi_ngan(db, cv_dang_chay, to_truong, monkeypatch):
+    from app.repositories.ky_thuat_may_repo import KyThuatMayRepository
+    from app.services import ky_thuat_may_service as ktm
+    from app.services.san_xuat import board
+    from tests.test_san_xuat_board import _authz
+
+    monkeypatch.setattr(ktm.hub, "gui", lambda *a, **k: None)
+    monkeypatch.setattr(ktm.hub, "publish", lambda *a, **k: None)
+    su_co.bao_su_co(
+        db, user=to_truong, cong_viec_id=cv_dang_chay.id,
+        mo_ta="", muc_do=MUC_DO_NHE, dung_san_xuat=False,
+    )
+    yc = db.query(YeuCauSuaChua).filter_by(cong_viec_id=cv_dang_chay.id).one()
+    ktm.KyThuatMayService(db, KyThuatMayRepository(db)).tu_choi_yeu_cau(
+        yc.id, "báo trùng", actor_id=to_truong.id)
+    assert board.chi_tiet_cong_viec(
+        db, to_truong, _authz(db), cong_viec_id=cv_dang_chay.id)["bao_hong_may"] == []

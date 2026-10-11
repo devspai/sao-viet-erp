@@ -58,8 +58,15 @@ def khoa_chu(lsx_id, bai_ghep_id) -> str:
     return f"l:{lsx_id}" if lsx_id is not None else f"b:{bai_ghep_id}"
 
 
+def _goc(h: tuple) -> str:
+    """Phần đơn vị gốc của khoá tồn 5 phần tử (giấy `to` / kg…; vật tư kg / thùng…; hàng khác "")."""
+    return (h[4] or "") if len(h) > 4 else ""
+
+
 def khoa_hang(h: tuple) -> str:
-    return f"{h[0]}:{h[1]}:{h[2]}:{h[3]}"
+    """Chuỗi khoá mặt hàng cho FE: `loai:id:rộng:dài:gốc` — 5 phần từ 10/10/2026 (giấy cùng khổ
+    một bên đếm tờ một bên đếm kg là hai mặt hàng trên lưới)."""
+    return f"{h[0]}:{h[1]}:{h[2]}:{h[3]}:{_goc(h)}"
 
 
 def _iso(v):
@@ -79,10 +86,9 @@ def dung_luoi(giu: GiuChoService) -> dict:
     theo_o = mach["theo_o"]
     giu_rows = giu.repo.tat_ca()
     # Màn và Excel đọc TÊN đơn vị trong danh mục ("tờ", "bản kẽm"), không đọc mã ("to", "kem").
+    # Nhóm bảng cân đối GIỮ MÃ (`don_vi_goc` là phần thứ năm của khoá giấy — giữ chỗ dựng lại khoá
+    # nhóm từ đó); tên chỉ dịch ở chỗ in chữ (`_ten_hang`) và trên bản gộp theo chủ thể dưới đây.
     ten_dv = {r.ma: r.ten for r in kh.don_vi.all_rows()}
-    for nhom in bang.get("items", []):
-        if nhom.get("don_vi_goc"):
-            nhom["don_vi_goc"] = ten_dv.get(nhom["don_vi_goc"], nhom["don_vi_goc"])
     for o in gom.values():
         for h in o["hang"].values():
             if h.get("don_vi_goc"):
@@ -96,7 +102,8 @@ def dung_luoi(giu: GiuChoService) -> dict:
         if nhom.get("loai_nhom") != "vat_tu":
             continue
         hang = _k_nhom(nhom)
-        nhom_theo_hang[hang] = nhom
+        nhom_theo_hang[hang] = {**nhom, "don_vi_goc_ten": ten_dv.get(nhom.get("don_vi_goc") or "",
+                                                                     nhom.get("don_vi_goc"))}
         for d in nhom.get("dong", []):
             chu = (d.get("lsx_id"), d.get("bai_ghep_id"))
             buoc_theo_o.setdefault((chu, hang), []).append(d)
@@ -115,11 +122,14 @@ def dung_luoi(giu: GiuChoService) -> dict:
 
     # ---- dòng ----
     dong: list[dict] = []
+    hang_theo_chuoi: dict[str, tuple] = {}
     for chu, o in gom.items():
         for hang, h in o["hang"].items():
+            hang_theo_chuoi[khoa_hang(hang)] = hang
             dong.append(_dong(chu, hang, h, o, buoc_theo_o.get((chu, hang), []),
                               theo_o.get((hang, chu[0], chu[1])), mach,
-                              giu_theo_o.get((chu, hang), []), ma_don))
+                              giu_theo_o.get((chu, hang), []), ma_don,
+                              nhom=nhom_theo_hang.get(hang)))
 
     # ---- lệnh ----
     lenh: dict[str, dict] = {}
@@ -142,16 +152,19 @@ def dung_luoi(giu: GiuChoService) -> dict:
         dong_theo_hang.setdefault(d["hang"], []).append(d)
     for kh_str, ds in dong_theo_hang.items():
         h0 = ds[0]
-        hang = (h0["hang_loai"], h0["hang_id"], h0["kho_rong"], h0["kho_dai"])
+        hang = hang_theo_chuoi[kh_str]
         nhom = nhom_theo_hang.get(hang) or {}
         hang_out[kh_str] = _hang(hang, h0, nhom, ds, dang_ve.get(hang, []), mach, theo_o,
                                  giu_rows, lenh)
     return {"dong": dong, "lenh": lenh, "hang": hang_out}
 
 
-def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don) -> dict:
+def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don, *, nhom: dict | None = None) -> dict:
     """Một ô trên lưới."""
     dvt = h.get("don_vi_goc") or ""
+    # Nhu cầu ra đơn vị mã chưa khai ở danh mục (spec 2026-10-10 §3): báo ở ô, không cho lập mua.
+    chua_khai = bool((nhom or {}).get("don_vi_chua_khai"))
+    ly_chua_khai = (nhom or {}).get("ly_do_chua_khai") if chua_khai else None
     can = sum(_f(d.get("nhu_cau")) for d in buoc)
     da_xuat = sum(_f(d.get("da_cap")) for d in buoc)
     thieu_bang = sum(_f(d.get("thieu")) for d in buoc)
@@ -209,6 +222,8 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don) -> dict:
     if khong_ro:
         ly = next((d.get("ly_do_canh_bao") for d in buoc if d.get("ly_do_canh_bao")), None)
         ghi_chu.append(ly or "Chưa quy đổi được đơn vị")
+    if chua_khai:
+        ghi_chu.append(ly_chua_khai or "Chưa khai đơn vị này ở danh mục")
     if trung:
         ghi_chu.append(f"{len(trung)} phiếu trùng")
     if phieu is not None and tinh not in (TT_DA_XUAT, TT_CHUA_TINH):
@@ -223,12 +238,12 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don) -> dict:
             ghi_chu.append(f"Phiếu thiếu {so_vn(hut)} {dvt}".rstrip())
 
     khoa_mua = []
-    if tinh == TT_CAN_MUA:
+    if tinh == TT_CAN_MUA and not chua_khai:
         for d in buoc:
             if _f(d.get("thieu")) > 0:
                 khoa_mua.append({
                     "hang_loai": hang[0], "hang_id": hang[1], "kho_rong": hang[2],
-                    "kho_dai": hang[3], "lsx_id": d.get("lsx_id"),
+                    "kho_dai": hang[3], "don_vi_goc": _goc(hang), "lsx_id": d.get("lsx_id"),
                     "bai_ghep_id": d.get("bai_ghep_id"), "buoc_id": d.get("buoc_id"),
                 })
 
@@ -236,7 +251,7 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don) -> dict:
         "khoa": f"{khoa_chu(*chu)}|{khoa_hang(hang)}",
         "chu": khoa_chu(*chu), "lsx_id": chu[0], "bai_ghep_id": chu[1], "ma": o["ma"],
         "hang": khoa_hang(hang), "hang_loai": hang[0], "hang_id": hang[1],
-        "kho_rong": hang[2], "kho_dai": hang[3],
+        "kho_rong": hang[2], "kho_dai": hang[3], "don_vi_goc": _goc(hang),
         "hang_ma": h.get("hang_ma"), "hang_ten": h.get("hang_ten") or h.get("hang_ma") or "",
         "dvt": dvt,
         "can": round(can, 4), "da_xuat": round(da_xuat, 4), "giu_kho": round(giu_kho, 4),
@@ -255,6 +270,8 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don) -> dict:
             "thieu": round(_f(d.get("thieu")), 4),
         } for d in buoc],
         "khoa_mua": khoa_mua,
+        "don_vi_chua_khai": chua_khai,
+        "ly_do_chua_khai": ly_chua_khai,
     }
 
 
@@ -349,10 +366,14 @@ def _hang(hang, h0, nhom, ds, ve, mach, theo_o, giu_rows, lenh) -> dict:
 
     return {
         "hang": khoa_hang(hang), "hang_loai": hang[0], "hang_id": hang[1],
-        "kho_rong": hang[2], "kho_dai": hang[3],
+        "kho_rong": hang[2], "kho_dai": hang[3], "don_vi_goc": _goc(hang),
         "kho": nhan_kho(hang[2], hang[3]) if hang[0] == "giay" and hang[2] else None,
         "hang_ma": h0["hang_ma"], "hang_ten": h0["hang_ten"], "dvt": dvt,
         "ton": round(ton, 4), "dang_ve": round(dang_ve, 4),
+        # Tồn / đang về cùng mã + cùng khổ, khác đơn vị gốc — chỉ bày cạnh, không trừ.
+        "cung_kho_khac_don_vi": list(nhom.get("cung_kho_khac_don_vi") or []),
+        "don_vi_chua_khai": bool(nhom.get("don_vi_chua_khai")),
+        "ly_do_chua_khai": nhom.get("ly_do_chua_khai") if nhom.get("don_vi_chua_khai") else None,
         "can": round(can, 4), "da_giu": round(da_giu, 4), "con_thieu": round(con_thieu, 4),
         "dat_du": round(dat_du, 4),
         "don": don, "nen_huy": nen_huy, "ghi_chu": ghi_chu,
@@ -390,7 +411,7 @@ def _huy_json(m, ma_lenh, ly_do) -> dict:
 
 def _ten_hang(nhom_theo_hang, hang) -> tuple[str, str]:
     n = nhom_theo_hang.get(hang) or {}
-    return (n.get("hang_ten") or n.get("hang_ma") or "", n.get("don_vi_goc") or "")
+    return (n.get("hang_ten") or n.get("hang_ma") or "", n.get("don_vi_goc_ten") or "")
 
 
 def _lich_su_lenh(chu, mach, giu_rows, nhom_theo_hang, ma_don) -> list[dict]:
@@ -525,8 +546,21 @@ def mot_lenh(luoi: dict, chu: str) -> dict | None:
                                        key=lambda d: (_NANG[d["tinh_trang"]], d["hang_ten"]))}
 
 
-def mot_hang(luoi: dict, hang: str) -> dict | None:
+def mot_hang(luoi: dict, hang: str, *, mo_goc: bool = False) -> dict | None:
+    """Ngăn một mặt hàng theo chuỗi khoá `khoa_hang` (5 phần). `mo_goc` (giấy / vật tư, client không gửi
+    đơn vị gốc) mà không có đúng khoá ⇒ khớp mọi đơn vị gốc của đúng mã + khổ; nhiều khoá thì lấy
+    khoá có nhiều dòng lệnh nhất (hoà thì khoá đếm tờ trước) — lệnh cần đúng mã + khổ thì không 404."""
     hv = luoi["hang"].get(hang)
+    if hv is None and mo_goc:
+        dau = hang.rsplit(":", 1)[0] + ":"
+        so_dong: dict[str, int] = {}
+        for d in luoi["dong"]:
+            if d["hang"].startswith(dau):
+                so_dong[d["hang"]] = so_dong.get(d["hang"], 0) + 1
+        ung = [k for k in luoi["hang"] if k.startswith(dau)]
+        if ung:
+            hang = max(ung, key=lambda k: (so_dong.get(k, 0), k.endswith(":to"), k))
+            hv = luoi["hang"][hang]
     if hv is None:
         return None
     return {"hang": hv, "dong": sorted([d for d in luoi["dong"] if d["hang"] == hang],

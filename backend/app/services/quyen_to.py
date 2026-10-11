@@ -5,11 +5,10 @@ Spec: `docs/superpowers/specs/2026-09-14-quyen-theo-to-va-tab-san-luong.md`.
 MỘT DÒNG QUYỀN CHO MỖI NÚT của khối Sản xuất trong cây Phòng ban (kể cả cấp gom), khoá
 `to_sx_<id phòng ban>`. Dòng tự sinh / đổi tên / xoá theo phòng ban (`dong_bo_dong_quyen_to`).
 Mỗi dòng có Xem (`can_read`) · Phạm vi (`scope`) · 3 quyền chi tiết (`can_run_order`,
-`can_confirm_output`, `can_warehouse`). Dòng của tổ `is_kcs` có thêm ô Đóng lệnh thiếu
-(`can_close_short`, mg 0382) — xem `services/san_xuat/dong_lenh.py`.
+`can_confirm_output`, `can_warehouse`).
 
-KCS KHÔNG còn là quyền theo tổ (mg `0306`, `docs/design-kcs-theo-lenh.md`): người thuộc tổ
-`is_kcs` kiểm được mọi tổ — xem `services/san_xuat/kcs.gate_kcs`.
+KCS KHÔNG là quyền theo tổ: dòng `kcs` của ma trận vai (09/10/2026, thay cờ phòng ban `is_kcs`),
+kiểm được mọi tổ — xem `services/san_xuat/kcs.gate_kcs`.
 
 PHẠM VI tính từ VỊ TRÍ NGƯỜI XEM, trong VÙNG của dòng (vùng = nút đó + mọi đơn vị trực thuộc):
   · `own`        — chỉ phần của chính mình (việc mình đang được giao) trong vùng.
@@ -34,7 +33,6 @@ VIEC_XEM = "read"
 VIEC_THUC_HIEN = "run_order"
 VIEC_XAC_NHAN = "confirm_output"
 VIEC_KHO = "warehouse"
-VIEC_DONG_THIEU = "close_short"  # chỉ dòng tổ KCS — không nằm trong VIEC_CHI_TIET (không gắn việc)
 
 #: việc → cột `role_permissions`.
 COT_VIEC: dict[str, str] = {
@@ -42,19 +40,18 @@ COT_VIEC: dict[str, str] = {
     VIEC_THUC_HIEN: "can_run_order",
     VIEC_XAC_NHAN: "can_confirm_output",
     VIEC_KHO: "can_warehouse",
-    VIEC_DONG_THIEU: "can_close_short",
 }
 VIEC_CHI_TIET = (VIEC_THUC_HIEN, VIEC_XAC_NHAN, VIEC_KHO)
 
 MUC_TAT_CA = "all"   # thấy / làm trên mọi việc của tổ
 MUC_CUA_TOI = "own"  # chỉ việc mình đang được giao
+MUC_NHOM = "nhom"  # chỉ là nhóm trên menu (tổ tiên của bàn thấy được), không có bàn
 
 _THONG_BAO_THIEU = {
     VIEC_XEM: "Bạn không có quyền xem tổ này",
     VIEC_THUC_HIEN: "Bạn không có quyền Thực hiện lệnh ở tổ này",
     VIEC_XAC_NHAN: "Bạn không có quyền Xác nhận sản lượng ở tổ này",
     VIEC_KHO: "Bạn không có quyền Kho ở tổ này",
-    VIEC_DONG_THIEU: "Bạn không có quyền Đóng lệnh thiếu",
 }
 
 
@@ -81,7 +78,6 @@ class CayKhoi:
     #: Cha của MỌI phòng ban (cả ngoài khối) — người xem có thể ngồi ở phòng cha ngoài khối.
     cha_day_du: dict[int, int | None]
     con: dict[int, list[int]]
-    kcs: set[int]
     goc: list[int]
     _cache: dict[int, frozenset[int]] = field(default_factory=dict)
 
@@ -156,7 +152,6 @@ def doc_cay(db: Session) -> CayKhoi:
         cha={r[0]: (r[1] if r[1] in ids else None) for r in khoi},
         cha_day_du={r[0]: r[1] for r in rows},
         con=con,
-        kcs={r[0] for r in khoi if r[4]},
         goc=[r[0] for r in khoi if r[1] not in ids],
     )
 
@@ -259,13 +254,35 @@ class QuyenTo:
 
         Mức `all` hiện mọi nút trong tập (đã đóng theo cây con); mức `own` chỉ hiện nút mở bàn
         của mình — thợ không cần thấy cả dãy nhóm mà mở ra đều chỉ có việc của mình."""
-        ket = []
-        for did, cap in self.cay.thu_tu():
+        thay: dict[int, str] = {}
+        for did, _ in self.cay.thu_tu():
             if did in self.tron[VIEC_XEM]:
-                ket.append((did, cap, MUC_TAT_CA))
+                thay[did] = MUC_TAT_CA
             elif did in self._ban_rieng:
-                ket.append((did, cap, MUC_CUA_TOI))
-        return ket
+                thay[did] = MUC_CUA_TOI
+        # Chỉ tổ LÁ nhận việc, tổ cha trên menu là NHÓM gập/mở (10/10/2026) — quyền nay cấp ở dòng
+        # tổ lá nên tổ cha không tự lọt vào tập thấy. Thấy từ hai bàn trở lên thì bày kèm các nhóm
+        # tổ tiên (mức `MUC_NHOM`) để menu còn ra cây — chỉ leo tới tổ chung gần nhất, không cao
+        # hơn; một bàn thì thôi, khỏi dãy nhóm vô ích.
+        if len(thay) > 1:
+            def chuoi(x: int) -> list[int]:
+                ket = []
+                while x is not None:
+                    ket.append(x)
+                    x = self.cay.cha.get(x)
+                return ket
+
+            chung = set.intersection(*(set(chuoi(d)) for d in thay))
+            # Tổ chung GẦN NHẤT (sâu nhất); các bàn ở nhiều gốc khác nhau thì không có, leo tới gốc.
+            lca = next((x for x in chuoi(next(iter(thay))) if x in chung), None)
+            for did in list(thay):
+                if did == lca:
+                    continue
+                for to_tien in chuoi(did)[1:]:
+                    thay.setdefault(to_tien, MUC_NHOM)
+                    if to_tien == lca:
+                        break
+        return [(did, cap, thay[did]) for did, cap in self.cay.thu_tu() if did in thay]
 
     def bang(self) -> dict[int, dict[str, str]]:
         """`{id tổ: {việc: mức}}` cho mọi nút có ít nhất một quyền — giao diện dựng nút theo đây."""
@@ -345,7 +362,7 @@ def gate_to(
 
 def gate_to_tron(db: Session, uid: int | None, team_id: int | None, viec: str) -> None:
     """Như `gate_to` nhưng đòi mức TRỌN tổ — thao tác cấp tổ không gắn một việc cụ thể của ai
-    (hỗ trợ chéo, xác nhận nhận vật tư theo tổ, đóng thiếu nhóm): phạm vi "Của tôi" không đủ."""
+    (xác nhận nhận vật tư theo tổ, đóng thiếu nhóm): phạm vi "Của tôi" không đủ."""
     q = quyen_cua_uid(db, uid)
     if q is None or not q.co_tron(viec, team_id):
         raise PermissionError(_THONG_BAO_THIEU[viec])

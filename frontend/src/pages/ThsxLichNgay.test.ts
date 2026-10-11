@@ -1,14 +1,17 @@
-/** Hình học + chữ của LỊCH NGÀY bàn tổ: thanh dính theo NGUYÊN NGÀY, giờ viết trong thanh. */
+/** Lịch bàn tổ: lưới hai làn (kế hoạch trên, thực tế dưới) dính theo NGUYÊN NGÀY + tổng giờ chạy
+ *  trong khoảng của dòng tóm tắt. */
 import { describe, expect, it } from "vitest";
 
 import type { SxWorkItem } from "../api/client";
-import { coThanh, dayThucTe, dongHaiThanh, oNgay } from "./ThsxLichNgay";
+import { chuKeHoach, chuThucTe, coThanh, dayThucTe, oNgay, phutTrongCuaSo } from "./ThsxLichNgay";
+import { moc } from "./xlShared";
 
 function viec(p: Partial<SxWorkItem>): SxWorkItem {
-  return { trang_thai: "released", thuc_te: [], ...p } as SxWorkItem;
+  return { trang_thai: "released", thuc_te: [], chay_phut: null, ...p } as SxWorkItem;
 }
 
 const TU = "2026-09-14"; // thứ Hai
+const luc = (iso: string) => moc(iso) as number;
 
 describe("oNgay — ô ngày mà quãng kế hoạch chạm", () => {
   it("việc 4 phút trong một ngày vẫn chiếm trọn ô ngày đó", () => {
@@ -30,67 +33,72 @@ describe("oNgay — ô ngày mà quãng kế hoạch chạm", () => {
   });
 
   it("nằm hẳn ngoài cửa sổ hoặc thiếu mốc ⇒ null", () => {
-    expect(oNgay("2026-09-21T08:00", "2026-09-21T09:00", TU, 7)).toBeNull();
-    expect(oNgay("2026-09-10T08:00", "2026-09-13T23:59", TU, 7)).toBeNull();
-    expect(oNgay(null, "2026-09-15T09:00", TU, 7)).toBeNull();
+    expect(oNgay("2026-09-01T08:00", "2026-09-02T08:00", TU, 7)).toBeNull();
+    expect(oNgay(null, null, TU, 7)).toBeNull();
   });
 });
 
-describe("dayThucTe — ngày có chạy thật, gộp liền nhau", () => {
-  it("hai phiên cùng ngày gộp một dải; phiên mở kéo tới hôm nay và đánh dấu mở", () => {
-    expect(dayThucTe([
-      { bat_dau: "2026-09-15T11:37", ket_thuc: "2026-09-15T11:37" },
-      { bat_dau: "2026-09-15T11:38", ket_thuc: "2026-09-15T11:40" },
-    ], TU, 7, "2026-09-15T12:00")).toEqual([{ dau: 1, cuoi: 1, mo: false }]);
-
-    expect(dayThucTe([
-      { bat_dau: "2026-09-14T22:00", ket_thuc: "2026-09-15T02:00" },
-      { bat_dau: "2026-09-17T07:00", ket_thuc: null },
-    ], TU, 7, "2026-09-18T09:00")).toEqual([
+describe("dayThucTe — dải ngày có phiên chạy thật", () => {
+  it("gộp các ngày liền nhau, tách ngày nghỉ giữa chừng; phiên mở kéo tới bây giờ", () => {
+    const r = dayThucTe([
+      { bat_dau: "2026-09-14T08:00", ket_thuc: "2026-09-14T10:00" },
+      { bat_dau: "2026-09-15T08:00", ket_thuc: "2026-09-15T09:00" },
+      { bat_dau: "2026-09-17T08:00", ket_thuc: null },
+    ], TU, 7, "2026-09-18T07:00");
+    expect(r).toEqual([
       { dau: 0, cuoi: 1, mo: false },
       { dau: 3, cuoi: 4, mo: true },
     ]);
   });
 });
 
-describe("dongHaiThanh — dòng 2 trong thanh", () => {
-  it("chờ làm: giờ kế hoạch trong ngày, khác ngày thì ra ngày", () => {
-    const w = viec({ du_kien_bat_dau: "2026-09-15T08:17:00", du_kien_ket_thuc: "2026-09-15T08:21:00" });
-    expect(dongHaiThanh(w, "du")).toBe("KH 08:17–08:21");
-    expect(dongHaiThanh(w, "gon")).toBe("08:17–08:21");
-    expect(dongHaiThanh(w, "mini")).toBe("08:17");
-    const nhieuNgay = viec({ du_kien_bat_dau: "2026-09-15T20:00", du_kien_ket_thuc: "2026-09-17T10:00" });
-    expect(dongHaiThanh(nhieuNgay, "du")).toBe("KH 15/9 → 17/9");
-    expect(dongHaiThanh(nhieuNgay, "mini")).toBe("→ 17/9");
-    expect(dongHaiThanh(viec({ du_kien_bat_dau: "2026-09-15T08:21", du_kien_ket_thuc: "2026-09-15T08:21" }), "du"))
-      .toBe("KH 08:21");
+describe("chữ trong thanh", () => {
+  it("coThanh theo bề rộng", () => {
+    expect(coThanh(130)).toBe("du");
+    expect(coThanh(90)).toBe("gon");
+    expect(coThanh(50)).toBe("mini");
   });
 
-  it("hoàn thành: giờ xong THẬT, lệch ngày kế hoạch thì kèm ngày", () => {
-    const thuc_te = [
-      { bat_dau: "2026-09-15T11:37", ket_thuc: "2026-09-15T11:37" },
-      { bat_dau: "2026-09-15T11:38", ket_thuc: "2026-09-15T11:40" },
-    ];
-    const kh = { du_kien_bat_dau: "2026-09-15T08:21", du_kien_ket_thuc: "2026-09-15T08:21" };
-    expect(dongHaiThanh(viec({ trang_thai: "completed", thuc_te, ...kh }), "du")).toBe("Xong 11:40");
-    expect(dongHaiThanh(viec({ trang_thai: "completed", thuc_te, ...kh }), "mini")).toBe("11:40");
-    const tre = viec({ trang_thai: "completed", ...kh, thuc_te: [{ bat_dau: "2026-09-16T07:00", ket_thuc: "2026-09-16T09:05" }] });
-    expect(dongHaiThanh(tre, "du")).toBe("Xong 16/9 09:05");
-    expect(dongHaiThanh(tre, "mini")).toBe("16/9");
+  it("chuKeHoach: một ngày ghi giờ, nhiều ngày ghi ngày đầu → ngày cuối", () => {
+    const motNgay = viec({ du_kien_bat_dau: "2026-09-15T08:17", du_kien_ket_thuc: "2026-09-15T08:21" });
+    expect(chuKeHoach(motNgay, "du")).toBe("KH 08:17–08:21");
+    expect(chuKeHoach(motNgay, "gon")).toBe("08:17–08:21");
+    expect(chuKeHoach(motNgay, "mini")).toBe("08:17");
+    const nhieuNgay = viec({ du_kien_bat_dau: "2026-09-15T20:00", du_kien_ket_thuc: "2026-09-17T09:00" });
+    expect(chuKeHoach(nhieuNgay, "du")).toBe("KH 15/9 → 17/9");
+    expect(chuKeHoach(nhieuNgay, "mini")).toBe("→ 17/9");
   });
 
-  it("đang chạy: giờ bắt đầu của phiên đang mở", () => {
+  it("chuThucTe theo trạng thái", () => {
+    const chay = viec({ trang_thai: "running", thuc_te: [{ bat_dau: "2026-09-16T10:05", ket_thuc: null }] });
+    expect(chuThucTe(chay, "du", false)).toBe("Chạy từ 10:05");
+    expect(chuThucTe(chay, "du", true)).toBe("Chạy từ 16/9 10:05");
+    expect(chuThucTe(viec({ trang_thai: "paused" }), "du", false)).toBe("Tạm dừng");
+    const xong = viec({ trang_thai: "completed", thuc_te: [{ bat_dau: "2026-09-16T10:00", ket_thuc: "2026-09-16T14:30" }] });
+    expect(chuThucTe(xong, "du", false)).toBe("Xong 14:30");
+    expect(chuThucTe(viec({}), "du", false)).toBe("");
+  });
+});
+
+describe("phutTrongCuaSo — dòng tóm tắt", () => {
+  it("cắt phiên theo cửa sổ; kế hoạch chia chay_phut theo phần quãng nằm trong", () => {
     const w = viec({
-      trang_thai: "running", du_kien_bat_dau: "2026-09-15T07:00",
-      thuc_te: [{ bat_dau: "2026-09-15T07:05", ket_thuc: null }],
+      // Quãng kế hoạch 24 giờ vắt qua mép trái cửa sổ, chạy dự kiến 4 giờ ⇒ nửa quãng nằm trong ⇒ 2 giờ.
+      du_kien_bat_dau: "2026-09-13T12:00",
+      du_kien_ket_thuc: "2026-09-14T12:00",
+      chay_phut: 240,
+      thuc_te: [
+        { bat_dau: "2026-09-13T23:00", ket_thuc: "2026-09-14T01:00" }, // 1 giờ trong cửa sổ
+        { bat_dau: "2026-09-20T23:30", ket_thuc: null }, // mở, cắt ở mép phải 21/09 00:00 ⇒ 30 phút
+      ],
     });
-    expect(dongHaiThanh(w, "du")).toBe("Chạy từ 07:05");
-    expect(dongHaiThanh(w, "gon")).toBe("Từ 07:05");
-    expect(dongHaiThanh(w, "mini")).toBe("07:05");
+    const r = phutTrongCuaSo([w], TU, 7, luc("2026-09-21T03:00"));
+    expect(r.keHoach).toBeCloseTo(120);
+    expect(r.thucTe).toBeCloseTo(90);
   });
 
-  it("ngưỡng cỡ chữ theo bề rộng thanh", () => {
-    expect([coThanh(160), coThanh(120), coThanh(119), coThanh(88), coThanh(83), coThanh(56)])
-      .toEqual(["du", "du", "gon", "gon", "mini", "mini"]);
+  it("không khai chay_phut thì kế hoạch là phần quãng nằm trong cửa sổ", () => {
+    const w = viec({ du_kien_bat_dau: "2026-09-15T08:00", du_kien_ket_thuc: "2026-09-15T09:15" });
+    expect(phutTrongCuaSo([w], TU, 7, luc("2026-09-15T00:00")).keHoach).toBeCloseTo(75);
   });
 });

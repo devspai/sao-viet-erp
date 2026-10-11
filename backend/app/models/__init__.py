@@ -148,14 +148,12 @@ from .san_xuat_thuc_thi import (
 from .san_xuat_san_luong import (
     SanXuatBanGiao,
     SanXuatBanGiaoBatch,
-    SanXuatBanGiaoDieuChinh,
     SanXuatBatch,
     SanXuatBatchLotVao,
+    SanXuatBatchNguoi,
     SanXuatBatchPhatSinh,
     SanXuatKetQuaNhanh,
-    SanXuatVatTuNhan,
 )
-from .san_xuat_phan_bo import SanXuatHoTro
 from .san_xuat_kcs import (
     SanXuatKcsBatch,
     SanXuatKcsLoi,
@@ -324,11 +322,9 @@ __all__ = [
     "SanXuatBatchLotVao",
     "SanXuatBanGiao",
     "SanXuatBanGiaoBatch",
-    "SanXuatBanGiaoDieuChinh",
-    "SanXuatVatTuNhan",
     "SanXuatBatchPhatSinh",
+    "SanXuatBatchNguoi",
     "SanXuatKetQuaNhanh",
-    "SanXuatHoTro",
     "SanXuatKcsBatch",
     "SanXuatKcsLoi",
     "SanXuatKcsLoiAnh",

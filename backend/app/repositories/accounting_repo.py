@@ -14,6 +14,7 @@ from ..models.accounting import (
     PAYMENT_VOUCHER_CANCELLED,
     PAYMENT_VOUCHER_PAID,
     RECEIPT_SOURCE_ORDER,
+    RECEIPT_SOURCE_PURCHASE,
     SALES_INVOICE_ISSUED,
     VOUCHER_SOURCE_GIA_CONG,
     CompanyBankAccount,
@@ -842,6 +843,46 @@ class AccountingRepository:
                 stmt.order_by(SalesInvoice.invoice_date, SalesInvoice.id)
             ).scalars()
         )
+
+    def hoa_don_va_da_thu_toi_ngay(
+        self, order_ids: list[int], *, den_ngay: date | None = None
+    ) -> tuple[dict[int, int], dict[int, int]]:
+        """`({order_id: Σ hoá đơn đã ghi}, {order_id: Σ đã thu})` tính tới hết `den_ngay` (None = mọi
+        ngày) cho nhiều đơn — Báo cáo kinh doanh (11/10/2026). Đã thu = phiếu thu ĐÃ THU của đơn
+        (cọc, không gắn hoá đơn) + phiếu thu ĐÃ THU đích danh hoá đơn của đơn; cùng hai nguồn mà
+        sổ phải thu cấn trừ (`bao_cao_cong_no._khoan_phai_thu`). Phiếu hoàn tiền NCC không tính."""
+        if not order_ids:
+            return {}, {}
+        hd_stmt = (
+            select(SalesInvoice.order_id, func.coalesce(func.sum(SalesInvoice.amount_vnd), 0))
+            .where(SalesInvoice.order_id.in_(order_ids), SalesInvoice.status == SALES_INVOICE_ISSUED)
+            .group_by(SalesInvoice.order_id)
+        )
+        coc_stmt = (
+            select(PaymentReceipt.order_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
+            .where(PaymentReceipt.order_id.in_(order_ids),
+                   PaymentReceipt.sales_invoice_id.is_(None),
+                   PaymentReceipt.source_type != RECEIPT_SOURCE_PURCHASE,
+                   PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
+            .group_by(PaymentReceipt.order_id)
+        )
+        thu_hd_stmt = (
+            select(SalesInvoice.order_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
+            .join(SalesInvoice, SalesInvoice.id == PaymentReceipt.sales_invoice_id)
+            .where(SalesInvoice.order_id.in_(order_ids),
+                   PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
+            .group_by(SalesInvoice.order_id)
+        )
+        if den_ngay is not None:
+            hd_stmt = hd_stmt.where(SalesInvoice.invoice_date <= den_ngay)
+            coc_stmt = coc_stmt.where(PaymentReceipt.receipt_date <= den_ngay)
+            thu_hd_stmt = thu_hd_stmt.where(PaymentReceipt.receipt_date <= den_ngay)
+        hoa_don = {int(o): int(s or 0) for o, s in self.db.execute(hd_stmt)}
+        da_thu: dict[int, int] = {}
+        for stmt in (coc_stmt, thu_hd_stmt):
+            for o, s in self.db.execute(stmt):
+                da_thu[int(o)] = da_thu.get(int(o), 0) + int(s or 0)
+        return hoa_don, da_thu
 
     def issued_invoice_sums(self, order_ids: list[int]) -> dict[int, int]:
         """`{order_id: Σ hoá đơn đã ghi}` MỘT câu cho nhiều đơn — đơn chưa ghi vắng mặt."""

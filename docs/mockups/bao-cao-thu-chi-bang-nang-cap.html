@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo thu chi: bảng nâng cấp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --thu:#3b82f6;--thu-bg:#dbeafe;--thu-fg:#1d4ed8;
+  --chi:#f97316;--chi-bg:#ffedd5;--chi-fg:#c2410c;
+  --vang-fg:#b45309;--do-fg:#b91c1c;
+  --kt-ngan-w:1180px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+
+.doc{max-width:1680px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.doc a{color:var(--thu-fg)}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:1620px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;height:230px;object-fit:contain;background:#f8fafc;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink);font-weight:500}
+
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px;max-width:1620px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.pa{display:none}.pa.on{display:block}
+
+/* khung app */
+.frame{width:1620px;height:900px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.tabs{display:flex;gap:22px;padding:0 24px;background:#fff;border-bottom:1px solid var(--rule-soft);flex:none}
+.tabs span{padding:10px 0 9px;color:var(--ash-2);font-size:13.5px;cursor:pointer;border-bottom:2px solid transparent}
+.tabs span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.body{padding:14px 24px 16px;flex:1;display:flex;flex-direction:column;min-height:0}
+.body.cuon{overflow:auto;display:block}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex:none}
+.tool h2{font-size:18px;font-weight:500;margin:0 8px 0 0;white-space:nowrap}
+.tool .sp{flex:1}
+.ky-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 10px;font-size:13px;cursor:pointer;white-space:nowrap}
+.ky-btn .lb{color:var(--ash-2)}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:230px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+
+/* hàng số bấm-lọc */
+.so{display:flex;align-items:flex-end;gap:22px;padding:2px 2px 12px;flex:none}
+.so .c{display:flex;flex-direction:column;gap:1px;white-space:nowrap;border:1px solid transparent;border-radius:8px;padding:4px 8px;margin:-4px -8px}
+.so .c.bam{cursor:pointer}
+.so .c.bam:hover{background:var(--rule-hair)}
+.so .c.on{border-color:var(--ink)}
+.so .l{font-size:12px;color:var(--ash-2);display:flex;align-items:center;gap:6px}
+.so .l i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.so .v{font-size:17px;letter-spacing:-.01em}
+.so .v small{font-size:12px;color:var(--ash-2);margin-left:6px}
+.so .op{color:var(--ash-3);font-size:16px;padding-bottom:2px}
+.so .gap{flex:1}
+.so .c.phu .v{font-size:14px;color:var(--vang-fg)}
+
+/* khối */
+.khoi{background:#fff;border:1px solid var(--rule-soft);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.khoi .dau{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.khoi .dau .t{font-size:14px}
+.khoi .dau .sp{flex:1}
+.khoi .dau .ph{color:var(--ash-2);font-size:12.5px}
+.hai{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chu-giai{display:flex;gap:14px;color:var(--ash-2);font-size:12.5px}
+.chu-giai span{display:inline-flex;align-items:center;gap:6px}
+.chu-giai i{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+svg text{font-family:"Be Vietnam Pro",system-ui,sans-serif}
+.cot-bam{cursor:pointer}
+.cot-bam:hover rect.nen{fill:var(--rule-hair)}
+
+/* thanh ngang theo mục */
+.hb{display:flex;flex-direction:column}
+.hb .r{display:grid;grid-template-columns:290px 1fr 120px 52px;gap:10px;align-items:center;height:30px;padding:0 6px;border-radius:6px;border:1px solid transparent;cursor:pointer;font-size:13px}
+.hb .r:hover{background:var(--rule-hair)}
+.hb .r.on{border-color:var(--ink)}
+.hb .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .r .tr{height:10px;border-radius:3px;background:var(--rule-hair);position:relative;overflow:hidden}
+.hb .r .tr b{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.hb .r .n{text-align:right;font-variant-numeric:tabular-nums}
+.hb .r .pt{text-align:right;color:var(--ash-2);font-size:12.5px;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;background:var(--rule-hair);color:var(--ash);line-height:20px;margin-left:6px}
+.tag.chua{color:var(--vang-fg)}
+
+/* đang lọc */
+.loc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:28px}
+.loc .x{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:1px 6px 1px 10px;font-size:12.5px;background:#fff;cursor:pointer}
+.loc .x b{color:var(--ash-3);font-weight:400}
+.loc .x:hover{background:var(--rule-hair)}
+
+/* lưới */
+.wrap{min-height:0;overflow:auto;background:#fff;border:1px solid var(--rule-soft);border-radius:8px}
+table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.g th,.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--rule-hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.g thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:var(--ash-2);font-weight:400;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .mu{color:var(--ash-3)}
+.g .ma{color:var(--ash-2)}
+.g tbody tr:hover td{background:var(--rule-hair)}
+.g tr.nhom td{background:#f8fafc;border-bottom:1px solid var(--rule-soft)}
+.g tr.muc td:first-child{padding-left:28px}
+.g tr.cl td{background:#f8fafc;border-top:1px solid var(--rule-soft)}
+.g td.o{cursor:pointer}
+.g td.o:hover{box-shadow:inset 0 0 0 1px var(--rule)}
+.g td.o.on{box-shadow:inset 0 0 0 1px var(--ink)}
+.g tfoot td{position:sticky;bottom:0;background:#f8fafc;border-top:1px solid var(--rule-soft);border-bottom:0}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;white-space:nowrap}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.chip.thu{background:var(--thu-bg);color:var(--thu-fg)}.chip.thu i{background:var(--thu)}
+.chip.chi{background:var(--chi-bg);color:var(--chi-fg)}.chip.chi i{background:var(--chi)}
+.lk{color:var(--thu-fg);text-decoration:none}
+.lk:hover{text-decoration:underline}
+.chan{display:flex;justify-content:space-between;align-items:center;color:var(--ash-2);font-size:12px;padding-top:8px}
+.trang{display:inline-flex;gap:4px;align-items:center}
+.trang button{border:1px solid var(--rule);background:#fff;border-radius:6px;min-width:26px;height:26px;font-size:12px;color:var(--ash)}
+.trang button.on{border-color:var(--ink);color:var(--ink)}
+
+/* ngăn */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28);display:none;z-index:30}
+.frame.dw .scrim{display:block}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:var(--kt-ngan-w);background:#fff;z-index:31;display:none;flex-direction:column;box-shadow:-12px 0 30px rgba(15,23,42,.14)}
+.frame.dw .ngan{display:flex}
+.ng-dau{padding:16px 24px 0;flex:none}
+.ng-r1{display:flex;align-items:center;gap:10px}
+.ng-r1 .ten{font-size:18px;font-weight:500;white-space:nowrap}
+.ng-r1 .sp{flex:1}
+.ng-x{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--ash)}
+.ng-x:hover{background:var(--rule-hair)}
+.ng-so{display:flex;gap:40px;padding:12px 0 10px}
+.ng-so .c{display:flex;flex-direction:column;gap:1px}
+.ng-so .l{font-size:12px;color:var(--ash-2)}
+.ng-so .v{font-size:17px}
+.ng-tab{display:flex;gap:20px;padding:0 24px;border-bottom:1px solid var(--rule-soft);flex:none}
+.ng-tab span{padding:9px 0 8px;font-size:13.5px;color:var(--ash-2);border-bottom:2px solid transparent;cursor:pointer}
+.ng-tab span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.ng-than{flex:1;min-height:0;overflow:auto;padding:12px 24px 20px}
+
+/* C: bên trái chọn mục */
+.c-luoi{flex:1;min-height:0;display:grid;grid-template-columns:330px 1fr;gap:12px}
+.mucds{background:#fff;border:1px solid var(--rule-soft);border-radius:8px;overflow:auto;padding:6px}
+.mucds .r{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:7px 10px;border-radius:7px;border:1px solid transparent;cursor:pointer}
+.mucds .r:hover{background:var(--rule-hair)}
+.mucds .r.on{border-color:var(--ink)}
+.mucds .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mucds .r .n{text-align:right;font-variant-numeric:tabular-nums}
+.mucds .r .tr{grid-column:1/-1;height:4px;border-radius:2px;background:var(--rule-hair);position:relative;overflow:hidden}
+.mucds .r .tr b{position:absolute;left:0;top:0;bottom:0}
+.mucds .nh{color:var(--ash-2);font-size:12px;padding:8px 10px 4px}
+.c-phai{display:flex;flex-direction:column;min-height:0;gap:10px}
+.c-phai .wrap{flex:1}
+.ghi{color:var(--ash-2);font-size:12.5px}
+
+.bat{display:flex;flex-wrap:wrap;gap:8px 18px;background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;max-width:1620px;margin:10px 0}
+.bat label{display:inline-flex;gap:7px;align-items:center;font-size:13px;color:var(--ash);cursor:pointer}
+.bat .k{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;border:1px solid var(--rule);font-size:11.5px;color:var(--ash-2)}
+.so-hieu{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--rule);font-size:11px;color:var(--ash-2);margin-left:6px;vertical-align:1px;background:#fff}
+.de-y{display:flex;align-items:center;gap:8px;flex:none;margin:0 0 10px;flex-wrap:wrap}
+.de-y .lb{color:var(--ash-2);font-size:12.5px;margin-right:2px}
+.de-y .it{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:8px;padding:4px 10px;font-size:13px;cursor:pointer}
+.de-y .it:hover{background:var(--rule-hair)}
+.de-y .it .n{color:var(--vang-fg);font-variant-numeric:tabular-nums}
+.de-y .it .p{color:var(--ash-2);font-size:12.5px}
+.g td.gc{color:var(--ash);font-size:12.5px}
+.g td.gc .tag{margin:0 6px 0 0}
+.tag.vang{color:var(--vang-fg)}
+.xh{display:inline-flex;gap:3px;align-items:flex-end;height:18px;vertical-align:middle}
+.xh i{width:9px;border-radius:2px;display:inline-block}
+.toi{display:grid;grid-template-columns:3fr 2fr;gap:12px;flex:none;margin-top:10px}
+.toi .khoi{margin:0;padding:10px 14px}
+.toi .hang{display:flex;gap:28px;align-items:flex-end}
+.toi .c{display:flex;flex-direction:column;gap:1px}
+.toi .c .l{font-size:12px;color:var(--ash-2);white-space:nowrap}
+.toi .c .v{font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.toi .c .v small{font-size:12px;color:var(--ash-2);margin-left:6px}
+.toi .c.do .v{color:var(--do-fg)}
+.toi .lk{font-size:12.5px;margin-left:auto;align-self:center;white-space:nowrap}
+.cot-dim{display:flex;align-items:center;gap:6px}
+.cot-dim .lb{color:var(--ash-2);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Báo cáo thu chi: bảng mục × tháng, thêm thông tin</h1>
+<p>Giữ đúng khung bảng bạn chọn (nút Bảng của phương án B). Thêm 3 thứ, mỗi thứ có số tròn đánh dấu trên màn và bật tắt được ở dải dưới đây để so có và không. Mọi phiếu đều chọn mục từ danh mục, không còn chia "thu chi khác" với phiếu có nguồn. Số là 40 phiếu thật trong DB dev; mục gán cho từng phiếu là giả định. Số công nợ ở ③ lấy thật từ báo cáo công nợ dev ngày 11/10/2026.</p>
+
+<h2>Thêm gì, vì sao</h2>
+<ol>
+<li><b>① Dòng theo Mục | Người nhận, nộp.</b> Cùng bảng, đổi chiều dòng: theo người thấy trả ai nhiều nhất, ai nộp nhiều nhất.</li>
+<li><b>② Dải "Cần để ý"</b> trên bảng, chỉ hiện khi có, bấm ra danh sách phiếu:
+  <ul>
+  <li><b>Chi tiền mặt từ 5 triệu</b>: 4 phiếu, 241.901.600. Từ 01/07/2025 hàng hoá dịch vụ mua từ 5 triệu (gồm thuế) không có chứng từ thanh toán không dùng tiền mặt thì không được khấu trừ thuế GTGT (Nghị định 181/2025); từ 15/12/2025 khoản chi từng lần từ 5 triệu trả tiền mặt không được tính chi phí được trừ thuế TNDN (Nghị định 320/2025). Số thật: ngày 07/10 trả Màng và Keo Đông Á ba phiếu tiền mặt 50.000.000, 75.130.000, 108.724.000 cho cùng một đơn mua.</li>
+  <li><b>Chưa phân loại</b>: 3 phiếu, 5.100.000. Chuyển từ hàng số xuống đây cho khỏi nói hai lần.</li>
+  </ul></li>
+<li><b>③ 30 ngày tới, theo công nợ</b>: phải trả đã quá hạn và sắp tới hạn, phải thu sắp tới hạn; bấm sang Tổng hợp công nợ. Cho biết tháng tới cần bao nhiêu tiền, cái bảng thu chi (chỉ nhìn tiền đã đi) không trả lời được.</li>
+</ol>
+
+<div class="bat" id="bat">
+  <label><input type="checkbox" data-b="dim" checked><span class="k">1</span>Đổi chiều dòng</label>
+  <label><input type="checkbox" data-b="dy" checked><span class="k">2</span>Cần để ý</label>
+  <label><input type="checkbox" data-b="toi" checked><span class="k">3</span>30 ngày tới</label>
+</div>
+
+<div class="frame" id="fB">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <button class="ky-btn"><span class="lb">Kỳ</span>01/08 – 11/10/2026</button>
+        <div class="cot-dim" data-dimwrap><span class="lb">Dòng theo</span><div class="seg" data-dim><button class="on" data-v="muc">Mục</button><button data-v="nguoi">Người nhận, nộp</button></div><span class="so-hieu">1</span></div>
+        <span class="sp"></span>
+        <div class="seg"><button class="on">Bảng</button><button>Biểu đồ</button></div>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="so" data-so></div>
+      <div class="de-y" data-dey></div>
+      <div class="wrap" style="flex:1"><table class="g" data-bang></table></div>
+      <div class="toi" data-toi>
+        <div class="khoi"><div class="hang">
+          <div class="c"><span class="l">Phải trả đã quá hạn</span><span class="v do">67.372.400<small>5 khoản</small></span></div>
+          <div class="c"><span class="l">Tới hạn trong 7 ngày</span><span class="v">134.044.200<small>2 khoản</small></span></div>
+          <div class="c"><span class="l">Tới hạn 8 – 30 ngày</span><span class="v">598.663.394<small>17 khoản</small></span></div>
+          <div class="c"><span class="l">Cộng cần trả 30 ngày tới</span><span class="v">800.079.994</span></div>
+          <a class="lk" href="#">Tổng hợp công nợ phải trả<span class="so-hieu">3</span></a>
+        </div></div>
+        <div class="khoi"><div class="hang">
+          <div class="c"><span class="l">Phải thu tới hạn 8 – 30 ngày</span><span class="v">7.460.973<small>1 hoá đơn</small></span></div>
+          <div class="c"><span class="l">Phải thu chưa đặt hạn</span><span class="v">15.220.785<small>2 hoá đơn</small></span></div>
+          <a class="lk" href="#">Tổng hợp công nợ phải thu</a>
+        </div></div>
+      </div>
+    </div>
+    <div class="scrim" data-dong></div>
+    <aside class="ngan" data-ngan></aside>
+  </div>
+</div>
+<p class="ghi" style="margin-top:8px">Bấm ô số bất kỳ, một mục ở dải "Cần để ý", hay tên dòng để mở ngăn danh sách phiếu. Ô "Tháng 10" mới tới ngày 11.</p>
+
+<h2>Nguồn đã đọc cho ⑥</h2>
+<ul>
+<li><a href="https://xcyber.vn/?p=10487">Hàng hoá dịch vụ từ 5 triệu phải chuyển khoản để được khấu trừ thuế GTGT</a> (tóm tắt Nghị định 181/2025).</li>
+<li><a href="https://luatvietnam.vn/tin-van-ban-moi/hoa-don-tu-5-trieu-dong-phai-thanh-toan-khong-tien-mat-de-duoc-tru-thue-tndn-186-106006-article.html">Hoá đơn từ 5 triệu phải thanh toán không tiền mặt để được trừ thuế TNDN</a> (Nghị định 320/2025).</li>
+<li><a href="https://thuehaiquan.tapchikinhtetaichinh.vn/thue-tinh-khanh-hoa-canh-bao-hanh-vi-chia-nho-muc-chi-ne-chuyen-khoan-160801.html">Thuế Khánh Hoà cảnh báo chia nhỏ mức chi để né chuyển khoản</a>; khớp đúng ca ba phiếu Đông Á cùng ngày.</li>
+</ul>
+<p style="font-size:12.5px">Đây là bài tổng hợp, chưa đọc văn bản gốc; trước khi chốt chữ cảnh báo trên màn nên để kế toán đối chiếu nghị định.</p>
+</div>
+
+<script>
+
+// ================= dữ liệu thật (DB dev 11/10/2026) =================
+// [loại, số phiếu, ngày, tiền, người nhận/nộp, lý do, hình thức, mục, tự gán]
+const P = [
+ ['chi','UNC-261007-CLXS','2026-08-08',2484000,'Công ty TNHH Thương mại Giấy An Phát','Thanh toán một phần đợt 1 DMH-261007-VBF4','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261007-XQKH','2026-09-02',7348000,'Công ty TNHH Tổng hợp In ấn Phương Nam','Thanh toán một phần đợt 1 DMH-261007-337Y','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261007-9DA7','2026-09-25',19494000,'Công ty TNHH Thương mại Giấy An Phát','Thanh toán đủ đợt 1 DMH-261007-RE5B','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261006-MQYM','2026-10-06',1000000,'Cơ sở Gia công Cán màng Thành Công','Gia công trọn gói cả lệnh LSX26-0002','ck','Thuê gia công ngoài',1],
+ ['chi','UNC-261007-8F2L','2026-10-06',70761600,'Công ty TNHH Giấy Tân Mai Sài Gòn','Thanh toán đủ đợt 1 DMH-261007-0R7L','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261007-RQ06','2026-10-06',28958000,'Công ty CP Giấy Việt Trì','Thanh toán một phần đợt 1 DMH-261007-PTHV','ck','Trả nhà cung cấp',1],
+ ['chi','PC-261007-FNWN','2026-10-07',8047600,'Công ty TNHH Nhũ ép kim Kim Long','Thanh toán đủ đợt 1 DMH-261007-7DK7','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261007-D5ZB','2026-10-07',2000000,'Cơ sở Gia công Cán màng Thành Công','Gia công trọn gói cả lệnh LSX26-0006','tm','Thuê gia công ngoài',1],
+ ['chi','UNC-261007-MD21','2026-10-07',31817000,'Công ty TNHH Thương mại Giấy An Phát','Thanh toán một phần đợt 1 DMH-261007-UIMN','ck','Trả nhà cung cấp',1],
+ ['chi','PC-261007-WMR6','2026-10-07',50000000,'Công ty CP Màng và Keo Đông Á','Thanh toán DMH-261007-C22N vật tư ép kim hộp quà Trung thu','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261007-GC1M','2026-10-07',75130000,'Công ty CP Màng và Keo Đông Á','Thanh toán DMH-261007-C22N vật tư ép kim hộp quà Trung thu','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261007-PCSZ','2026-10-07',108724000,'Công ty CP Màng và Keo Đông Á','Thanh toán DMH-261007-C22N vật tư ép kim hộp quà Trung thu','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261011-W2DV','2026-10-11',3000000,'Cơ sở Gia công Cán màng Thành Công','Gia công cắt thành phẩm LSX26-0004','tm','Thuê gia công ngoài',1],
+ ['chi','UNC-261007-PXPI','2026-08-10',18750000,'Điện lực Thuận An','Tiền điện tháng 8 xưởng in','ck','Điện nước',0],
+ ['chi','UNC-261007-OKVM','2026-09-07',21340000,'Điện lực Thuận An','Tiền điện tháng 9 xưởng in (đợt 2)','ck','Điện nước',0],
+ ['chi','PC-261007-5UGN','2026-09-10',1850000,'Công ty Cấp thoát nước Bình Dương','Tiền nước tháng 9','tm','Điện nước',0],
+ ['chi','PC-261007-PMH9','2026-09-16',3200000,'Nhà sách Phương Nam Thuận An','Mua văn phòng phẩm quý IV','tm','Văn phòng phẩm',0],
+ ['chi','UNC-261007-70H7','2026-09-22',12000000,'Nhà xe Tấn Phát','Thuê xe tải giao hàng tháng 9','ck','Vận chuyển thuê ngoài',0],
+ ['chi','PC-261007-LP0G','2026-09-28',650000,'Nhà hàng Hương Quê','Tiếp khách đơn hàng Bibica','tm','Tiếp khách',0],
+ ['chi','PC-261007-14L6','2026-10-01',2400000,'Cơ khí Hoàng Long','Sửa máy nén khí xưởng in','tm','Sửa chữa bảo trì máy',0],
+ ['chi','UNC-261007-4DKM','2026-10-05',4500000,'VNPT Bình Dương','Cước internet và phần mềm hoá đơn điện tử','ck','Internet và phần mềm',0],
+ ['chi','UNC-261005-AQ71','2026-10-06',2000000,'Công ty Điện lực Bình Dương','Tiền điện tháng 9 xưởng in','ck','Chưa phân loại',2],
+ ['chi','UNC-261006-8ODQ','2026-10-06',2350000,'Điện lực Thuận An','Tiền điện tháng 9 xưởng in','ck','Chưa phân loại',2],
+ ['chi','PC-261007-OE92','2026-10-07',980000,'Cửa hàng Dầu nhớt Minh Tâm','Mua dầu nhớt bảo trì máy bế','tm','Sửa chữa bảo trì máy',0],
+ ['thu','PT-261006-MUNO','2026-10-06',500000,'Công ty CP Café Katinat','Thu cọc đơn DH003','ck','Khách đặt cọc',1],
+ ['thu','PT-261006-Y5VV','2026-10-06',1060420,'Công ty CP Café Katinat','Thu cọc đơn DH003','tm','Khách đặt cọc',1],
+ ['thu','PT-261006-A9KQ','2026-10-06',1000000,'Công ty CP Cao Lợi Hưng Việt Nam','Thu hoá đơn 123 của đơn DH001','ck','Khách trả tiền hàng',1],
+ ['thu','PT-261007-FSAE','2026-10-07',13472000,'Công ty CP Bibica','Thu tiền hoá đơn đợt 1','ck','Khách trả tiền hàng',1],
+ ['thu','PT-261007-MWDF','2026-10-07',468000,'Công ty CP Café Katinat','Thu tiền hoá đơn đợt 1','ck','Khách trả tiền hàng',1],
+ ['thu','PT-261008-9ZY2','2026-10-08',1092420,'Công ty CP Café Katinat','Thu hoá đơn 0000125 của đơn DH003','tm','Khách trả tiền hàng',1],
+ ['thu','PT-261008-HG97','2026-10-08',4000000,'Công ty CP Café Katinat','Thu hoá đơn 0000126 của đơn DH004','tm','Khách trả tiền hàng',1],
+ ['thu','PT-261007-NE7V','2026-08-13',1250000,'Cơ sở phế liệu Minh Phát','Bán giấy vụn tháng 8','tm','Bán phế liệu',0],
+ ['thu','PT-261007-UJA4','2026-08-28',3500000,'Công ty TNHH Giấy Tân Mai Sài Gòn','Nhà cung cấp hoàn tiền giấy lỗi','ck','Nhà cung cấp hoàn tiền',1],
+ ['thu','PT-261007-GBC1','2026-09-04',420000,'Tổ bế','Thu tiền phạt vi phạm nội quy','tm','Tiền phạt nội quy',0],
+ ['thu','PT-261007-5M9Z','2026-09-11',186500,'Ngân hàng BIDV','Lãi tiền gửi tháng 9','ck','Lãi tiền gửi',0],
+ ['thu','PT-261007-ZGZH','2026-09-19',2300000,'Cơ sở Pallet Thuận Phát','Bán pallet gỗ cũ','tm','Bán phế liệu',0],
+ ['thu','PT-261007-P4K5','2026-09-25',15000000,'Công ty TNHH Bao Bì An Khang','Thu tiền in mẫu thử khách lẻ','ck','Doanh thu khách lẻ',0],
+ ['thu','PT-261007-J0SN','2026-10-03',980000,'Cơ sở phế liệu Minh Phát','Bán lõi giấy cuộn','tm','Bán phế liệu',0],
+ ['thu','PT-261005-H4B7','2026-10-06',750000,'Cơ sở phế liệu Minh Phát','Bán giấy vụn tháng 9','tm','Chưa phân loại',2],
+ ['thu','PT-261007-HO1X','2026-10-07',5000000,'Trần Đình Sơn','Nhân viên hoàn tạm ứng công tác','ck','Nhân viên hoàn tạm ứng',0],
+].map(r=>({loai:r[0],so:r[1],ngay:r[2],tien:r[3],nguoi:r[4],lydo:r[5],ht:r[6]==='ck'?'Chuyển khoản':'Tiền mặt',muc:r[7],tu:r[8],thang:+r[2].slice(5,7)}));
+const THANG=[8,9,10], TEN_THANG={8:'Tháng 8',9:'Tháng 9',10:'Tháng 10'};
+const MAU=['#f97316','#3b82f6','#14b8a6','#a855f7','#eab308','#94a3b8'];
+
+const f=v=>v?(v<0?'−':'')+Math.abs(Math.round(v)).toLocaleString('vi-VN'):'0';
+const ngan=v=>{const a=Math.abs(v),s=v<0?'−':''; if(a>=1e6) return s+(a/1e6).toLocaleString('vi-VN',{maximumFractionDigits:1})+' tr'; if(a>=1e3) return s+Math.round(a/1e3)+' nghìn'; return s+a;};
+const dmy=d=>d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+const sum=a=>a.reduce((s,p)=>s+p.tien,0);
+const loc=(st)=>P.filter(p=>(!st.chiKhac||p.tu!==1)&&(!st.thang||p.thang===st.thang)&&(!st.muc||p.muc===st.muc)&&(!st.loai||p.loai===st.loai)&&(!st.chua||p.tu===2));
+const nhanMuc=(m,tu)=>m+(tu===1?'<span class="tag">máy tự gán</span>':'')+(tu===2?'<span class="tag chua">cần phân loại</span>':'');
+const chipLoai=l=>l==='thu'?'<span class="chip thu"><i></i>Thu</span>':'<span class="chip chi"><i></i>Chi</span>';
+function theoMuc(ds,loai){const m={};ds.filter(p=>p.loai===loai).forEach(p=>{(m[p.muc]=m[p.muc]||{ten:p.muc,tien:0,n:0,tu:p.tu}).tien+=p.tien;m[p.muc].n++;});return Object.values(m).sort((a,b)=>(a.tu===2)-(b.tu===2)||b.tien-a.tien);}
+
+// ---------- biểu đồ cột đôi theo tháng (SVG) ----------
+function bieuDoThang(el,st,onBam,cao=230){
+  const W=el.clientWidth||1400,H=cao,L=70,B=44,T=18;
+  const base=P.filter(p=>!st.chiKhac||p.tu!==1);
+  const d=THANG.map(t=>({t,thu:sum(base.filter(p=>p.thang===t&&p.loai==='thu')),chi:sum(base.filter(p=>p.thang===t&&p.loai==='chi'))}));
+  const max=Math.max(...d.map(x=>Math.max(x.thu,x.chi)))||1;
+  const buoc=niceStep(max/4), top=buoc*Math.ceil(max*1.08/buoc);
+  const y=v=>T+(H-T-B)*(1-v/top), gw=(W-L-10)/d.length, bw=Math.min(54,gw/5);
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  for(let v=0;v<=top+1;v+=buoc){s+=`<line x1="${L}" x2="${W-10}" y1="${y(v)}" y2="${y(v)}" stroke="#eef2f6"/><text x="${L-8}" y="${y(v)+4}" font-size="11" fill="#94a3b8" text-anchor="end">${ngan(v)}</text>`;}
+  d.forEach((x,i)=>{
+    const cx=L+gw*i+gw/2, on=st.thang===x.t, mo=st.thang&&!on;
+    s+=`<g class="cot-bam" data-thang="${x.t}"><rect class="nen" x="${L+gw*i+4}" y="${T-6}" width="${gw-8}" height="${H-T-B+34}" rx="8" fill="${on?'#fff':'transparent'}" stroke="${on?'#0f172a':'none'}"/>`;
+    s+=`<rect x="${cx-bw-3}" y="${y(x.thu)}" width="${bw}" height="${Math.max(1,y(0)-y(x.thu))}" rx="3" fill="var(--thu)" opacity="${mo?.35:1}"/>`;
+    s+=`<rect x="${cx+3}" y="${y(x.chi)}" width="${bw}" height="${Math.max(1,y(0)-y(x.chi))}" rx="3" fill="var(--chi)" opacity="${mo?.35:1}"/>`;
+    s+=`<text x="${cx-bw/2-3}" y="${y(x.thu)-5}" font-size="11" fill="#475569" text-anchor="middle">${ngan(x.thu)}</text>`;
+    s+=`<text x="${cx+bw/2+3}" y="${y(x.chi)-5}" font-size="11" fill="#475569" text-anchor="middle">${ngan(x.chi)}</text>`;
+    s+=`<text x="${cx}" y="${H-B+18}" font-size="12.5" fill="#0f172a" text-anchor="middle">${TEN_THANG[x.t]}${x.t===10?' (1 – 11/10)':''}</text>`;
+    s+=`<text x="${cx}" y="${H-B+34}" font-size="11.5" fill="#64748b" text-anchor="middle">chênh lệch ${ngan(x.thu-x.chi)}</text></g>`;
+  });
+  s+='</svg>'; el.innerHTML=s;
+  el.querySelectorAll('[data-thang]').forEach(g=>g.onclick=()=>onBam(+g.dataset.thang));
+}
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const n=x/p;return (n<=1?1:n<=2?2:n<=5?5:10)*p;}
+
+function thanhNgang(el,items,mau,chon,onBam){
+  const tong=items.reduce((s,x)=>s+x.tien,0)||1, max=Math.max(...items.map(x=>x.tien),1);
+  el.innerHTML=items.length?items.map(x=>`<div class="r${chon===x.ten?' on':''}" data-m="${x.ten}"><span class="ten">${nhanMuc(x.ten,x.tu)}</span><span class="tr"><b style="width:${x.tien/max*100}%;background:${x.tu===2?'#eab308':mau}"></b></span><span class="n">${f(x.tien)}</span><span class="pt">${(x.tien/tong*100).toLocaleString('vi-VN',{maximumFractionDigits:1})}%</span></div>`).join(''):'<div class="ghi" style="padding:10px 6px">Không có phiếu nào</div>';
+  el.querySelectorAll('[data-m]').forEach(r=>r.onclick=()=>onBam(r.dataset.m));
+}
+function bangPhieu(tb,ds,coLoai=true){
+  ds=[...ds].sort((a,b)=>b.ngay.localeCompare(a.ngay)||b.tien-a.tien);
+  tb.innerHTML=`<colgroup><col style="width:100px"><col style="width:160px">${coLoai?'<col style="width:74px">':''}<col style="width:210px"><col style="width:270px"><col><col style="width:120px"><col style="width:130px"></colgroup>
+  <thead><tr><th>Ngày</th><th>Số phiếu</th>${coLoai?'<th>Loại</th>':''}<th>Mục</th><th>Người nhận hoặc nộp</th><th>Lý do</th><th>Hình thức</th><th class="n">Số tiền</th></tr></thead>
+  <tbody>${ds.slice(0,12).map(p=>`<tr><td>${dmy(p.ngay)}</td><td><a class="lk" href="#">${p.so}</a></td>${coLoai?`<td>${chipLoai(p.loai)}</td>`:''}<td>${nhanMuc(p.muc,p.tu===2?2:0)}</td><td>${p.nguoi}</td><td class="ma">${p.lydo}</td><td class="ma">${p.ht}</td><td class="n">${p.loai==='chi'?'':''}${f(p.tien)}</td></tr>`).join('')}</tbody>`;
+  return ds;
+}
+function chanTrang(el,ds){const thu=sum(ds.filter(p=>p.loai==='thu')),chi=sum(ds.filter(p=>p.loai==='chi'));
+  el.innerHTML=`<span>${ds.length} phiếu${thu?`<span style="margin-left:14px">thu ${f(thu)}</span>`:''}${chi?`<span style="margin-left:14px">chi ${f(chi)}</span>`:''}</span><span class="trang">${ds.length>12?'<button class="on">1</button><button>2</button><button>3</button><span style="margin-left:8px">12 dòng một trang</span>':''}</span>`;}
+function hangSo(el,st,onChua){
+  const base=P.filter(p=>!st.chiKhac||p.tu!==1).filter(p=>!st.thang||p.thang===st.thang);
+  const t=base.filter(p=>p.loai==='thu'),c=base.filter(p=>p.loai==='chi'),ch=base.filter(p=>p.tu===2);
+  el.innerHTML=`<div class="c"><span class="l"><i style="background:var(--thu)"></i>Thu${st.thang?' '+TEN_THANG[st.thang].toLowerCase():''}</span><span class="v">${f(sum(t))}<small>${t.length} phiếu</small></span></div><span class="op">−</span>
+  <div class="c"><span class="l"><i style="background:var(--chi)"></i>Chi${st.thang?' '+TEN_THANG[st.thang].toLowerCase():''}</span><span class="v">${f(sum(c))}<small>${c.length} phiếu</small></span></div><span class="op">=</span>
+  <div class="c"><span class="l">Chênh lệch</span><span class="v">${f(sum(t)-sum(c))}</span></div><span class="gap"></span>
+  ${ch.length?`<div class="c phu bam${st.chua?' on':''}" data-chua><span class="l">Chưa phân loại</span><span class="v">${f(sum(ch))}<small>${ch.length} phiếu cần gán mục</small></span></div>`:''}`;
+  const b=el.querySelector('[data-chua]'); if(b&&onChua) b.onclick=onChua;
+}
+function segBind(root,sel,cb){root.querySelectorAll(sel).forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.v);}));}
+
+
+const QUY={'TM':'Tiền mặt','1':'MB Thuận An','2':'Vietcombank','3':'BIDV','4':'Techcombank','5':'ACB'};
+const QUY_CUA={'PC-261007-14L6':'TM','PC-261007-5UGN':'TM','PC-261007-D5ZB':'TM','PC-261007-FNWN':'TM','PC-261007-GC1M':'TM','PC-261007-LP0G':'TM','PC-261007-OE92':'TM','PC-261007-PCSZ':'TM','PC-261007-PMH9':'TM','PC-261007-WMR6':'TM','PC-261011-W2DV':'TM','UNC-261005-AQ71':'2','UNC-261006-8ODQ':'2','UNC-261006-MQYM':'1','UNC-261007-4DKM':'4','UNC-261007-70H7':'4','UNC-261007-8F2L':'4','UNC-261007-9DA7':'4','UNC-261007-CLXS':'4','UNC-261007-MD21':'4','UNC-261007-OKVM':'3','UNC-261007-PXPI':'3','UNC-261007-RQ06':'4','UNC-261007-XQKH':'4','PT-261005-H4B7':'TM','PT-261006-A9KQ':'1','PT-261006-MUNO':'1','PT-261006-Y5VV':'TM','PT-261007-5M9Z':'3','PT-261007-FSAE':'3','PT-261007-GBC1':'TM','PT-261007-HO1X':'3','PT-261007-J0SN':'TM','PT-261007-MWDF':'3','PT-261007-NE7V':'TM','PT-261007-P4K5':'5','PT-261007-UJA4':'2','PT-261007-ZGZH':'TM','PT-261008-9ZY2':'TM','PT-261008-HG97':'TM'};
+const CO_HD=new Set(['PC-261007-D5ZB','PC-261007-FNWN','UNC-261007-8F2L','UNC-261007-9DA7','UNC-261007-CLXS','UNC-261007-MD21','UNC-261007-RQ06','UNC-261007-XQKH']);
+P.forEach(p=>{p.quy=QUY[QUY_CUA[p.so]];p.tm5=p.loai==='chi'&&p.ht==='Tiền mặt'&&p.tien>=5e6;p.khongHd=p.loai==='chi'&&p.tu!==1&&!CO_HD.has(p.so);});
+
+const R=document.getElementById('fB'), st={chiKhac:false,dim:'muc'};
+const B={dim:1,tt:0,sp:0,xh:0,gc:0,dy:1,toi:1};
+const pct=(a,b)=>b?(a/b*100).toLocaleString('vi-VN',{maximumFractionDigits:1})+'%':'';
+function base(){return P.filter(p=>!st.chiKhac||p.tu!==1);}
+function khoaDong(p){return st.dim==='muc'?p.muc:st.dim==='quy'?p.quy:p.nguoi;}
+function nhomDong(ds,ben){
+  const m={};
+  ds.filter(p=>p.loai===ben).forEach(p=>{const k=khoaDong(p);(m[k]=m[k]||{ten:k,ds:[],tu:st.dim==='muc'?p.tu:0}).ds.push(p);});
+  let rows=Object.values(m).map(r=>({...r,tien:sum(r.ds)})).sort((a,b)=>(a.tu===2)-(b.tu===2)||b.tien-a.tien);
+  if(st.dim==='nguoi'&&rows.length>8){const con=rows.slice(7);rows=rows.slice(0,7);rows.push({ten:`Người khác (${con.length})`,ds:con.flatMap(r=>r.ds),tu:0,tien:con.reduce((s,r)=>s+r.tien,0),gop:1});}
+  return rows;
+}
+function ghiChu(ds){
+  const t=[], a=ds.filter(p=>p.tm5), b=ds.filter(p=>p.khongHd&&p.tu!==2), c=ds.filter(p=>p.tu===2);
+  if(a.length) t.push(`<span class="tag vang">${a.length} phiếu tiền mặt từ 5 triệu</span>`);
+  if(b.length) t.push(`<span class="tag">${b.length} phiếu chưa ghi số hoá đơn</span>`);
+  if(c.length&&st.dim!=='muc') t.push(`<span class="tag chua">${c.length} phiếu cần gán mục</span>`);
+  return t.join('');
+}
+function xuHuong(ds,mau){const v=THANG.map(t=>sum(ds.filter(p=>p.thang===t))),mx=Math.max(...v,1);return `<span class="xh">${v.map(x=>`<i style="height:${x?Math.max(2,x/mx*18):1}px;background:${x?mau:'#e2e8f0'}"></i>`).join('')}</span>`;}
+function ve(){
+  const ds=base();
+  // hàng số: không còn ô Chưa phân loại (đã sang dải Cần để ý)
+  const t=ds.filter(p=>p.loai==='thu'),c=ds.filter(p=>p.loai==='chi');
+  R.querySelector('[data-so]').innerHTML=`<div class="c"><span class="l"><i style="background:var(--thu)"></i>Thu</span><span class="v">${f(sum(t))}<small>${t.length} phiếu</small></span></div><span class="op">−</span><div class="c"><span class="l"><i style="background:var(--chi)"></i>Chi</span><span class="v">${f(sum(c))}<small>${c.length} phiếu</small></span></div><span class="op">=</span><div class="c"><span class="l">Chênh lệch</span><span class="v">${f(sum(t)-sum(c))}</span></div>`;
+  // dải cần để ý
+  const dy=[['Chi tiền mặt từ 5 triệu',ds.filter(p=>p.tm5)],['Chưa phân loại',ds.filter(p=>p.tu===2)]].filter(x=>x[1].length);
+  const de=R.querySelector('[data-dey]');
+  de.style.display=B.dy&&dy.length?'flex':'none';
+  de.innerHTML=`<span class="lb">Cần để ý<span class="so-hieu">2</span></span>`+dy.map((x,i)=>`<span class="it" data-i="${i}">${x[0]}<span class="n">${f(sum(x[1]))}</span><span class="p">${x[1].length} phiếu</span></span>`).join('');
+  de.querySelectorAll('[data-i]').forEach(e=>e.onclick=()=>moNgan(dy[+e.dataset.i][0],null,dy[+e.dataset.i][1]));
+  // bảng
+  const cot=[['Tháng 8',150],['Tháng 9',150],['Tháng 10 (1 – 11/10)',176],['Cộng kỳ',160]];
+  const them=[]; if(B.tt) them.push(['Tỷ trọng',108,2]); if(B.sp) them.push(['Số phiếu',104,3]); if(B.xh) them.push(['Xu hướng',112,4]);
+  const tenCot=st.dim==='muc'?'Mục':st.dim==='quy'?'Quỹ':'Người nhận, nộp';
+  let h=`<colgroup><col style="width:${st.dim==='nguoi'?340:300}px">${cot.map(c=>`<col style="width:${c[1]}px">`).join('')}${them.map(c=>`<col style="width:${c[1]}px">`).join('')}<col></colgroup>
+  <thead><tr><th>${tenCot}</th>${cot.map(c=>`<th class="n">${c[0]}</th>`).join('')}${them.map(c=>`<th class="${c[2]===4?'':'n'}">${c[0]}<span class="so-hieu">${c[2]}</span></th>`).join('')}<th>${B.gc?'Ghi chú<span class="so-hieu">5</span>':''}</th></tr></thead><tbody>`;
+  const tong={};
+  ['thu','chi'].forEach(ben=>{
+    const dsb=ds.filter(p=>p.loai===ben), tt=THANG.map(m=>sum(dsb.filter(p=>p.thang===m))), tb=sum(dsb); tong[ben]=tt;
+    const mau=ben==='thu'?'var(--thu)':'var(--chi)';
+    h+=`<tr class="nhom"><td>${ben==='thu'?'Thu':'Chi'}</td>${tt.map(v=>`<td class="n">${f(v)}</td>`).join('')}<td class="n">${f(tb)}</td>${B.tt?'<td></td>':''}${B.sp?`<td class="n">${dsb.length}</td>`:''}${B.xh?`<td>${xuHuong(dsb,mau)}</td>`:''}<td></td></tr>`;
+    nhomDong(ds,ben).forEach(r=>{
+      h+=`<tr class="muc"><td class="o" data-k="${ben}|${r.ten}">${st.dim==='muc'?nhanMuc(r.ten,r.tu===2?2:0):r.ten}</td>${THANG.map(m=>{const v=sum(r.ds.filter(p=>p.thang===m));return v?`<td class="n o" data-k="${ben}|${r.ten}" data-t="${m}">${f(v)}</td>`:'<td class="n mu">—</td>';}).join('')}<td class="n o" data-k="${ben}|${r.ten}">${f(r.tien)}</td>${B.tt?`<td class="n ma">${pct(r.tien,tb)}</td>`:''}${B.sp?`<td class="n mu">${r.ds.length}</td>`:''}${B.xh?`<td>${xuHuong(r.ds,mau)}</td>`:''}<td class="gc">${B.gc?ghiChu(r.ds):''}</td></tr>`;
+    });
+  });
+  h+=`<tr class="cl"><td>Chênh lệch thu − chi</td>${[0,1,2].map(i=>`<td class="n">${f(tong.thu[i]-tong.chi[i])}</td>`).join('')}<td class="n">${f(tong.thu.reduce((a,b)=>a+b)-tong.chi.reduce((a,b)=>a+b))}</td>${them.map(()=>'<td></td>').join('')}<td></td></tr></tbody>`;
+  const tb=R.querySelector('[data-bang]'); tb.innerHTML=h;
+  tb.querySelectorAll('[data-k]').forEach(td=>td.onclick=()=>{const [ben,ten]=td.dataset.k.split('|');const r=nhomDong(ds,ben).find(x=>x.ten===ten);const m=td.dataset.t?+td.dataset.t:null;moNgan(ten,m,r.ds,ben,r.tu);});
+  R.querySelector('[data-toi]').style.display=B.toi?'grid':'none';
+  R.querySelector('[data-dimwrap]').style.display=B.dim?'flex':'none';
+}
+function moNgan(ten,thang,ds,ben,tu){
+  const dsT=thang?ds.filter(p=>p.thang===thang):ds;
+  const benN=ben||(ds.every(p=>p.loai==='chi')?'chi':ds.every(p=>p.loai==='thu')?'thu':null);
+  const theoT=THANG.map(t=>sum(ds.filter(p=>p.thang===t))), mx=Math.max(...theoT,1);
+  const ng=R.querySelector('[data-ngan]');
+  ng.innerHTML=`<div class="ng-dau"><div class="ng-r1"><span class="ten">${ten}</span>${benN?chipLoai(benN):''}<span class="sp"></span>${dsT.some(p=>p.tu===2)?'<button class="btn">Chuyển sang mục…</button>':''}<button class="btn">Xuất Excel</button><button class="ng-x" data-dong>✕</button></div>
+   <div style="display:flex;gap:40px;align-items:flex-end"><div class="ng-so"><div class="c"><span class="l">${thang?TEN_THANG[thang]:'Cả kỳ 01/08 – 11/10'}</span><span class="v">${f(sum(dsT))}</span></div><div class="c"><span class="l">Số phiếu</span><span class="v">${dsT.length}</span></div></div><span style="flex:1"></span>
+   <div style="display:flex;gap:14px;align-items:flex-end;padding-bottom:10px">${THANG.map((t,i)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px"><span style="font-size:11.5px;color:var(--ash-2)">${ngan(theoT[i])}</span><span style="width:46px;height:${Math.max(2,theoT[i]/mx*56)}px;border-radius:3px;background:${benN==='thu'?'var(--thu)':'var(--chi)'};opacity:${thang&&thang!==t?.35:1}"></span><span style="font-size:12px">${TEN_THANG[t]}</span></div>`).join('')}</div></div></div>
+   <div class="ng-than"><div class="wrap"><table class="g" data-ngds></table></div></div>`;
+  bangPhieu(ng.querySelector('[data-ngds]'),dsT,!benN);
+  R.classList.add('dw');
+}
+R.addEventListener('click',e=>{if(e.target.closest('[data-dong]')) R.classList.remove('dw');});
+segBind(R,'[data-dim]',v=>{st.dim=v;ve();});
+document.querySelectorAll('#bat input').forEach(i=>i.onchange=()=>{B[i.dataset.b]=i.checked?1:0;if(!i.checked&&i.dataset.b==='dim'){st.dim='muc';R.querySelectorAll('[data-dim] button').forEach(b=>b.classList.toggle('on',b.dataset.v==='muc'));}ve();});
+ve();
+</script>
+</body>
+</html>

@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo thu chi: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;--tt-xanh-dot:#3b82f6;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;--tt-la-dot:#22c55e;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;--tt-cam-dot:#f97316;
+  --tt-do-fg:#b91c1c;--tt-vang-fg:#b45309;
+  --tt-tim-bg:#ede9fe;--tt-tim-fg:#6d28d9;
+  --tt-xam-bg:#f1f5f9;--tt-xam-fg:#475569;--tt-xam-dot:#94a3b8;
+  --kt-ngan-w:1180px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+
+.doc{max-width:1680px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc .phan{font-size:20px;font-weight:500;margin:56px 0 4px;padding-top:24px;border-top:1px solid var(--rule)}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.doc a{color:var(--tt-xanh-fg)}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);margin:6px 0;font-size:13px}
+.words th,.words td{padding:5px 12px;border-bottom:1px solid var(--rule-hair);text-align:left;vertical-align:top}
+.words th{color:var(--ash-2);font-weight:400;font-size:12px;background:#f8fafc}
+.words td.n{text-align:right;font-variant-numeric:tabular-nums}
+
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px;max-width:1620px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.pa{display:none}.pa.on{display:block}
+
+/* ---------- khung app ---------- */
+.frame{width:1620px;height:820px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.frame.thap{height:640px}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:14px 24px 16px;flex:1;display:flex;flex-direction:column;min-height:0}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex:none}
+.tool h2{font-size:18px;font-weight:500;margin:0 8px 0 0;white-space:nowrap}
+.tool .sp{flex:1}
+.ky-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 10px;font-size:13px;cursor:pointer;white-space:nowrap}
+.ky-btn:hover{background:var(--rule-hair)}
+.ky-btn .lb{color:var(--ash-2)}
+.ky-btn svg{color:var(--ash-3)}
+.nav{display:inline-flex;gap:2px}
+.nav button{width:28px;height:28px;border:1px solid var(--rule);background:#fff;border-radius:7px;cursor:pointer;color:var(--ash)}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:220px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.btn.chinh{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.chinh:hover{background:#1e293b}
+.btn svg{color:var(--ash-2)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.flt{display:flex;gap:2px}
+.flt button{border:1px solid transparent;background:transparent;border-radius:7px;padding:3px 10px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.flt button:hover{background:var(--rule-hair)}
+.flt button.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt .n{color:var(--ash-3);font-size:12px;margin-left:4px}
+
+.calc{display:flex;align-items:flex-end;gap:22px;padding:2px 2px 12px;flex:none}
+.calc .c{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
+.calc .c .l{font-size:12px;color:var(--ash-2)}
+.calc .c .v{font-size:17px;letter-spacing:-.01em}
+.calc .c .v small{font-size:12px;color:var(--ash-2);margin-left:6px}
+.calc .op{color:var(--ash-3);font-size:16px;padding-bottom:2px}
+.calc .gap{flex:1}
+.calc .c.phu .v{font-size:14px;color:var(--ash)}
+
+/* ---------- lưới ---------- */
+.wrap{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--rule-soft);border-radius:8px}
+table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.g th,.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--rule-hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.g thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:var(--ash-2);font-weight:400;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .mu{color:var(--ash-3)}
+.g .ma{color:var(--ash-2)}
+.g tbody tr:hover td{background:var(--rule-hair)}
+.g tbody tr.sel td{background:#fff;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.g tbody tr.sel td:first-child{border-left:1px solid var(--ink)}
+.g tbody tr.sel td:last-child{border-right:1px solid var(--ink)}
+.g tr.nhom td{background:#f8fafc;color:var(--ink);border-bottom:1px solid var(--rule-soft)}
+.g tr.nhom:hover td{background:#f8fafc}
+.g tr.muc td:first-child{padding-left:28px}
+.g tr.cl td{background:#f8fafc;color:var(--ink);border-top:1px solid var(--rule-soft);position:sticky;bottom:0}
+.g tr.cl:hover td{background:#f8fafc}
+.g tr.thang td{background:#fcfdfe;color:var(--ash-2);font-size:12.5px;height:30px}
+.g td.o{cursor:pointer}
+.g td.o:hover{box-shadow:inset 0 0 0 1px var(--rule)}
+.g td.o.on{box-shadow:inset 0 0 0 1px var(--ink)}
+.g .cot-tong{border-left:1px solid var(--rule-soft)}
+.g .chk{width:14px;height:14px;border:1px solid var(--rule);border-radius:3px;display:inline-block;vertical-align:middle}
+.g .chk.on{background:var(--ink);border-color:var(--ink)}
+.chan{display:flex;justify-content:space-between;color:var(--ash-2);font-size:12px;padding-top:8px;flex:none}
+.tag{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;background:var(--rule-hair);color:var(--ash);line-height:20px;margin-left:8px}
+.tag.chua{color:var(--tt-vang-fg)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;white-space:nowrap}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.chip.ra{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}.chip.ra i{background:var(--tt-cam-dot)}
+.chip.vao{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}.chip.vao i{background:var(--tt-xanh-dot)}
+.chip.dung{background:var(--tt-la-bg);color:var(--tt-la-fg)}.chip.dung i{background:var(--tt-la-dot)}
+.chip.ngung{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}.chip.ngung i{background:var(--tt-xam-dot)}
+.khoa{color:var(--ash-3);font-size:12px}
+.vach{display:inline-block;height:6px;border-radius:3px;background:var(--rule);vertical-align:middle}
+
+/* ---------- ngăn phải ---------- */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28);display:none;z-index:30}
+.frame.dw .scrim{display:block}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:var(--kt-ngan-w);background:#fff;z-index:31;display:none;flex-direction:column;box-shadow:-12px 0 30px rgba(15,23,42,.14)}
+.ngan.on{display:flex}
+.frame:not(.dw) .ngan{display:none}
+.ng-dau{padding:16px 24px 0;flex:none}
+.ng-r1{display:flex;align-items:center;gap:10px}
+.ng-r1 .ten{font-size:18px;font-weight:500;white-space:nowrap}
+.ng-r1 .sp{flex:1}
+.ng-x{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--ash)}
+.ng-x:hover{background:var(--rule-hair)}
+.ng-r2{color:var(--ash-2);font-size:12.5px;margin-top:4px}
+.ng-so{display:flex;gap:40px;padding:14px 0 12px;border-bottom:1px solid var(--rule-soft)}
+.ng-so .c{display:flex;flex-direction:column;gap:1px}
+.ng-so .l{font-size:12px;color:var(--ash-2)}
+.ng-so .v{font-size:17px}
+.ng-than{flex:1;min-height:0;overflow:auto;padding:12px 24px 20px;display:flex;flex-direction:column}
+.ng-luu{color:var(--ash-2);font-size:12.5px;padding:10px 0 0}
+.lk{color:var(--tt-xanh-fg);text-decoration:none}
+.lk:hover{text-decoration:underline}
+.thanh-chon{display:flex;align-items:center;gap:10px;padding:0 0 10px;color:var(--ash);font-size:13px}
+
+/* ---------- C: hai khung ---------- */
+.hai{flex:1;min-height:0;display:grid;grid-template-columns:520px 1fr;gap:14px}
+.hai .wrap{display:flex;flex-direction:column}
+.phai{display:flex;flex-direction:column;min-height:0;background:#fff;border:1px solid var(--rule-soft);border-radius:8px}
+.phai .dau{padding:12px 16px 10px;border-bottom:1px solid var(--rule-soft)}
+.phai .dau .r1{display:flex;align-items:center;gap:10px}
+.phai .dau .r1 .ten{font-size:16px}
+.phai .dau .r1 .sp{flex:1}
+.phai .dau .thang3{display:flex;gap:28px;margin-top:8px}
+.phai .dau .thang3 .c{display:flex;flex-direction:column}
+.phai .dau .thang3 .l{font-size:12px;color:var(--ash-2)}
+.phai .dau .thang3 .v{font-size:15px}
+.phai .than{flex:1;min-height:0;overflow:auto}
+
+/* ---------- danh mục B: hai cột ---------- */
+.hai-cot{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cot{background:#fff;border:1px solid var(--rule-soft);border-radius:8px;display:flex;flex-direction:column;min-height:0}
+.cot .dau{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--rule-soft)}
+.cot .dau .sp{flex:1}
+.cot .ds{flex:1;overflow:auto}
+.cot .it{display:flex;align-items:center;gap:10px;padding:0 14px;height:36px;border-bottom:1px solid var(--rule-hair);cursor:pointer}
+.cot .it:hover{background:var(--rule-hair)}
+.cot .it .sp{flex:1}
+.cot .it .tk{color:var(--ash-2);font-size:12.5px;width:60px}
+.cot .it .so{color:var(--ash-3);font-size:12px;width:62px;text-align:right}
+.cot .it.ngung{color:var(--ash-3)}
+.cot .it.sua{background:#fff;box-shadow:inset 0 0 0 1px var(--ink);gap:8px}
+.cot .them{padding:8px 14px;color:var(--ash-2);font-size:13px}
+.inp{border:1px solid var(--rule);border-radius:6px;background:#fff;padding:3px 8px;font-size:13px;height:28px;display:inline-flex;align-items:center}
+.inp.mo{color:var(--ash-3)}
+
+/* ---------- hộp thoại phiếu ---------- */
+.dlg-nen{background:rgba(15,23,42,.28);border-radius:12px;padding:28px;width:1100px}
+.dlg{background:#fff;border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.25);width:860px;margin:0 auto;display:flex;flex-direction:column}
+.dlg .dau{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--rule-soft);font-size:16px}
+.dlg .dau .sp{flex:1}
+.dlg .than{padding:16px 20px 18px;display:grid;grid-template-columns:150px 1fr;gap:12px 14px;align-items:start}
+.dlg .lb{color:var(--ash-2);font-size:13px;padding-top:6px}
+.dlg .lb .bb{color:var(--tt-do-fg)}
+.dlg .ov{border:1px solid var(--rule);border-radius:7px;min-height:34px;padding:6px 10px;font-size:13.5px;background:#fff;position:relative}
+.dlg .ov.mo{color:var(--ash-3)}
+.dlg .ov.chon{border-color:var(--ink)}
+.dlg .ov .goi{color:var(--ash-2);font-size:12.5px;margin-left:8px}
+.dlg .hang{display:flex;gap:10px}
+.dlg .hang .ov{flex:1}
+.dlg .phu{color:var(--ash-2);font-size:12.5px;margin-top:5px}
+.dlg .chan{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--rule-soft)}
+.menu{position:absolute;left:-1px;right:-1px;top:38px;background:#fff;border:1px solid var(--rule);border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.14);padding:6px;z-index:5}
+.menu .tim{border:1px solid var(--rule);border-radius:6px;padding:4px 8px;color:var(--ash-3);margin-bottom:6px}
+.menu .nh{color:var(--ash-2);font-size:12px;padding:6px 8px 2px}
+.menu .it{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;border:1px solid transparent}
+.menu .it:hover{background:var(--rule-hair)}
+.menu .it.on{border-color:var(--rule)}
+.menu .it .sp{flex:1}
+.menu .it .tk{color:var(--ash-2);font-size:12.5px}
+.menu .them{border-top:1px solid var(--rule-hair);margin-top:4px;padding:8px 8px 4px;color:var(--ash-2);font-size:12.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px solid var(--rule);background:#fff;border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.chips button:hover{background:var(--rule-hair)}
+.chips button.on{border-color:var(--ink);color:var(--ink)}
+.the-luoi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:16px 20px}
+.the-luoi .nh{grid-column:1/-1;color:var(--ash-2);font-size:12.5px;padding-top:4px}
+.the-luoi button{border:1px solid var(--rule);background:#fff;border-radius:9px;padding:12px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.the-luoi button:hover{background:var(--rule-hair)}
+.the-luoi button .tk{color:var(--ash-2);font-size:12px}
+.bo-ro{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap}
+.ghi{font-size:12.5px;color:var(--ash-2);max-width:820px;margin:10px auto 0}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Thu chi theo mục: báo cáo, danh mục và ô chọn mục trên phiếu</h1>
+<p>Ba phần, mỗi phần 3 phương án: (1) báo cáo thu chi theo tháng, (2) danh mục Mục thu/chi kế toán tự khai, (3) chỗ chọn mục trên phiếu chi khác và phiếu thu khác. Số tiền là <b>số thật</b> trong DB dev ngày 11/10/2026 (24 phiếu chi đã chi, 16 phiếu thu đã thu, tháng 8 tới 11/10). Phiếu hiện chưa có mục nào; mục gán cho từng phiếu trong mockup là <b>giả định</b> kế toán đã phân loại xong, chừa lại 3 phiếu "Chưa phân loại" để thấy dòng đó trông thế nào.</p>
+
+<h2>Logic (nói bằng lời, chờ gật trước khi code)</h2>
+<ol>
+<li><b>Mỗi phiếu chi đã chi và mỗi phiếu thu đã thu thuộc đúng một mục.</b> Phiếu sinh từ nghiệp vụ thì máy tự gán mục cố định, không ai sửa: trả nhà cung cấp, thuê gia công ngoài, tạm ứng lương (chi); khách trả tiền hàng, khách đặt cọc, nhà cung cấp hoàn tiền (thu). Phiếu chi khác và phiếu thu khác thì kế toán <b>bắt buộc</b> chọn mục khi lập.</li>
+<li><b>Danh mục mục là của kế toán, máy không tự đẻ.</b> SEED_DEMO=false thì không có sẵn mục nào; trên màn danh mục có nút "Thêm bộ mục gợi ý" (một lần bấm tạo khoảng 15 mục hay gặp ở xưởng in) và nhập Excel. Mục đã có phiếu thì không xoá, chỉ ngưng dùng.</li>
+<li><b>Báo cáo tính theo ngày thực chi, thực thu</b> (ngày chi của phiếu chi, ngày thu của phiếu thu), không theo ngày lập phiếu, không theo tháng của khoản chi. Ví dụ thật: tiền điện tháng 9 trả ngày 06/10 nằm ở cột tháng 10. Phiếu nháp, chờ duyệt, đã huỷ không vào.</li>
+<li><b>Thu trừ chi = chênh lệch của tháng.</b> Báo cáo không thay sổ quỹ và không thay báo cáo lãi lỗ: không tính tồn quỹ, không phân bổ, không cộng công nợ chưa trả.</li>
+<li><b>Phiếu cũ chưa có mục</b> (mọi phiếu khác lập trước khi có danh mục) gom vào dòng "Chưa phân loại" của từng bên; bấm vào ra danh sách, tick nhiều phiếu rồi "Chuyển sang mục" một lần. Cùng nút đó dùng khi kế toán muốn dồn hai mục làm một (MISA không làm được việc này, phải mở từng chứng từ).</li>
+<li><b>Mục không dính tới tài khoản kế toán.</b> Hệ không định khoản gì, ô TK Nợ/Có trên phiếu chỉ là chữ gõ tay để in mẫu, nên mục không có ô tài khoản và chọn mục không điền gì vào hai ô đó. Hai ô đó giữ nguyên như hiện tại.</li>
+</ol>
+
+<h2>Gán mục giả định cho số thật</h2>
+<table class="words">
+<tr><th>Mục</th><th>Phiếu thật (ngày thực chi hoặc thực thu)</th><th class="n">Cộng</th></tr>
+<tr><td>Điện nước</td><td>10/08 Điện lực Thuận An 18.750.000, 07/09 Điện lực Thuận An 21.340.000, 10/09 Cấp thoát nước Bình Dương 1.850.000</td><td class="n">41.940.000</td></tr>
+<tr><td>Vận chuyển thuê ngoài</td><td>22/09 Nhà xe Tấn Phát</td><td class="n">12.000.000</td></tr>
+<tr><td>Internet và phần mềm</td><td>05/10 VNPT Bình Dương</td><td class="n">4.500.000</td></tr>
+<tr><td>Sửa chữa bảo trì máy</td><td>01/10 Cơ khí Hoàng Long 2.400.000, 07/10 Dầu nhớt Minh Tâm 980.000</td><td class="n">3.380.000</td></tr>
+<tr><td>Văn phòng phẩm</td><td>16/09 Nhà sách Phương Nam</td><td class="n">3.200.000</td></tr>
+<tr><td>Tiếp khách</td><td>28/09 Nhà hàng Hương Quê</td><td class="n">650.000</td></tr>
+<tr><td>Chưa phân loại (chi)</td><td>06/10 Điện lực Bình Dương 2.000.000, 06/10 Điện lực Thuận An 2.350.000</td><td class="n">4.350.000</td></tr>
+<tr><td>Doanh thu khách lẻ</td><td>25/09 Bao Bì An Khang, in mẫu thử</td><td class="n">15.000.000</td></tr>
+<tr><td>Nhân viên hoàn tạm ứng</td><td>07/10 Trần Đình Sơn</td><td class="n">5.000.000</td></tr>
+<tr><td>Bán phế liệu</td><td>13/08 giấy vụn 1.250.000, 19/09 pallet cũ 2.300.000, 03/10 lõi giấy 980.000</td><td class="n">4.530.000</td></tr>
+<tr><td>Nhà cung cấp hoàn tiền</td><td>28/08 Tân Mai hoàn tiền giấy lỗi (đang lập thành phiếu thu khác)</td><td class="n">3.500.000</td></tr>
+<tr><td>Tiền phạt nội quy</td><td>04/09 Tổ bế</td><td class="n">420.000</td></tr>
+<tr><td>Lãi tiền gửi</td><td>11/09 BIDV</td><td class="n">186.500</td></tr>
+<tr><td>Chưa phân loại (thu)</td><td>06/10 Phế liệu Minh Phát, giấy vụn tháng 9</td><td class="n">750.000</td></tr>
+</table>
+<p>Mục máy tự gán lấy nguyên số từ phiếu có nguồn: trả nhà cung cấp 10 phiếu 402.764.200, thuê gia công ngoài 3 phiếu 6.000.000, khách trả tiền hàng 5 phiếu 20.032.420, khách đặt cọc 2 phiếu 1.560.420. Tổng chi 478.784.200, tổng thu 50.979.340, khớp tổng phiếu trong DB.</p>
+
+<h2>Đã tham khảo</h2>
+<ul>
+<li><a href="https://helpact.misa.vn/kb/dong_tien/muc_thuchi">MISA AMIS, danh mục Mục thu/chi</a>: mỗi chứng từ tiền gắn một mục, danh mục do kế toán khai. Trang ghi rõ chưa gộp được mục và chưa chuyển hàng loạt chứng từ sang mục khác, phải mở từng chứng từ sửa. Vì vậy cả ba phương án đều có nút "Chuyển sang mục" cho nhiều phiếu một lúc.</li>
+<li><a href="https://helpact.misa.vn/?p=13590">MISA AMIS, Báo cáo dòng tiền theo kỳ</a>: xem thu, chi trong kỳ theo từng khoản và so với kỳ trước (dùng cho B); vào từ phân hệ Tiền mặt, tab Báo cáo.</li>
+<li><a href="https://maestrano.atlassian.net/wiki/spaces/UKB/pages/42598495/Cash+Summary">Xero Cash Summary</a> (trang mô tả bên thứ ba): thu, chi theo tài khoản cho một kỳ, so với kỳ trước; chọn số kỳ so sánh để ra nhiều cột tháng (dùng cho A).</li>
+</ul>
+<p style="font-size:12.5px">Lần này chỉ đọc trang trợ giúp, không chụp ảnh giao diện: trang Xero chính hãng không ra trong kết quả tìm, trang MISA không có ảnh báo cáo dòng tiền. Bố cục cột tháng ở A theo mô tả "chọn số kỳ so sánh" của Xero, chưa đối chiếu ảnh thật.</p>
+
+<!-- =================================================================== -->
+<div class="phan">1. Báo cáo thu chi</div>
+<p>Một mục mới trong Kế toán (thanh bên riêng, quyền riêng <code>bao_cao_thu_chi</code>, cờ xem tiền theo màn như các báo cáo khác). Bấm thử ô số ở A, dòng mục ở C.</p>
+<div class="sw" data-grp="bc">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Bảng mục × tháng</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Một tháng so tháng trước</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Mục bên trái, phiếu bên phải</button>
+</div>
+
+<!-- ---------- 1A ---------- -->
+<section class="pa on" data-grp="bc" data-pa="A">
+<div class="desc">
+  <h3>A. Bảng mục × tháng (kiểu Báo cáo dòng tiền MISA, Xero Cash Summary nhiều kỳ)</h3>
+  <p>Dòng là mục, chia hai nhóm Thu và Chi, mỗi nhóm có dòng cộng ở đầu; cột là các tháng trong kỳ chọn, cột cuối Cộng kỳ. Dòng cuối "Chênh lệch" đứng yên khi cuộn. Bấm một ô số mở ngăn danh sách phiếu đúng mục và đúng tháng đó; bấm tên mục mở cả kỳ. Nút "Theo quý" gộp cột khi kỳ dài.</p>
+  <p>Hợp nhất khi muốn nhìn xu hướng mấy tháng liền và xuất Excel gửi giám đốc. Kém khi chỉ quan tâm một tháng: nhiều ô trống.</p>
+</div>
+<div class="frame" id="fA">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <button class="ky-btn"><span class="lb">Kỳ</span>Tháng 8 – tháng 10/2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="seg"><button class="on">Theo tháng</button><button>Theo quý</button></div>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm mục</div>
+        <div class="flt"><button class="on">Cả hai</button><button>Thu</button><button>Chi</button></div>
+        <span class="sp"></span>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="wrap">
+        <table class="g">
+          <colgroup><col style="width:360px"><col style="width:170px"><col style="width:170px"><col style="width:190px"><col style="width:180px"><col style="width:90px"><col></colgroup>
+          <thead><tr><th>Mục</th><th class="n">Tháng 8</th><th class="n">Tháng 9</th><th class="n">Tháng 10 (1 – 11/10)</th><th class="n cot-tong">Cộng kỳ</th><th class="n">Số phiếu</th><th></th></tr></thead>
+          <tbody id="A-rows"></tbody>
+        </table>
+      </div>
+      <div class="chan"><span>Đơn vị: đồng. Tính theo ngày thực chi, thực thu; phiếu nháp, chờ duyệt, đã huỷ không tính.</span><span>Số tính tới hết ngày 11/10/2026</span></div>
+    </div>
+    <div class="scrim" data-dong></div>
+    <aside class="ngan" data-ngan="dien-t9">
+      <div class="ng-dau">
+        <div class="ng-r1"><span class="ten">Điện nước, tháng 9/2026</span><span class="chip ra"><i></i>Chi</span><span class="sp"></span><button class="btn">Xuất Excel</button><button class="ng-x" data-dong>✕</button></div>
+        <div class="ng-so">
+          <div class="c"><span class="l">Chi trong tháng</span><span class="v">23.190.000</span></div>
+          <div class="c"><span class="l">Số phiếu</span><span class="v">2</span></div>
+          <div class="c"><span class="l">Cả kỳ tháng 8 – tháng 10</span><span class="v">41.940.000</span></div>
+        </div>
+      </div>
+      <div class="ng-than">
+        <div class="wrap" style="flex:none">
+          <table class="g">
+            <colgroup><col style="width:96px"><col style="width:170px"><col style="width:290px"><col><col style="width:130px"><col style="width:140px"></colgroup>
+            <thead><tr><th>Ngày chi</th><th>Số phiếu</th><th>Người nhận tiền</th><th>Lý do chi</th><th>Hình thức</th><th class="n">Số tiền</th></tr></thead>
+            <tbody>
+              <tr><td>10/09/2026</td><td><a class="lk" href="#">PC-261007-5UGN</a></td><td>Công ty Cấp thoát nước Bình Dương</td><td>Tiền nước tháng 9</td><td>Tiền mặt</td><td class="n">1.850.000</td></tr>
+              <tr><td>07/09/2026</td><td><a class="lk" href="#">UNC-261007-OKVM</a></td><td>Điện lực Thuận An</td><td>Tiền điện tháng 9 xưởng in (đợt 2)</td><td>Chuyển khoản</td><td class="n">21.340.000</td></tr>
+              <tr class="cl"><td></td><td>Cộng 2 phiếu</td><td></td><td></td><td></td><td class="n">23.190.000</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="ng-luu">Tiền điện tháng 9 còn hai phiếu trả ngày 06/10 (4.350.000) nằm ở cột tháng 10, đang ở dòng Chưa phân loại.</div>
+      </div>
+    </aside>
+    <aside class="ngan" data-ngan="chua-ra">
+      <div class="ng-dau">
+        <div class="ng-r1"><span class="ten">Chưa phân loại, chi, tháng 10/2026</span><span class="sp"></span><button class="ng-x" data-dong>✕</button></div>
+        <div class="ng-r2">Phiếu chi khác lập trước khi có danh mục mục. Tick rồi chuyển sang mục; số ở báo cáo đổi ngay.</div>
+        <div class="ng-so">
+          <div class="c"><span class="l">Chi trong tháng</span><span class="v">4.350.000</span></div>
+          <div class="c"><span class="l">Số phiếu</span><span class="v">2</span></div>
+        </div>
+      </div>
+      <div class="ng-than">
+        <div class="thanh-chon">Đã chọn 2 phiếu<button class="btn chinh">Chuyển sang mục…</button></div>
+        <div class="wrap" style="flex:none">
+          <table class="g">
+            <colgroup><col style="width:40px"><col style="width:96px"><col style="width:170px"><col style="width:290px"><col><col style="width:140px"></colgroup>
+            <thead><tr><th><span class="chk on"></span></th><th>Ngày chi</th><th>Số phiếu</th><th>Người nhận tiền</th><th>Lý do chi</th><th class="n">Số tiền</th></tr></thead>
+            <tbody>
+              <tr><td><span class="chk on"></span></td><td>06/10/2026</td><td><a class="lk" href="#">UNC-261006-8ODQ</a></td><td>Điện lực Thuận An</td><td>Tiền điện tháng 9 xưởng in</td><td class="n">2.350.000</td></tr>
+              <tr><td><span class="chk on"></span></td><td>06/10/2026</td><td><a class="lk" href="#">UNC-261005-AQ71</a></td><td>Công ty Điện lực Bình Dương</td><td>Tiền điện tháng 9 xưởng in</td><td class="n">2.000.000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</section>
+
+<!-- ---------- 1B ---------- -->
+<section class="pa" data-grp="bc" data-pa="B">
+<div class="desc">
+  <h3>B. Một tháng, so với tháng trước (kiểu Báo cáo dòng tiền theo kỳ MISA)</h3>
+  <p>Chọn một tháng bằng nút ‹ ›; dòng phép tính phía trên ghi thu − chi = chênh lệch của tháng. Bảng có cột tháng này, tháng trước, tăng giảm và một vạch tỷ trọng mờ để mắt thấy mục nào chiếm phần lớn. Mục sắp theo số tiền tháng này, mục bằng 0 cả hai tháng thì ẩn.</p>
+  <p>Hợp cho việc chốt tháng hằng kỳ. Kém: tháng đang chạy (1 – 11/10) so với tháng đủ dễ đọc nhầm là tăng giảm thật; muốn xem 3 tháng phải bấm 3 lần.</p>
+</div>
+<div class="frame" id="fB">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <div class="nav"><button>‹</button></div>
+        <button class="ky-btn"><span class="lb">Tháng</span>10/2026 (1 – 11/10)<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="nav"><button>›</button></div>
+        <span class="khoa" style="margin-left:6px">so với tháng 9/2026</span>
+        <span class="sp"></span>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm mục</div>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="calc">
+        <div class="c"><span class="l">Thu</span><span class="v">28.322.840<small>10 phiếu</small></span></div>
+        <span class="op">−</span>
+        <div class="c"><span class="l">Chi</span><span class="v">391.668.200<small>15 phiếu</small></span></div>
+        <span class="op">=</span>
+        <div class="c"><span class="l">Chênh lệch</span><span class="v">−363.345.360</span></div>
+        <span class="gap"></span>
+        <div class="c phu"><span class="l">Chưa phân loại</span><span class="v">5.100.000<small>3 phiếu</small></span></div>
+      </div>
+      <div class="wrap">
+        <table class="g">
+          <colgroup><col style="width:340px"><col style="width:180px"><col style="width:180px"><col style="width:180px"><col style="width:260px"><col></colgroup>
+          <thead><tr><th>Mục</th><th class="n">Tháng 10 (1 – 11/10)</th><th class="n">Tháng 9</th><th class="n">Tăng giảm</th><th>Tỷ trọng trong nhóm, tháng 10</th><th></th></tr></thead>
+          <tbody id="B-rows"></tbody>
+        </table>
+      </div>
+      <div class="chan"><span>Đơn vị: đồng. Tháng 10 đang chạy, mới tới ngày 11.</span><span>Ẩn 1 mục bằng 0 cả hai tháng</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ---------- 1C ---------- -->
+<section class="pa" data-grp="bc" data-pa="C">
+<div class="desc">
+  <h3>C. Danh sách mục bên trái, phiếu của mục bên phải</h3>
+  <p>Không có ngăn che màn: bên trái là các mục với tổng cả kỳ, bên phải là phiếu của mục đang chọn, chia nhóm theo tháng (dòng tháng ghi cộng tháng). Đầu khung phải có ba số tháng của mục đó. Tick phiếu bên phải rồi "Chuyển sang mục" để phân loại lại; dòng "Chưa phân loại" luôn ở cuối mỗi nhóm bên trái.</p>
+  <p>Hợp cho kế toán ngồi rà và phân loại phiếu. Kém cho người xem tổng thể: không thấy nhiều tháng của nhiều mục cùng lúc, Xuất Excel phải ra file khác màn.</p>
+</div>
+<div class="frame" id="fC">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <button class="ky-btn"><span class="lb">Kỳ</span>Tháng 8 – tháng 10/2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm số phiếu, người nhận</div>
+        <span class="sp"></span>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="calc">
+        <div class="c"><span class="l">Thu</span><span class="v">50.979.340</span></div>
+        <span class="op">−</span>
+        <div class="c"><span class="l">Chi</span><span class="v">478.784.200</span></div>
+        <span class="op">=</span>
+        <div class="c"><span class="l">Chênh lệch</span><span class="v">−427.804.860</span></div>
+      </div>
+      <div class="hai">
+        <div class="wrap">
+          <table class="g">
+            <colgroup><col><col style="width:150px"><col style="width:70px"></colgroup>
+            <thead><tr><th>Mục</th><th class="n">Cộng kỳ</th><th class="n">Phiếu</th></tr></thead>
+            <tbody id="C-rows"></tbody>
+          </table>
+        </div>
+        <div class="phai">
+          <div class="dau">
+            <div class="r1"><span class="ten" id="C-ten">Điện nước</span><span class="chip ra" id="C-chip"><i></i>Chi</span><span class="sp"></span><button class="btn">Chuyển sang mục…</button></div>
+            <div class="thang3" id="C-thang"></div>
+          </div>
+          <div class="than">
+            <table class="g">
+              <colgroup><col style="width:40px"><col style="width:96px"><col style="width:160px"><col style="width:250px"><col><col style="width:130px"></colgroup>
+              <thead><tr><th><span class="chk"></span></th><th>Ngày</th><th>Số phiếu</th><th>Người nhận hoặc nộp</th><th>Lý do</th><th class="n">Số tiền</th></tr></thead>
+              <tbody id="C-phieu"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- =================================================================== -->
+<div class="phan">2. Danh mục Mục thu/chi</div>
+<p>Nằm trong Danh mục của Kế toán, một mục thanh bên riêng, quyền riêng <code>muc_thu_chi</code> (xem, thêm sửa). Trường của một mục: tên, bên (chi hoặc thu), ghi chú, đang dùng hoặc ngưng. Mục máy tự gán hiện trong danh sách để kế toán thấy đủ, nhưng khoá, không sửa tên, không ngưng.</p>
+<div class="sw" data-grp="dm">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Một lưới, lọc nhanh theo bên</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Hai cột Chi | Thu, sửa tại chỗ</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Có nhóm cha (cây mục)</button>
+</div>
+
+<section class="pa on" data-grp="dm" data-pa="A">
+<div class="desc">
+  <h3>A. Một lưới như mọi danh mục khác (khuôn lds)</h3>
+  <p>Lọc nhanh Tất cả | Chi | Thu | Ngưng dùng, có ô tìm, nút Cột, kéo rộng và ghim cột như các lưới khác. Bấm dòng mở hộp sửa nhỏ. Cột "Đã dùng" đếm phiếu, bấm số mở báo cáo thu chi lọc đúng mục đó. Khi danh mục trống, giữa lưới có hai nút "Thêm bộ mục gợi ý" và "Nhập Excel".</p>
+</div>
+<div class="frame thap">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Mục thu chi</h2>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm mục</div>
+        <div class="flt"><button class="on">Tất cả<span class="n">20</span></button><button>Chi<span class="n">11</span></button><button>Thu<span class="n">9</span></button><button>Ngưng dùng<span class="n">1</span></button></div>
+        <span class="sp"></span>
+        <button class="btn">Cột</button>
+        <button class="btn">Nhập Excel</button>
+        <button class="btn chinh">Thêm mục</button>
+      </div>
+      <div class="wrap">
+        <table class="g">
+          <colgroup><col style="width:320px"><col style="width:120px"><col style="width:110px"><col style="width:140px"><col></colgroup>
+          <thead><tr><th>Tên mục</th><th>Bên</th><th class="n">Đã dùng</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
+          <tbody id="DA-rows"></tbody>
+        </table>
+      </div>
+      <div class="chan"><span>Mục có khoá do máy tự gán theo loại phiếu, không sửa được.</span><span>20 mục</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section class="pa" data-grp="dm" data-pa="B">
+<div class="desc">
+  <h3>B. Hai cột Chi | Thu, sửa ngay trên dòng</h3>
+  <p>Danh mục ngắn (dưới 30 mục) nên bày hết lên một màn, không phân trang. Bấm một dòng là dòng đó thành ô sửa (tên, nút ngưng); "+ Thêm mục" ở chân mỗi cột. Gọn, nhưng khác khuôn mọi danh mục khác trong hệ thống.</p>
+</div>
+<div class="frame thap">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Mục thu chi</h2>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm mục</div>
+        <label class="khoa" style="display:flex;gap:6px;align-items:center"><span class="chk" style="width:14px;height:14px;border:1px solid var(--rule);border-radius:3px;display:inline-block"></span>Hiện mục ngưng dùng</label>
+        <span class="sp"></span>
+        <button class="btn">Nhập Excel</button>
+      </div>
+      <div class="hai-cot">
+        <div class="cot"><div class="dau"><span class="chip ra"><i></i>Chi</span><span class="sp"></span><span class="khoa">11 mục</span></div><div class="ds" id="DB-ra"></div><div class="them">+ Thêm mục chi</div></div>
+        <div class="cot"><div class="dau"><span class="chip vao"><i></i>Thu</span><span class="sp"></span><span class="khoa">9 mục</span></div><div class="ds" id="DB-vao"></div><div class="them">+ Thêm mục thu</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<section class="pa" data-grp="dm" data-pa="C">
+<div class="desc">
+  <h3>C. Có nhóm cha (MISA cho mục cha con)</h3>
+  <p>Mục gom dưới nhóm: Chi phí sản xuất, Chi phí bán hàng, Chi phí quản lý, Trả nhà cung cấp, Thu từ khách, Thu khác. Báo cáo thu chi có thêm nút gập theo nhóm. Đổi lại kế toán phải nghĩ hai tầng khi khai, và nhóm dễ bị hiểu như tài khoản 627/641/642 trong khi hệ không định khoản. Có thêm thao tác "Gộp vào mục khác" (chuyển hết phiếu rồi ngưng mục cũ).</p>
+</div>
+<div class="frame thap">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Mục thu chi</h2>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm mục</div>
+        <div class="seg"><button class="on">Mở hết</button><button>Gập hết</button></div>
+        <span class="sp"></span>
+        <button class="btn">Thêm nhóm</button>
+        <button class="btn chinh">Thêm mục</button>
+      </div>
+      <div class="wrap">
+        <table class="g">
+          <colgroup><col style="width:380px"><col style="width:110px"><col style="width:140px"><col></colgroup>
+          <thead><tr><th>Nhóm và mục</th><th class="n">Đã dùng</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody id="DC-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- =================================================================== -->
+<div class="phan">3. Chọn mục trên phiếu chi khác (phiếu thu khác làm y hệt)</div>
+<p>Ô "Mục chi" bắt buộc. Các ô còn lại của form (kể cả TK Nợ/Có) giữ nguyên, mockup chỉ vẽ phần quanh ô mục. Phiếu có nguồn (trả nhà cung cấp, gia công ngoài, tạm ứng lương) không có ô này, chỉ hiện chữ xám "Mục: Trả nhà cung cấp, máy tự gán" ở tờ xem trước. Mục đang ngưng không hiện trong ô chọn.</p>
+<div class="sw" data-grp="ph">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Ô chọn có tìm, gợi ý theo người nhận</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Chip mục hay dùng + Mục khác</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Chọn mục trước, rồi mới ra form</button>
+</div>
+
+<section class="pa on" data-grp="ph" data-pa="A">
+<div class="desc">
+  <h3>A. Ô chọn có tìm, đặt ngay dưới Người nhận tiền</h3>
+  <p>Gõ người nhận đã từng chi (Điện lực Thuận An) thì ô Mục chi tự điền mục lần trước, chữ xám "theo lần chi trước" để biết là máy gợi ý. Mở ô ra: nhóm "Hay dùng" (5 mục nhiều phiếu nhất 90 ngày qua) rồi tới tất cả. Cuối menu có "Thêm mục mới" cho người có quyền danh mục.</p>
+</div>
+<div class="dlg-nen">
+  <div class="dlg">
+    <div class="dau">Lập phiếu chi khác<span class="sp"></span><button class="ng-x">✕</button></div>
+    <div class="than">
+      <span class="lb">Người nhận tiền <span class="bb">*</span></span>
+      <div><div class="ov chon">Điện lực Thuận An</div><div class="phu">Đã chi cho người này 3 lần, lần gần nhất 06/10/2026</div></div>
+      <span class="lb">Mục chi <span class="bb">*</span></span>
+      <div class="ov chon" style="min-height:34px">Điện nước<span class="goi">theo lần chi trước</span>
+        <div class="menu">
+          <div class="tim">Tìm mục</div>
+          <div class="nh">Hay dùng</div>
+          <div class="it on"><span>Điện nước</span></div>
+          <div class="it"><span>Vận chuyển thuê ngoài</span></div>
+          <div class="it"><span>Internet và phần mềm</span></div>
+          <div class="it"><span>Sửa chữa bảo trì máy</span></div>
+          <div class="nh">Tất cả</div>
+          <div class="it"><span>Thuê nhà xưởng</span></div>
+          <div class="it"><span>Tiếp khách</span></div>
+          <div class="them">+ Thêm mục mới</div>
+        </div>
+      </div>
+      <span class="lb">Lý do chi <span class="bb">*</span></span>
+      <div class="ov">Tiền điện tháng 10 xưởng in</div>
+      <span class="lb">Số tiền <span class="bb">*</span></span>
+      <div class="ov">19.200.000</div>
+    </div>
+    <div class="chan"><button class="btn">Huỷ</button><button class="btn chinh">Lưu phiếu</button></div>
+  </div>
+</div>
+</section>
+
+<section class="pa" data-grp="ph" data-pa="B">
+<div class="desc">
+  <h3>B. Một hàng chip mục hay dùng, bấm "Mục khác" mới mở danh sách</h3>
+  <p>Một chạm cho 6 mục hay dùng nhất; chip đang chọn có viền đậm. Gợi ý theo người nhận vẫn có (chip tự sáng). Nhanh khi mục ít, nhưng chip đổi chỗ theo số lần dùng nên người quen tay dễ bấm nhầm.</p>
+</div>
+<div class="dlg-nen">
+  <div class="dlg">
+    <div class="dau">Lập phiếu chi khác<span class="sp"></span><button class="ng-x">✕</button></div>
+    <div class="than">
+      <span class="lb">Người nhận tiền <span class="bb">*</span></span>
+      <div class="ov chon">Điện lực Thuận An</div>
+      <span class="lb">Mục chi <span class="bb">*</span></span>
+      <div><div class="chips"><button class="on">Điện nước</button><button>Vận chuyển thuê ngoài</button><button>Internet và phần mềm</button><button>Sửa chữa bảo trì máy</button><button>Văn phòng phẩm</button><button>Tiếp khách</button><button>Mục khác…</button></div><div class="phu">Sáng sẵn theo lần chi trước cho Điện lực Thuận An</div></div>
+      <span class="lb">Lý do chi <span class="bb">*</span></span>
+      <div class="ov">Tiền điện tháng 10 xưởng in</div>
+      <span class="lb">Số tiền <span class="bb">*</span></span>
+      <div class="ov">19.200.000</div>
+    </div>
+    <div class="chan"><button class="btn">Huỷ</button><button class="btn chinh">Lưu phiếu</button></div>
+  </div>
+</div>
+</section>
+
+<section class="pa" data-grp="ph" data-pa="C">
+<div class="desc">
+  <h3>C. Bấm "Lập phiếu chi khác" ra lưới mục trước, chọn xong mới ra form</h3>
+  <p>Kế toán nghĩ "chi cái gì" trước rồi mới điền; không thể quên mục. Đổi lại thêm một bước cho mọi phiếu, và mất gợi ý theo người nhận vì người nhận gõ sau.</p>
+</div>
+<div class="dlg-nen">
+  <div class="dlg">
+    <div class="dau">Lập phiếu chi khác: chi cho việc gì?<span class="sp"></span><button class="ng-x">✕</button></div>
+    <div class="the-luoi">
+      <span class="nh">Hay dùng</span>
+      <button><span>Điện nước</span></button>
+      <button><span>Vận chuyển thuê ngoài</span></button>
+      <button><span>Internet và phần mềm</span></button>
+      <button><span>Sửa chữa bảo trì máy</span></button>
+      <span class="nh">Các mục khác</span>
+      <button><span>Văn phòng phẩm</span></button>
+      <button><span>Tiếp khách</span></button>
+      <button><span>Thuê nhà xưởng</span></button>
+      <button><span>Thuế phí lệ phí</span></button>
+      <button><span>Chi khác</span></button>
+    </div>
+    <div class="chan"><button class="btn">Huỷ</button></div>
+  </div>
+</div>
+</section>
+
+<h2>Đề xuất</h2>
+<p>Báo cáo chọn <b>A</b> (bảng mục × tháng): đúng câu "tổng hợp trong kỳ hoặc trong tháng", một màn ra cả xu hướng và số tháng, ngăn danh sách phiếu kiêm chỗ phân loại lại phiếu cũ. Danh mục chọn <b>A</b> (một lưới khuôn lds như mọi danh mục). Ô chọn mục chọn <b>A</b> (ô có tìm, gợi ý theo người nhận). Chưa làm nhóm cha; khi cần thì thêm cột nhóm sau, không phải đổi dữ liệu phiếu.</p>
+<p>Trước khi làm ba màn này còn bước 1 đã nói: sửa báo cáo công nợ để phiếu chi khác, chi nội bộ, tạm ứng lương không rơi vào 331 nữa, và tiền hoàn cho khách vào 131.</p>
+</div>
+
+<script>
+const f = v => v ? (v<0?'−':'') + Math.abs(Math.round(v)).toLocaleString('vi-VN') : '';
+const o = (v,attr='') => v ? `<td class="n o"${attr}>${f(v)}</td>` : `<td class="n mu">—</td>`;
+// [tên, tự gán?, t8, t9, t10, số phiếu, tk]
+const VAO = [
+  ['Khách trả tiền hàng',1,0,0,20032420,5,'131'],
+  ['Doanh thu khách lẻ',0,0,15000000,0,1,'511'],
+  ['Nhân viên hoàn tạm ứng',0,0,0,5000000,1,'141'],
+  ['Bán phế liệu',0,1250000,2300000,980000,3,'711'],
+  ['Nhà cung cấp hoàn tiền',0,3500000,0,0,1,'331'],
+  ['Khách đặt cọc',1,0,0,1560420,2,'131'],
+  ['Tiền phạt nội quy',0,0,420000,0,1,'711'],
+  ['Lãi tiền gửi',0,0,186500,0,1,'515'],
+  ['Chưa phân loại',2,0,0,750000,1,''],
+];
+const RA = [
+  ['Trả nhà cung cấp',1,2484000,26842000,373438200,10,'331'],
+  ['Điện nước',0,18750000,23190000,0,3,'6277'],
+  ['Vận chuyển thuê ngoài',0,0,12000000,0,1,'6417'],
+  ['Thuê gia công ngoài',1,0,0,6000000,3,'154'],
+  ['Internet và phần mềm',0,0,0,4500000,1,'6428'],
+  ['Sửa chữa bảo trì máy',0,0,0,3380000,2,'6277'],
+  ['Văn phòng phẩm',0,0,3200000,0,1,'6423'],
+  ['Tiếp khách',0,0,650000,0,1,'6428'],
+  ['Chưa phân loại',2,0,0,4350000,2,''],
+];
+const sum = (a,i) => a.reduce((s,r)=>s+r[i],0);
+const nhan = r => r[0] + (r[1]===1?'<span class="tag">máy tự gán</span>':'') + (r[1]===2?'<span class="tag chua">cần phân loại</span>':'');
+
+// ---------- 1A ----------
+function nhomA(ten, a){
+  const t=[2,3,4].map(i=>sum(a,i)), n=sum(a,5);
+  let h=`<tr class="nhom"><td>${ten}</td>${t.map(v=>`<td class="n">${f(v)}</td>`).join('')}<td class="n cot-tong">${f(t[0]+t[1]+t[2])}</td><td class="n">${n}</td><td></td></tr>`;
+  a.forEach(r=>{
+    const mo = (thang)=>{
+      if(r[0]==='Điện nước' && thang===3) return ' data-mo="dien-t9"';
+      if(r[0]==='Chưa phân loại' && ten==='Chi' && thang===4) return ' data-mo="chua-ra"';
+      return '';
+    };
+    h+=`<tr class="muc"><td>${nhan(r)}</td>${o(r[2],mo(2))}${o(r[3],mo(3))}${o(r[4],mo(4))}<td class="n cot-tong">${f(r[2]+r[3]+r[4])}</td><td class="n mu">${r[5]}</td><td></td></tr>`;
+  });
+  return [h,t];
+}
+const [hv,tv]=nhomA('Thu',VAO), [hr,tr]=nhomA('Chi',RA);
+const cl=[0,1,2].map(i=>tv[i]-tr[i]);
+document.getElementById('A-rows').innerHTML = hv+hr+
+  `<tr class="cl"><td>Chênh lệch thu − chi</td>${cl.map(v=>`<td class="n">${f(v)}</td>`).join('')}<td class="n cot-tong">${f(cl[0]+cl[1]+cl[2])}</td><td></td><td></td></tr>`;
+
+const fA=document.getElementById('fA');
+fA.addEventListener('click',e=>{
+  const m=e.target.closest('[data-mo]');
+  if(m){
+    fA.querySelectorAll('td.o.on').forEach(x=>x.classList.remove('on'));
+    m.classList.add('on');
+    fA.querySelectorAll('.ngan').forEach(n=>n.classList.toggle('on',n.dataset.ngan===m.dataset.mo));
+    fA.classList.add('dw');
+  }
+  if(e.target.closest('[data-dong]')) fA.classList.remove('dw');
+});
+
+// ---------- 1B ----------
+function nhomB(ten,a){
+  const rows=a.filter(r=>r[4]||r[3]).sort((x,y)=>y[4]-x[4]||y[3]-x[3]);
+  const t10=sum(a,4), t9=sum(a,3);
+  let h=`<tr class="nhom"><td>${ten}</td><td class="n">${f(t10)}</td><td class="n">${f(t9)}</td><td class="n">${f(t10-t9)}</td><td></td><td></td></tr>`;
+  rows.forEach(r=>{
+    const d=r[4]-r[3], w=t10? Math.round(r[4]/t10*220):0;
+    h+=`<tr class="muc"><td>${nhan(r)}</td>${r[4]?`<td class="n">${f(r[4])}</td>`:'<td class="n mu">—</td>'}${r[3]?`<td class="n">${f(r[3])}</td>`:'<td class="n mu">—</td>'}<td class="n">${d>0?'+':''}${f(d)}</td><td>${w?`<span class="vach" style="width:${Math.max(w,3)}px"></span>`:''}</td><td></td></tr>`;
+  });
+  return [h,t10,t9];
+}
+const [bv,bv10,bv9]=nhomB('Thu',VAO), [br,br10,br9]=nhomB('Chi',RA);
+document.getElementById('B-rows').innerHTML=bv+br+`<tr class="cl"><td>Chênh lệch thu − chi</td><td class="n">${f(bv10-br10)}</td><td class="n">${f(bv9-br9)}</td><td class="n">${f((bv10-br10)-(bv9-br9))}</td><td></td><td></td></tr>`;
+
+// ---------- 1C ----------
+const PHIEU = {
+  'Điện nước':[['Tháng 9',[['10/09/2026','PC-261007-5UGN','Công ty Cấp thoát nước Bình Dương','Tiền nước tháng 9',1850000],['07/09/2026','UNC-261007-OKVM','Điện lực Thuận An','Tiền điện tháng 9 xưởng in (đợt 2)',21340000]]],['Tháng 8',[['10/08/2026','UNC-261007-PXPI','Điện lực Thuận An','Tiền điện tháng 8 xưởng in',18750000]]]],
+  'Bán phế liệu':[['Tháng 10',[['03/10/2026','PT-261007-J0SN','Cơ sở phế liệu Minh Phát','Bán lõi giấy cuộn',980000]]],['Tháng 9',[['19/09/2026','PT-261007-ZGZH','Cơ sở Pallet Thuận Phát','Bán pallet gỗ cũ',2300000]]],['Tháng 8',[['13/08/2026','PT-261007-NE7V','Cơ sở phế liệu Minh Phát','Bán giấy vụn tháng 8',1250000]]]],
+  'Chưa phân loại|ra':[['Tháng 10',[['06/10/2026','UNC-261006-8ODQ','Điện lực Thuận An','Tiền điện tháng 9 xưởng in',2350000],['06/10/2026','UNC-261005-AQ71','Công ty Điện lực Bình Dương','Tiền điện tháng 9 xưởng in',2000000]]]],
+  'Chưa phân loại|vao':[['Tháng 10',[['06/10/2026','PT-261005-H4B7','Cơ sở phế liệu Minh Phát','Bán giấy vụn tháng 9',750000]]]],
+  'Văn phòng phẩm':[['Tháng 9',[['16/09/2026','PC-261007-PMH9','Nhà sách Phương Nam Thuận An','Mua văn phòng phẩm quý IV',3200000]]]],
+  'Sửa chữa bảo trì máy':[['Tháng 10',[['07/10/2026','PC-261007-OE92','Cửa hàng Dầu nhớt Minh Tâm','Mua dầu nhớt bảo trì máy bế',980000],['01/10/2026','PC-261007-14L6','Cơ khí Hoàng Long','Sửa máy nén khí xưởng in',2400000]]]],
+};
+function dongC(ben,a){
+  const tong=a.reduce((s,r)=>s+r[2]+r[3]+r[4],0);
+  let h=`<tr class="nhom"><td>${ben==='vao'?'Thu':'Chi'}</td><td class="n">${f(tong)}</td><td class="n">${sum(a,5)}</td></tr>`;
+  a.forEach(r=>{h+=`<tr class="muc" data-c="${r[0]}" data-ben="${ben}" style="cursor:pointer"><td>${nhan(r)}</td><td class="n">${f(r[2]+r[3]+r[4])}</td><td class="n mu">${r[5]}</td></tr>`;});
+  return h;
+}
+document.getElementById('C-rows').innerHTML=dongC('vao',VAO)+dongC('ra',RA);
+function chonC(ten,ben){
+  const r=(ben==='vao'?VAO:RA).find(x=>x[0]===ten);
+  document.querySelectorAll('#C-rows tr').forEach(t=>t.classList.toggle('sel',t.dataset.c===ten&&t.dataset.ben===ben));
+  document.getElementById('C-ten').textContent=ten;
+  const chip=document.getElementById('C-chip');
+  chip.className='chip '+(ben==='vao'?'vao':'ra'); chip.innerHTML='<i></i>'+(ben==='vao'?'Thu':'Chi');
+  document.getElementById('C-thang').innerHTML=[['Tháng 8',r[2]],['Tháng 9',r[3]],['Tháng 10',r[4]]].map(([l,v])=>`<div class="c"><span class="l">${l}</span><span class="v">${v?f(v):'0'}</span></div>`).join('');
+  const ds=PHIEU[ten+'|'+ben]||PHIEU[ten];
+  document.getElementById('C-phieu').innerHTML = ds
+    ? ds.map(([th,ps])=>`<tr class="thang"><td></td><td colspan="4">${th}, ${ps.length} phiếu</td><td class="n">${f(ps.reduce((s,p)=>s+p[4],0))}</td></tr>`+ps.map(p=>`<tr><td><span class="chk"></span></td><td>${p[0]}</td><td><a class="lk" href="#">${p[1]}</a></td><td>${p[2]}</td><td>${p[3]}</td><td class="n">${f(p[4])}</td></tr>`).join('')).join('')
+    : `<tr><td colspan="6" style="color:var(--ash-2);text-align:center;height:80px">Mockup chỉ dựng phiếu cho vài mục: bấm Điện nước, Bán phế liệu, Văn phòng phẩm, Sửa chữa bảo trì máy, Chưa phân loại</td></tr>`;
+}
+document.getElementById('C-rows').addEventListener('click',e=>{const t=e.target.closest('tr[data-c]'); if(t) chonC(t.dataset.c,t.dataset.ben);});
+chonC('Điện nước','ra');
+
+// ---------- 2: danh mục ----------
+const DM = [
+  // [tên, bên, tk, đã dùng, trạng thái, khoá, ghi chú, nhóm C]
+  ['Trả nhà cung cấp','ra','331',10,'dung',1,'Phiếu chi trả đơn mua','Trả nhà cung cấp'],
+  ['Thuê gia công ngoài','ra','154',3,'dung',1,'Phiếu chi gia công ngoài','Chi phí sản xuất'],
+  ['Tạm ứng lương','ra','334',0,'dung',1,'Phiếu chi tạm ứng lương','Chi phí quản lý'],
+  ['Điện nước','ra','6277',3,'dung',0,'Xưởng và văn phòng','Chi phí sản xuất'],
+  ['Sửa chữa bảo trì máy','ra','6277',2,'dung',0,'','Chi phí sản xuất'],
+  ['Thuê nhà xưởng','ra','6277',0,'dung',0,'','Chi phí sản xuất'],
+  ['Vận chuyển thuê ngoài','ra','6417',1,'dung',0,'Thuê xe giao hàng','Chi phí bán hàng'],
+  ['Tiếp khách','ra','6428',1,'dung',0,'','Chi phí bán hàng'],
+  ['Văn phòng phẩm','ra','6423',1,'dung',0,'','Chi phí quản lý'],
+  ['Internet và phần mềm','ra','6428',1,'dung',0,'','Chi phí quản lý'],
+  ['Chi mua mực in lẻ','ra','152',0,'ngung',0,'Đã chuyển sang đơn mua','Chi phí sản xuất'],
+  ['Khách trả tiền hàng','vao','131',5,'dung',1,'Phiếu thu theo hoá đơn','Thu từ khách'],
+  ['Khách đặt cọc','vao','131',2,'dung',1,'Phiếu thu cọc đơn hàng','Thu từ khách'],
+  ['Nhà cung cấp hoàn tiền','vao','331',1,'dung',1,'','Thu khác'],
+  ['Doanh thu khách lẻ','vao','511',1,'dung',0,'Khách không có đơn trong hệ thống','Thu từ khách'],
+  ['Bán phế liệu','vao','711',3,'dung',0,'Giấy vụn, lõi giấy, pallet','Thu khác'],
+  ['Nhân viên hoàn tạm ứng','vao','141',1,'dung',0,'','Thu khác'],
+  ['Tiền phạt nội quy','vao','711',1,'dung',0,'','Thu khác'],
+  ['Lãi tiền gửi','vao','515',1,'dung',0,'','Thu khác'],
+  ['Thu khác','vao','711',0,'dung',0,'','Thu khác'],
+];
+const chipBen = b => b==='ra'?'<span class="chip ra"><i></i>Chi</span>':'<span class="chip vao"><i></i>Thu</span>';
+const chipTT = t => t==='dung'?'<span class="chip dung"><i></i>Đang dùng</span>':'<span class="chip ngung"><i></i>Ngưng dùng</span>';
+const khoa = '<span class="khoa">🔒</span>';
+document.getElementById('DA-rows').innerHTML = DM.map(r=>`<tr${r[4]==='ngung'?' style="color:var(--ash-3)"':''}><td>${r[0]}${r[5]?' '+khoa:''}</td><td>${chipBen(r[1])}</td><td class="n">${r[3]?`<a class="lk" href="#">${r[3]}</a>`:'<span class="mu">0</span>'}</td><td>${chipTT(r[4])}</td><td class="ma">${r[6]}</td></tr>`).join('');
+const itB = (r,i) => i===3
+  ? `<div class="it sua"><span class="inp" style="flex:1">${r[0]}</span><button class="btn">Ngưng</button><button class="btn chinh">Lưu</button></div>`
+  : `<div class="it${r[4]==='ngung'?' ngung':''}"><span>${r[0]}</span>${r[5]?khoa:''}<span class="sp"></span><span class="so">${r[3]} phiếu</span></div>`;
+document.getElementById('DB-ra').innerHTML = DM.map((r,i)=>[r,i]).filter(([r])=>r[1]==='ra').map(([r,i])=>itB(r,i)).join('');
+document.getElementById('DB-vao').innerHTML = DM.map((r,i)=>[r,i]).filter(([r])=>r[1]==='vao').map(([r,i])=>itB(r,i)).join('');
+const NHOM = ['Trả nhà cung cấp','Chi phí sản xuất','Chi phí bán hàng','Chi phí quản lý','Thu từ khách','Thu khác'];
+document.getElementById('DC-rows').innerHTML = NHOM.map(n=>{
+  const con=DM.filter(r=>r[7]===n);
+  return `<tr class="nhom"><td>▾ ${n}</td><td class="n">${con.reduce((s,r)=>s+r[3],0)}</td><td></td><td class="ma">${con.length} mục</td></tr>`+
+    con.map(r=>`<tr class="muc"${r[4]==='ngung'?' style="color:var(--ash-3)"':''}><td>${r[0]}${r[5]?' '+khoa:''}</td><td class="n">${r[3]}</td><td>${chipTT(r[4])}</td><td>${r[5]?'':'<span class="khoa">Gộp vào mục khác</span>'}</td></tr>`).join('');
+}).join('');
+
+// ---------- chuyển phương án ----------
+document.querySelectorAll('.sw').forEach(sw=>{
+  const g=sw.dataset.grp;
+  sw.addEventListener('click',e=>{
+    const b=e.target.closest('.pill'); if(!b) return;
+    sw.querySelectorAll('.pill').forEach(x=>x.classList.toggle('on',x===b));
+    document.querySelectorAll(`.pa[data-grp="${g}"]`).forEach(p=>p.classList.toggle('on',p.dataset.pa===b.dataset.pa));
+  });
+});
+</script>
+</body>
+</html>

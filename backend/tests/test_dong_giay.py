@@ -379,3 +379,88 @@ def test_dich_chuoi_va_routing_ket_o_con():
 
     assert so_to_in("cai") == 2000            # 1.000 cuốn × 2 tay = 2.000 tờ
     assert so_to_in("con") == so_to_in("cai")
+
+
+# ---- bước cuối theo đơn vị sản phẩm (11/10/2026) ------------------------------------------------
+def _lenh_sach(db, lsx_id: int, step_prefix: str) -> Lsx:
+    """Sách 64 trang, 16 trang/tay ⇒ 4 tay/cuốn. Danh mục khai SAI kiểu dev: vào keo và xén đều
+    tay → tay — đúng ca LSX26-0003 làm gãy gửi nhập kho."""
+    lsx = Lsx(id=lsx_id, ma=f"L{lsx_id}", order_id=1, order_line_id=lsx_id, so_luong_dat=1000,
+              so_con=8, don_vi_tinh="cuốn", quy_cach_json={"trang_moi_tay": 16, "so_trang": 64})
+    lsx.cong_doans = [
+        LsxCongDoan(step_key=f"{step_prefix}1", thu_tu=1, cong_doan_id=1, ten="In", nhom="print"),
+        LsxCongDoan(step_key=f"{step_prefix}2", thu_tu=2, cong_doan_id=2, ten="Gấp",
+                    nhom="finishing"),
+        LsxCongDoan(step_key=f"{step_prefix}3", thu_tu=3, cong_doan_id=3, ten="Bắt tay + vào keo",
+                    nhom="finishing"),
+        LsxCongDoan(step_key=f"{step_prefix}4", thu_tu=4, cong_doan_id=4, ten="Xén 3 mặt",
+                    nhom="finishing"),
+    ]
+    db.add(lsx)
+    db.flush()
+    return lsx
+
+
+def _danh_muc_sach(db) -> None:
+    db.add_all([
+        CongDoan(id=1, ma="IN", ten="In", nhom="print", don_vi_vao="to", don_vi_ra="to"),
+        CongDoan(id=2, ma="GAP", ten="Gấp", nhom="finishing", don_vi_vao="to", don_vi_ra="tay"),
+        CongDoan(id=3, ma="KEO", ten="Bắt tay + vào keo", nhom="finishing", don_vi_vao="tay",
+                 don_vi_ra="tay"),
+        CongDoan(id=4, ma="XEN", ten="Xén 3 mặt", nhom="finishing", don_vi_vao="tay",
+                 don_vi_ra="tay"),
+    ])
+    db.flush()
+
+
+def test_buoc_cuoi_lenh_chinh_ra_thanh_pham_du_danh_muc_khai_tay():
+    """Bước cuối của lệnh chính ra chặng Thành phẩm (= cuốn của lệnh), số ra = SL đặt. Bước giữa
+    vẫn theo danh mục; cầu tay → cuốn lấy từ chính sách (4 tay/cuốn) nên số giấy KHÔNG đổi."""
+    db = _db()
+    _seed_don_vi(db)
+    _danh_muc_sach(db)
+    lsx = _lenh_sach(db, 1, "a")
+    _svc(db)._ap_chuoi_nguoc(lsx)
+    b = {c.ten: c for c in lsx.cong_doans}
+    assert (b["Xén 3 mặt"].don_vi_vao, b["Xén 3 mặt"].don_vi_ra) == ("tay", "cai")
+    assert float(b["Xén 3 mặt"].so_luong_ra) == 1000
+    assert float(b["Xén 3 mặt"].so_luong_vao) == 4000
+    assert (b["Bắt tay + vào keo"].don_vi_vao, b["Bắt tay + vào keo"].don_vi_ra) == ("tay", "tay")
+    assert float(b["In"].so_luong_ra) == 4000
+
+
+def test_lenh_di_kem_giu_don_vi_danh_muc_o_buoc_cuoi():
+    """Lệnh nhả hàng sang bước của lệnh khác (bìa → vào keo của ruột) không ra thành phẩm: bước cuối
+    giữ đơn vị danh mục. Nối cạnh qua lưu công đoạn của lệnh chính thì lệnh đi kèm tính lại ngay."""
+    from app.models.lsx import LsxCongDoanPhuThuoc
+
+    db = _db()
+    _seed_don_vi(db)
+    _danh_muc_sach(db)
+    chinh = _lenh_sach(db, 1, "a")
+    kem = _lenh_sach(db, 2, "b")
+    svc = _svc(db)
+    svc._ap_chuoi_nguoc(kem)
+    assert max(kem.cong_doans, key=lambda c: c.thu_tu).don_vi_ra == "cai"   # chưa nối: lệnh chính
+
+    cuoi_kem = max(kem.cong_doans, key=lambda c: c.thu_tu)
+    keo_chinh = next(c for c in chinh.cong_doans if c.thu_tu == 3)
+    db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=cuoi_kem.id, buoc_sau_id=keo_chinh.id))
+    db.flush()
+    svc._ap_chuoi_nguoc(kem)
+    assert (cuoi_kem.don_vi_vao, cuoi_kem.don_vi_ra) == ("tay", "tay")
+    svc._ap_chuoi_nguoc(chinh)
+    assert max(chinh.cong_doans, key=lambda c: c.thu_tu).don_vi_ra == "cai"
+
+
+def test_kho_nhan_chang_thanh_pham_mot_mot():
+    """Số KCS cuối ở chặng Thành phẩm đã là đơn vị của sản phẩm — sang đơn vị món luôn 1:1, không
+    đi đường quy đổi của món (mã `cai` ↔ `cuon` không có cặp quy đổi nào)."""
+    from types import SimpleNamespace
+
+    from app.services.san_xuat.kho import _he_so_cho_nhap, la_chang_thanh_pham
+
+    assert la_chang_thanh_pham("cai") and la_chang_thanh_pham(" cai ")
+    assert not la_chang_thanh_pham("tay") and not la_chang_thanh_pham(None)
+    tp = SimpleNamespace(id=1, ma="TP-1", ten="Sách", don_vi_gia="cuon")
+    assert _he_so_cho_nhap(None, None, tp, "cai") == 1.0

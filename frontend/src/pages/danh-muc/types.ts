@@ -15,7 +15,9 @@ export interface FieldDef {
   // mã như `don_vi_gia` (quy đổi làm việc trên mã `kg`/`to`, không trên id).
   // `self-ref-multi` = như `ref-multi` nhưng nguồn chọn là CHÍNH danh mục đang mở (NVL thay thế) —
   // CatalogDrawer tự loại dòng đang sửa khỏi danh sách, người khai không tự chọn được chính mình.
-  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi";
+  // `don-vi-them` = mảng MÃ đơn vị khai thêm cạnh ĐVT chính (Giấy · Vật tư khác, `ODonViNhieu`):
+  // `refPrefix` trỏ danh mục Đơn vị, `donViChinh` là ô ĐVT chính cùng form.
+  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them";
   /** Ô `select`: danh sách chọn. Nhận cả HÀM (như `hint`/`an`) cho menu mà nhãn đến MUỘN hơn
    *  lúc khai config — 5 chặng dòng giấy nạp từ `/api/don-vi/tram`, mảng dựng sẵn ở tầm module sẽ
    *  đóng băng lúc bảng còn rỗng. Hàm được gọi MỖI lần vẽ, nên vẽ lại là menu tự đầy. */
@@ -45,6 +47,9 @@ export interface FieldDef {
   /** Ô `to-multi`: nhãn gắn sau chip tổ ĐẦU danh sách đang chọn (vd "mặc định") — công đoạn nhiều
    *  tổ lấy tổ chọn đầu làm tổ mặc định của bước lệnh, không đánh dấu thì không ai biết. */
   nhanDau?: string;
+  /** Ô `don-vi-them`: key của ô ĐVT chính cùng form (mặc định `don_vi_gia`) — nhóm quy đổi của nó
+   *  bị ẩn khỏi danh sách thêm. */
+  donViChinh?: string;
   refPrefix?: string;           // ref / ref-multi / ref-search: endpoint danh mục nguồn (đổ theo TÊN/MÃ)
   /** Query thêm khi nạp danh mục nguồn, vd `{ active: true }` — không lọc thì picker mời cả dòng
    *  đã ngừng dùng, người ta chọn xong bấm Lưu mới ăn lỗi từ server. */

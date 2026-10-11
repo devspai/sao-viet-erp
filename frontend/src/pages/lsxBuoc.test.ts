@@ -290,7 +290,9 @@ describe("nhanGiayTheoDauVao", () => {
   it("nhãn bộ chọn theo đầu vào của bước", () => {
     expect(nhanGiayTheoDauVao("to", "kg")).toBe("tờ in");
     expect(nhanGiayTheoDauVao("to_nguyen", "kg")).toBe("tờ nguyên");
-    expect(nhanGiayTheoDauVao("cuon", "kg")).toBe("cuộn · kg");
+    // Bước nhận giấy khổ rộng: khổ + đơn vị của mã, không còn chữ "cuộn".
+    expect(nhanGiayTheoDauVao("kg", "kg", 1000)).toBe("khổ 1000 mm (kg)");
+    expect(nhanGiayTheoDauVao("kg", "kg")).toBe("kg");
     expect(nhanGiayTheoDauVao(null, "tấn")).toBe("");
     expect(nhanGiayTheoDauVao("", "kg")).toBe("");
     expect(nhanGiayTheoDauVao("cai", "kg")).toBe("");
@@ -303,9 +305,10 @@ describe("dòng giấy là số MÁY tính", () => {
     expect(laMayTinh({ hang_loai: "vat_tu", sua_tay: false })).toBe(true);
     expect(laMayTinh({ hang_loai: "vat_tu", sua_tay: true })).toBe(false);
   });
-  it("giấy chưa có dạng = chờ lưu; đã dẫn xuất hoặc vật tư khác thì không", () => {
-    expect(giayChoLuu({ hang_loai: "giay", dang_giay: null })).toBe(true);
-    expect(giayChoLuu({ hang_loai: "giay", dang_giay: "to" })).toBe(false);
+  it("giấy chưa có đơn vị gốc = chờ lưu; đã dẫn xuất hoặc vật tư khác thì không", () => {
+    expect(giayChoLuu({ hang_loai: "giay", don_vi_goc: "" })).toBe(true);
+    expect(giayChoLuu({ hang_loai: "giay" })).toBe(true);
+    expect(giayChoLuu({ hang_loai: "giay", don_vi_goc: "to" })).toBe(false);
     expect(giayChoLuu({ hang_loai: "vat_tu" })).toBe(false);
   });
 });

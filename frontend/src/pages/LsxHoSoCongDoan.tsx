@@ -19,10 +19,12 @@ import {
   soHoac,
   tongMeTheoDonVi,
 } from "./lsxHoSoChung";
-import { nhanChang } from "./lsxBuoc";
+import { nhanChangLenh } from "./lsxBuoc";
 
 export function LsxHoSoCongDoan({ d }: { d: LenhSxHoSoOut }) {
   const nodes = d.routing.nodes;
+  // Bước cuối ra chặng Thành phẩm = đơn vị tính của lệnh (11/10/2026) — đọc "cuốn", không "thành phẩm".
+  const dvt = d.thong_tin.don_vi_tinh;
   const [mo, setMo] = useState<Set<number>>(() => new Set());
 
   // Bước cùng `lop` chạy song song được — máy chủ đã sắp theo (lop, thu_tu).
@@ -142,14 +144,14 @@ export function LsxHoSoCongDoan({ d }: { d: LenhSxHoSoOut }) {
                       ? "—"
                       : tongMeTheoDonVi(me).map((t) => (
                           <span key={t.don_vi ?? ""} className="lhs-cd__sl">
-                            {soDv(t.tot, t.don_vi)}
+                            {soDv(t.tot, t.don_vi, dvt)}
                             {t.hong > 0 && <span className="lsc-phu">{so(t.hong)} hỏng</span>}
                           </span>
                         ))}
                   </td>
                   <td className="lsc-so">
-                    {soHoac(n.so_luong_vao)} {nhanChang(n.don_vi_vao)} → {soHoac(n.so_luong_ra)}{" "}
-                    {nhanChang(n.don_vi_ra)}
+                    {soHoac(n.so_luong_vao)} {nhanChangLenh(n.don_vi_vao, dvt)} → {soHoac(n.so_luong_ra)}{" "}
+                    {nhanChangLenh(n.don_vi_ra, dvt)}
                   </td>
                 </tr>
                 {dangMo && (
@@ -166,7 +168,7 @@ export function LsxHoSoCongDoan({ d }: { d: LenhSxHoSoOut }) {
                             <li key={b.id}>
                               <span className="lhs-ds__luc">{b.ket_thuc ? ngayGio(b.ket_thuc) : "—"}</span>
                               <span>
-                                Ghi {soDv(b.tot, b.don_vi)} tốt
+                                Ghi {soDv(b.tot, b.don_vi, dvt)} tốt
                                 {b.hong > 0 ? `, ${so(b.hong)} hỏng` : ""}
                                 {b.mo_ta_loi ? `, lỗi: ${b.mo_ta_loi}` : ""}
                               </span>

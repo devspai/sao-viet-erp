@@ -91,6 +91,9 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     "phieu_thu",
     "tk_ngan_hang",
     "tai_san",
+    # KCS (09/10/2026): kiểm cả chuỗi của MỌI tổ — không có "lần kiểm của tôi". Phạm vi theo tổ là
+    # việc của dòng `to_sx_<id>`, không phải dòng này.
+    "kcs",
 }
 
 def _la_scopeless(module_key: str) -> bool:
@@ -324,11 +327,8 @@ class RoleService:
             else:
                 i, dept_id, cap = vi_tri
                 dong_to.append((i, {
-                    # Ô "Đóng lệnh thiếu" chỉ có nghĩa trên dòng tổ KCS (mg 0382).
-                    "key": m.key, "label": m.label,
-                    "viec_chet": [] if dept_id in cay.kcs else ["close_short"],
+                    "key": m.key, "label": m.label, "viec_chet": [],
                     "department_id": dept_id, "cap": cap,
-                    "la_kcs": dept_id in cay.kcs,
                 }))
         return (tinh + [d for _, d in sorted(dong_kho, key=lambda x: x[0])]
                 + [d for _, d in sorted(dong_to, key=lambda x: x[0])])
@@ -424,9 +424,17 @@ class RoleService:
         # đọc lại cho TỪNG dòng (~180 truy vấn, ~80 lần commit mỗi lần bấm Lưu) — vừa chậm vừa
         # để lại ma trận nửa cũ nửa mới nếu gãy giữa chừng.
         co_san = {p.module_key: p for p in self.roles.permissions_for(role_id)}
+        # Tổ cha là NHÓM (10/10/2026): chỉ tổ lá nhận việc nên quyền cấp ở dòng tổ lá; dòng tổ cha
+        # trên ma trận chỉ là tiêu đề gập/mở, lưu luôn TRẮNG — không để quyền vô hình nằm ở đó.
+        from .quyen_to import doc_cay, khoa_to
+
+        cay = doc_cay(self.roles.db)
+        dong_nhom = {khoa_to(d) for d in cay.ten if not cay.la(d)}
         for row in rows:
             if row["module_key"] not in valid_keys:
                 continue  # ignore unknown modules rather than create dangling rows
+            if row["module_key"] in dong_nhom:
+                row = {"module_key": row["module_key"], "scope": "own"}
             normalized = dict(row)
             can_read = bool(normalized.get("can_read", False))
             if not can_read:

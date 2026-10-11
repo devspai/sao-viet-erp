@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bàn tổ — A đầy đủ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f5; --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a; --rust-2:#e0560f;
+  --chay:#16a34a; --chay-bg:#dcfce7; --chay-fg:#15803d;
+  --cho:#3b82f6;  --cho-bg:#dbeafe;  --cho-fg:#1d4ed8;
+  --dung:#f59e0b; --dung-bg:#fef3c7; --dung-fg:#b45309;
+  --xong:#6b7280; --xong-bg:#e5e7eb; --xong-fg:#374151;
+  --ngoai:#7c3aed; --ngoai-bg:#ede9fe; --ngoai-fg:#6d28d9;
+  --kcs:#0891b2; --kcs-bg:#cffafe; --kcs-fg:#0e7490;
+  --do:#dc2626; --do-bg:#fee2e2; --do-fg:#b91c1c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrapx{max-width:1440px;margin:0 auto;padding:28px 16px 100px}
+.note h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.note{color:var(--ash);font-size:13.5px;margin-bottom:18px}
+.note ul{margin:6px 0 0;padding-left:18px;display:grid;gap:3px}
+.sec-h{font-size:15px;font-weight:500;margin:34px 0 12px;color:var(--ink-2)}
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -12px rgba(15,23,42,.12);overflow:hidden}
+.d{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+.mut{color:var(--ash-2)} .mut3{color:var(--ash-3)} .num{font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:1px 9px;border-radius:999px;font-size:12px;white-space:nowrap}
+.chip.chay{background:var(--chay-bg);color:var(--chay-fg)} .chip.chay .d{background:var(--chay)}
+.chip.cho{background:var(--cho-bg);color:var(--cho-fg)} .chip.cho .d{background:var(--cho)}
+.chip.dung{background:var(--dung-bg);color:var(--dung-fg)} .chip.dung .d{background:var(--dung)}
+.chip.xong{background:var(--xong-bg);color:var(--xong-fg)} .chip.xong .d{background:var(--xong)}
+.chip.chay .d{position:relative}
+.chip.chay .d::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--chay);animation:ping 1.8s ease-out infinite}
+@keyframes ping{0%{transform:scale(.4);opacity:.7}100%{transform:scale(1.6);opacity:0}}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:0 7px;border-radius:6px;font-size:11.5px;border:1px solid var(--rule-soft);color:var(--ash);background:var(--canvas);white-space:nowrap;height:20px}
+.tag.may{background:var(--rule-hair)}
+.tag.ngoai{background:var(--ngoai-bg);color:var(--ngoai-fg);border-color:transparent}
+.tag.kcsok{background:var(--kcs-bg);color:var(--kcs-fg);border-color:transparent}
+.tag.kcsloi{background:var(--do-bg);color:var(--do-fg);border-color:transparent}
+.tag.khuon{border-style:dashed}
+.cham{width:7px;height:7px;border-radius:50%;background:var(--do);display:inline-block}
+.btn{height:34px;border:1px solid var(--rule-soft);border-radius:9px;background:var(--canvas);padding:0 12px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.sm{height:28px;font-size:12.5px;padding:0 10px}
+.btn.lg{height:40px;padding:0 16px;font-size:13.5px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ===== màn bàn tổ ===== */
+.top{display:flex;align-items:flex-end;gap:16px;padding:26px 32px 0}
+.top .ey{font-size:12.5px;color:var(--ash-2)}
+.top h2{margin:0;font-size:26px;font-weight:500;letter-spacing:-.015em}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ash-2);transform:translateY(-5px)}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--chay);position:relative}
+.live i::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--chay);animation:ping 1.8s ease-out infinite}
+.views{margin-left:auto;display:flex;padding:3px;border-radius:10px;background:var(--rule-hair)}
+.views span{padding:6px 14px;font-size:13px;color:var(--ash);border-radius:8px}
+.views span.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.pulse{display:flex;align-items:center;gap:26px;padding:16px 32px 0;font-size:13px;color:var(--ash-2);flex-wrap:wrap}
+.pulse b{font-weight:500;color:var(--ink);font-size:15px;margin-right:4px}
+.pulse .t{width:220px;height:6px;border-radius:999px;background:var(--rule-hair);overflow:hidden;display:flex}
+.pulse .t i{display:block;height:100%}
+/* băng phụ */
+.band{margin:16px 32px 0;border:1px solid var(--rule-soft);border-radius:12px;background:var(--paper)}
+.band-h{display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13.5px}
+.band-h .c{color:var(--ash-2);font-size:12.5px}
+.band-h .r{margin-left:auto;display:flex;gap:8px}
+.band-b{border-top:1px solid var(--rule-soft);padding:4px 16px 8px;background:var(--canvas);border-radius:0 0 12px 12px}
+.bl{display:grid;grid-template-columns:150px 1fr auto;gap:16px;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.bl:last-child{border-bottom:0}
+.bl .s{font-size:12px;color:var(--ash-2)}
+.hint{font-size:11.5px;color:var(--ash-3);font-style:normal;margin-left:6px}
+/* lọc */
+.tools{display:flex;align-items:center;gap:8px;padding:18px 32px 14px;flex-wrap:wrap}
+.search{height:34px;border:1px solid var(--rule-soft);border-radius:9px;padding:0 12px;display:flex;align-items:center;color:var(--ash-3);width:300px;font-size:13px;background:var(--canvas)}
+.tabs{display:flex;gap:2px;margin-left:auto;padding:3px;border-radius:10px;background:var(--rule-hair)}
+.tabs button{border:0;background:transparent;font:inherit;font-size:12.5px;color:var(--ash);padding:4px 11px;border-radius:8px;display:inline-flex;gap:7px;align-items:center;cursor:pointer}
+.tabs button.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.tabs .c{color:var(--ash-3)}
+.chocho{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:9px;border:1px solid #fecaca;background:#fff;color:var(--do-fg);font-size:13px}
+/* lưới */
+.gw{border-top:1px solid var(--rule-soft);overflow-x:auto}
+table.g{border-collapse:separate;border-spacing:0;table-layout:fixed;width:max-content;min-width:100%}
+.g th{position:sticky;top:0;background:var(--paper);font-size:12px;font-weight:400;color:var(--ash-2);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap;z-index:2}
+.g td{height:62px;padding:0 14px;border-bottom:1px solid var(--rule-hair);font-size:13px;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--canvas)}
+.g th:first-child,.g td:first-child{padding-left:32px;position:sticky;left:0;z-index:1}
+.g th:nth-child(2),.g td:nth-child(2){position:sticky;left:150px;z-index:1;box-shadow:1px 0 0 var(--rule-soft)}
+.g th:first-child,.g th:nth-child(2){z-index:3}
+.g tbody tr{cursor:pointer}
+.g tbody tr:hover td{background:#f8fafc}
+.g tbody tr.sel td{background:#f1f5f9}
+.g tbody tr.hide{display:none}
+.l2{display:block;font-size:11.5px;color:var(--ash-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;gap:4px;margin-top:4px;flex-wrap:nowrap;overflow:hidden}
+.pg .n small{color:var(--ash-3);font-size:11.5px}
+.pg .t{display:block;height:4px;border-radius:999px;background:var(--rule-hair);overflow:hidden;width:110px;margin-top:5px}
+.pg .t i{display:block;height:100%;border-radius:999px;background:var(--chay)}
+/* tuyến */
+.rt{display:flex;align-items:center}
+.st{position:relative;display:flex;align-items:center;flex:1;min-width:0}
+.st:last-child{flex:0 0 auto}
+.st .nd{width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);background:var(--canvas);flex:none;position:relative;z-index:1}
+.st .rail{flex:1;height:2px;background:var(--rule-soft);margin:0 2px;position:relative}
+.st .rail em{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-style:normal;font-size:10.5px;color:var(--ash-2);background:var(--canvas);padding:0 3px;white-space:nowrap}
+.st.done .nd{background:var(--xong);border-color:var(--xong)} .st.done .rail{background:var(--xong)}
+.st.run .nd{background:var(--chay);border-color:var(--chay)}
+.st.stop .nd{background:var(--dung);border-color:var(--dung)}
+.st.ngoai .nd{border-color:var(--ngoai)} .st.kcs .nd{border-color:var(--kcs)}
+.st.me .nd{width:auto;height:22px;border-radius:999px;padding:0 9px 0 7px;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink);border:1.5px solid var(--ink-2);background:var(--canvas)}
+.st.me .nd::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ash-3)}
+.st.me.run .nd::before{background:var(--chay)} .st.me.wait .nd::before{background:var(--cho)} .st.me.stop .nd::before{background:var(--dung)} .st.me.done .nd::before{background:var(--xong)}
+.st.me.run .nd{box-shadow:0 0 0 4px var(--chay-bg)}
+.tip{position:absolute;bottom:calc(100% + 10px);left:0;transform:translateY(4px);background:var(--ink);color:#fff;font-size:12px;padding:7px 10px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:.12s;z-index:9}
+.tip small{display:block;color:#cbd5e1;font-size:11.5px}
+.st .nd:hover ~ .tip{opacity:1;transform:none}
+.rt-lab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ash-3);margin-top:5px;gap:8px}
+.rt-lab .nx{color:var(--ash-2)}
+.rt-lab .cg{color:var(--dung-fg)}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:14px 32px 18px;color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-hair);flex-wrap:wrap;gap:10px}
+.legend{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.lg{width:10px;height:10px;border-radius:50%;border:2px solid var(--rule)}
+.pager{display:flex;gap:6px;align-items:center}
+.pager span{min-width:28px;height:28px;border:1px solid var(--rule-soft);border-radius:7px;display:grid;place-items:center;background:var(--canvas)}
+.pager span.on{background:var(--rust);color:#fff;border-color:var(--rust)}
+
+/* ===== ngăn ===== */
+.dr-stage{display:grid;grid-template-columns:1fr;background:rgba(15,23,42,.30);border-radius:16px;padding:28px 0 28px 220px}
+.dr{background:var(--canvas);border-radius:14px 0 0 14px;box-shadow:-16px 0 40px -20px rgba(15,23,42,.35);display:flex;flex-direction:column;min-height:760px;max-width:1180px}
+.dh{display:flex;align-items:flex-start;gap:14px;padding:22px 30px 14px}
+.dh .ey{font-size:12.5px;color:var(--ash-2)}
+.dh h3{margin:2px 0 0;font-size:22px;font-weight:500;display:flex;align-items:center;gap:10px}
+.dh .x{margin-left:auto;width:34px;height:34px;border-radius:9px;border:1px solid var(--rule-soft);display:grid;place-items:center;color:var(--ash)}
+.ds{display:flex;gap:28px;padding:10px 30px;border-top:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair);background:var(--paper);font-size:12.5px;color:var(--ash-2)}
+.ds b{font-weight:500;color:var(--ink)}
+.dt{display:flex;gap:26px;padding:0 30px;border-bottom:1px solid var(--rule-soft)}
+.dt button{border:0;background:none;font:inherit;font-size:13.5px;color:var(--ash);padding:12px 0;border-bottom:2px solid transparent;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.dt button.on{color:var(--ink);border-color:var(--ink)}
+.db{padding:26px 30px;flex:1}
+.pane{display:none}.pane.on{display:block}
+.df{padding:12px 30px;border-top:1px solid var(--rule-soft);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.df .why{width:100%;font-size:12.5px;color:var(--dung-fg);margin-bottom:4px}
+.cols{display:grid;grid-template-columns:1.25fr 1fr;gap:40px}
+.blk{margin-bottom:28px}
+.bt{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.bt h4{margin:0;font-size:13px;font-weight:500;color:var(--ink-2)}
+.bt .c{font-size:12.5px;color:var(--ash-3)}
+.bt .r{margin-left:auto;display:flex;gap:8px}
+.kv{display:grid;grid-template-columns:140px 1fr;row-gap:10px;font-size:13px}
+.kv dt{color:var(--ash-2)} .kv dd{margin:0}
+.nums{display:flex;gap:44px;margin-bottom:12px}
+.nums .l{font-size:12px;color:var(--ash-2)}
+.nums .v{font-size:26px;font-weight:500;letter-spacing:-.01em;line-height:1.2}
+.nums .v small{font-size:12px;color:var(--ash-3);font-weight:400;margin-left:3px}
+.bar{height:6px;border-radius:999px;background:var(--rule-hair);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--chay);border-radius:999px}
+.ghichu{border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:10px 14px;font-size:13px;color:#92400e}
+.ghichu.trong{border-color:var(--rule-soft);background:var(--paper);color:var(--ash-2)}
+.muc{display:flex;gap:6px;align-items:center}
+.muc i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-style:normal}
+.ppl{display:flex;flex-wrap:wrap;gap:8px}
+.pp{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule-soft);border-radius:999px;padding:3px 10px 3px 3px;font-size:13px}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;color:#fff;background:#0e7490;flex:none}
+.pp .x{color:var(--ash-3);font-size:12px;margin-left:4px}
+.ls{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.li{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.li:last-child{border-bottom:0}
+.li .r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.empty{border:1px dashed var(--rule);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--ash-2)}
+.empty small{display:block;color:var(--ash-3);font-size:12px}
+.pill{font-size:11.5px;padding:0 8px;border-radius:999px;height:20px;display:inline-flex;align-items:center}
+.pill.cho{background:var(--dung-bg);color:var(--dung-fg)} .pill.ok{background:var(--chay-bg);color:var(--chay-fg)} .pill.dc{background:var(--cho-bg);color:var(--cho-fg)} .pill.huy{background:var(--xong-bg);color:var(--xong-fg)}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+.t th{font-weight:400;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);background:var(--paper)}
+.t td{padding:9px 10px;border-bottom:1px solid var(--rule-hair)}
+.t .r{text-align:right}
+.ok{color:var(--chay-fg)} .warn{color:var(--dung-fg)} .bad{color:var(--do-fg)}
+/* lịch sử */
+.lsf{display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--rule-hair)}
+.lsf button{border:0;background:transparent;font:inherit;font-size:12.5px;color:var(--ash);padding:3px 10px;border-radius:8px;cursor:pointer}
+.lsf button.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.tl{position:relative;margin-top:6px}
+.tl::before{content:"";position:absolute;left:15px;top:16px;bottom:16px;width:2px;background:var(--rule-hair)}
+.ev{display:grid;grid-template-columns:32px 1fr auto;gap:14px;padding:10px 0;align-items:start;position:relative}
+.ev.hide{display:none}
+.ev .ic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--rule-hair);color:var(--ash);font-size:13px;border:3px solid var(--canvas);position:relative;z-index:1}
+.ev .ic.xanh{background:var(--chay-bg);color:var(--chay-fg)}
+.ev .ic.do{background:var(--do-bg);color:var(--do-fg)}
+.ev .tn{font-size:13.5px;color:var(--ink)}
+.ev .ct{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px;font-size:12.5px}
+.ev .lydo{margin-top:6px;background:var(--paper);border:1px solid var(--rule-soft);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--ash)}
+.ev .gio{font-size:12.5px;color:var(--ash-2);padding-top:6px;font-variant-numeric:tabular-nums}
+/* đối chiếu */
+.map{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.map th{text-align:left;font-weight:400;color:var(--ash-2);padding:9px 12px;border-bottom:1px solid var(--rule-soft);background:var(--paper)}
+.map td{padding:8px 12px;border-bottom:1px solid var(--rule-hair);vertical-align:top}
+.map td:first-child{color:var(--ink);width:30%}
+.map .gr td{background:var(--paper);color:var(--ink-2)}
+.map .new{color:var(--chay-fg)}
+</style>
+</head>
+<body>
+<div class="wrapx">
+<div class="note">
+  <h1>Bàn tổ phương án A — bản đầy đủ</h1>
+  Bản trước mình tự bỏ bớt thông tin mà chưa đọc code, sai. Bản này dựng lại sau khi rà hết `ThucHienSxPage`, `ThsxDrawer`, `ThsxExecPanels`, `ThsxQuyCach`, `ThsxTepLenh`, `ThsxKetQuaKcs`, `ThsxChotGiay`, `ThsxChoNgoaiBan`, `ThsxDaiRouting`, `ThsxDanhSach` và các endpoint backend tương ứng. Nguyên tắc: <b style="font-weight:500">không bỏ một ô, một nút, một câu báo nào</b>; chỉ đổi cách sắp và cách nói. Bảng đối chiếu ở cuối trang ghi từng mục cũ nằm ở đâu trong bản mới.
+  <ul>
+    <li>Các hộp thoại (Ghi mẻ, Đề xuất giao, Sửa mẻ, Điều chỉnh số giao, Đề nghị vật tư, Đề xuất hỗ trợ, Tạm dừng, Đổi máy, Báo sự cố, Giao người) giữ nguyên nội dung và luật như hiện tại; lượt này chỉ làm lại màn bàn tổ và ngăn chi tiết.</li>
+    <li>Chế độ Lịch và Sản lượng giữ nguyên; chỉ làm lại chế độ Bảng.</li>
+    <li>Màn này hiện thêm phần tóm tắt và tuyến công đoạn, không thêm thao tác ghi nào mới. Mọi thao tác vẫn làm trong ngăn như đã chốt 28/09 (dòng không có nút).</li>
+  </ul>
+</div>
+
+<!-- ================= MÀN BÀN TỔ ================= -->
+<div class="sec-h">1. Màn bàn tổ — chế độ Bảng</div>
+<div class="card">
+  <div class="top">
+    <div><div class="ey">Bàn tổ</div><h2>Cắt 2</h2></div>
+    <span class="live"><i></i>Tự cập nhật</span>
+    <div class="views"><span class="on">Bảng</span><span>Lịch</span><span>Sản lượng</span></div>
+  </div>
+  <div class="pulse">
+    <span class="t"><i style="width:50%;background:var(--chay)"></i><i style="width:50%;background:var(--cho)"></i></span>
+    <span><b>2</b>việc</span><span><b>1</b>đang chạy</span><span><b>0</b>tạm dừng</span><span><b>1</b>chờ làm</span><span><b>0</b>hoàn thành</span>
+    <span class="mut3">đếm trên trang đang xem, như hiện tại</span>
+  </div>
+
+  <!-- băng mẻ của tôi: chỉ thợ -->
+  <div class="band">
+    <div class="band-h">Các mẻ tôi tham gia, tháng 10/2026 <span class="c">chỉ hiện với người là thợ</span><span class="r"><span class="btn sm">3 mẻ ▾</span></span></div>
+  </div>
+
+  <!-- chờ chốt giấy: chỉ tổ cắt -->
+  <div class="band">
+    <div class="band-h"><span class="cham" style="background:var(--dung)"></span>Chờ chốt giấy <span class="c">1 lệnh chưa chốt, chỉ hiện ở tổ Cắt</span></div>
+    <div class="band-b">
+      <div class="bl">
+        <div>LSX26-0003<span class="l2">Ruột sách A5 64 trang, hạn 12/10</span></div>
+        <div>Couche 80gsm khổ 790 × 1090 cần <b style="font-weight:500">700</b> tờ, tồn đúng khổ <b style="font-weight:500">520</b><span class="l2">Cuộn cùng mã: L2409-03 (khổ 790 mm, còn 410 kg, Kho giấy)</span></div>
+        <div style="display:flex;gap:8px"><span class="btn sm">+ Thêm công đoạn</span><span class="btn sm">Không cần cắt</span></div>
+      </div>
+      <div class="bl">
+        <div>LSX26-0004<span class="l2">Bìa sách A5, hạn 12/10</span></div>
+        <div>Công đoạn trước In: Cắt tờ <span class="mut3">đặt sẵn trong lệnh</span> <span class="tag">Đã bắt đầu</span></div>
+        <div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tools">
+    <div class="search">⌕ Tìm mã, khách, công đoạn, máy</div>
+    <span class="btn">Kỳ: Tất cả ▾</span>
+    <span class="btn">Mốc: Ngày tổ nhận lệnh ▾</span>
+    <span class="btn">Lọc ▾</span>
+    <span class="btn">Sắp: Mới nhận trước ▾</span>
+    <span class="chocho"><span class="cham"></span>2 chờ tổ xác nhận</span>
+    <div class="tabs" id="tabs">
+      <button class="on" data-f="all">Tất cả <span class="c">2</span></button>
+      <button data-f="chay"><i class="d" style="background:var(--chay)"></i>Đang chạy <span class="c">1</span></button>
+      <button data-f="dung"><i class="d" style="background:var(--dung)"></i>Tạm dừng <span class="c">0</span></button>
+      <button data-f="cho"><i class="d" style="background:var(--cho)"></i>Chờ làm <span class="c">1</span></button>
+      <button data-f="xong"><i class="d" style="background:var(--xong)"></i>Hoàn thành <span class="c">0</span></button>
+    </div>
+    <span class="btn">Cột</span>
+  </div>
+
+  <div class="gw">
+  <table class="g">
+    <colgroup><col style="width:150px"><col style="width:200px"><col style="width:200px"><col style="width:140px"><col style="width:140px"><col style="width:330px"><col style="width:170px"><col style="width:240px"><col style="width:200px"></colgroup>
+    <thead><tr><th>Lệnh</th><th>Sản phẩm</th><th>Công đoạn</th><th>Trạng thái</th><th>Tốt / cần</th><th>Tuyến công đoạn của lệnh</th><th>Máy và thời gian</th><th>Quy cách</th><th>Định mức vật tư</th></tr></thead>
+    <tbody id="rows">
+      <tr data-s="chay" class="sel">
+        <td>LSX26-0004<span class="l2">Tạo 6/10 Nhận 9/10 09:57</span></td>
+        <td>Bìa sách A5<span class="l2">Công ty Cổ phần Bibica</span></td>
+        <td>Cắt tờ <span class="cham" title="1 bàn giao chờ nhận"></span><div class="chips"><span class="tag may">Máy</span></div></td>
+        <td><span class="chip chay"><i class="d"></i>Đang chạy</span><span class="l2">từ 11:41, Đào Văn Hoan</span></td>
+        <td><div class="pg"><span class="n num">200 <small>/ 350 tờ in</small></span><span class="t"><i style="width:57%"></i></span></div></td>
+        <td><div class="rt">
+          <div class="st me run"><span class="nd">Cắt tờ</span><span class="tip">Cắt tờ<small>Tổ của bạn, đang chạy, 200 tờ in</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Bài in 3 màu 4 màu (CMYK)<small>Nhóm thợ in máy 4 màu, chờ làm</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Cán màng<small>Tổ Cán màng, chờ làm</small></span><span class="rail"></span></div>
+          <div class="st ngoai"><span class="nd"></span><span class="tip">Cắt thành phẩm<small>Thuê ngoài: Cơ sở Gia công Cán màng Thành Công</small></span></div>
+        </div><div class="rt-lab"><span>Bước 1 trên 4</span><span class="nx">Sau: Bài in 3 màu 4 màu</span></div></td>
+        <td>Máy cắt tờ ITO 100<span class="l2">dự kiến 2 phút (2 đến 4)</span></td>
+        <td><div class="chips" style="margin:0"><span class="tag">giấy 210gsm</span><span class="tag">Khổ 790×540</span><span class="tag">1 mặt 4 màu</span><span class="tag">4 kẽm</span></div></td>
+        <td>Ivory 210 175 tờ<span class="l2">+1 khác</span></td>
+      </tr>
+      <tr data-s="cho">
+        <td>LSX26-0003<span class="l2">Tạo 6/10 Nhận 9/10 09:57</span></td>
+        <td>Ruột sách A5 64 trang<span class="l2">Công ty Cổ phần Bibica</span></td>
+        <td>Cắt tờ<div class="chips"><span class="tag may">Máy</span></div></td>
+        <td><span class="chip cho"><i class="d"></i>Chờ làm</span><span class="l2">chưa giao thợ</span></td>
+        <td><div class="pg"><span class="n num">0 <small>/ 350 tờ in</small></span><span class="t"><i style="width:0"></i></span></div></td>
+        <td><div class="rt">
+          <div class="st me wait"><span class="nd">Cắt tờ</span><span class="tip">Cắt tờ<small>Tổ của bạn, chờ làm</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Bài in 3 màu 4 màu (CMYK)<small>Nhóm thợ in máy 4 màu</small></span><span class="rail"></span></div>
+          <div class="st ngoai"><span class="nd"></span><span class="tip">Gấp<small>Thuê ngoài: Cơ sở Gia công Cán màng Thành Công</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Bắt tay + vào keo<small>Thành phẩm / KCS</small></span><span class="rail"></span></div>
+          <div class="st kcs"><span class="nd"></span><span class="tip">Xén 3 mặt<small>Tổ Cắt, KCS cuối</small></span></div>
+        </div><div class="rt-lab"><span>Bước 1 trên 5</span><span class="nx">Sau: Bài in 3 màu 4 màu</span></div></td>
+        <td>Máy cắt tờ Kyodo 132<span class="l2">dự kiến 4 phút</span></td>
+        <td><div class="chips" style="margin:0"><span class="tag">giấy 80gsm</span><span class="tag">Khổ 790×545</span></div></td>
+        <td>Couche 80 700 tờ</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="foot">
+    <div class="legend"><span><i class="lg" style="background:var(--xong);border-color:var(--xong)"></i>Đã xong</span><span><i class="lg" style="background:var(--chay);border-color:var(--chay)"></i>Đang chạy</span><span><i class="lg" style="background:var(--dung);border-color:var(--dung)"></i>Tạm dừng</span><span><i class="lg"></i>Chờ làm</span><span><i class="lg" style="border-color:var(--ngoai)"></i>Thuê ngoài</span><span><i class="lg" style="border-color:var(--kcs)"></i>KCS cuối</span><span><span class="cham"></span>Có việc chờ tổ bấm</span></div>
+    <div class="pager">Trang 1/1 <span class="mut3" style="border:0;background:none;min-width:0">2 lệnh</span> Dòng/trang 25 <span>‹</span><span class="on">1</span><span>›</span></div>
+  </div>
+</div>
+<div class="note" style="margin-top:10px">Ghi chú lưới: hai cột Lệnh và Sản phẩm dính bên trái, phần còn lại cuộn ngang một lần cho cả bảng (không còn mỗi lệnh một thanh cuộn). Lệnh có nhiều việc ở tổ thì mỗi việc một dòng, các dòng cùng lệnh nằm liền nhau; phân trang vẫn tính theo lệnh. Trên tuyến: chỗ đổi tổ có số "đã nhận" nằm trên đoạn ray, bước tổ đã xong mà bên nhận chưa làm thì dòng dưới ghi "chờ giao", bước chạy chung ghi "chạy chung", bước chia nhiều lần ghi "N lần" — y như dải routing hiện tại.</div>
+
+<!-- ================= NGĂN ================= -->
+<div class="sec-h">2. Ngăn chi tiết việc — bấm các tab để xem</div>
+<div class="dr-stage"><div class="dr">
+  <div class="dh">
+    <div><div class="ey">LSX26-0004 Bìa sách A5</div><h3>0004 Cắt tờ <span class="tag may">Máy</span><span class="chip chay"><i class="d"></i>Đang chạy</span></h3></div>
+    <span class="x">✕</span>
+  </div>
+  <div class="ds"><span><i class="d" style="background:var(--chay)"></i> Dự kiến: <b>2 phút (2 – 4)</b></span><span>Nhận: <b>175 tờ nguyên</b></span><span>Đã giao: <b>1 thợ</b></span></div>
+  <div class="dt" id="dt">
+    <button class="on" data-p="vh">Vận hành & Quy cách</button>
+    <button data-p="bg">Bàn giao & Vật tư <span class="cham" title="Có hỗ trợ chéo chờ tổ xác nhận"></span></button>
+    <button data-p="nh">Nhận <span class="cham" title="Có bàn giao chờ tổ nhận"></span></button>
+    <button data-p="kcs">KCS</button>
+    <button data-p="ls">Lịch sử</button>
+  </div>
+  <div class="db">
+
+  <!-- ===== VẬN HÀNH ===== -->
+  <div class="pane on" id="p-vh">
+    <div class="blk"><div class="ghichu trong">Ghi chú kỹ thuật: không có dặn dò riêng</div></div>
+    <div class="cols">
+      <div>
+        <div class="blk">
+          <div class="bt"><h4>Tiến độ sản xuất thực tế</h4><span class="c">57%</span></div>
+          <div class="nums"><div><div class="l">Nhận</div><div class="v num">175<small>tờ nguyên</small></div></div><div><div class="l">Tốt</div><div class="v num ok">200<small>tờ in</small></div></div><div><div class="l">Còn phải làm</div><div class="v num">150<small>tờ in</small></div></div></div>
+          <div class="bar"><i style="width:57%"></i></div>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Quy cách chạy máy</h4></div>
+          <dl class="kv">
+            <dt>Giấy</dt><dd>GIẤY IVORY 210-230-250GSM</dd><dt>Định lượng</dt><dd>210 gsm</dd>
+            <dt>Khổ giấy nguyên</dt><dd>1090 × 790 mm</dd><dt>Khổ tờ in</dt><dd>790 × 540 mm</dd>
+            <dt>Khổ thành phẩm</dt><dd>300 × 210 mm</dd><dt>Cách in</dt><dd>1 mặt</dd>
+            <dt>Số màu</dt><dd>4</dd><dt>Số kẽm</dt><dd>4 bản</dd>
+            <dt>Con / tờ</dt><dd>4</dd><dt>SL đặt của đơn</dt><dd>1000</dd>
+            <dt>Mực in</dt><dd><span class="muc">Mặt A <i style="background:#06b6d4">C</i><i style="background:#ec4899">M</i><i style="background:#eab308">Y</i><i style="background:#111">K</i> <span class="mut3">4 mực</span></span></dd>
+          </dl>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Lịch sử phiên chạy</h4><span class="c">1</span></div>
+          <div class="ls"><div class="li"><span class="mut">#1</span><i class="d" style="background:var(--chay)"></i>09/10 11:41 → Đang chạy<span class="r"><span class="tag">Máy cắt tờ ITO 100</span></span></div></div>
+          <div style="margin-top:8px;font-size:12.5px;color:var(--ash-2)">▸ Khoảng tham gia (1)</div>
+        </div>
+      </div>
+      <div>
+        <div class="blk">
+          <div class="bt"><h4>Thông tin kế hoạch</h4></div>
+          <dl class="kv"><dt>Dự kiến</dt><dd>6/10/2026 18:45 đến 6/10/2026 19:06</dd><dt>Chạy máy</dt><dd>2 phút (2 – 4)</dd><dt>Máy</dt><dd>Máy cắt tờ ITO 100</dd><dt>Khối lượng</dt><dd>175 tờ nguyên → 350 tờ in</dd><dt>Nguồn LSX</dt><dd>LSX26-0004 (Bìa sách A5)</dd><dt>Khách hàng</dt><dd>Công ty Cổ phần Bibica</dd></dl>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Khuôn & khung</h4><span class="c">chỉ khi công đoạn có khuôn</span></div>
+          <div class="li" style="border:1px solid var(--rule-soft);border-radius:10px"><span class="tag khuon">K-012 kệ B3</span>Khuôn bế hộp 300×210<span class="r"><span class="btn sm">Đã nhận khuôn</span></span></div>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Tổ thực hiện</h4><span class="c">1</span><span class="r"><span class="btn sm">+ Giao người</span></span></div>
+          <div class="ppl"><span class="pp"><span class="av">Đ</span>Đào Văn Hoan<span class="x" title="Rút khỏi công việc">✕</span></span></div>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Tệp của lệnh</h4><span class="c">0</span></div>
+          <div class="empty">Lệnh chưa có tệp đính kèm</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BÀN GIAO & VẬT TƯ ===== -->
+  <div class="pane" id="p-bg">
+    <div class="blk">
+      <div class="bt"><h4>Sản lượng</h4><span class="r"><span class="btn pri sm">+ Ghi mẻ</span></span></div>
+      <div class="nums"><div><div class="l">Tốt</div><div class="v num ok">200<small>tờ in</small></div></div><div><div class="l">Đã giao đi</div><div class="v num">0<small>tờ in</small></div></div><div><div class="l">Chưa giao</div><div class="v num">200<small>tờ in</small></div></div><div><div class="l">Còn phải làm</div><div class="v num">150<small>tờ in</small></div></div></div>
+      <div class="ls">
+        <div class="li">▾ 09/10 11:41 → 11:58 <span class="mut">chưa khai việc khoán</span><span class="mut">1 người</span><span class="r"><span class="pill ok">200 tờ in</span></span></div>
+        <div style="padding:12px 14px;background:var(--paper)"><dl class="kv" style="grid-template-columns:150px 1fr"><dt>Công việc khoán</dt><dd>chưa khai việc khoán</dd><dt>Số lượng làm được</dt><dd>200 tờ</dd><dt>Máy</dt><dd>Máy cắt tờ ITO 100</dd><dt>Người tham gia</dt><dd>Đào Văn Hoan</dd></dl></div>
+      </div>
+    </div>
+    <div class="cols">
+      <div>
+        <div class="blk">
+          <div class="bt"><h4>Bàn giao</h4><span class="r"><span class="btn sm">Đề xuất giao</span></span></div>
+          <div class="empty">Chưa giao đi lần nào.<small>Hàng công đoạn trước giao đến nằm ở tab Nhận.</small></div>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Hỗ trợ chéo</h4><span class="r"><span class="btn sm">+ Đề xuất hỗ trợ</span></span></div>
+          <div class="ls"><div class="li"><span class="av" style="background:#6d28d9">L</span>Lê Minh Tú <span class="mut">Cắt 1 → Cắt 2</span><span class="pill cho">chờ hai bên</span><span class="r"><span class="mut3">tổ gốc ✓ tổ làm …</span><span class="btn sm">Xác nhận</span><span class="btn sm">Huỷ</span></span></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="blk">
+          <div class="bt"><h4>Vật tư</h4><span class="r"><span class="btn pri sm">Yêu cầu cấp vật tư</span><span class="btn sm">Yêu cầu nhập kho</span></span></div>
+          <div class="nums" style="gap:32px"><div><div class="l">Tổng mặt hàng</div><div class="v num" style="font-size:18px">1<small>món</small></div></div><div><div class="l">Tiến độ yêu cầu</div><div class="v num" style="font-size:18px">0 / 1</div></div><div><div class="l">Trạng thái kho</div><div class="v" style="font-size:18px">Chưa xuất</div></div></div>
+          <table class="t"><thead><tr><th>Vật tư</th><th class="r">Kế hoạch</th><th class="r">Đã yêu cầu</th><th class="r">Thực dùng</th><th>Chênh lệch</th><th>Lý do</th></tr></thead>
+            <tbody><tr><td>Ivory 210 tờ 1090×790</td><td class="r">175</td><td class="r">0</td><td class="r">0</td><td class="warn">⚠ Chưa xin cấp</td><td></td></tr></tbody></table>
+          <div style="margin-top:10px;font-size:12.5px;color:var(--ash-2)">Lịch sử đề nghị: chưa có lần nào.</div>
+        </div>
+        <div class="blk">
+          <div class="bt"><h4>Phiếu xuất kho</h4><span class="c">0 phiếu</span></div>
+          <div class="empty">Chưa có phiếu xuất nào cho công đoạn này.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== NHẬN ===== -->
+  <div class="pane" id="p-nh">
+    <div class="bt"><h4>Các lần nhận</h4><span class="c">0 lần</span></div>
+    <div class="empty">Chưa nhận lần nào từ công đoạn trước.<small>Công đoạn đầu tuyến nhận giấy từ kho, xem khối Vật tư và Phiếu xuất kho ở tab Bàn giao & Vật tư.</small></div>
+    <div style="margin-top:24px" class="bt"><h4>Ví dụ khi có bàn giao đến (công đoạn In)</h4></div>
+    <div class="ls">
+      <div class="li"><b style="font-weight:500">200</b> tờ in <span class="mut">2 mẻ</span><span class="pill cho">chờ xác nhận</span><span class="r"><span class="btn pri sm">Xác nhận</span></span></div>
+      <div style="padding:10px 14px;font-size:12.5px;color:var(--ash-2);background:var(--paper)">Giao: Cắt tờ (Cắt 2), Đào Văn Hoan 11:59 → Nhận: Bài in 3 màu 4 màu (Nhóm thợ in máy 4 màu), chưa xác nhận</div>
+    </div>
+  </div>
+
+  <!-- ===== KCS ===== -->
+  <div class="pane" id="p-kcs">
+    <div class="bt"><h4>Lỗi KCS</h4><span class="c">0 tờ in</span></div>
+    <div class="empty">KCS chưa ghi lỗi nào cho công đoạn này.<small>Mở tab này là đánh dấu tổ đã xem các lỗi đang chờ xem.</small></div>
+    <div style="margin-top:24px" class="bt"><h4>Ví dụ khi có lỗi</h4></div>
+    <div class="ls"><div class="li">Lem mực mép phải <span class="mut">12 tờ in</span><span class="mut">bắt ở Cán màng</span><span class="r"><span class="mut3">Nguyễn KCS 14:20 chưa xem</span><span class="tag">2 ảnh</span></span></div></div>
+    <div style="margin-top:12px;font-size:12.5px;color:var(--ash-2)">Chỉ ở công đoạn cuối: KCS đạt X / tổ ghi tốt Y, đã đề nghị nhập kho Z.</div>
+  </div>
+
+  <!-- ===== LỊCH SỬ ===== -->
+  <div class="pane" id="p-ls">
+    <div class="bt"><h4>Lịch sử công việc</h4><span class="c">9 việc</span>
+      <span class="r"><span class="lsf" id="lsf">
+        <button class="on" data-g="all">Tất cả</button><button data-g="chay">Chạy máy</button><button data-g="nguoi">Người và khuôn</button><button data-g="sl">Sản lượng</button><button data-g="bg">Bàn giao</button><button data-g="vt">Vật tư</button><button data-g="kcs">KCS</button>
+      </span></span></div>
+    <div class="tl" id="tl">
+      <div class="ev" data-g="vt"><span class="ic">⇩</span><div class="nd2"><span class="tn">Đề nghị cấp vật tư</span><div class="ct"><span class="tag">Lần 1</span><span class="tag">Ivory 210 175 tờ</span><span class="mut">Đào Văn Hoan</span></div></div><span class="gio">09/10 12:05</span></div>
+      <div class="ev" data-g="sl"><span class="ic xanh">＋</span><div class="nd2"><span class="tn">Ghi mẻ sản lượng</span><div class="ct"><span class="tag">Mẻ 11:41 → 11:58</span><span class="pill ok">200 tờ in tốt</span><span class="mut">Đào Văn Hoan</span></div></div><span class="gio">09/10 11:58</span></div>
+      <div class="ev" data-g="chay"><span class="ic xanh">▶</span><div class="nd2"><span class="tn">Bắt đầu chạy</span><div class="ct"><span class="tag">Phiên 1</span><span class="tag may">Máy cắt tờ ITO 100</span><span class="mut">Đào Văn Hoan</span></div></div><span class="gio">09/10 11:41</span></div>
+      <div class="ev" data-g="nguoi"><span class="ic">✓</span><div class="nd2"><span class="tn">Nhận khuôn</span><div class="ct"><span class="tag khuon">K-012 kệ B3</span><span class="mut">Đào Văn Hoan</span></div></div><span class="gio">09/10 11:38</span></div>
+      <div class="ev" data-g="nguoi"><span class="ic">👤</span><div class="nd2"><span class="tn">Giao thợ</span><div class="ct"><span class="tag">Đào Văn Hoan</span><span class="mut">Trần Tổ Trưởng</span></div></div><span class="gio">09/10 10:02</span></div>
+      <div class="ev" data-g="nguoi"><span class="ic do">−</span><div class="nd2"><span class="tn">Rút thợ khỏi việc</span><div class="ct"><span class="tag">Phạm Văn Long</span><span class="mut">Trần Tổ Trưởng</span></div><div class="lydo">Chuyển sang máy Kyodo cho kịp lệnh 0003</div></div><span class="gio">09/10 10:01</span></div>
+      <div class="ev" data-g="nguoi"><span class="ic">👤</span><div class="nd2"><span class="tn">Giao thợ</span><div class="ct"><span class="tag">Phạm Văn Long</span><span class="mut">Trần Tổ Trưởng</span></div></div><span class="gio">09/10 09:59</span></div>
+      <div class="ev" data-g="chay"><span class="ic">⇢</span><div class="nd2"><span class="tn">Tổ nhận lệnh</span><div class="ct"><span class="tag">Gói phát hành 1</span><span class="mut">Kế hoạch phát lệnh xuống xưởng</span></div></div><span class="gio">09/10 09:57</span></div>
+      <div class="ev" data-g="chay"><span class="ic">✎</span><div class="nd2"><span class="tn">Phát hành cập nhật</span><div class="ct"><span class="tag">Máy: Kyodo 132 → ITO 100</span><span class="tag">Dự kiến: 18:30 → 18:45</span><span class="mut">Nguyễn Kế Hoạch</span></div></div><span class="gio">09/10 09:55</span></div>
+    </div>
+    <div class="empty" id="ls-rong" style="display:none">Chưa có việc nào thuộc nhóm này.</div>
+    <div class="mut3" style="font-size:12px;margin-top:14px">Mới nhất ở trên. Gồm mọi thao tác ghi nhận cho công việc này: bắt đầu, tạm dừng kèm lý do, tiếp tục, kết thúc, đổi máy kèm lý do, báo sự cố, giao thợ, rút thợ, nhận và trả khuôn, ghi mẻ, cập nhật mẻ theo danh mục, đề xuất, sửa, xác nhận, điều chỉnh bàn giao kèm lý do, đề nghị và sửa đề nghị vật tư, xác nhận nhận vật tư, yêu cầu nhập kho, hỗ trợ chéo, KCS kiểm và ghi lỗi, phát hành cập nhật, thu hồi gói, chốt và gỡ chốt giấy, đóng nhóm.</div>
+  </div>
+  </div>
+
+  <div class="df">
+    <span class="btn lg">Tạm dừng</span><span class="btn lg pri">Kết thúc</span><span class="btn lg">Đổi máy</span><span class="btn lg">Báo sự cố</span>
+    <span class="mut3" style="margin-left:auto;font-size:12px">Chờ làm thì: Bắt đầu. Tạm dừng thì: Tiếp tục, Kết thúc. Hoàn thành thì ẩn chân. Đổi máy và Báo sự cố chỉ ở việc máy hoặc thuê ngoài.</span>
+  </div>
+</div></div>
+
+<!-- ================= ĐỐI CHIẾU ================= -->
+<div class="sec-h">3. Đối chiếu: mục cũ → chỗ trong bản mới</div>
+<table class="map">
+  <thead><tr><th>Mục trên màn hiện tại</th><th>Bản mới</th></tr></thead>
+  <tbody>
+    <tr class="gr"><td colspan="2">Màn bàn tổ</td></tr>
+    <tr><td>Tiêu đề Bàn tổ + tên tổ, nút Bảng / Lịch / Sản lượng</td><td>Giữ, đầu màn</td></tr>
+    <tr><td>Băng "Các mẻ tôi tham gia" (thợ)</td><td>Giữ, băng gấp gọn dưới đầu màn</td></tr>
+    <tr><td>Khối Chờ chốt giấy (tổ Cắt): giấy cần, tồn đúng khổ, cuộn cùng mã, Thêm công đoạn, Không cần cắt, Gỡ chốt, Xoá, ▲▼</td><td>Giữ đủ, băng ngay trên lưới</td></tr>
+    <tr><td>Danh sách chờ ngoài bàn (KCS báo lỗi, Bàn giao đến, Hỗ trợ chéo, Từ chối / Xác nhận)</td><td>Giữ, hiện thành băng như Chờ chốt giấy khi bấm "N chờ tổ xác nhận"</td></tr>
+    <tr><td>Ô tìm, Kỳ, Mốc kỳ, Lọc trạng thái, Lọc chờ xác nhận, Sắp xếp 3 kiểu, Cột</td><td>Giữ đủ trên một hàng; lọc chờ thành nút đỏ "N chờ tổ xác nhận"</td></tr>
+    <tr><td>Chip đếm việc / đang chạy / tạm dừng / chờ làm / hoàn thành</td><td>Giữ, thành dòng tình hình + nhóm nút lọc nhanh</td></tr>
+    <tr><td>Đầu nhóm lệnh: mã, tên, khách, Tạo, Nhận, N việc, đếm trạng thái, chấm chờ</td><td>Dồn vào hai cột dính Lệnh và Sản phẩm; chấm chờ ở cột Công đoạn</td></tr>
+    <tr><td>Dải routing: mốc trạng thái, tên, tổ / "Tổ của bạn", số thực tế, đang chạy / tạm dừng, N lần, chạy chung, KCS cuối, đã nhận trên ray, chờ giao</td><td>Cột Tuyến công đoạn: chấm theo trạng thái, nhãn cho bước của tổ, rê chuột xem tổ và số, dòng dưới ghi bước và các nhãn đặc biệt</td></tr>
+    <tr><td>Cột Mã lệnh, Tổ nhận lúc</td><td>Cột Lệnh (dòng 2)</td></tr>
+    <tr><td>Cột Công đoạn + chip KCS + chip loại bước + chip khuôn + chấm chờ</td><td>Cột Công đoạn, chip ở dòng 2</td></tr>
+    <tr><td>Cột Quy cách (giấy, khổ, mặt màu, kẽm)</td><td>Cột Quy cách</td></tr>
+    <tr><td>Cột Máy / Trạm, Thời gian dự kiến</td><td>Cột Máy và thời gian</td></tr>
+    <tr><td>Cột Sản lượng tốt</td><td>Cột Tốt / cần, <span class="new">thêm số cần và thanh</span></td></tr>
+    <tr><td>Cột Định mức vật tư (+N khác, rê xem đủ)</td><td>Cột Định mức vật tư</td></tr>
+    <tr><td>Cột Trạng thái</td><td>Cột Trạng thái, <span class="new">thêm dòng phụ giờ chạy và người / chưa giao thợ</span></td></tr>
+    <tr><td>Chú giải chân trang, phân trang theo lệnh</td><td>Giữ</td></tr>
+    <tr><td>Rỗng / lỗi / 403, SSE tự nạp, toast</td><td>Giữ nguyên, <span class="new">thêm chữ "Tự cập nhật"</span></td></tr>
+    <tr class="gr"><td colspan="2">Ngăn chi tiết</td></tr>
+    <tr><td>Đầu: serial, công đoạn, chip loại bước, pill trạng thái, nút đóng; dải Dự kiến / Nhận / Đã giao</td><td>Giữ đủ, thêm dòng mã lệnh và tên ở trên</td></tr>
+    <tr><td>4 tab, chấm đỏ trên tab, tab mở sẵn theo việc chờ</td><td>Giữ</td></tr>
+    <tr><td>Ghi chú kỹ thuật, Tiến độ thực tế (Nhận / Tốt / Còn phải làm hoặc Lỗi)</td><td>Giữ</td></tr>
+    <tr><td>Quy cách chạy máy đủ 11 dòng + Mực in + ghi chú kỹ thuật</td><td>Giữ đủ, cột trái</td></tr>
+    <tr><td>Thông tin kế hoạch 6 dòng</td><td>Giữ, cột phải</td></tr>
+    <tr><td>Khuôn & khung, Đã nhận khuôn / Đã trả khuôn, câu báo quyền</td><td>Giữ, cột phải</td></tr>
+    <tr><td>Tổ thực hiện, Giao người (popover tình trạng thợ), Rút người</td><td>Giữ, cột phải</td></tr>
+    <tr><td>Tệp của lệnh (xem trước, tải về, nhóm theo lệnh bài ghép)</td><td>Giữ, cột phải</td></tr>
+    <tr><td>Lịch sử phiên chạy + Khoảng tham gia</td><td>Giữ, cột trái</td></tr>
+    <tr><td>Sản lượng: Ghi mẻ, 4 ô số, băng toả sang lệnh khác, dòng mẻ mở ra, danh mục đổi + Cập nhật</td><td>Giữ</td></tr>
+    <tr><td>Bàn giao: Đề xuất giao, thẻ bàn giao, Sửa mẻ, Điều chỉnh, lịch sử điều chỉnh, câu bước cuối</td><td>Giữ</td></tr>
+    <tr><td>Vật tư: CTA theo trạng thái, Yêu cầu nhập kho, 3 ô số, bảng đối chiếu 6 cột, lịch sử đề nghị, dữ liệu cũ</td><td>Giữ</td></tr>
+    <tr><td>Phiếu xuất kho: 3 ô số, bảng phiếu, Xác nhận nhận</td><td>Giữ</td></tr>
+    <tr><td>Hỗ trợ chéo: đề xuất, xác nhận, huỷ có lý do</td><td>Giữ</td></tr>
+    <tr><td>Tab Nhận: các lần nhận, Xác nhận, câu cùng tổ, câu thiếu quyền</td><td>Giữ</td></tr>
+    <tr><td>Tab KCS: lỗi, bắt ở bước nào, người kiểm, đã xem, ảnh, dòng KCS đạt ở bước cuối, tự đánh dấu đã xem</td><td>Giữ</td></tr>
+    <tr><td>(chưa có)</td><td><span class="new">Tab Lịch sử mới: mọi thao tác trên công việc, mới nhất ở trên, lọc theo nhóm</span></td></tr>
+    <tr><td>Chân: Bắt đầu / Tiếp tục / Tạm dừng / Kết thúc / Đổi máy / Báo sự cố + 4 câu vì sao chưa bắt đầu được</td><td>Giữ đủ luật hiện</td></tr>
+  </tbody>
+</table>
+</div>
+<script>
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  const f=b.dataset.f;document.querySelectorAll('#rows tr').forEach(r=>r.classList.toggle('hide',f!=='all'&&r.dataset.s!==f));
+});
+document.querySelectorAll('#dt button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#dt button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.p));
+});
+document.querySelectorAll('#lsf button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#lsf button').forEach(x=>x.classList.toggle('on',x===b));
+  const g=b.dataset.g;let n=0;
+  document.querySelectorAll('#tl .ev').forEach(e=>{const an=g!=='all'&&e.dataset.g!==g;e.classList.toggle('hide',an);if(!an)n++;});
+  document.getElementById('ls-rong').style.display=n?'none':'block';
+});
+document.querySelectorAll('#rows tr').forEach(r=>r.onclick=()=>document.querySelectorAll('#rows tr').forEach(x=>x.classList.toggle('sel',x===r)));
+</script>
+</body>
+</html>

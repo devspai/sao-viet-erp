@@ -50,6 +50,10 @@ def ap_khach(db: Session, p: PhieuTinhGia, data: dict, *, actor, scope_khach: st
                 raise HTTPException(status.HTTP_403_FORBIDDEN,
                                     "Khách hàng này không nằm trong phạm vi bạn được xem.")
         p.customer_id = cid
+        # Mã tái bản là thành phẩm CỦA KHÁCH (11/10/2026) — đổi khách thì gắn cũ không còn đúng.
+        # Gỡ gắn, giữ nguyên cấu hình kỹ thuật đã nạp: chốt đơn sẽ khai mã mới cho khách mới.
+        for tp in p.thanh_phans:
+            tp.tai_ban_thanh_pham_id = None
         if not any(k in data for k in _O_NGUOI_NHAN):
             d = _qs(db)._customer_defaults(cid)
             p.delivery_address = d["delivery_address"]

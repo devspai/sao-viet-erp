@@ -10,12 +10,16 @@ Tồn kho bày được hàng đang về và phiếu mua đã có, khỏi lập 
 from __future__ import annotations
 
 from .can_doi_cache import bang_can_doi
+from .kho_giay import co_don_vi_goc
 from .mua_cho import gop_mua_cho, mua_cho_theo_dong_don
 
 
-def _khoa4(hang: tuple) -> tuple[str, int, int, int]:
+def _khoa5(hang: tuple) -> tuple[str, int, int, int, str]:
+    """Khoá tồn 5 phần `kho_giay.Khoa`; cặp `(loai, id)` ⇒ `(loai, id, 0, 0, "")`."""
     h = tuple(hang)
-    return (h[0], int(h[1]), int(h[2]), int(h[3])) if len(h) == 4 else (h[0], int(h[1]), 0, 0)
+    if len(h) == 5:
+        return (h[0], int(h[1]), int(h[2]), int(h[3]), str(h[4] or ""))
+    return (h[0], int(h[1]), 0, 0, "")
 
 
 class DuBaoTonService:
@@ -24,8 +28,8 @@ class DuBaoTonService:
         self.giu = giu
 
     def du_bao(self, hangs: list[tuple]) -> list[dict]:
-        """`hangs` = khoá tồn của các dòng trên màn (cặp `(loai, id)` hoặc khoá 4 phần)."""
-        khoas = sorted({_khoa4(h) for h in hangs})
+        """`hangs` = khoá tồn của các dòng trên màn (cặp `(loai, id)` hoặc khoá 5 phần)."""
+        khoas = sorted({_khoa5(h) for h in hangs})
         if not khoas:
             return []
         # Một bản nhớ phiếu mua cho cả lượt: bảng cân đối (nếu cache nguội) và phần đang về bên dưới
@@ -35,8 +39,11 @@ class DuBaoTonService:
 
     def _du_bao(self, khoas: list[tuple]) -> list[dict]:
         bang = bang_can_doi(self.kh, self.giu)
+        # Nhóm bảng cân đối của giấy / vật tư mang đơn vị gốc (đơn vị đã khai) — cùng khổ khác gốc là
+        # hai nhóm.
         nhom_theo_khoa = {
-            (n["hang_loai"], int(n["hang_id"]), int(n.get("kho_rong") or 0), int(n.get("kho_dai") or 0)): n
+            _khoa5((n["hang_loai"], n["hang_id"], n.get("kho_rong") or 0, n.get("kho_dai") or 0,
+                    (n.get("don_vi_goc") or "") if co_don_vi_goc(n["hang_loai"]) else "")): n
             for n in bang.get("items", [])
             if n.get("loai_nhom") == "vat_tu"
         }
@@ -56,6 +63,7 @@ class DuBaoTonService:
                 ve_mc.setdefault((ngay, ma), []).append(mc.get(dong_id))
             out.append({
                 "hang_loai": k[0], "hang_id": k[1], "kho_rong": k[2], "kho_dai": k[3],
+                "don_vi_goc": k[4],
                 "ton_toan_xuong": (nhom.get("ton") if nhom else None),
                 "can_lenh": sum(x["can"] for x in lenh),
                 "dang_ve": sum(ve.values()),

@@ -12,7 +12,8 @@ Ba bảng GHI neo lên snapshot công việc (`san_xuat_cong_viec`), KHÔNG ché
                          Tổ bấm "Đã xem" → `phan_hoi_by_id` / `phan_hoi_luc`. Không có nhận / từ chối.
   san_xuat_kcs_loi_anh — ẢNH bằng chứng của một lỗi (≥1 ảnh, service kiểm).
 
-Ai là KCS: thành viên phòng ban có `departments.is_kcs` — kiểm được công đoạn của mọi tổ.
+Ai là KCS: vai có dòng `kcs` trong ma trận (Xem / Thao tác / Đóng lệnh thiếu, 09/10/2026) — kiểm
+được công đoạn của mọi tổ.
 """
 from __future__ import annotations
 

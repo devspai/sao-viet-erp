@@ -84,8 +84,10 @@ def test_khoa_trong_tap_man_nghe_la_module_that():
     from app.seed import MODULES
 
     that = {k for k, _ in MODULES}
-    gia = {BAN_TO, KCS}
-    assert not (gia & that), "khoá giả trùng một module thật"
+    # KCS nay là module THẬT `kcs` (mg 0383) — chỉ còn `BAN_TO` là khoá giả.
+    assert KCS in that
+    assert BAN_TO not in that, "khoá giả trùng một module thật"
+    gia = {BAN_TO}
     for tap in (MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, MAN_KHO,
                 MAN_GIAO_HANG, MAN_KHVT, MAN_NHAT_KY):
         assert set(tap) - gia <= that, sorted(set(tap) - gia - that)
@@ -150,7 +152,7 @@ def test_viec_ban_to_toi_dung_to_va_man_theo_lenh(monkeypatch):
     assert to_6 == nhan_su == []
 
 
-def test_ho_tro_cheo_toi_ca_hai_to_con_khong_ro_to_thi_moi_ban_to(monkeypatch):
+def test_khong_ro_to_thi_moi_ban_to(monkeypatch):
     from app.routers import gia_cong_ngoai, san_xuat
 
     async def kb(hub):
@@ -158,18 +160,13 @@ def test_ho_tro_cheo_toi_ca_hai_to_con_khong_ro_to_thi_moi_ban_to(monkeypatch):
         to_6 = hub.subscribe(2, quyen=frozenset({"to:6", BAN_TO}))
         to_7 = hub.subscribe(3, quyen=frozenset({"to:7", BAN_TO}))
         ke_toan = hub.subscribe(4, quyen=frozenset({"ke_toan"}))
-        san_xuat._phat_sse_ho_tro({"to_goc_id": 5, "to_thuc_hien_id": 6, "cong_viec_id": 1,
-                                   "ho_tro_id": 2, "trang_thai": "cho_hai_ben"})
-        dot1 = [await _nhan(q) for q in (to_5, to_6, to_7, ke_toan)]
         # Gia công ngoài mở lại: gói không nói tổ nào ⇒ mọi người có Bàn tổ.
         hub.gui({"type": "san_xuat_cong_viec_changed"},
                 **kem_ban_to(MAN_THEO_LENH, ()))
-        dot2 = [await _nhan(q) for q in (to_5, to_6, to_7, ke_toan)]
-        return dot1, dot2
+        return [await _nhan(q) for q in (to_5, to_6, to_7, ke_toan)]
 
-    dot1, dot2 = _chay(monkeypatch, [san_xuat, gia_cong_ngoai], kb)
-    assert dot1 == [["san_xuat_ho_tro_changed"], ["san_xuat_ho_tro_changed"], [], []]
-    assert dot2 == [["san_xuat_cong_viec_changed"]] * 3 + [[]]
+    dot = _chay(monkeypatch, [san_xuat, gia_cong_ngoai], kb)
+    assert dot == [["san_xuat_cong_viec_changed"]] * 3 + [[]]
 
 
 def test_mua_hang_toi_thu_mua_ke_toan_va_nguoi_dung_ten(monkeypatch):

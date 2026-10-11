@@ -15,7 +15,7 @@ from ...repositories.loc_danh_sach import VN_TZ
 from ...repositories.order_repo import OrderRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ..delivery_service import sinh_ma_chung_tu
-from ..san_xuat.kho import _he_so, loi_quy_doi
+from ..san_xuat.kho import _he_so, la_chang_thanh_pham, loi_quy_doi
 from ..san_xuat.vat_tu_de_nghi import _hang_service
 from ..thanh_pham_khai_bao import cum_ban, cum_cua_dong, khai_cum
 from ..vat_lieu_kho_service import VatLieuKhoError
@@ -40,6 +40,15 @@ def _he_so_ve_dong(db: Session, tp, tu_dv: str, dv_dong: str, cv=None) -> float:
     """1 `tu_dv` = bao nhiêu đơn vị dòng đơn — cùng đường quy đổi của món như nhập kho thành phẩm."""
     if not tu_dv:
         raise ValueError("Công đoạn cuối chưa khai đơn vị ra nên chưa quy đổi được sang đơn vị giao.")
+    if la_chang_thanh_pham(tu_dv):
+        # Chặng Thành phẩm = đơn vị tính của sản phẩm trên LỆNH (11/10/2026). Dòng đơn bán theo đơn
+        # vị khác (kiện…) thì vẫn quy từ đơn vị lệnh sang — mã chặng `cai` không phải đơn vị bán.
+        lsx = SanXuatRepository(db).lsx(cv.lsx_id) if getattr(cv, "lsx_id", None) else None
+        if lsx is not None and (lsx.don_vi_tinh or "").strip():
+            bang = DonViDoRepository(db).ten_theo_ma()
+            if dv_dong and nhan_don_vi(bang, lsx.don_vi_tinh) == nhan_don_vi(bang, dv_dong):
+                return 1.0
+            tu_dv = lsx.don_vi_tinh.strip()
     if not dv_dong or tu_dv.lower() == dv_dong.lower():
         return 1.0
     try:

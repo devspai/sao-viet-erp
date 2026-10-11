@@ -100,23 +100,6 @@ def test_create_child_and_edit_description(client):
     assert body["code"] == child["code"]  # code never changes on edit
 
 
-def test_co_kcs_dat_va_giu_nguyen_khi_khong_gui(client):
-    """Cờ tổ KCS (module Thực hiện SX §3.1): mặc định False; đặt True qua PUT; và KHÔNG gửi cờ khi
-    sửa tên phải GIỮ NGUYÊN (như `la_kinh_doanh`) — ghi đè mặc định là âm thầm gỡ cờ KCS."""
-    token = _admin_token(client)
-    made = client.post("/api/departments", json={"name": "Tổ soi lỗi"}, headers=_h(token)).json()
-    assert made["is_kcs"] is False, "mặc định không phải KCS"
-
-    on = client.put(f"/api/departments/{made['id']}",
-                    json={"name": "Tổ soi lỗi", "is_kcs": True}, headers=_h(token))
-    assert on.status_code == 200 and on.json()["is_kcs"] is True, on.text
-
-    # Sửa mỗi tên (không kèm is_kcs) ⇒ cờ KCS phải còn.
-    kept = client.put(f"/api/departments/{made['id']}",
-                      json={"name": "Tổ soi lỗi 2"}, headers=_h(token))
-    assert kept.json()["is_kcs"] is True, "không gửi is_kcs = giữ nguyên, không được gỡ"
-
-
 def test_co_to_cat_dich_danh_va_giu_nguyen_khi_khong_gui(client):
     """Cờ TỔ CẮT (mg 0355): tạo kèm cờ / bật qua PUT / không gửi thì giữ / summary trả cờ / tổ con
     KHÔNG kế thừa (đích danh như `la_to_in`). Chốt giấy sau phát hành hỏi đúng `dept_ids_to_cat`."""

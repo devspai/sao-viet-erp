@@ -1526,23 +1526,35 @@ def test_nhap_vat_tu_trung_trong_file_thi_lay_dong_duoi(client, auth_headers):
     assert body["errors"] and body["errors"][0]["row"] == 3
 
 
-def test_nhap_vat_tu_doc_dang_ban_va_kho_giay(client, auth_headers):
-    """Cột Dạng bán + Khổ (07/10/2026): Tờ kèm khổ (cạnh ngắn trước), Cuộn kèm khổ rộng; giấy tờ
-    hai khổ là hai dòng giá; tờ thiếu cạnh và dạng lạ thành lỗi đúng dòng."""
+def test_nhap_vat_tu_doc_kho_giay(client, auth_headers):
+    """Cột Khổ (10/10/2026, bỏ dạng bán): hai cạnh (cạnh ngắn trước) hoặc chỉ rộng, ĐVT tuỳ chọn;
+    hai khổ là hai dòng giá; khổ rác thành lỗi đúng dòng."""
+    data = _file_vat_tu([
+        ("Couche 80", "870x650", "ram", 520000, 8, ""),
+        ("Couche 80", "790 × 1090", "ram", 600000, 8, ""),
+        ("Couche 80", "1090", "tan", 22600000, 8, ""),
+        ("Couche 80", "650x870x9", "ram", 1, 8, ""),
+        ("Keo", "", "kg", 80000, 10, ""),
+    ], header=("Tên hàng*", "Khổ (mm)", "Đơn vị*", "Đơn giá*", "VAT %", "Ghi chú"))
+    body = _nhap(client, auth_headers, data).json()
+    got = [(i["kho_rong"], i["kho_dai"], i["unit"]) for i in body["items"]]
+    assert got == [(650, 870, "ram"), (790, 1090, "ram"), (1090, 0, "tan"), (0, 0, "kg")]
+    assert all("dang_ban" not in i for i in body["items"])
+    assert [e["row"] for e in body["errors"]] == [5]
+
+
+def test_nhap_vat_tu_file_cu_con_cot_dang_ban_thi_bo_qua_cot(client, auth_headers):
+    """File xuất trước 10/10/2026 còn cột "Dạng bán": đọc bình thường, cột đó bị bỏ qua."""
     hdr = ("Tên hàng*", "Dạng bán", "Khổ (mm)", "Đơn vị*", "Đơn giá*", "VAT %", "Ghi chú")
     data = _file_vat_tu([
         ("Couche 80", "Tờ", "870x650", "ram", 520000, 8, ""),
-        ("Couche 80", "Tờ", "790 × 1090", "ram", 600000, 8, ""),
-        ("Couche 80", "cuon", "1090", "tan", 22600000, 8, ""),
-        ("Couche 80", "Tờ", "650", "ram", 1, 8, ""),
-        ("Couche 80", "Tấm", "", "ram", 1, 8, ""),
+        ("Couche 80", "Cuộn", "1090", "tan", 22600000, 8, ""),
         ("Keo", "", "", "kg", 80000, 10, ""),
     ], header=hdr)
     body = _nhap(client, auth_headers, data).json()
-    got = [(i["dang_ban"], i["kho_rong"], i["kho_dai"], i["unit"]) for i in body["items"]]
-    assert got == [("to", 650, 870, "ram"), ("to", 790, 1090, "ram"), ("cuon", 1090, 0, "tan"),
-                   (None, 0, 0, "kg")]
-    assert [e["row"] for e in body["errors"]] == [5, 6]
+    assert body["errors"] == []
+    got = [(i["kho_rong"], i["kho_dai"], i["unit"], i["unit_price"]) for i in body["items"]]
+    assert got == [(650, 870, "ram", 520000), (1090, 0, "tan", 22600000), (0, 0, "kg", 80000)]
 
 
 def test_nhap_vat_tu_chan_file_hong_thieu_cot_va_qua_tran(client, auth_headers):
@@ -1983,7 +1995,7 @@ def test_sua_pmh_khong_duoc_xoa_lien_ket_mat_hang_goc(client, auth_headers):
 
     db = SessionLocal()
     try:
-        giay = GiayNguyen(
+        giay = GiayNguyen(don_vi_them=["to"], 
             ma="GY-RT", ten="Giay round-trip", gsm=150, kho_dai=860, kho_rong=650,
             don_vi_gia="kg",
         )
@@ -2000,7 +2012,7 @@ def test_sua_pmh_khong_duoc_xoa_lien_ket_mat_hang_goc(client, auth_headers):
         client, auth_headers, name="NCC Round Trip Mat Hang Goc",
         items=[{
             "hang_loai": "giay", "hang_id": giay_id,
-            "item_name": "Giay round-trip", "dang_ban": "cuon", "unit": "kg",
+            "item_name": "Giay round-trip", "unit": "kg",
             "unit_price": 22000, "vat_percent": 8,
         }],
     )
@@ -2461,7 +2473,7 @@ def _giay_co_ncc() -> tuple[int, int, str]:
     try:
         g = db.query(GiayNguyen).filter(GiayNguyen.ma == "GY-LINK").first()
         if g is None:
-            g = GiayNguyen(
+            g = GiayNguyen(don_vi_them=["to"], 
                 ma="GY-LINK",
                 ten="Giay Couche 150 79x109",
                 gsm=150,
@@ -2678,10 +2690,11 @@ def test_dot_giao_ghi_kho_nhan_khac_kho_dat(client, auth_headers):
     assert r.json()["deliveries"][-1]["lines"][0]["khac_kho_dat"] is False
 
 
-def test_dot_giao_kho_nhan_thieu_canh_bi_chan(client, auth_headers):
+def test_dot_giao_kho_nhan_chi_rong_duoc_ghi(client, auth_headers):
+    # Bỏ dạng cuộn/tờ (10/10/2026): khổ nhận chỉ rộng là khổ hợp lệ, không còn bắt đủ hai cạnh.
     pr_id, dong_id = _pmh_giay_da_mua(client, auth_headers)
     r = _dot(client, auth_headers, pr_id, dong_id, kho_rong=790)
-    assert r.status_code in (400, 422), r.text
+    assert r.status_code in (200, 201), r.text
 
 
 def test_pmh_chi_lay_dong_duoc_chon_dong_con_lai_van_mo(client, auth_headers):

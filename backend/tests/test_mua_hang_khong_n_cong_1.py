@@ -40,7 +40,7 @@ def _giay(n: int, tien_to: str) -> list[int]:
     db = SessionLocal()
     try:
         rows = [
-            GiayNguyen(ma=f"{tien_to}{i}", ten=f"Giay {tien_to} {i}", gsm=150, kho_dai=860,
+            GiayNguyen(don_vi_them=["to"], ma=f"{tien_to}{i}", ten=f"Giay {tien_to} {i}", gsm=150, kho_dai=860,
                        kho_rong=650, don_vi_gia="kg")
             for i in range(n)
         ]
@@ -59,7 +59,7 @@ def _dung(client, h, n: int, tien_to: str) -> list[int]:
         "phone": "0901000001", "email": "ncc@example.com", "address": "HCM",
         "contact_name": "Lan", "supplier_group": "paper", "payment_terms": "30 ngay",
         "items": [{"hang_loai": "giay", "hang_id": gid, "item_name": f"Giay {tien_to} {i}",
-                   "dang_ban": "cuon", "unit": "kg", "unit_price": 22000, "vat_percent": 8}
+                   "unit": "kg", "unit_price": 22000, "vat_percent": 8}
                   for i, gid in enumerate(ids)],
     }, headers=h)
     assert ncc.status_code == 201, ncc.text

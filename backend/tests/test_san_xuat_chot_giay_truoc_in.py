@@ -154,7 +154,7 @@ def test_lenh_chua_cat_khoa_buoc_in_toi_khi_them(db, orders, lsx_svc, admin, cus
             .filter_by(buoc_truoc_id=cat.id)] == [in_.id]
     g = [v for v in cat.vat_tus if v.hang_loai == "giay"]
     assert len(g) == 1
-    assert g[0].dang_giay == "to" and float(g[0].so_luong) > 0
+    assert g[0].don_vi_goc == "to" and float(g[0].so_luong) > 0
     assert {g[0].kho_rong, g[0].kho_dai} == {790, 1090}     # khổ NGUYÊN, không phải khổ in
     assert chot_giay.ly_do_cho_chot(db, _cv(db, in_.id)) is None
     assert chot_giay.buoc_lay_giay(db, ("lsx", n.a.id)).id == cat.id
@@ -364,7 +364,7 @@ def test_xoa_buoc_cat_duy_nhat_mang_giay_chuyen_giay_sang_in(db, orders, lsx_svc
     in_ = db.get(LsxCongDoan, in_id)
     g = [v for v in in_.vat_tus if v.hang_loai == "giay"]
     assert [v.vat_tu_id for v in g] == [ma_giay]
-    assert g[0].dang_giay == "to"
+    assert g[0].don_vi_goc == "to"
     assert float(g[0].so_luong) == pytest.approx(float(in_.so_luong_vao))
     assert float(g[0].so_luong) > 0
     assert g[0].kho_rong > 0 and {g[0].kho_rong, g[0].kho_dai} != {790, 1090}   # khổ tờ in

@@ -82,6 +82,19 @@ def test_tim_theo_ma_lenh_ra_mon(client, db, customer):
     assert [x["id"] for x in ds] == [yc["id"]]
 
 
+def test_tim_tuong_doi_khong_dau_nhieu_tu(client, db, customer):
+    """Ô tìm YCMH khớp TƯƠNG ĐỐI: gõ không dấu, nhiều từ không liền nhau vẫn ra; một từ lạc là rỗng."""
+    _, _, yc = _yeu_cau_hai_lenh(client, db, customer)
+    h = _h()
+    ma_duoi = yc["code"].rsplit("-", 1)[-1]
+    for q in ("thieu giay", "GIAY thiếu", f"{ma_duoi} thieu", "mcb giay"):
+        ds = client.get("/api/department-purchase-requests", params={"q": q}, headers=h).json()
+        assert [x["id"] for x in ds["items"]] == [yc["id"]], q
+    rong = client.get("/api/department-purchase-requests", params={"q": "thieu muc"},
+                      headers=h).json()["items"]
+    assert rong == []
+
+
 def test_loc_loai_mua_o_may_chu(client, db, customer):
     _, _, yc = _yeu_cau_hai_lenh(client, db, customer)
     h = _h()

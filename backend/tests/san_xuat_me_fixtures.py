@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from app.models.attendance import CHECK_IN, CHECK_OUT, AttendanceLog, WorkShift
 from app.models.piece_work import PieceRate, ViecPhatSinh
 from app.models.san_xuat import CV_DANG_CHAY
-from app.models.san_xuat_san_luong import SanXuatBatch
+from app.models.san_xuat_san_luong import SanXuatBatch, SanXuatBatchNguoi
 from app.models.san_xuat_thuc_thi import SanXuatKhoangThamGia
 from app.models.user import User
 from app.services.attendance_service import VN_TZ
@@ -71,6 +71,14 @@ def khoang(db, cv, emp, bat_dau, ket_thuc) -> SanXuatKhoangThamGia:
     db.add(k)
     db.flush()
     return k
+
+
+def co_mat(db, batch, *emps, ho_tro: bool = False) -> None:
+    """Ghi thẳng người làm một lần ghi (ảnh chụp `san_xuat_batch_nguoi`, mg 0386)."""
+    for e in emps:
+        db.add(SanXuatBatchNguoi(batch_id=batch.id, employee_id=e.id, department_id=e.department_id,
+                                 la_ho_tro=ho_tro))
+    db.flush()
 
 
 def cham_cong(db, emp, *, ngay=NGAY, vao_h=8, ra_h=17) -> None:

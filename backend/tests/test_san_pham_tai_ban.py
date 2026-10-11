@@ -1,4 +1,7 @@
-"""Sản phẩm tái bản (docs/spec-san-pham-tai-ban.md) — snapshot tự động lúc Chốt đơn + tra cứu.
+"""Sản phẩm tái bản + thành phẩm THUỘC VỀ KHÁCH (11/10/2026, mg 0394).
+
+Chốt đơn gắn mỗi cụm bán vào một mã thành phẩm của khách (tái bản đã chọn, hoặc mã mới) và chụp
+cấu hình kỹ thuật vào chính mã đó; ô tái bản chỉ hiện mã của khách đầu phiếu.
 
 Service-level tests, cùng phong cách `test_orders_api.py`: dựng DB in-memory, chạy OrderService
 thật cho phần chốt đơn, gọi thẳng `san_pham_tai_ban_service` cho phần tìm/đọc chi tiết.
@@ -11,8 +14,10 @@ from tests.conftest import phien_da_seed
 
 from app.models.customer import Customer
 from app.models.phieu_tinh_gia import (
-    PhieuBuocVatTu, PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, SanPhamTaiBan,
+    PhieuBuocVatTu, PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia,
 )
+from app.models.order import Order
+from app.models.vat_lieu_kho import VatTuInAn
 from app.models.quotation import STATUS_ACCEPTED, Quote, QuoteItem, QuoteVersion
 from app.models.user import User
 from app.repositories.accounting_repo import AccountingRepository
@@ -134,165 +139,206 @@ def _confirm_ready_order(svc, db, admin, quote):
     return d
 
 
-def test_confirm_creates_full_snapshot(svc, admin, db):
-    cust = _customer(db)
-    tp = _thanh_phan(db)
-    q = _quote_for(db, cust, tp)
-    d = _confirm_ready_order(svc, db, admin, q)
-    out = svc.confirm(order_id=d.id, actor=admin, scope="all")
-    assert out.status == "ordered"
-
-    row = db.query(SanPhamTaiBan).filter(SanPhamTaiBan.ten_chuan_hoa == san_pham_tai_ban_service.chuan_hoa_ten(tp.ten)).one()
-    cfg = row.cau_hinh_json
-    assert cfg["ten"] == tp.ten
-    assert cfg["giay_id"] == 101 and cfg["may_id"] == 201
-    assert cfg["dai_thanh_pham"] == 90 and cfg["rong_thanh_pham"] == 54
-    assert cfg["muc_a"] == ["C", "M", "Y", "K"]
-    # Công đoạn giữ ĐÚNG THỨ TỰ (thu_tu 0 rồi 1), dù insert ngược.
-    assert [c["ten"] for c in cfg["thanh_phams"]] == ["Cắt xén", "Cán màng"]
-    assert cfg["thanh_phams"][1]["phi_khuon"] == 0
-    assert cfg["thanh_phams"][0]["phi_khuon"] == 50_000
-    assert cfg["thanh_phams"][0]["vat_tus"][0]["vat_tu_id"] == 401
-    assert cfg["thanh_phams"][0]["vat_tus"][0]["gia_tri_chip"] == {"dai_support": 5}
-    assert cfg["thanh_phams"][1]["vat_tus"] == []
-    # KHÔNG lưu: SL của đơn cũ, giá vốn đã tính, số bài in/số màu dẫn xuất.
-    assert cfg.get("so_luong") is None
-    assert cfg.get("so_to_per_sp") is None
-    assert cfg.get("so_mau_a") is None and cfg.get("so_mau_b") is None
-
-
-def test_confirm_multiple_products_each_saved(svc, admin, db):
-    cust = _customer(db)
-    tp1 = _thanh_phan(db, ten="Hộp cứng A")
-    tp2 = _thanh_phan(db, ten="Hộp cứng B", giay_id=102, may_id=202)
-    q = Quote(quote_number="BG-multi", customer_id=cust.id, status=STATUS_ACCEPTED)
+def _quote_nhieu(db, customer, tps: list[PhieuThanhPhan], *, nhom: str | None = None, qty=1000,
+                 so: str = "") -> Quote:
+    """Báo giá nhiều dòng; `nhom` cho mọi dòng ⇒ một cụm bán (ruột + bìa một cuốn)."""
+    q = Quote(quote_number=f"BG-N{so}-{customer.id}-{tps[0].id}", customer_id=customer.id,
+              status=STATUS_ACCEPTED)
     db.add(q)
     db.flush()
     v = QuoteVersion(quote_id=q.id, version_number=1, vat_percent=8)
     db.add(v)
     db.flush()
     q.current_version_id = v.id
-    for i, tp in enumerate((tp1, tp2), start=1):
+    for i, tp in enumerate(tps, start=1):
         db.add(QuoteItem(
             quote_version_id=v.id, line_no=i, product_type="tr", product_name=tp.ten,
-            quantity=500, unit="cái", selling_price=500_000, discount_amount=0,
-            unit_price=1000, vat_percent=8, vat_amount=40_000, final_amount=540_000,
-            total_cost_snapshot=300_000, margin_percent=20, phieu_thanh_phan_id=tp.id,
+            quantity=qty, unit="cái", selling_price=500_000, discount_amount=0,
+            unit_price=500, vat_percent=8, vat_amount=40_000, final_amount=540_000,
+            total_cost_snapshot=300_000, margin_percent=20, phieu_thanh_phan_id=tp.id, nhom=nhom,
         ))
     db.commit()
-    d = _confirm_ready_order(svc, db, admin, q)
+    return q
+
+
+def _chot(svc, db, admin, quote):
+    d = _confirm_ready_order(svc, db, admin, quote)
     svc.confirm(order_id=d.id, actor=admin, scope="all")
-    assert db.query(SanPhamTaiBan).count() == 2
+    return db.get(Order, d.id)
 
 
-def test_confirm_overwrites_same_name_regardless_of_customer(svc, admin, db):
-    cust_a = _customer(db, "KH-A")
-    cust_b = _customer(db, "KH-B")
-    tp1 = _thanh_phan(db, ten="Tờ rơi A5", giay_id=101)
-    d1 = _confirm_ready_order(svc, db, admin, _quote_for(db, cust_a, tp1))
-    svc.confirm(order_id=d1.id, actor=admin, scope="all")
-
-    tp2 = _thanh_phan(db, ten="Tờ rơi A5", giay_id=102)   # tên GIỐNG hệt, giấy khác, khách khác
-    d2 = _confirm_ready_order(svc, db, admin, _quote_for(db, cust_b, tp2))
-    svc.confirm(order_id=d2.id, actor=admin, scope="all")
-
-    rows = db.query(SanPhamTaiBan).filter(
-        SanPhamTaiBan.ten_chuan_hoa == san_pham_tai_ban_service.chuan_hoa_ten("Tờ rơi A5")
-    ).all()
-    assert len(rows) == 1   # ghi đè, không nhân đôi
-    assert rows[0].cau_hinh_json["giay_id"] == 102   # cấu hình của lần chốt SAU
+def _ma_cua_don(order) -> set[int]:
+    return {ln.thanh_pham_id for ln in order.lines}
 
 
-def test_confirm_without_phieu_thanh_phan_id_still_confirms(svc, admin, db):
+# ------------------------------------------------ chốt đơn: gắn mã + chụp cấu hình vào mã
+
+
+def test_chot_don_gan_ma_cua_khach_va_chup_cau_hinh(svc, admin, db):
     cust = _customer(db)
-    q = _quote_for(db, cust, None)   # dòng báo giá KHÔNG gắn PTG (nhập tay)
-    d = _confirm_ready_order(svc, db, admin, q)
-    out = svc.confirm(order_id=d.id, actor=admin, scope="all")
-    assert out.status == "ordered"
-    assert db.query(SanPhamTaiBan).count() == 0
+    tp = _thanh_phan(db)
+    o = _chot(svc, db, admin, _quote_for(db, cust, tp))
+    assert o.status == "ordered"
+    (ma_id,) = _ma_cua_don(o)
+    ma = db.get(VatTuInAn, ma_id)
+    assert ma.la_thanh_pham and ma.customer_id == cust.id
+    (cfg,) = ma.cau_hinh_tai_ban
+    assert cfg["ten"] == tp.ten
+    assert cfg["giay_id"] == 101 and cfg["may_id"] == 201
+    assert cfg["muc_a"] == ["C", "M", "Y", "K"]
+    # Công đoạn giữ ĐÚNG THỨ TỰ (thu_tu 0 rồi 1), dù insert ngược.
+    assert [c["ten"] for c in cfg["thanh_phams"]] == ["Cắt xén", "Cán màng"]
+    assert cfg["thanh_phams"][0]["vat_tus"][0]["gia_tri_chip"] == {"dai_support": 5}
+    # KHÔNG lưu: SL của đơn cũ, giá vốn, số dẫn xuất, và dấu tái bản của thẻ nguồn.
+    assert cfg.get("so_luong") is None and cfg.get("so_to_per_sp") is None
+    assert cfg.get("so_mau_a") is None
+    assert "tai_ban_thanh_pham_id" not in cfg
+    assert ma.tai_ban_luc is not None
+
+
+def test_ruot_bia_MOT_cum_la_MOT_ma_chup_du_hai_thanh_phan(svc, admin, db):
+    """Tái bản ở cấp MÓN BÁN: chọn "Sách" là nạp đủ ruột + bìa, nên mã phải giữ cả hai."""
+    cust = _customer(db)
+    ruot = _thanh_phan(db, ten="Ruột sách", giay_id=101)
+    bia = _thanh_phan(db, ten="Bìa sách", giay_id=102)
+    o = _chot(svc, db, admin, _quote_nhieu(db, cust, [ruot, bia], nhom="Sách A5 64 trang"))
+    (ma_id,) = _ma_cua_don(o)
+    ma = db.get(VatTuInAn, ma_id)
+    assert ma.ten == "Sách A5 64 trang"
+    assert [c["ten"] for c in ma.cau_hinh_tai_ban] == ["Ruột sách", "Bìa sách"]
+
+
+def test_HAI_KHACH_cung_ten_la_HAI_ma(svc, admin, db):
+    """⭐ 11/10/2026: hàng in riêng cho khách nào là của khách đó — trùng tên vẫn là hai mã, không
+    thì kho giao hộp in logo khách A cho khách B."""
+    a, b = _customer(db, "KH-A"), _customer(db, "KH-B")
+    o1 = _chot(svc, db, admin, _quote_for(db, a, _thanh_phan(db, ten="Tờ rơi A5")))
+    o2 = _chot(svc, db, admin, _quote_for(db, b, _thanh_phan(db, ten="Tờ rơi A5")))
+    assert _ma_cua_don(o1) != _ma_cua_don(o2)
+
+
+def test_CUNG_DON_hai_cum_cung_ten_la_MOT_ma(svc, admin, db):
+    """Ruột + bìa cùng nhãn mà khác SL là hai cụm cùng tên — vẫn là MỘT món, một mã."""
+    cust = _customer(db)
+    q = _quote_nhieu(db, cust, [_thanh_phan(db, ten="Ruột"), _thanh_phan(db, ten="Bìa")],
+                     nhom="Kỷ yếu 2027")
+    q_items = sorted(db.get(QuoteVersion, q.current_version_id).items, key=lambda x: x.line_no)
+    q_items[1].quantity = 1_200
+    db.commit()
+    o = _chot(svc, db, admin, q)
+    from app.services.thanh_pham_khai_bao import cum_ban
+
+    assert len(cum_ban(o)) == 2 and len(_ma_cua_don(o)) == 1
+
+
+def test_cung_khach_KHONG_gan_tai_ban_la_san_pham_MOI(svc, admin, db):
+    """Danh tính do người lập phiếu CHỌN, không đoán bằng tên: không chọn tái bản = sản phẩm mới."""
+    cust = _customer(db)
+    o1 = _chot(svc, db, admin, _quote_for(db, cust, _thanh_phan(db, ten="Lịch bàn 2027")))
+    o2 = _chot(svc, db, admin, _quote_nhieu(db, cust, [_thanh_phan(db, ten="Lịch bàn 2027")], so="2"))
+    assert _ma_cua_don(o1) != _ma_cua_don(o2)
+
+
+def test_cung_khach_GAN_tai_ban_dung_lai_ma_va_cap_nhat_cau_hinh(svc, admin, db):
+    cust = _customer(db)
+    o1 = _chot(svc, db, admin, _quote_for(db, cust, _thanh_phan(db, ten="Hộp trà", giay_id=101)))
+    (ma_id,) = _ma_cua_don(o1)
+    lai = _thanh_phan(db, ten="Hộp trà (in lại)", giay_id=102)
+    lai.tai_ban_thanh_pham_id = ma_id
+    db.commit()
+    o2 = _chot(svc, db, admin, _quote_nhieu(db, cust, [lai], so="2"))
+    assert _ma_cua_don(o2) == {ma_id}
+    db.refresh(db.get(VatTuInAn, ma_id))
+    assert db.get(VatTuInAn, ma_id).cau_hinh_tai_ban[0]["giay_id"] == 102   # cấu hình lần chốt SAU
+
+
+def test_gan_tai_ban_vao_ma_KHACH_KHAC_thi_chan_chot(svc, admin, db):
+    a, b = _customer(db, "KH-A"), _customer(db, "KH-B")
+    o1 = _chot(svc, db, admin, _quote_for(db, a, _thanh_phan(db, ten="Hộp A")))
+    (ma_a,) = _ma_cua_don(o1)
+    nham = _thanh_phan(db, ten="Hộp A")
+    nham.tai_ban_thanh_pham_id = ma_a
+    db.commit()
+    d = _confirm_ready_order(svc, db, admin, _quote_nhieu(db, b, [nham], so="b"))
+    with pytest.raises(OrderValidationError, match="không thuộc khách"):
+        svc.confirm(order_id=d.id, actor=admin, scope="all")
+    assert svc.get(order_id=d.id, actor=admin, scope="all").status == "draft"
+
+
+def test_dong_nhap_tay_cung_khach_cung_ten_dung_lai_ma(svc, admin, db):
+    """Dòng nhập tay không có ô tái bản để chọn ⇒ tìm theo (khách, tên)."""
+    cust = _customer(db)
+    q1 = _quote_for(db, cust, None)
+    q1.quote_number = "BG-tay-1"
+    db.commit()
+    o1 = _chot(svc, db, admin, q1)
+    o2 = _chot(svc, db, admin, _quote_for(db, cust, None))
+    assert _ma_cua_don(o1) == _ma_cua_don(o2)
+
+
+def test_don_CU_chua_co_dau_van_tim_ra_ma_theo_khach_va_ten(svc, admin, db):
+    from app.services.thanh_pham_khai_bao import cum_ban, thanh_pham_cua_cum
+
+    cust = _customer(db)
+    o = _chot(svc, db, admin, _quote_for(db, cust, _thanh_phan(db, ten="Nhãn chai")))
+    (ma_id,) = _ma_cua_don(o)
+    for ln in o.lines:
+        ln.thanh_pham_id = None          # đơn chốt trước 11/10/2026
+    db.commit()
+    (cum,) = cum_ban(o)
+    assert thanh_pham_cua_cum(db, o, cum).id == ma_id
 
 
 def test_confirm_rejects_and_rolls_back_when_source_deleted(svc, admin, db):
     cust = _customer(db)
     tp = _thanh_phan(db, ten="Sẽ bị xoá")
-    q = _quote_for(db, cust, tp)
-    d = _confirm_ready_order(svc, db, admin, q)
+    d = _confirm_ready_order(svc, db, admin, _quote_for(db, cust, tp))
     db.delete(tp)
     db.commit()
     with pytest.raises(OrderValidationError):
         svc.confirm(order_id=d.id, actor=admin, scope="all")
-    fresh = svc.get(order_id=d.id, actor=admin, scope="all")
-    assert fresh.status == "draft"   # KHÔNG chốt nửa vời
-    assert db.query(SanPhamTaiBan).count() == 0
+    assert svc.get(order_id=d.id, actor=admin, scope="all").status == "draft"
 
 
-def test_tim_kiem_bo_dau_va_lay_chi_tiet(svc, admin, db):
-    cust = _customer(db)
-    tp = _thanh_phan(db, ten="Áo thun cotton")
-    d = _confirm_ready_order(svc, db, admin, _quote_for(db, cust, tp))
-    svc.confirm(order_id=d.id, actor=admin, scope="all")
-
-    goi_y = san_pham_tai_ban_service.tim_kiem(db, "ao thun")   # gõ KHÔNG dấu
-    assert any(r.ten == "Áo thun cotton" for r in goi_y)
-
-    row = next(r for r in goi_y if r.ten == "Áo thun cotton")
-    chi_tiet = san_pham_tai_ban_service.lay_chi_tiet(db, row.id)
-    assert chi_tiet is not None
-    assert chi_tiet.cau_hinh_json["ten"] == "Áo thun cotton"
-    assert chi_tiet.cau_hinh_json["giay_id"] == 101
+# ------------------------------------------------------------- ô tái bản: chỉ hàng của khách
 
 
-def test_snapshot_giu_phi_giao_hang(svc, admin, db):
-    """Tái bản nạp lại NGUYÊN cấu hình — bỏ sót phí giao hàng thì đơn tái bản tự nhiên rẻ đi một
-    khoản mà không ai được báo."""
-    cust = _customer(db, code="KH-GH")
-    tp = _thanh_phan(db, ten="Hộp giao tận nơi", phi_giao_hang=750_000)
-    q = _quote_for(db, cust, tp)
-    d = _confirm_ready_order(svc, db, admin, q)
-    svc.confirm(order_id=d.id, actor=admin, scope="all")
-
-    row = db.query(SanPhamTaiBan).filter(
-        SanPhamTaiBan.ten_chuan_hoa == san_pham_tai_ban_service.chuan_hoa_ten(tp.ten)
-    ).one()
-    assert row.cau_hinh_json["phi_giao_hang"] == 750_000
-
-
-def test_snapshot_giu_chi_phi_khac(svc, admin, db):
-    """Khoản lẻ tự khai (làm kẽm, phí thiết kế) cũng phải theo mẫu tái bản — cả TÊN lẫn tiền, vì
-    cái tên gõ tay là thứ duy nhất nói được khoản ấy là gì."""
-    cust = _customer(db, code="KH-CPK")
-    tp = _thanh_phan(db, ten="Hộp có kẽm ngoài",
-                     chi_phi_khac=[("làm kẽm", 800_000), ("phí thiết kế", 1_500_000)])
-    q = _quote_for(db, cust, tp)
-    d = _confirm_ready_order(svc, db, admin, q)
-    svc.confirm(order_id=d.id, actor=admin, scope="all")
-
-    row = db.query(SanPhamTaiBan).filter(
-        SanPhamTaiBan.ten_chuan_hoa == san_pham_tai_ban_service.chuan_hoa_ten(tp.ten)
-    ).one()
-    assert [(c["ten"], c["so_tien"]) for c in row.cau_hinh_json["chi_phi_khacs"]] == [
-        ("làm kẽm", 800_000), ("phí thiết kế", 1_500_000),
-    ]
-
-
-def test_snapshot_giu_nguon_khuon(svc, admin, db):
-    """Sale đã trả lời "khuôn có sẵn hay làm mới" thì tái bản phải nạp lại đúng câu trả lời đó.
-    Mất nó thì thẻ nạp ra còn 800.000đ phí khuôn mà không nút nào được chọn, ô tiền ẩn, và lệnh
-    xuống xưởng không còn so được ý sale với con dao kế hoạch chốt."""
-    cust = _customer(db, code="KH-KN")
-    tp = _thanh_phan(db, ten="Hộp bế dao mới")
-    tp.thanh_phams[0].khuon_nguon = "lam_moi"   # Cắt xén, phi_khuon 50.000
-    tp.thanh_phams[1].khuon_nguon = "co_san"    # Cán màng, phi_khuon 0
+def test_goi_y_CHI_tra_ma_cua_khach_ke_ca_ma_chua_co_cau_hinh(svc, admin, db):
+    a, b = _customer(db, "KH-A"), _customer(db, "KH-B")
+    _chot(svc, db, admin, _quote_for(db, a, _thanh_phan(db, ten="Áo thun cotton")))
+    _chot(svc, db, admin, _quote_for(db, b, _thanh_phan(db, ten="Áo thun cotton")))
+    tay = VatTuInAn(ma="TP-TAY-1", ten="Áo khoác gió", la_thanh_pham=True, customer_id=a.id, don_gia=0)
+    db.add(tay)
     db.commit()
-    d = _confirm_ready_order(svc, db, admin, _quote_for(db, cust, tp))
-    svc.confirm(order_id=d.id, actor=admin, scope="all")
 
-    row = db.query(SanPhamTaiBan).filter(
-        SanPhamTaiBan.ten_chuan_hoa == san_pham_tai_ban_service.chuan_hoa_ten(tp.ten)
-    ).one()
-    assert [(c["ten"], c["phi_khuon"], c["khuon_nguon"]) for c in row.cau_hinh_json["thanh_phams"]] == [
-        ("Cắt xén", 50_000, "lam_moi"), ("Cán màng", 0, "co_san"),
-    ]
+    goi_y = san_pham_tai_ban_service.tim_kiem(db, a.id, "ao")     # gõ KHÔNG dấu
+    assert sorted(r["ten"] for r in goi_y) == ["Áo khoác gió", "Áo thun cotton"]
+    assert {r["ten"]: r["so_thanh_phan"] for r in goi_y} == {"Áo thun cotton": 1, "Áo khoác gió": 0}
+    # Mã đã chốt lên trước mã chưa từng chốt.
+    assert goi_y[0]["ten"] == "Áo thun cotton"
+
+    ma = next(r for r in goi_y if r["ten"] == "Áo thun cotton")
+    chi_tiet = san_pham_tai_ban_service.lay_chi_tiet(db, a.id, ma["id"])
+    assert chi_tiet["ma"] == ma["ma"] and chi_tiet["thanh_phans"][0]["giay_id"] == 101
+    assert san_pham_tai_ban_service.lay_chi_tiet(db, b.id, ma["id"]) is None   # khách khác
+
+
+def test_cau_hinh_giu_phi_giao_hang_chi_phi_khac_va_nguon_khuon(svc, admin, db):
+    """Tái bản nạp lại NGUYÊN cấu hình — bỏ sót phí giao, chi phí khác hay câu trả lời "khuôn có
+    sẵn / làm mới" thì đơn tái bản tự nhiên rẻ đi hoặc mất lựa chọn mà không ai được báo."""
+    cust = _customer(db, code="KH-GH")
+    tp = _thanh_phan(db, ten="Hộp giao tận nơi", phi_giao_hang=750_000,
+                     chi_phi_khac=[("làm kẽm", 800_000), ("phí thiết kế", 1_500_000)])
+    tp.thanh_phams[0].khuon_nguon = "lam_moi"
+    tp.thanh_phams[1].khuon_nguon = "co_san"
+    db.commit()
+    o = _chot(svc, db, admin, _quote_for(db, cust, tp))
+    (cfg,) = db.get(VatTuInAn, next(iter(_ma_cua_don(o)))).cau_hinh_tai_ban
+    assert cfg["phi_giao_hang"] == 750_000
+    assert [(c["ten"], c["so_tien"]) for c in cfg["chi_phi_khacs"]] == [
+        ("làm kẽm", 800_000), ("phí thiết kế", 1_500_000)]
+    assert [(c["ten"], c["khuon_nguon"]) for c in cfg["thanh_phams"]] == [
+        ("Cắt xén", "lam_moi"), ("Cán màng", "co_san")]
 
 
 def _chuan(v):
@@ -347,10 +393,10 @@ def test_snapshot_chep_du_moi_o_nhap(db):
 
     from app.schemas.phieu_tinh_gia import BuocVatTuIn, ChiPhiKhacIn, ThanhPhamIn, ThanhPhanIn
 
-    cfg = san_pham_tai_ban_service._cau_hinh_tu_thanh_phan(tp)
+    cfg = san_pham_tai_ban_service.cau_hinh_tu_thanh_phan(tp)
     _so_du_o(cfg, tp, ThanhPhanIn, {
         "thu_tu", "so_luong", "so_to_per_sp", "so_mau_a", "so_mau_b", "so_mau_pha",
-        "thanh_phams", "chi_phi_khacs",
+        "thanh_phams", "chi_phi_khacs", "tai_ban_thanh_pham_id",
     }, "san_pham")
     # `so_luong` của bước/vật tư: "0 = dùng SL đặt" — cùng lẽ SL của đơn cũ, màn Tính giá cũng không
     # có ô nào sửa nó.

@@ -51,6 +51,11 @@ TRANG_THAI_SUA_DUOC = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG)  # chưa lập KH �
 # Lệnh ĐÃ XUỐNG XƯỞNG (đang chạy hoặc đã đóng) — mọi màn tra cứu/tiến độ dùng bộ này, đừng so
 # `== TT_DA_PHAT_HANH`, so thế thì lệnh vừa đóng biến mất khỏi màn.
 TT_DA_XUONG_XUONG = (TT_DA_PHAT_HANH, TT_DA_DONG)
+#: Nhãn chữ cho câu nhật ký — khớp `PILL` của `frontend/src/pages/keHoachSxShared.tsx`.
+NHAN_TRANG_THAI = {
+    TT_NHAP: "Nháp", TT_CHO_BO_SUNG: "Nháp", TT_SAN_SANG: "Sẵn sàng",
+    TT_DA_LAP_KE_HOACH: "Đã lập kế hoạch", TT_DA_PHAT_HANH: "Đã phát hành", TT_DA_DONG: "Đã đóng",
+}
 
 # --- Đơn vị đếm của 1 công đoạn (print MIS: mỗi operation có đơn vị riêng, đổi ở ranh giới xén).
 DV_TO_NGUYEN = "to_nguyen"  # tờ giấy NGUYÊN (khổ mua về, chưa xả) — khác tờ in!
@@ -408,9 +413,9 @@ class LsxCongDoanVatTu(Base):
     sua_tay: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
-    # DẠNG của dòng GIẤY: `"to"` (đếm tờ theo khổ) / `"cuon"` (đếm theo khối lượng) — do máy chủ ghi
-    # theo ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác NULL. mg 0360.
-    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # ĐƠN VỊ GỐC của dòng GIẤY (`to` / `don_vi_gia` của mã) — máy chủ ghi theo ĐẦU VÀO của bước (spec
+    # 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác rỗng. Thay `dang_giay` (mg 0360) từ mg 0388.
+    don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     buoc: Mapped["LsxCongDoan"] = relationship("LsxCongDoan", back_populates="vat_tus")
 
 

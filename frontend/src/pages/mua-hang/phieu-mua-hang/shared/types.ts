@@ -4,6 +4,7 @@ import type {
   HangLoai,
   LoaiMua,
   MuaChoLenh,
+  NacKho,
   PurchaseDeliveryRow,
   PurchaseRequestInput,
   PurchaseRequestLineInput,
@@ -11,7 +12,8 @@ import type {
   PurchaseRequestStatus,
 } from "../../../../api/client";
 
-export type StatusFilter = "all" | PurchaseRequestStatus;
+/** Nhóm lọc Hàng: trạng thái đơn, riêng "Đã về đủ" tách ba nấc kho (11/10/2026). */
+export type StatusFilter = "all" | PurchaseRequestStatus | NacKho;
 export type SourceStatusFilter = "all" | DepartmentPurchaseWorkflowStatus;
 export type DepositFilter = "all" | "none" | "unpaid" | "partial" | "enough";
 
@@ -42,6 +44,9 @@ export type FormLine = PurchaseRequestLineInput & {
   yeu_cau_ma?: string | null;
   loai_mua?: LoaiMua | null;
   mua_cho?: MuaChoLenh[];
+  /** Chỉ để HIỆN (không gửi): dòng vừa đổi ĐVT vì chọn NCC bán khác họ đơn vị — nhắc gõ lại số
+   *  lượng. Gõ số lượng là tắt. */
+  doi_don_vi?: boolean;
 };
 
 /** Dòng có vào đơn đang lập không (vắng cờ = có). */
@@ -52,17 +57,22 @@ export type FormState = Omit<PurchaseRequestInput, "lines"> & { lines: FormLine[
 export type ChaoGia = {
   supplier_id: number;
   supplier_name: string;
+  /** Dòng bảng giá cụ thể — một NCC có thể đứng ở cả hai nhóm (bán theo tờ và theo kg). */
+  supplier_item_id: number;
   unit_price: number;
   vat_percent: number;
   unit: string;
-  /** Đơn giá quy về đ/đơn-vị-gốc. `null` = chưa quy đổi được — xếp cuối, và lúc chọn thì KHÔNG
-   *  được lấy đại `unit_price` vì dòng đơn tính theo đơn vị gốc. */
+  /** Đơn giá quy về đ/đơn-vị-gốc của CHÍNH dòng giá. `null` = chưa quy đổi được — xếp cuối. */
   gia_quy_doi: number | null;
-  /** NCC bán đúng mã này nhưng KHÁC dạng bán hoặc khác khổ (07/10/2026): không so giá được, chọn
-   *  thì đơn giá để trống cho người lập gõ. Luôn đứng sau nhóm cùng dạng + khổ. */
-  khac_kho?: boolean;
-  /** Nhãn dạng + khổ NCC đang bán, vd "Tờ 650 × 860" — hiện ở nhóm khác khổ. */
-  nhan_dang?: string;
+  /** Số điền vào ô đơn giá khi chọn: cùng họ ⇒ giá quy về ĐVT của dòng đơn; khác họ ⇒ giá NCC báo
+   *  theo đơn vị của họ. `null` = không quy được — để trống cho người lập gõ, KHÔNG lấy đại giá thô. */
+  gia_dong: number | null;
+  /** Cùng họ đơn vị với ĐVT dòng đơn (10/10/2026). false = NCC chỉ bán cùng mã + cùng khổ theo
+   *  đơn vị KHÁC họ (dòng tính tờ, NCC bán kg): không xếp hạng, không tự gán; chọn thì dòng đơn đổi
+   *  sang đơn vị của NCC và xoá số lượng để người lập gõ lại. */
+  cung_ho: boolean;
+  /** Dòng giá đúng khổ dòng đơn. false = dòng giá khổ 0 · 0 (NCC bán mọi khổ) — xếp sau. */
+  dung_kho: boolean;
 };
 
 /** Một file hoá đơn ĐANG CHỜ tải lên. `url` là `blob:` để xem trước — rỗng với PDF (thẻ `<img>`

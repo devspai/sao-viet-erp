@@ -118,9 +118,9 @@ class KhoGiaGocRepository:
             )
         )
 
-    def lua_chon_loc(self) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
-        """`(kho, khách)` — chỉ những kho/khách THẬT SỰ có lô gốc thành phẩm từ KCS, để ô lọc không bày
-        lựa chọn nào bấm vào ra bảng rỗng. Không phụ thuộc bộ lọc đang áp."""
+    def lua_chon_loc(self) -> tuple[list[tuple[int, str]], list[tuple[int, str]], list[tuple[int, str]]]:
+        """`(kho, khách, mặt hàng)` — chỉ những kho/khách/thành phẩm THẬT SỰ có lô gốc từ KCS, để ô lọc
+        không bày lựa chọn nào bấm vào ra bảng rỗng. Không phụ thuộc bộ lọc đang áp."""
         kho = self.db.execute(
             self._lo_goc_tu_kcs(KhoHang.id, KhoHang.ten).where(KhoHang.id.is_not(None))
             .distinct().order_by(KhoHang.ten)
@@ -129,26 +129,37 @@ class KhoGiaGocRepository:
             self._lo_goc_tu_kcs(Customer.id, Customer.name).where(Customer.id.is_not(None))
             .distinct().order_by(Customer.name)
         ).all()
-        return [(int(i), t) for i, t in kho], [(int(i), t) for i, t in khach]
+        hang = self.db.execute(
+            self._lo_goc_tu_kcs(VatTuInAn.id, VatTuInAn.ten).where(VatTuInAn.id.is_not(None))
+            .distinct().order_by(VatTuInAn.ten)
+        ).all()
+        return ([(int(i), t) for i, t in kho], [(int(i), t) for i, t in khach],
+                [(int(i), t) for i, t in hang])
 
-    def ds_lo_goc_tu_kcs(self, *, q: str | None, chi_chua_gia: bool, offset: int, limit: int,
+    def ds_lo_goc_tu_kcs(self, *, q: str | None, gia: str | None, offset: int, limit: int,
                          tu_ngay: date | None = None, den_ngay: date | None = None,
-                         kho_id: int | None = None, khach_hang_id: int | None = None):
+                         kho_ids: list[int] | None = None, khach_hang_ids: list[int] | None = None,
+                         hang_ids: list[int] | None = None):
         """Lô GỐC thành phẩm nhập từ KCS (mọi kho), mới nhất trước. Trả `(rows, total)`; mỗi row là
         `(lot, dòng phiếu nhập, dòng yêu cầu, tên kho, hàng, mã lệnh, số đơn, khách)`. Khoảng ngày lọc
-        theo NGÀY NHẬP của lô, hai đầu đều tính."""
+        theo NGÀY NHẬP của lô, hai đầu đều tính. `gia` = `chua` (giá gốc 0) | `co` (đã gõ giá) | None.
+        Kho / khách / mặt hàng nhận NHIỀU giá trị (khớp một trong số đó)."""
         stmt = self._lo_goc_tu_kcs(StockLot, StockVoucherLine, StockRequestLine, KhoHang.ten, VatTuInAn,
                                    Lsx.ma, Order.order_no, Customer.name)
-        if chi_chua_gia:
+        if gia == "chua":
             stmt = stmt.where(func.coalesce(StockVoucherLine.don_gia, 0) == 0)
+        elif gia == "co":
+            stmt = stmt.where(func.coalesce(StockVoucherLine.don_gia, 0) > 0)
         if tu_ngay is not None:
             stmt = stmt.where(StockLot.ngay_nhap >= tu_ngay)
         if den_ngay is not None:
             stmt = stmt.where(StockLot.ngay_nhap <= den_ngay)
-        if kho_id is not None:
-            stmt = stmt.where(StockLot.kho_id == kho_id)
-        if khach_hang_id is not None:
-            stmt = stmt.where(Customer.id == khach_hang_id)
+        if kho_ids:
+            stmt = stmt.where(StockLot.kho_id.in_(kho_ids))
+        if khach_hang_ids:
+            stmt = stmt.where(Customer.id.in_(khach_hang_ids))
+        if hang_ids:
+            stmt = stmt.where(StockLot.hang_id.in_(hang_ids))
         tu = (q or "").strip().lower()
         if tu:
             mau = f"%{tu}%"

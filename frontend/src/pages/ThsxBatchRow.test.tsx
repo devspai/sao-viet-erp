@@ -29,21 +29,33 @@ function execGia() {
 }
 
 describe("Dòng mẻ ở bàn tổ", () => {
-  it("dòng gấp hiện tên việc khoán; mở ra thấy đơn giá · ĐVT, phát sinh và người — không chia, không phút", async () => {
+  it("dòng gấp không còn tên việc khoán; mở ra thấy đơn giá khoán, phát sinh và người — không chia, không phút", async () => {
     render(<BatchRow b={batch} canAssign busy={false} exec={execGia()} />);
-    expect(screen.getByText("Bình bài & ra kẽm")).toBeInTheDocument();
+    expect(screen.queryByText("Bình bài & ra kẽm")).toBeNull();
+    // Người, Tốt, Hỏng nằm ngay trên dòng gấp (mockup); tên tách ô riêng, không nối dấu phẩy.
+    expect(screen.getByText("Lê Văn A")).toBeInTheDocument();
+    expect(screen.getByText("Trần Thị B")).toBeInTheDocument();
+    expect(screen.queryByText(/Lê Văn A, Trần Thị B/)).toBeNull();
+    expect(screen.getByText("20")).toHaveAttribute("data-nhan", "Hỏng");
     await userEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("Đơn giá khoán")).toBeInTheDocument();
     expect(screen.getByText(/15\.000 đ \/ bản kẽm/)).toBeInTheDocument();
     expect(screen.getByText("Thay kẽm")).toBeInTheDocument();
     expect(screen.getByText(/không cộng sản lượng/)).toBeInTheDocument();
-    expect(screen.getByText("Lê Văn A, Trần Thị B")).toBeInTheDocument();
+    // Phần mở ra không nhắc lại người đã có trên dòng.
+    expect(screen.getAllByText("Lê Văn A")).toHaveLength(1);
     expect(screen.queryByText(/Chia sản lượng|Phút|thành tiền/i)).toBeNull();
   });
 
-  it("mẻ ghi trước bản này nói thẳng 'chưa khai việc khoán', không đoán hộ", () => {
-    const b = { ...batch, viec_khoan_id: null, viec_khoan_ten: null, phat_sinh: [] } as SxBatch;
+  it("công đoạn chưa cấu hình Khoán: không có dòng đơn giá, không chữ 'chưa khai việc khoán'", async () => {
+    const b = {
+      ...batch, viec_khoan_id: null, viec_khoan_ten: null, viec_khoan_don_gia: null, viec_khoan_don_vi: null,
+      phat_sinh: [],
+    } as unknown as SxBatch;
     render(<BatchRow b={b} canAssign busy={false} exec={execGia()} />);
-    expect(screen.getByText("chưa khai việc khoán")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.queryByText(/việc khoán/i)).toBeNull();
+    expect(screen.queryByText("Đơn giá khoán")).toBeNull();
   });
 
   it("danh mục đổi ⇒ băng cũ → mới, bấm 'Cập nhật theo danh mục' gọi đúng mẻ", async () => {
@@ -72,7 +84,7 @@ describe("Dòng mẻ ở bàn tổ", () => {
     await userEvent.click(screen.getByRole("button", { name: "Giữ số cũ" }));
     expect(exec.capNhatDanhMucMe).not.toHaveBeenCalled();
     expect(screen.queryByText("45.000")).toBeNull();
-    expect(screen.getByText(/Mẻ đang giữ số lúc ghi/)).toBeInTheDocument();
+    expect(screen.getByText(/Lần này đang giữ số lúc ghi/)).toBeInTheDocument();
     expect(screen.getByText(/danh mục đổi/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Xem thay đổi" }));
     expect(screen.getByText("45.000")).toBeInTheDocument();

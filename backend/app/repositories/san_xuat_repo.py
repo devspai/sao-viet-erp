@@ -897,6 +897,17 @@ class SanXuatRepository:
         ).all()
         return {bid: (ma, ten) for bid, ma, ten in rows}
 
+    def nguon_gap(self, lsx_ids: set[int], bg_ids: set[int]) -> set[tuple[str, int]]:
+        """Khoá `("lsx", id)` / `("bai_ghep", id)` của các lệnh / bài ghép đang gắn cờ GẤP (`is_rush`)."""
+        ra: set[tuple[str, int]] = set()
+        if lsx_ids:
+            ra |= {("lsx", i) for (i,) in self.db.execute(
+                select(Lsx.id).where(Lsx.id.in_(lsx_ids), Lsx.is_rush.is_(True)))}
+        if bg_ids:
+            ra |= {("bai_ghep", i) for (i,) in self.db.execute(
+                select(BaiGhep.id).where(BaiGhep.id.in_(bg_ids), BaiGhep.is_rush.is_(True)))}
+        return ra
+
     def ngay_tao_nguon(self, lsx_ids: set[int], bg_ids: set[int]) -> dict[tuple[str, int], datetime]:
         """{("lsx", id) | ("bai_ghep", id): created_at} — cột "Ngày tạo" của bàn tổ (UTC thật)."""
         ra: dict[tuple[str, int], datetime] = {}

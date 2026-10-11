@@ -67,17 +67,11 @@ class Department(Base):
     la_kinh_doanh: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
-    # Đánh dấu TỔ KIỂM TRA CHẤT LƯỢNG (KCS) — nền cho module Thực hiện sản xuất (spec-thuc-hien-san-xuat
-    # §3.1, §14). KHÁC `la_san_xuat`: không kế thừa cây con, không suy theo tổ tiên — cờ đặt ĐÍCH DANH
-    # trên đúng (các) tổ làm KCS. Từ mg `0306` (`docs/design-kcs-theo-lenh.md`): THÀNH VIÊN tổ này là
-    # người KCS — kiểm được công đoạn của mọi tổ; người đứng đầu tổ (`head_user_id`) đóng thiếu nhóm.
-    is_kcs: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=sa_false(), default=False
-    )
+    # (`is_kcs` — cờ "Tổ KCS đích danh" — GỠ mg 0383, 09/10/2026: KCS nay là dòng `kcs` của ma
+    # trận vai, không còn tuỳ người đứng ở phòng ban nào. `docs/design-kcs-quy-trach-nhiem.md` §2.4.)
 
     # Bộ phận GIAO HÀNG (mg 0205). Kế thừa xuống cây con y như `la_san_xuat`/`la_kinh_doanh` —
-    # tick phòng cha thì mọi tổ dưới cũng là giao hàng. (KHÁC `is_kcs` ngay trên: cờ đó KHÔNG
-    # kế thừa, đặt đích danh từng tổ.)
+    # tick phòng cha thì mọi tổ dưới cũng là giao hàng.
     #
     # Trả lời câu "ai là tài xế": tab Nhân viên giao hàng liệt kê MỌI người thuộc khối này, kể cả
     # người chưa chạy chuyến nào. Trước 20/08/2026 tab đó lọc theo quyền RBAC rồi bỏ qua ai chưa
@@ -87,7 +81,7 @@ class Department(Base):
     )
     # TỔ IN (mg 0304, khách chốt 15/09/2026). Thợ in ăn khoán thì ngày CN / lễ đi làm KHÔNG có công
     # gốc: cả 2 / 3 / 5 công trả ở phần THÊM, và bù lỗ theo công không đếm ngày đó (sản lượng ngày
-    # đó vẫn vào tiền khoán). KHÔNG kế thừa xuống cây con — đặt đích danh từng tổ, như `is_kcs` /
+    # đó vẫn vào tiền khoán). KHÔNG kế thừa xuống cây con — đặt đích danh từng tổ, như
     # `la_giao_hang`. Cờ chỉ đổi tiền khi tổ bật Lương khoán.
     la_to_in: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False

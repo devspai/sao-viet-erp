@@ -1,4 +1,7 @@
-"""Giấy trong kho mang DẠNG (tờ / cuộn) + KHỔ — spec 2026-10-01-giay-dem-to-theo-kho §3, §4.5.
+"""Giấy trong kho mang KHỔ + ĐƠN VỊ GỐC — giấy KHÔNG còn dạng cuộn/tờ (10/10/2026).
+
+Đơn vị gốc dòng giấy máy chủ SUY từ ĐVT: họ tờ (tờ, ram, mã chặng `to_nguyen`) ⇒ "to"; họ đơn vị giá
+của mã (kg, tấn…) ⇒ đơn vị giá. Tồn tách theo mã + khổ + đơn vị gốc; tờ và kg không quy đổi.
 
 Đi bằng HTTP thật: đề nghị → phiếu → ghi sổ → lô, như kho dùng.
 """
@@ -42,7 +45,7 @@ def _don_vi() -> None:
 def _giay(ma: str = "C-300", don_vi_gia: str = "kg") -> int:
     db = SessionLocal()
     try:
-        g = GiayNguyen(ma=ma, ten=f"Giấy {ma}", gsm=300, don_vi_gia=don_vi_gia)
+        g = GiayNguyen(don_vi_them=["to"], ma=ma, ten=f"Giấy {ma}", gsm=300, don_vi_gia=don_vi_gia)
         db.add(g)
         db.commit()
         return g.id
@@ -50,10 +53,8 @@ def _giay(ma: str = "C-300", don_vi_gia: str = "kg") -> int:
         db.close()
 
 
-def _dong(giay_id, *, dvt, sl, dang, kr=0, kd=0, gia=None, **them) -> dict:
+def _dong(giay_id, *, dvt, sl, kr=0, kd=0, gia=None, **them) -> dict:
     d = {"hang_loai": "giay", "hang_id": giay_id, "dvt": dvt, "sl_de_nghi": sl}
-    if dang is not None:
-        d["dang_giay"] = dang
     if kr:
         d["kho_rong"] = kr
     if kd:
@@ -94,46 +95,70 @@ def _lo(giay_id):
         db.close()
 
 
-def test_nhap_giay_to_sinh_lo_dung_kho_dem_to_nguyen(client):
+def test_nhap_giay_ram_sinh_lo_dung_kho_dem_to(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    _nhap(client, kho_id, _dong(g, dvt="ram", sl=2, dang="to", kr=905, kd=780, gia=1_000_000))
+    _nhap(client, kho_id, _dong(g, dvt="ram", sl=2, kr=905, kd=780, gia=1_000_000))
     (lo,) = _lo(g)
-    assert (lo.dang_giay, lo.kho_rong, lo.kho_dai) == ("to", 780, 905)
+    assert (lo.don_vi_goc, lo.kho_rong, lo.kho_dai) == ("to", 780, 905)
     assert float(lo.sl_ban_dau) == 1000
     assert int(lo.don_gia_nhap) == 2000      # 2.000.000 ÷ 1.000 tờ
 
 
-def test_nhap_giay_cuon_dem_kg(client):
+def test_nhap_giay_kg_kho_chi_rong_dem_kg(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    _nhap(client, kho_id, _dong(g, dvt="kg", sl=500, dang="cuon", kr=1000, gia=20_000))
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=500, kr=1000, gia=20_000))
     (lo,) = _lo(g)
-    assert (lo.dang_giay, lo.kho_rong, lo.kho_dai) == ("cuon", 1000, 0)
+    assert (lo.don_vi_goc, lo.kho_rong, lo.kho_dai) == ("kg", 1000, 0)
     assert float(lo.sl_ban_dau) == 500
 
 
-def test_nhap_cuon_cho_ma_don_vi_goc_khong_phai_khoi_luong_bao_loi(client):
-    kho_id, _ = _setup(client)
-    _don_vi()
-    g = _giay(don_vi_gia="ram")
-    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=1, dang="cuon", kr=1000)])
-    assert r.status_code == 400, r.text
-    assert "không nhập cuộn được" in r.json()["detail"]
-
-
-def test_giay_thieu_dang_hoac_thieu_kho_to_bi_tu_choi(client):
+def test_nhap_giay_kg_kho_hai_canh_van_dem_kg(client):
+    """Không còn luật "dòng tờ cấm kg": khổ hai cạnh nhập theo kg vẫn là kg, không đổi ra tờ."""
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=1, dang=None)])
-    assert r.status_code == 422, r.text
-    assert "dạng" in r.text
-    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=1, dang="to", kr=780)])
-    assert r.status_code == 422, r.text
-    assert "khổ" in r.text
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=120, kr=790, kd=1090, gia=20_000))
+    (lo,) = _lo(g)
+    assert (lo.don_vi_goc, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau)) == ("kg", 790, 1090, 120.0)
+
+
+def test_dang_giay_gui_thua_bi_bo_qua(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=1, kr=780, kd=905, dang_giay="cuon")])
+    assert r.status_code == 201, r.text
+    ln = r.json()["lines"][0]
+    assert "dang_giay" not in ln
+    assert (ln["don_vi_goc"], ln["kho_rong"], ln["kho_dai"]) == ("to", 780, 905)
+
+
+def test_giay_dem_to_thieu_kho_bi_chan_kg_thi_khong(client):
+    """Màn kho: giấy đếm tờ phải đủ khổ hai cạnh (máy chủ chặn, FE không còn tự kiểm). Giấy theo
+    kg để trống khổ / chỉ rộng vẫn được."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    for kho in ({}, {"kr": 780}):
+        r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=1, **kho)])
+        assert r.status_code == 400, r.text
+        assert "đủ khổ" in r.json()["detail"]
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="kg", sl=5)])
+    assert r.status_code == 201, r.text
+    assert r.json()["lines"][0]["don_vi_goc"] == "kg"
+    assert r.json()["lines"][0]["don_vi_goc_ten"] == "kg"
+
+
+def test_dvt_khong_doi_duoc_bao_loi(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="cai_khong_co", sl=1)])
+    assert r.status_code == 400, r.text
 
 
 def test_cung_ma_hai_kho_tren_mot_phieu_hop_le(client):
@@ -141,8 +166,8 @@ def test_cung_ma_hai_kho_tren_mot_phieu_hop_le(client):
     _don_vi()
     g = _giay()
     r = _de_nghi(client, kho_id, "NHAP", [
-        _dong(g, dvt="ram", sl=1, dang="to", kr=780, kd=905, gia=1000),
-        _dong(g, dvt="ram", sl=1, dang="to", kr=800, kd=1090, gia=1000),
+        _dong(g, dvt="ram", sl=1, kr=780, kd=905, gia=1000),
+        _dong(g, dvt="ram", sl=1, kr=800, kd=1090, gia=1000),
     ])
     assert r.status_code == 201, r.text
     req = r.json()
@@ -155,26 +180,38 @@ def test_cung_ma_hai_kho_tren_mot_phieu_hop_le(client):
     assert sorted((lo.kho_rong, lo.kho_dai) for lo in _lo(g)) == [(780, 905), (800, 1090)]
 
 
-def test_cung_ma_cung_kho_hai_dong_bi_chan(client):
+def test_cung_kho_khac_don_vi_goc_la_hai_dong_hop_le(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
     r = _de_nghi(client, kho_id, "NHAP", [
-        _dong(g, dvt="ram", sl=1, dang="to", kr=780, kd=905),
-        _dong(g, dvt="ram", sl=1, dang="to", kr=905, kd=780),    # cùng khổ, ghi ngược cạnh
+        _dong(g, dvt="ram", sl=1, kr=780, kd=905),
+        _dong(g, dvt="kg", sl=50, kr=780, kd=905),
+    ])
+    assert r.status_code == 201, r.text
+    assert sorted(ln["don_vi_goc"] for ln in r.json()["lines"]) == ["kg", "to"]
+
+
+def test_cung_ma_cung_kho_cung_goc_hai_dong_bi_chan(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    r = _de_nghi(client, kho_id, "NHAP", [
+        _dong(g, dvt="ram", sl=1, kr=780, kd=905),
+        _dong(g, dvt="to", sl=1, kr=905, kd=780),    # cùng khổ ghi ngược cạnh, tờ và ram cùng gốc tờ
     ])
     assert r.status_code == 400, r.text
     assert "1 dòng" in r.json()["detail"]
 
 
 def _ba_lo(client, kho_id, g):
-    _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, dang="to", kr=780, kd=905, gia=1000))
-    _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, dang="to", kr=800, kd=1090, gia=1000))
-    _nhap(client, kho_id, _dong(g, dvt="kg", sl=100, dang="cuon", kr=1000, gia=20_000))
+    _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, kr=780, kd=905, gia=1000))
+    _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, kr=800, kd=1090, gia=1000))
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=100, kr=1000, gia=20_000))
     return _lo(g)
 
 
-def test_goi_y_lo_chi_lay_dung_dang_va_kho(client):
+def test_goi_y_lo_chi_lay_dung_don_vi_goc_va_kho(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
@@ -182,32 +219,42 @@ def test_goi_y_lo_chi_lay_dung_dang_va_kho(client):
     tk = _login(client, "t_thukho")
     base = {"hang_loai": "giay", "hang_id": g, "kho_id": kho_id, "so_luong": 100}
     r = client.get(f"{BASE}/phieu/lo/goi-y", headers=tk,
-                   params={**base, "dang_giay": "to", "kho_rong": 905, "kho_dai": 780})
+                   params={**base, "goc": "to", "kho_rong": 905, "kho_dai": 780})
     assert r.status_code == 200, r.text
     assert [x["lot_id"] for x in r.json()["lines"]] == [lo_a.id]
-    r = client.get(f"{BASE}/phieu/lo/goi-y", headers=tk, params={**base, "dang_giay": "cuon"})
+    assert r.json()["lines"][0]["don_vi_goc"] == "to"
+    r = client.get(f"{BASE}/phieu/lo/goi-y", headers=tk, params={**base, "goc": "kg"})
     assert [x["lot_id"] for x in r.json()["lines"]] == [lo_c.id]
+    # Khổ chỉ-rộng không khớp khổ hai cạnh.
+    r = client.get(f"{BASE}/phieu/lo/goi-y", headers=tk,
+                   params={**base, "goc": "kg", "kho_rong": 1000, "kho_dai": 700})
+    assert r.json()["lines"] == []
     r = client.get(f"{BASE}/phieu/lo/danh-sach", headers=_login(client, "t_ketoan"),
-                   params={"hang_loai": "giay", "hang_id": g, "dang_giay": "to",
+                   params={"hang_loai": "giay", "hang_id": g, "goc": "to",
                            "kho_rong": 800, "kho_dai": 1090})
     assert [x["id"] for x in r.json()] == [lo_b.id]
-    assert (r.json()[0]["dang_giay"], r.json()[0]["kho_rong"], r.json()[0]["kho_dai"]) == ("to", 800, 1090)
+    assert (r.json()[0]["don_vi_goc"], r.json()[0]["kho_rong"], r.json()[0]["kho_dai"]) == ("to", 800, 1090)
 
 
-def test_xuat_chon_lo_sai_kho_bi_chan(client):
+def test_xuat_chon_lo_sai_kho_hoac_sai_don_vi_bi_chan(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    lo_a, lo_b, _c = _ba_lo(client, kho_id, g)
-    r = _de_nghi(client, kho_id, "XUAT", [_dong(g, dvt="to_nguyen", sl=300, dang="to", kr=780, kd=905)])
+    lo_a, lo_b, lo_c = _ba_lo(client, kho_id, g)
+    r = _de_nghi(client, kho_id, "XUAT", [_dong(g, dvt="to_nguyen", sl=300, kr=780, kd=905)])
     assert r.status_code == 201, r.text
     req = r.json()
+    assert req["lines"][0]["don_vi_goc"] == "to"
     tk = _login(client, "t_thukho")
     body = {"request_id": req["id"], "kho_id": kho_id, "lines": [
         {"request_line_id": req["lines"][0]["id"], "so_luong": 300, "lot_id": lo_b.id}]}
     r = client.post(f"{BASE}/phieu", headers=tk, json=body)
     assert r.status_code == 400, r.text
-    assert "khổ" in r.json()["detail"]
+    assert "dòng xin 780 × 905 mm" in r.json()["detail"]
+    body["lines"][0]["lot_id"] = lo_c.id
+    r = client.post(f"{BASE}/phieu", headers=tk, json=body)
+    assert r.status_code == 400, r.text
+    assert "đếm theo “kg”" in r.json()["detail"]
     body["lines"][0]["lot_id"] = lo_a.id
     assert client.post(f"{BASE}/phieu", headers=tk, json=body).status_code == 201
 
@@ -223,19 +270,20 @@ def test_vat_tu_khac_khong_doi_hanh_vi(client):
     db = SessionLocal()
     try:
         ln = db.get(StockRequestLine, r.json()["lines"][0]["id"])
-        assert (ln.dang_giay, ln.kho_rong, ln.kho_dai) == (None, 0, 0)   # đọc từ DB, không từ phản hồi
+        # Vật tư: khổ ép 0 · 0, đơn vị gốc = đơn vị đã khai (mg 0390). Đọc từ DB, không từ phản hồi.
+        assert (ln.don_vi_goc, ln.kho_rong, ln.kho_dai) == ("to", 0, 0)
     finally:
         db.close()
 
 
-def test_phan_hoi_dong_giay_mang_dang_kho_va_quy_doi_theo_dang(client):
+def test_phan_hoi_dong_giay_mang_kho_va_don_vi_goc(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=2, dang="to", kr=905, kd=780, gia=1000)])
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="ram", sl=2, kr=905, kd=780, gia=1000)])
     assert r.status_code == 201, r.text
     ln = r.json()["lines"][0]
-    assert (ln["dang_giay"], ln["kho_rong"], ln["kho_dai"]) == ("to", 780, 905)
+    assert (ln["don_vi_goc"], ln["kho_rong"], ln["kho_dai"]) == ("to", 780, 905)
     assert ln["sl_quy_doi"] == 1000 and ln["canh_bao_dv"] is None     # tờ, không phải kg
     tk = _login(client, "t_thukho")
     r = client.post(f"{BASE}/phieu", headers=tk, json={
@@ -243,15 +291,15 @@ def test_phan_hoi_dong_giay_mang_dang_kho_va_quy_doi_theo_dang(client):
         "lines": [{"request_line_id": ln["id"], "so_luong": 2}]})
     assert r.status_code == 201, r.text
     pl = r.json()["lines"][0]
-    assert (pl["dang_giay"], pl["kho_rong"], pl["kho_dai"]) == ("to", 780, 905)
+    assert (pl["kho_rong"], pl["kho_dai"]) == (780, 905) and "dang_giay" not in pl
     assert pl["don_vi_goc"] == "to"
     client.post(f"{BASE}/phieu/{r.json()['id']}/ghi-so", headers=tk)
     lo = client.get(f"{BASE}/phieu/lo/danh-sach", headers=_login(client, "t_ketoan"),
                     params={"hang_loai": "giay", "hang_id": g}).json()[0]
-    assert lo["dvt"] == "to"
+    assert lo["dvt"] == "to" and lo["don_vi_goc"] == "to"
 
 
-def test_dieu_chuyen_giay_tach_theo_dang_va_kho(client):
+def test_dieu_chuyen_giay_tach_theo_kho_va_don_vi_goc(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
@@ -262,8 +310,9 @@ def test_dieu_chuyen_giay_tach_theo_dang_va_kho(client):
     r = client.post("/api/kho/dieu-chuyen", headers=adm, json={
         "kho_nguon_id": kho_id, "kho_den_id": den, "items": [
             {"hang_loai": "giay", "hang_id": g, "so_luong": 300,
-             "dang_giay": "to", "kho_rong": 905, "kho_dai": 780},
-            {"hang_loai": "giay", "hang_id": g, "so_luong": 40, "dang_giay": "cuon", "kho_rong": 1000},
+             "don_vi_goc": "to", "kho_rong": 905, "kho_dai": 780},
+            # Bỏ trống đơn vị gốc: kho nguồn chỉ có lô kg ở khổ 1000 ⇒ máy suy ra kg.
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 40, "kho_rong": 1000},
         ]})
     assert r.status_code == 201, r.text
     assert r.json()["so_dong"] == 2
@@ -271,40 +320,41 @@ def test_dieu_chuyen_giay_tach_theo_dang_va_kho(client):
     assert r.status_code == 200, r.text
     db = SessionLocal()
     try:
-        moi = sorted((lo.dang_giay, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau))
+        moi = sorted((lo.don_vi_goc, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau))
                      for lo in db.query(StockLot).filter(StockLot.kho_id == den).all())
-        assert moi == [("cuon", 1000, 0, 40.0), ("to", 780, 905, 300.0)]
+        assert moi == [("kg", 1000, 0, 40.0), ("to", 780, 905, 300.0)]
     finally:
         db.close()
 
 
-def test_dieu_chuyen_giay_thieu_dang_bi_chan(client):
+def test_dieu_chuyen_giay_khong_ro_don_vi_bi_chan(client):
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
     _ba_lo(client, kho_id, g)
     adm = _login(client, "t_thukho")
     den = client.post("/api/kho", json={"ten": "Kho đích 2"}, headers=_admin(client)).json()["id"]
+    # Không khổ, không đơn vị: kho nguồn có cả lô tờ lẫn lô kg ⇒ không đoán.
     r = client.post("/api/kho/dieu-chuyen", headers=adm, json={
         "kho_nguon_id": kho_id, "kho_den_id": den,
         "items": [{"hang_loai": "giay", "hang_id": g, "so_luong": 10}]})
     assert r.status_code in (400, 409, 422), r.text
-    assert "dạng" in r.text
+    assert "đơn vị" in r.text
 
 
-def test_ton_theo_khoa_tach_tung_kho_giay(client):
-    """`/lo/ton-khoa`: tồn toàn xưởng của MỘT mã giấy tách theo dạng + khổ (cột Tồn của form yêu
-    cầu đọc đúng ô mã + khổ, không cộng lẫn hai khổ)."""
+def test_ton_theo_khoa_tach_tung_kho_va_don_vi_giay(client):
+    """`/lo/ton-khoa`: tồn toàn xưởng của MỘT mã giấy tách theo khổ + đơn vị gốc (cột Tồn của form
+    yêu cầu đọc đúng ô, không cộng lẫn hai khổ hay tờ với kg)."""
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    _nhap(client, kho_id, _dong(g, dvt="ram", sl=2, dang="to", kr=905, kd=780, gia=1_000_000))
-    _nhap(client, kho_id, _dong(g, dvt="to", sl=300, dang="to", kr=790, kd=1090, gia=600_000))
-    _nhap(client, kho_id, _dong(g, dvt="kg", sl=500, dang="cuon", kr=1000, gia=20_000))
+    _nhap(client, kho_id, _dong(g, dvt="ram", sl=2, kr=905, kd=780, gia=1_000_000))
+    _nhap(client, kho_id, _dong(g, dvt="to", sl=300, kr=790, kd=1090, gia=600_000))
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=500, kr=1000, gia=20_000))
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=60, kr=790, kd=1090, gia=20_000))
     r = client.get(f"{BASE}/phieu/lo/ton-khoa", headers=_login(client, "t_thukho"),
                    params={"hang_loai": "giay", "hang_id": g})
     assert r.status_code == 200, r.text
-    got = {(x["dang_giay"], x["kho_rong"], x["kho_dai"]): (x["ton"], x["don_vi_goc"]) for x in r.json()}
-    assert got == {("to", 780, 905): (1000, "to"), ("to", 790, 1090): (300, "to"),
-                   ("cuon", 1000, 0): (500, "kg")}
-
+    got = {(x["don_vi_goc"], x["kho_rong"], x["kho_dai"]): x["ton"] for x in r.json()}
+    assert got == {("to", 780, 905): 1000, ("to", 790, 1090): 300,
+                   ("kg", 1000, 0): 500, ("kg", 790, 1090): 60}

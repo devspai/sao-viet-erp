@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from ...models.user import User
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
-from ...repositories.san_xuat_san_luong_to_repo import CuaSoGiup, SanXuatSanLuongToRepository
+from ...repositories.san_xuat_san_luong_to_repo import LocMe, SanXuatSanLuongToRepository
 from ..gio_xuong import thuc_te_hien_thi, ve_gio_xuong, ve_utc_that
 from .board import _nhan_vien_id, _pham_vi_doc
 from .nguoi_trong_me import nguoi_theo_me
@@ -87,6 +87,8 @@ def san_luong(
     db: Session, user: User, *, team_id: int, tu: date | None = None, den: date | None = None,
     to_id: int | None = None, tim: str | None = None, trang: int = 1,
     co_trang: int = CO_TRANG_MAC_DINH,
+    cong_doan: list[str] | None = None, nguoi: list[int] | None = None,
+    phat_sinh: str | None = None, loai: str | None = None, gap: str | None = None,
 ) -> dict:
     q, _ = _pham_vi_doc(db, user, team_id)
     hom_nay = ve_gio_xuong(datetime.now(timezone.utc)).date()
@@ -118,20 +120,22 @@ def san_luong(
     repo = SanXuatSanLuongToRepository(db)
     moc_tu, moc_den = _moc_utc(tu), _moc_utc(den + timedelta(days=1))
     loc = {"tu": moc_tu, "den": moc_den}
-    # Người của tổ sang giúp tổ khác qua HỖ TRỢ CHÉO không có khoảng tham gia (xem `nguoi_trong_me`)
-    # — mẻ khách của họ lọc theo NGÀY xưởng của thỏa thuận, quy ra hai mốc UTC ở đây.
-    giup = [
-        CuaSoGiup(cv_id, eid, dep, _moc_utc(ngay), _moc_utc(ngay + timedelta(days=1)))
-        for cv_id, eid, dep, ngay in repo.ho_tro_trong_khoang(tron | rieng, tu, den)
-    ]
-
+    # Điều kiện nút "Lọc" (10/10/2026). Giá trị lạ thì bỏ qua, không báo lỗi.
+    loc_me = LocMe(
+        cong_doan=tuple(c for c in (cong_doan or []) if c),
+        nguoi=tuple(nguoi or []),
+        phat_sinh=phat_sinh if phat_sinh in ("co", "khong") else None,
+        loai=loai if loai in ("lsx", "bai_ghep") else None,
+        gap=gap if gap in ("gap", "thuong") else None,
+    )
     khoa, tong_nguon = repo.trang_nguon(
         tron=tron, rieng=rieng, employee_id=nv_id, tim=tim, trang=trang, co_trang=co_trang,
-        giup=giup, **loc,
+        loc=loc_me, **loc,
     )
-    me = repo.me_cua_nguon(khoa, tron=tron, rieng=rieng, employee_id=nv_id, giup=giup, **loc)
+    me = repo.me_cua_nguon(khoa, tron=tron, rieng=rieng, employee_id=nv_id,
+                           loc=loc_me, **loc)
     nhan = repo.nhan_nguon(khoa)
-    # AI CÓ MẶT — suy lúc đọc (khoảng tham gia + hỗ trợ chéo), gộp truy vấn cho cả trang (§7.3b luật 2).
+    # AI LÀM — ảnh chụp tổ tick lúc ghi, gộp truy vấn cho cả trang (§7.3b luật 2).
     theo_me = nguoi_theo_me(db, [b.id for b, _ in me])
     # VIỆC PHÁT SINH của từng mẻ (mg `0318`) — một truy vấn cho cả trang. Chỉ để BÀY cạnh sản
     # lượng, không cộng vào đâu; không kèm đơn giá (tiền là việc của màn kế toán).
@@ -236,12 +240,20 @@ def san_luong(
 
     # Dòng tổng chỉ cho phạm vi thấy TRỌN. Quyền chỉ "Của tôi" thì không có tổng của tổ —
     # thợ đọc "Các mẻ tôi tham gia", không đọc tổng của người khác (§12.3).
-    tong_to = repo.tong_cua_to(tron=tron, tim=tim, **loc)
+    tong_to = repo.tong_cua_to(tron=tron, tim=tim, loc=loc_me, **loc)
+    # Giá trị chọn được của nút Lọc: công đoạn có mẻ trong khoảng (trước các điều kiện khác) +
+    # người của các tổ người xem thấy TRỌN — quyền chỉ "Của tôi" thì lọc người là vô nghĩa.
+    lua_chon = {
+        "cong_doan": repo.cong_doan_trong_khoang(
+            tron=tron, rieng=rieng, employee_id=nv_id, **loc),
+        "nguoi": [{"id": i, "ten": t} for i, t in repo.nguoi_cua_to(tron)],
+    }
     return {
         "team_id": team_id, "tu": tu, "den": den, "to_id": to_id,
         "trang": trang, "co_trang": co_trang, "tong_lenh": tong_nguon,
         "co_pham_vi_tron": bool(tron), "co_pham_vi_rieng": bool(rieng),
         "cac_to": cac_to,
+        "lua_chon": lua_chon,
         "tong": [{"don_vi": dv, "tot": round(t, 3), "hong": round(h, 3), "so_me": n}
                  for dv, t, h, n in tong_to],
         "lenh": lenh,

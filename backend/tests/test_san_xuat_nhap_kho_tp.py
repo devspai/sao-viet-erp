@@ -71,12 +71,20 @@ def test_bam_gui_kho_lap_yeu_cau_nhap_that_tu_duyet(db, orders, lsx_svc, admin, 
     phat: list[dict] = []
     monkeypatch.setattr(kho.hub, "gui", lambda ev, **_k: phat.append(ev))
     _to, cv, rb = _batch(db, orders, lsx_svc, admin, customer, dat=90, khong_dat=10, cuoi=True)
+    # Người KCS ngồi phòng KHÁC tổ làm công đoạn ⇒ bộ phận của yêu cầu phải là phòng người gửi.
+    from app.models.department import Department
+    phong_kcs = Department(name="Phòng KCS gửi kho", code="PKCS-GK")
+    db.add(phong_kcs)
+    db.flush()
+    rb["nguoi_kcs"].department_id = phong_kcs.id
+    db.flush()
+    assert phong_kcs.id != cv.department_id
 
     res = _gui(db, cv, rb)
 
     req = db.get(StockRequest, res["request_id"])
     assert req.loai == REQ_NHAP and req.trang_thai == REQ_APPROVED and req.kho_id is None
-    assert req.san_xuat_cong_viec_id == cv.id and req.bo_phan_id == cv.department_id
+    assert req.san_xuat_cong_viec_id == cv.id and req.bo_phan_id == phong_kcs.id
     assert req.nguoi_tao_id == rb["nguoi_kcs"].id
     [ln] = req.lines
     tp = db.get(VatTuInAn, ln.hang_id)
@@ -135,6 +143,7 @@ def test_ruot_bia_cung_nhan_la_mot_dong_gia_cum(db, orders, lsx_svc, admin, cust
     a, b = _dong_don(db, cv)
     for ln in (a, b):
         ln.nhom, ln.dvt_nhom, ln.qty = "Kỷ yếu", "cuốn", 20_000
+        ln.thanh_pham_id = None   # dán nhãn SAU chốt ⇒ dấu mã cũ lệch, tìm lại theo (khách, tên)
     cv.don_vi_ra = "cuốn"                                # KCS đếm quyển — cùng đơn vị cụm
     db.commit()
 
@@ -178,6 +187,7 @@ def test_hai_cum_cung_ten_ra_cung_ma_thi_gop_mot_dong(db, orders, lsx_svc, admin
     _gop_lenh_thu_hai_vao_nhom(db, cv)
     for ln in _dong_don(db, cv):
         ln.nhom = "Hộp quà"                              # cùng nhãn, khác SL ⇒ hai cụm, một mã
+        ln.thanh_pham_id = None   # dán nhãn SAU chốt ⇒ dấu mã cũ lệch, tìm lại theo (khách, tên)
     db.commit()
 
     res = _gui(db, cv, rb)

@@ -4,34 +4,37 @@
 // tính; đổi cách làm tròn ở đây là lệch tiền thật trên phiếu mua và trên công nợ.
 import type {
   DepartmentPurchaseRequestRow,
+  DonViDungDuoc,
   PurchaseRequestLineInput,
   PurchaseRequestLineOut,
   PurchaseRequestRow,
   SupplierRow,
 } from "../../../../api/client";
-import { chuanKho, type DangGiay } from "../../../../lib/khoGiay";
+import { chuanKho, coDonViGoc } from "../../../../lib/khoGiay";
 import { SO_NCC_GOI_Y } from "./constants";
 import type { ChaoGia, FormLine, FormState } from "./types";
 
-/** Dạng + khổ giấy cho dòng yêu cầu nhập kho dựng từ một dòng đơn mua (Nhập kho từ đợt giao).
- *  Giấy có khổ mua ⇒ tờ đúng khổ đó; giấy không khổ ⇒ cuộn; hàng khác giấy ⇒ không có dạng. */
+/** Khổ giấy cho dòng yêu cầu nhập kho dựng từ một dòng đơn mua (Nhập kho từ đợt giao): đúng khổ
+ *  MUA của dòng — đủ hai cạnh hoặc chỉ rộng, giữ nguyên. Hàng khác giấy ⇒ 0 · 0. Đơn vị gốc máy
+ *  chủ tự suy từ ĐVT của dòng nhập (10/10/2026 bỏ dạng cuộn/tờ). */
 export function khoNhapTuDongMua(
   pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai"> | undefined,
-): { dang_giay: DangGiay | null; kho_rong: number; kho_dai: number } {
-  if (pl?.hang_loai !== "giay") return { dang_giay: null, kho_rong: 0, kho_dai: 0 };
-  if (pl.kho_rong > 0 && pl.kho_dai > 0) {
-    return { dang_giay: "to", kho_rong: pl.kho_rong, kho_dai: pl.kho_dai };
-  }
-  return { dang_giay: "cuon", kho_rong: 0, kho_dai: 0 };
+): { kho_rong: number; kho_dai: number } {
+  if (pl?.hang_loai !== "giay") return { kho_rong: 0, kho_dai: 0 };
+  const [r, d] = chuanKho(pl.kho_rong, pl.kho_dai);
+  return { kho_rong: r, kho_dai: d };
 }
 
-/** "Khổ 800 × 1090 mm" dưới tên dòng giấy của đơn mua (chi tiết + phiếu in gửi NCC) — NCC giao
- *  sai khổ là lô nhập sai khoá tồn. Giấy không khổ (cuộn) hoặc hàng khác ⇒ chuỗi rỗng. */
+/** "Khổ 800 × 1090 mm" (hoặc "Khổ 1000 mm" khi chỉ có rộng) dưới tên dòng giấy của đơn mua (chi
+ *  tiết + phiếu in gửi NCC) — NCC giao sai khổ là lô nhập sai khoá tồn. Giấy chưa có khổ hoặc hàng
+ *  khác ⇒ chuỗi rỗng. */
 export function nhanKhoMua(
   pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai">,
 ): string {
-  if (pl.hang_loai !== "giay" || !(pl.kho_rong > 0 && pl.kho_dai > 0)) return "";
-  return `Khổ ${pl.kho_rong} × ${pl.kho_dai} mm`;
+  if (pl.hang_loai !== "giay") return "";
+  const [r, d] = chuanKho(pl.kho_rong, pl.kho_dai);
+  if (!r) return "";
+  return d ? `Khổ ${r} × ${d} mm` : `Khổ ${r} mm`;
 }
 
 export function emptyLine(): FormLine {
@@ -127,8 +130,29 @@ export function lineVatAmount(line: PurchaseRequestLineInput): number {
   return Math.round((taxable * (Number(line.vat_percent) || 0)) / 100);
 }
 
+/** Tên gọn của NCC: bỏ "Công ty TNHH / CP", "Thương mại" ở đầu ("Giấy An Phát"). Dùng ở thẻ dải
+ *  "Sẽ tạo" và nhãn ô chọn NCC trên dòng — ô hẹp, tên đủ thì bị cắt mất phần phân biệt. */
+export const tenGon = (ten: string) =>
+  ten.replace(/^(công ty|cty)\s+(tnhh|cp|cổ phần)?\s*(thương mại|tm)?\s*/i, "").trim() || ten;
+
 export function normalizeItemName(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
+}
+
+const maDv = (ma: string | null | undefined) => (ma ?? "").trim().toLowerCase();
+
+/** Khổ dòng bảng giá so với khổ dòng đơn (luật khớp khổ của máy chủ, 10/10/2026): chuẩn hoá cạnh
+ *  ngắn trước rồi so bằng ⇒ "dung"; dòng giá khổ 0 · 0 = NCC bán MỌI khổ ⇒ "moi" (khớp, xếp sau dòng
+ *  đúng khổ); còn lại ⇒ null. Khổ chỉ-rộng (r, 0) chỉ khớp (r, 0), không khớp khổ hai cạnh. */
+export function khopKho(
+  item: { kho_rong?: number | null; kho_dai?: number | null },
+  line: { kho_rong?: number | null; kho_dai?: number | null },
+): "dung" | "moi" | null {
+  const [ir, id] = chuanKho(item.kho_rong, item.kho_dai);
+  const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
+  if (ir === r && id === d) return "dung";
+  if (!ir && !id) return "moi";
+  return null;
 }
 
 export function supplierItemForLine(
@@ -137,6 +161,18 @@ export function supplierItemForLine(
 ) {
   if (!supplier) return null;
   const name = normalizeItemName(line.item_name);
+  // Giấy / vật tư khác: dòng giá phải đúng mã + khớp khổ (chỉ giấy có khổ) + đúng ĐVT — khác khổ là
+  // hàng khác, khác ĐVT (tờ/kg, kg/thùng) thì giá không áp được vào dòng (10/10/2026). Đường đổi
+  // nhóm đơn vị đi qua ô chọn NCC của dòng.
+  if (coDonViGoc(line.hang_loai)) {
+    const hop = supplier.items.filter((item) => {
+      const cungMa = line.hang_id && item.hang_id
+        ? item.hang_loai === line.hang_loai && item.hang_id === line.hang_id
+        : normalizeItemName(item.item_name) === name;
+      return cungMa && khopKho(item, line) != null && maDv(item.unit) === maDv(line.unit);
+    });
+    return hop.find((item) => khopKho(item, line) === "dung") ?? hop[0] ?? null;
+  }
   return (
     supplier.items.find(
       (item) =>
@@ -148,85 +184,147 @@ export function supplierItemForLine(
   );
 }
 
+/** Đơn vị gốc + hệ số về gốc của một mã ĐVT, tra trong danh sách đơn vị của mặt hàng (`donVi`).
+ *  Giấy nhận danh sách GỘP hai họ, mỗi dòng mang `goc`; danh sách một họ không mang `goc` thì gốc
+ *  là dòng `la_goc`. Không tra được ⇒ null. */
+export function traDonVi(
+  ds: DonViDungDuoc[] | undefined,
+  ma: string | null | undefined,
+): { goc: string; heSo: number } | null {
+  const k = maDv(ma);
+  if (!ds || !k) return null;
+  const d = ds.find((x) => maDv(x.ma) === k);
+  if (!d) return null;
+  return { goc: maDv(d.goc ?? ds.find((x) => x.la_goc)?.ma), heSo: d.he_so_ve_goc };
+}
+
+type DongGia = SupplierRow["items"][number];
+
+/** Giá của dòng bảng giá quy về ĐVT `unit` của dòng đơn (cùng họ). Cùng mã ĐVT ⇒ giá NCC báo; khác
+ *  mã ⇒ giá/đơn-vị-gốc × hệ số của ĐVT dòng (NCC báo 1.020.000đ/ram, dòng tính tờ ⇒ 2.040đ/tờ).
+ *  Không quy được ⇒ null — KHÔNG lấy đại giá thô. */
+function giaTheoDonViDong(
+  item: DongGia,
+  unit: string,
+  ds: DonViDungDuoc[] | undefined,
+  gocDong: string,
+  coGoc: boolean,
+): number | null {
+  if (!maDv(unit) || maDv(item.unit) === maDv(unit)) return item.unit_price;
+  if (item.gia_quy_doi == null) return null;
+  const d = traDonVi(ds, unit);
+  if (d) return Math.round(item.gia_quy_doi * d.heSo);
+  // Dòng đơn tính đúng đơn vị gốc của họ ⇒ giá/đơn-vị-gốc là giá dòng.
+  if (gocDong && maDv(unit) === gocDong) return item.gia_quy_doi;
+  // Hàng không tách theo đơn vị gốc chưa nạp danh sách đơn vị: dòng đơn xưa nay tính theo đơn vị gốc.
+  return coGoc ? null : item.gia_quy_doi;
+}
+
+const hangGia = (i: DongGia) => [i.gia_quy_doi ?? Infinity, i.unit_price] as const;
+const reHon = (a: DongGia, b: DongGia) => {
+  const [x1, x2] = hangGia(a);
+  const [y1, y2] = hangGia(b);
+  return x1 - y1 || x2 - y2;
+};
+
 /** Những NCC ĐANG HOẠT ĐỘNG bán mặt hàng này, xếp GIÁ TĂNG DẦN, lấy tối đa `SO_NCC_GOI_Y`.
  *
- * Xếp theo đơn giá CHƯA VAT vì đó là số đi vào dòng hàng. NCC có VAT khác nhau thì giá sau thuế
- * có thể đảo thứ tự — nên ô chọn hiện luôn cả VAT để nhìn là biết, không giấu.
+ * Xếp theo đơn giá CHƯA VAT vì đó là số đi vào dòng hàng.
+ *
+ * Giấy (10/10/2026, bỏ dạng cuộn/tờ) — cùng luật với `so_gia_ncc` bên máy chủ:
+ *   - Khớp khổ theo `khopKho`: đúng khổ, hoặc dòng giá khổ 0 · 0 (bán mọi khổ).
+ *   - Xếp hạng chỉ trong dòng CÙNG HỌ đơn vị với ĐVT dòng đơn (cùng `don_vi_goc`): đúng khổ trước,
+ *     dòng "mọi khổ" sau, rồi giá tăng.
+ *   - NCC chỉ bán khác họ (dòng tính tờ, NCC bán kg) vẫn trả về, `cung_ho = false`, đứng sau — chọn
+ *     họ thì dòng đơn đổi sang đơn vị của họ.
+ * Vật tư khác khai nhiều đơn vị (keo kg + thùng) theo đúng luật họ đơn vị đó, chỉ không có khổ.
  *
  * Không cần gọi API: danh sách NCC nạp cho màn này đã kèm bảng giá mặt hàng của từng người.
+ * `dsDonVi` = danh sách đơn vị của mặt hàng — để quy giá ram ↔ tờ và biết họ của ĐVT dòng; thiếu
+ * thì dựa vào `don_vi_goc` máy chủ ghi trên từng dòng giá.
  */
 export function chaoGiaChoMatHang(
-  line: Pick<FormLine, "item_name" | "hang_loai" | "hang_id" | "kho_rong" | "kho_dai">,
+  line: Pick<FormLine, "item_name" | "hang_loai" | "hang_id" | "kho_rong" | "kho_dai" | "unit">,
   suppliers: SupplierRow[],
+  dsDonVi?: DonViDungDuoc[],
 ): ChaoGia[] {
   const ten = normalizeItemName(line.item_name);
   if (!ten && !line.hang_id) return [];
   // Cùng MÃ: dòng có mặt hàng gốc thì khớp theo cặp (loại, id), dòng cũ chỉ có tên thì khớp tên.
-  const cungMa = (i: SupplierRow["items"][number]) =>
+  const cungMa = (i: DongGia) =>
     line.hang_loai && line.hang_id && i.hang_id
       ? i.hang_loai === line.hang_loai && i.hang_id === line.hang_id
       : normalizeItemName(i.item_name) === ten;
-  // Giấy so theo DẠNG BÁN (07/10/2026): dòng đủ hai cạnh khổ là Tờ, chỉ so NCC bán tờ ĐÚNG khổ
-  // (đ/tờ); dòng không khổ là Cuộn, so NCC bán cuộn (đ/kg) mọi khổ hoặc đúng khổ rộng.
   const laGiay = line.hang_loai === "giay";
-  const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
-  const dangDong = r && d ? "to" : "cuon";
-  const hop = (i: SupplierRow["items"][number]) => {
-    if (!laGiay) return true;
-    if (i.dang_ban !== dangDong) return false;
-    if (dangDong === "to") {
-      const [ir, id] = chuanKho(i.kho_rong, i.kho_dai);
-      return ir === r && id === d;
-    }
-    return !i.kho_rong || !r || i.kho_rong === r;
+  // Giấy + vật tư khác tách theo nhóm đơn vị đã khai (khổ vẫn chỉ giấy).
+  const coGoc = coDonViGoc(line.hang_loai);
+  const unit = line.unit ?? "";
+  const gocCua = (i: DongGia) => maDv(i.don_vi_goc) || traDonVi(dsDonVi, i.unit)?.goc || "";
+  // Họ của ĐVT dòng đơn: tra danh sách đơn vị; chưa có thì mượn `don_vi_goc` của một dòng giá cùng
+  // mã cùng ĐVT. Không ra ⇒ "" ⇒ chỉ dòng giá đúng mã ĐVT mới tính là cùng họ.
+  const gocDong = traDonVi(dsDonVi, unit)?.goc
+    || suppliers.flatMap((n) => n.items)
+      .filter((i) => cungMa(i) && maDv(i.unit) === maDv(unit))
+      .map(gocCua)
+      .find(Boolean)
+    || "";
+  const laCungHo = (i: DongGia) => {
+    if (!maDv(unit) || maDv(i.unit) === maDv(unit)) return true;
+    const g = gocCua(i);
+    return !!g && g === gocDong;
   };
+  const chao = (ncc: SupplierRow, item: DongGia, cungHo: boolean): ChaoGia => ({
+    supplier_id: ncc.id,
+    supplier_name: ncc.name,
+    supplier_item_id: item.id,
+    unit_price: item.unit_price,
+    vat_percent: item.vat_percent ?? 0,
+    unit: item.unit,
+    // Giá quy về ĐƠN VỊ GỐC của chính dòng — server tính (`quy_doi_bang_gia`). null = không quy được.
+    gia_quy_doi: item.gia_quy_doi ?? null,
+    // Khác họ: chọn là dòng đơn đổi sang đơn vị NCC ⇒ giá đúng là giá NCC báo.
+    gia_dong: cungHo ? giaTheoDonViDong(item, unit, dsDonVi, gocDong, coGoc) : item.unit_price,
+    cung_ho: cungHo,
+    dung_kho: !laGiay || khopKho(item, line) === "dung",
+  });
+  // Đúng khổ trước dòng "mọi khổ", rồi rẻ hơn.
+  const uuTien = (a: DongGia, b: DongGia) =>
+    (khopKho(a, line) === "dung" ? 0 : 1) - (khopKho(b, line) === "dung" ? 0 : 1) || reHon(a, b);
   const out: ChaoGia[] = [];
   const khac: ChaoGia[] = [];
   for (const ncc of suppliers) {
     if (ncc.status !== "active") continue;
-    const cung = ncc.items.filter((i) => cungMa(i) && i.is_active !== false);
-    const item = cung.find(hop);
-    if (!item) {
-      const k = cung[0];
-      if (k && laGiay) {
-        const [kr, kd] = chuanKho(k.kho_rong, k.kho_dai);
-        khac.push({
-          supplier_id: ncc.id,
-          supplier_name: ncc.name,
-          unit_price: 0,
-          vat_percent: k.vat_percent ?? 0,
-          unit: k.unit,
-          gia_quy_doi: null,
-          khac_kho: true,
-          nhan_dang:
-            k.dang_ban === "to"
-              ? `Tờ ${kr} × ${kd}`
-              : k.dang_ban === "cuon"
-                ? kr ? `Cuộn khổ ${kr}` : "Cuộn"
-                : "Chưa ghi dạng bán",
-        });
-      }
+    const cung = ncc.items.filter(
+      (i) => cungMa(i) && i.is_active !== false && (!laGiay || khopKho(i, line) != null),
+    );
+    if (!cung.length) continue;
+    if (!coGoc) {
+      out.push(chao(ncc, cung[0], true));
       continue;
     }
-    out.push({
-      supplier_id: ncc.id,
-      supplier_name: ncc.name,
-      unit_price: item.unit_price,
-      vat_percent: item.vat_percent ?? 0,
-      unit: item.unit,
-      // Giá quy về ĐƠN VỊ GỐC — server tính (`quy_doi_bang_gia`). `null` = không quy đổi được.
-      gia_quy_doi: item.gia_quy_doi ?? null,
-    });
+    // Mỗi NCC: dòng tốt nhất cùng họ vào nhóm chính; dòng khác họ gom theo đơn vị gốc, mỗi họ một
+    // dòng tốt nhất vào nhóm sau.
+    const cungHo = cung.filter(laCungHo);
+    if (cungHo.length) out.push(chao(ncc, [...cungHo].sort(uuTien)[0], true));
+    const theoGoc = new Map<string, DongGia>();
+    for (const i of cung) {
+      if (cungHo.includes(i)) continue;
+      const g = gocCua(i) || maDv(i.unit);
+      const cu = theoGoc.get(g);
+      if (!cu || uuTien(i, cu) < 0) theoGoc.set(g, i);
+    }
+    for (const i of theoGoc.values()) khac.push(chao(ncc, i, false));
   }
-  // XẾP THEO GIÁ ĐÃ QUY ĐỔI, không theo giá thô (29/08/2026, cùng lượt mở khoá ĐVT ở bảng giá
-  // NCC). Ông báo 1.020.000đ/ram và ông báo 24.500đ/kg mà đem so trực tiếp thì "rẻ nhất" thành
-  // vô nghĩa. Dòng chưa quy đổi được xuống CUỐI (`Infinity`) — xếp hạng một dòng chưa biết giá
-  // thật là mời chọn nhầm, đúng nếp `so_gia_ncc` bên server.
-  out.sort(
-    (a, b) =>
-      (a.gia_quy_doi ?? Infinity) - (b.gia_quy_doi ?? Infinity) ||
-      a.unit_price - b.unit_price,
-  );
+  // XẾP THEO GIÁ ĐÃ QUY ĐỔI, không theo giá thô (29/08/2026). Ông báo 1.020.000đ/ram và ông báo
+  // 2.000đ/tờ mà đem so trực tiếp thì "rẻ nhất" thành vô nghĩa. Nhóm chính cùng họ nên giá/đơn-vị-
+  // gốc so ngang được. Dòng chưa quy đổi được xuống CUỐI (`Infinity`) — xếp hạng một dòng chưa biết
+  // giá thật là mời chọn nhầm, đúng nếp `so_gia_ncc` bên server.
+  const xep = (a: ChaoGia, b: ChaoGia) =>
+    Number(b.dung_kho) - Number(a.dung_kho) ||
+    (a.gia_quy_doi ?? Infinity) - (b.gia_quy_doi ?? Infinity) ||
+    a.unit_price - b.unit_price;
+  out.sort(xep);
+  khac.sort((a, b) => maDv(a.unit).localeCompare(maDv(b.unit)) || xep(a, b));
   return [...out.slice(0, SO_NCC_GOI_Y), ...khac];
 }
 

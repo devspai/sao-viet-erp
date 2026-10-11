@@ -8,13 +8,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Gauge, X } from "lucide-react";
 
 import { ApiError, api, type HangLoai, type StockThreshold } from "../../api/client";
+import { coDonViGoc } from "../../lib/khoGiay";
 import { fmtQty } from "../khoShared";
 import { ThangNguong, ThanhNguong } from "./ThanhNguong";
 
 export interface DongNguong {
   hang_loai: HangLoai;
   hang_id: number;
-  dang: "to" | "cuon" | null;
+  /** Giấy: đơn vị gốc của dòng tồn (`to`, `kg`…) — cùng khổ khác đơn vị gốc là hai dòng. Hàng khác "". */
+  goc: string;
   khoRong: number;
   khoDai: number;
   ten: string;
@@ -67,7 +69,7 @@ export function HopNguong({
     // Máy chủ cộng sẵn — khỏi kéo cả lịch sử xuất của mặt hàng về chỉ để lấy một con số.
     api.kho.phieu
       .tongXuat(token, dong.hang_loai, dong.hang_id, khoId, NGAY_BINH_QUAN,
-        dong.dang ? { dang: dong.dang, kho_rong: dong.khoRong, kho_dai: dong.khoDai } : undefined)
+        coDonViGoc(dong.hang_loai) ? { goc: dong.goc, kho_rong: dong.khoRong, kho_dai: dong.khoDai } : undefined)
       .then(({ tong }) => {
         if (song) setMoiNgay(tong > 0 ? tong / NGAY_BINH_QUAN : null);
       })
@@ -75,7 +77,7 @@ export function HopNguong({
     return () => {
       song = false;
     };
-  }, [token, khoId, dong.hang_loai, dong.hang_id, dong.dang, dong.khoRong, dong.khoDai]);
+  }, [token, khoId, dong.hang_loai, dong.hang_id, dong.goc, dong.khoRong, dong.khoDai]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -123,9 +125,10 @@ export function HopNguong({
         hang_loai: dong.hang_loai,
         hang_id: dong.hang_id,
         kho_id: khoId,
-        // Giấy tờ: ngưỡng của đúng dòng khổ này; cuộn / hàng khác gửi 0 · 0.
+        // Giấy: ngưỡng của đúng dòng khổ + đơn vị gốc này; vật tư khác 0 · 0 · đơn vị gốc.
         kho_rong: dong.khoRong,
         kho_dai: dong.khoDai,
+        don_vi_goc: dong.goc,
         nguong_ton: nMin,
         nguong_can_ton: null,
         nguong_toi_da: nMax,

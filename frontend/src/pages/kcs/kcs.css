@@ -1,7 +1,7 @@
 /* Màn KCS — KCS theo LỆNH (mg 0306, docs/design-kcs-theo-lenh.md).
    Nền tảng: khung `.rc` + class công cụ `.rc__*` (xem rebuild-catalog.css) — `responsive.css` đã
-   lo 375px cho toàn bộ phần đó MIỄN PHÍ. File này CHỈ chứa phần không có tiền lệ: thẻ KPI, lưới
-   dashboard hai cột, thẻ bảng lệnh, khối checklist + ảnh lỗi trong drawer. */
+   lo 375px cho toàn bộ phần đó MIỄN PHÍ. File này CHỈ còn phần của form kiểm
+   (drawer), danh sách lần kiểm và lỗi tổ chịu. Màn phương án B (09/10/2026) nằm ở kcs-b.css. */
 
 /* ---- Trang: khoảng cách dọc giữa các khối lớn -------------------------------------------- */
 .kcs-page {
@@ -10,380 +10,16 @@
   gap: var(--sp-5);
 }
 
-.kcs-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-
-.kcs-section h2 {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-size: 15px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-  margin: 0;
-}
-
-/* ---- Dải tiêu đề: bộ lọc báo cáo nằm cạnh nút Xuất Excel ---------------------------------
-   Bộ lọc này lọc KPI + biểu đồ + file Excel, KHÔNG lọc bảng lệnh (bảng có ô tìm riêng). */
-.kcs-loc {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
-
-.kcs-loc__ngay,
-.kcs-loc__ma {
-  height: 36px;
-  background: var(--canvas);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  font-family: var(--ff-sans);
-  font-size: 13px;
-  color: var(--ink);
-  transition: border-color var(--duration-fast) var(--easing-standard),
-    box-shadow var(--duration-fast) var(--easing-standard);
-}
-
-.kcs-loc__ngay {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 0 var(--sp-2) 0 var(--sp-3);
-}
-.kcs-loc__ngay-ic {
-  flex: none;
-  color: var(--ash-2);
-}
-.kcs-loc__ngay input[type="date"] {
-  width: 122px;
-  height: 100%;
-  border: none;
-  background: transparent;
-  padding: 0 var(--sp-1);
-  font: inherit;
-  color: inherit;
-  outline: none;
-}
-/* Ô ngày tự vẽ (ChonNgay) nằm lọt trong khung lọc: bỏ viền/icon riêng, khung ngoài đã có. */
-.kcs-loc__ngay .cn-khung,
-.kcs-loc__ngay .cn-khung.is-mo,
-.kcs-loc__ngay .cn-khung:focus-within {
-  width: 132px;
-  height: 100%;
-  border: none;
-  background: transparent;
-  padding: 0 var(--sp-1);
-  box-shadow: none;
-}
-.kcs-loc__ngay .cn-khung__ic {
-  display: none;
-}
-.kcs-loc__ngay-sep {
-  color: var(--ash-2);
-}
-
-.kcs-loc__ma {
-  width: 150px;
-  padding: 0 var(--sp-3);
-}
-.kcs-loc__ma::placeholder {
-  color: var(--ash-2);
-}
-
-.kcs-loc__ngay:focus-within,
-.kcs-loc__ma:focus {
-  outline: none;
-  border-color: var(--rust);
-  box-shadow: 0 0 0 3px var(--rule-hair);
-}
-
-.kcs-loc__cd {
-  width: 210px;
-}
-.kcs-loc__cd .sel__trigger {
-  height: 36px;
-  padding: 0 var(--sp-3);
-  border-color: var(--rule);
-  border-radius: var(--r-3);
-  font-size: 13px;
-}
-
-/* ---- Dashboard: thẻ KPI + lưới hai cột ------------------------------------------------------ */
-.kcs-dash {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-}
-
-/* Thẻ KPI: MỘT khung chia 4 ô bằng vạch mảnh (không phải 4 thẻ rời). */
-.kcs-kpi {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-5);
-  box-shadow: var(--shadow-1);
-}
-
-.kcs-kpi__o {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  min-width: 0;
-  padding: var(--sp-3) var(--sp-5);
-}
-.kcs-kpi__o + .kcs-kpi__o {
-  border-left: 1px solid var(--rule-soft);
-}
-
-.kcs-kpi__ic {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-3);
-}
-.kcs-kpi__ic--steel { background: var(--steel-soft); color: var(--steel); }
-.kcs-kpi__ic--moss { background: var(--moss-soft); color: var(--moss-deep); }
-.kcs-kpi__ic--rust { background: var(--rule-hair); color: var(--rust-deep); }
-.kcs-kpi__ic--amber { background: var(--amber-soft); color: var(--amber-deep); }
-
-/* Nhãn một dòng trên; số + dòng phụ chung một dòng dưới (canh theo chân chữ). */
-.kcs-kpi__than {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: var(--sp-2);
-  min-width: 0;
-}
-.kcs-kpi__nhan {
-  flex-basis: 100%;
-  font-size: 12px;
-  font-weight: var(--fw-medium);
-  color: var(--ash);
-}
-.kcs-kpi__so {
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-bold);
-  line-height: 1.2;
-  color: var(--ink);
-}
-.kcs-kpi__o.is-loi .kcs-kpi__so {
-  color: var(--rust);
-}
-.kcs-kpi__phu {
-  font-size: 12px;
-  color: var(--ash-2);
-}
-
-.kcs-dash__luoi {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: var(--sp-4);
-  align-items: start;
-}
-.kcs-dash__trai,
-.kcs-dash__phai {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  min-width: 0;
-}
-
-/* Thẻ nền trắng dùng chung cho bảng lệnh và các biểu đồ. */
-.kcs-the {
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-5);
-  box-shadow: var(--shadow-1);
-  padding: var(--sp-4) var(--sp-5);
-  min-width: 0;
-}
-.kcs-the__dau {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-.kcs-the__dau h3 {
-  margin: 0;
-  font-size: var(--fs-md);
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-.kcs-the__phu {
-  font-size: 12px;
-  color: var(--ash-2);
-}
-.kcs-the__trong {
-  margin: 0;
-  padding: var(--sp-6) 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--ash-2);
-}
-
-/* Thanh ngang "Lỗi theo công đoạn": tên + số một dòng, thanh bên dưới. */
-.kcs-thanh {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
-.kcs-thanh__dau {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  font-size: 13px;
-}
-.kcs-thanh__ten {
-  min-width: 0;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.kcs-thanh__so {
-  flex: none;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-.kcs-thanh__pt {
-  margin-left: var(--sp-2);
-  font-size: 12px;
-  font-weight: var(--fw-medium);
-  color: var(--ash-2);
-}
-.kcs-thanh__ray {
-  height: 8px;
-  margin-top: 6px;
-  background: var(--rule-hair);
-  border-radius: var(--r-pill);
-  overflow: hidden;
-}
-.kcs-thanh__day {
-  display: block;
-  height: 100%;
-  min-width: 4px;
-  background: var(--rust);
-  border-radius: var(--r-pill);
-}
-.kcs-thanh__them {
-  font-size: 12px;
-  color: var(--ash-2);
-}
-
 /* ---- Khối lệnh: tiêu đề + lưới theo khuôn chuẩn (components/LuoiDs, 08/10/2026) -------------
-   Thanh tìm + lọc + nút "Cột" là `.lds-loc`, lưới là `.lds-sheet` (có chân phân trang). Khối này nằm
-   trong cột trái của dashboard nên không bọc thẻ `.kcs-the`; KHÔNG `overflow: hidden` — hộp lọc và
+   Thanh tìm + lọc + nút "Cột" là `.lds-loc`, lưới là `.lds-sheet` (có chân phân trang). KHÔNG `overflow: hidden` — hộp lọc và
    hộp chọn cột mở ra ngoài mép khối. */
 .kcs-lenh {
   min-width: 0;
 }
-.kcs-lenh__tieu {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin: 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--ink);
-  white-space: nowrap;
-}
-/* Bộ lọc báo cáo (kỳ, công đoạn, mã) đứng sát tiêu đề trang, nút Xuất Excel dồn phải. */
-.kcs-page > .lds-dau > .kcs-loc { margin-left: auto; }
-.kcs-page > .lds-dau > .kcs-loc + .lds-dau__nut { margin-left: 0; }
-
-/* ---- Màn hẹp ------------------------------------------------------------------------------ */
-/* Dưới 1100px: cột phải xuống dưới, hai biểu đồ đứng cạnh nhau. */
-@media (max-width: 1100px) {
-  .kcs-dash__luoi { grid-template-columns: minmax(0, 1fr); }
-  .kcs-dash__phai {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-/* Dưới 900px: bộ lọc báo cáo xuống hàng riêng dưới tiêu đề; KPI thành lưới 2×2. */
-@media (max-width: 900px) {
-  .kcs-loc {
-    order: 3;
-    flex: 1 1 100%;
-  }
-  .kcs-loc__ngay { flex: 1 1 100%; }
-  .kcs-loc__ngay input[type="date"] { flex: 1 1 0; width: auto; min-width: 0; }
-  .kcs-loc__ngay .cn-khung { flex: 1 1 0; width: auto; min-width: 0; }
-  .kcs-loc__cd { flex: 1 1 180px; width: auto; }
-  .kcs-loc__ma { flex: 1 1 140px; width: auto; }
-
-  .kcs-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kcs-kpi__o { padding: var(--sp-3) var(--sp-4); }
-  .kcs-kpi__o + .kcs-kpi__o { border-left: none; }
-  .kcs-kpi__o:nth-child(even) { border-left: 1px solid var(--rule-soft); }
-  .kcs-kpi__o:nth-child(n + 3) { border-top: 1px solid var(--rule-soft); }
-}
-@media (max-width: 640px) {
-  .kcs-dash__phai { grid-template-columns: minmax(0, 1fr); }
-  .kcs-the { padding: var(--sp-3) var(--sp-4); }
-}
 
 /* ---- Drawer ghi kết quả: 4 khối xếp dọc -------------------------------------------------- */
-.kcs-drawer__ctx {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--sp-3) var(--sp-4);
-  margin: 0 0 var(--sp-4);
-  background: var(--rule-hair);
-  border-radius: var(--r-3);
-  font-size: 13px;
-  color: var(--ash-2);
-}
-.kcs-drawer__ctx strong {
-  color: var(--ink);
-  font-weight: var(--fw-bold);
-}
-.kcs-drawer__ctx-row + .kcs-drawer__ctx-row {
-  margin-top: 2px;
-}
 
-.kcs-drawer__block {
-  margin-bottom: var(--sp-5);
-}
-.kcs-drawer__block h3 {
-  margin: 0 0 var(--sp-3);
-  font-size: 13px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
 
-.kcs-check-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-2) 0;
-  border-bottom: 1px solid var(--rule-hair);
-}
-.kcs-check-row:last-child { border-bottom: none; }
-.kcs-check-row__label {
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--ink);
-}
-.kcs-check-row__req {
-  color: var(--rust);
-  font-weight: var(--fw-bold);
-}
 .kcs-check-row__note {
   flex: 1 1 180px;
   min-width: 0;
@@ -396,36 +32,6 @@
   color: var(--ink);
 }
 
-.kcs-drawer__soluong {
-  display: flex;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
-}
-.kcs-drawer__soluong label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--ash-2);
-  font-weight: var(--fw-bold);
-}
-.kcs-drawer__soluong input {
-  height: 36px;
-  width: 140px;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-2);
-  padding: 0 var(--sp-3);
-  font-family: var(--ff-sans);
-  font-size: 15px;
-  color: var(--ink);
-  background: var(--canvas);
-}
-.kcs-drawer__hint {
-  width: 100%;
-  font-size: 12px;
-  color: var(--rust-deep);
-}
-
 .kcs-drawer__loi {
   display: flex;
   flex-direction: column;
@@ -434,6 +40,7 @@
   background: var(--rule-hair);
   border-radius: var(--r-3);
 }
+
 .kcs-drawer__loi textarea {
   min-height: 64px;
   border: 1px solid var(--rule);
@@ -445,14 +52,17 @@
   background: var(--canvas);
   resize: vertical;
 }
+
 .kcs-drawer__field {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
+
 /* Ô một dòng trong cột dọc: bỏ `flex-basis` 180px của ô ghi chú tiêu chí (ở hàng ngang) — không
    thì nó thành chiều CAO 180px. */
 .kcs-drawer__field .kcs-check-row__note { flex: none; }
+
 .kcs-drawer__field label {
   font-size: 12px;
   font-weight: var(--fw-bold);
@@ -467,49 +77,33 @@
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
+
 .kcs-drawer__anh-nhan {
   font-size: 12px;
   font-weight: var(--fw-bold);
   color: var(--ash-2);
 }
+
 .kcs-drawer__anh-dem {
   font-size: 12px;
   color: var(--ash-2);
 }
+
 .kcs-drawer__anh-nut {
   display: flex;
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
+
 .kcs-drawer__anh-nut .btn { background: var(--canvas); }
+
 .kcs-drawer__anh-hint {
   margin: 4px 0 0;
   font-size: 12.5px;
   color: var(--ash-2);
 }
 
-.kcs-drawer__cta {
-  margin-top: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--moss-soft);
-  border-radius: var(--r-3);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
-.kcs-drawer__cta-text {
-  font-size: 13px;
-  color: var(--moss-deep);
-}
-
-@media (max-width: 480px) {
-  .kcs-drawer__soluong input { width: 100%; }
-}
-
 /* ===== Chốt nhóm (đóng thiếu) — §13.3: số KCS đạt / mục tiêu + MỘT câu tình trạng ========= */
-.kcs-chot__sl { font-size: 12px; font-weight: 400; color: var(--ash-2); }
 .kcs-chot {
   display: flex;
   flex-direction: column;
@@ -520,483 +114,6 @@
   box-shadow: var(--shadow-1);
   padding: var(--sp-4) var(--sp-5);
 }
-.kcs-chot__so {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-1) var(--sp-3);
-  font-size: 14px;
-  color: var(--ink);
-}
-.kcs-chot__so b { font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }
-.kcs-chot__thieu { font-size: 13px; color: var(--amber-deep); }
-.kcs-chot__thieu b { font-size: 14px; }
-.kcs-chot__ray {
-  height: 8px;
-  background: var(--rule-hair);
-  border-radius: var(--r-pill);
-  overflow: hidden;
-}
-.kcs-chot__day {
-  display: block;
-  height: 100%;
-  min-width: 4px;
-  border-radius: var(--r-pill);
-  background: var(--amber-deep);
-}
-.kcs-chot__day--ok { background: var(--moss); }
-.kcs-chot__day--dong { background: var(--ash-2); }
-.kcs-chot__cau {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-2);
-  margin: var(--sp-1) 0 0;
-  font-size: 14px;
-  font-weight: var(--fw-medium);
-  color: var(--ink);
-}
-.kcs-chot__cau svg { flex: none; margin-top: 2px; color: var(--amber-deep); }
-.kcs-chot__cau--ok svg { color: var(--moss-deep); }
-.kcs-chot__cau--dong svg { color: var(--ash-2); }
-.kcs-chot__chan {
-  font-size: 13px;
-  color: var(--amber-deep);
-  background: var(--amber-soft);
-  border-radius: var(--r-3);
-  padding: var(--sp-2) var(--sp-3);
-}
-.kcs-chot__chan ul { margin: 4px 0 0; padding-left: var(--sp-4); }
-.kcs-chot__nut { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.kcs-chot__xn {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-3);
-  background: var(--rule-hair);
-}
-.kcs-chot__xn p { margin: 0; font-size: 13px; color: var(--ink); }
-
-/* ===== Chuỗi công đoạn của một lệnh ======================================= */
-.kcs-lenh-dau {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-  margin-bottom: var(--sp-3);
-}
-.kcs-lenh-dau__ma { font-size: 16px; font-weight: var(--fw-bold); color: var(--ink); }
-.kcs-lenh-dau__phu { font-size: 13.5px; color: var(--ash-2); overflow-wrap: anywhere; }
-
-/* Thẻ đầu lệnh: mã · trạng thái nhóm · tên, dòng khách/nhóm, rồi dải số KCS ngăn bằng kẻ mảnh. */
-.kcs-hero {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  padding: var(--sp-4) var(--sp-5);
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-5);
-  box-shadow: var(--shadow-1);
-}
-.kcs-hero__top {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-}
-.kcs-hero__ma-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2) var(--sp-3);
-}
-.kcs-hero__ma {
-  font-size: var(--fs-lg);
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-.kcs-hero__ten {
-  font-size: var(--fs-md);
-  color: var(--ash);
-  overflow-wrap: anywhere;
-}
-.kcs-hero__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-5);
-  font-size: 13px;
-  color: var(--ash);
-}
-.kcs-hero__meta b {
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-.kcs-hero__inline-stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--sp-1) var(--sp-3);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--rule-hair);
-  font-size: 13px;
-  color: var(--ash);
-}
-.kcs-hero__inline-item b {
-  font-weight: var(--fw-bold);
-}
-
-/* Dải chuỗi công đoạn: MỘT hàng ngang, dài quá thì cuộn ngang trong khung (ẩn thanh cuộn). */
-.kcs-pipeline {
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.kcs-pipeline::-webkit-scrollbar {
-  display: none;
-}
-.kcs-pipeline__track {
-  display: flex;
-  align-items: center;
-  width: max-content;
-  min-width: 100%;
-}
-.kcs-pipeline__node {
-  display: flex;
-  align-items: center;
-  flex: none;
-}
-.kcs-pipeline__step-box {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 6px var(--sp-3) 6px 6px;
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill);
-  cursor: pointer;
-  transition: background-color var(--duration-fast) var(--easing-standard),
-    border-color var(--duration-fast) var(--easing-standard);
-}
-.kcs-pipeline__step-box:hover {
-  background: var(--rule-hair);
-  border-color: var(--rust);
-}
-.kcs-pipeline__step-box--dat { border-color: var(--moss-soft); }
-.kcs-pipeline__step-box--loi { border-color: var(--rule-hair); }
-.kcs-pipeline__num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--rule-hair);
-  font-size: 11px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-.kcs-pipeline__step-box--dat .kcs-pipeline__num { background: var(--moss-soft); color: var(--moss-deep); }
-.kcs-pipeline__step-box--loi .kcs-pipeline__num { background: var(--rule-hair); color: var(--rust-deep); }
-.kcs-pipeline__name {
-  font-size: 13px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-  white-space: nowrap;
-}
-.kcs-pipeline__arrow {
-  display: inline-flex;
-  padding: 0 var(--sp-2);
-  color: var(--ash-2);
-}
-
-/* % đạt cạnh số Đạt · Lỗi trong bảng chuỗi công đoạn. */
-.kcs-rate-pill {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--rule-hair);
-  font-size: 11px;
-  font-weight: var(--fw-bold);
-  color: var(--ash);
-}
-
-/* Chuỗi công đoạn chi tiết - Gọn gàng, Không viền cạnh */
-.kcs-chuoi {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-}
-.kcs-chuoi__it {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px;
-  border: 1px solid var(--rule-soft);
-  border-left: none !important; /* KHÔNG VIỀN CẠNH */
-  border-radius: var(--r-3);
-  background: var(--paper, var(--canvas));
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
-  transition: border-color 0.15s ease;
-}
-.kcs-chuoi__it:hover {
-  border-color: #cbd5e1;
-}
-
-.kcs-chuoi__hd {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-}
-
-.kcs-chuoi__title-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.kcs-chuoi__stt {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--rule-hair);
-  font-size: 12px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-}
-
-.kcs-chuoi__ten {
-  font-size: 14.5px;
-  font-weight: var(--fw-bold);
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-.kcs-chuoi__cuoi-tag {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #047857;
-  background: #d1fae5;
-  padding: 1px 6px;
-  border-radius: var(--r-pill);
-}
-
-.kcs-chuoi__meta-compact {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  font-size: 13px;
-  color: var(--ash-2);
-}
-.kcs-chuoi__meta-compact b {
-  color: var(--ink);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.kcs-chuoi__nut {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.kcs-chuoi__kho {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  padding: 8px 12px;
-  border-radius: var(--r-2);
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  font-size: 12.5px;
-  color: #065f46;
-}
-
-/* ===== Bảng Ma Trận Chuỗi Công Đoạn Siêu Nén (Single-Line Ultra-Dense Table) ===== */
-.kcs-tablewrap {
-  border-radius: var(--r-3);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  background: var(--canvas);
-  overflow: hidden;
-}
-
-.kcs-matrix-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.kcs-matrix-table th {
-  padding: 8px 12px;
-  background: #f8fafc;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 700;
-  border-bottom: 1px solid #e2e8f0;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.kcs-matrix-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
-}
-
-.kcs-matrix-row {
-  transition: background-color 0.15s ease;
-}
-
-.kcs-matrix-row:hover {
-  background-color: #f8fafc;
-}
-
-.kcs-matrix-row.is-open {
-  background-color: #f1f5f9;
-}
-
-.kcs-matrix__name-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.kcs-matrix__ten {
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.kcs-matrix__to-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-}
-
-.kcs-matrix__sub-tt {
-  font-size: 11.5px;
-  color: #64748b;
-  background: #f1f5f9;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.kcs-matrix__stat {
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.kcs-matrix__stat b {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-}
-
-/* Lỗi bắt ở công đoạn sau, quy về công đoạn này. */
-.kcs-matrix__loi-sau {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 8px;
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--rust-deep);
-}
-.kcs-matrix__loi-sau b { font-weight: 500; }
-.kcs-matrix__bat-o { color: var(--ash); }
-
-.kcs-matrix__actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.kcs-matrix-expand-row > td {
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.kcs-chuoi__kho-mini {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: #065f46;
-  background: #f0fdf4;
-  padding: 8px 12px;
-  border-radius: var(--r-2);
-  border: 1px solid #bbf7d0;
-}
-
-.kcs-chuoi__kho-mini-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 700;
-}
-
-.kcs-chuoi__kho-ds {
-  flex-basis: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 2px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.kcs-chuoi__kho-ds li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-1) var(--sp-2);
-}
-.kcs-chuoi__kho-ma {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: #047857;
-}
-button.kcs-chuoi__kho-ma {
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.kcs-chuoi__kho-luc {
-  color: #64748b;
-  font-size: 11.5px;
-}
-
-.kcs-chuoi__than {
-  border-top: 1px solid var(--rule-hair);
-  padding-top: var(--sp-2);
-  margin-top: 2px;
-}
-
-@media (max-width: 900px) {
-  .kcs-chuoi__metrics-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 
 /* ===== Danh sách lần kiểm (màn KCS) =======
    PHẲNG (19/09/2026): mỗi lần kiểm một hàng, vạch trái mang màu kết luận, lỗi thụt vào bên dưới —
@@ -1006,17 +123,18 @@ button.kcs-chuoi__kho-ma {
   margin: 0;
   padding: 0;
 }
+
+/* Mỗi lần kiểm một khối phẳng, ngăn bằng gạch mảnh dưới (không vạch màu bên trái); kết luận là
+   chip `--tt-*` trong dòng đầu. */
 .kcs-lk__it {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: var(--sp-2) 0 var(--sp-2) var(--sp-3);
-  border-left: 3px solid var(--rule);
+  padding: var(--sp-2) 0 var(--sp-3);
+  border-bottom: 1px solid var(--rule-hair);
 }
-.kcs-lk__it + .kcs-lk__it { margin-top: var(--sp-3); }
-.kcs-lk__it--dat { border-left-color: var(--moss); }
-.kcs-lk__it--dat_mot_phan { border-left-color: var(--rust); }
-.kcs-lk__it--khong_dat { border-left-color: var(--signal); }
+
+.kcs-lk__it:last-child { border-bottom: 0; }
 
 .kcs-lk__dau {
   display: flex;
@@ -1025,6 +143,7 @@ button.kcs-chuoi__kho-ma {
   justify-content: space-between;
   gap: 2px var(--sp-3);
 }
+
 .kcs-lk__kq {
   display: flex;
   flex-wrap: wrap;
@@ -1032,28 +151,26 @@ button.kcs-chuoi__kho-ma {
   gap: 2px var(--sp-2);
   min-width: 0;
 }
-.kcs-lk__kl {
-  font-size: 13.5px;
-  font-weight: var(--fw-bold);
-}
-.kcs-lk__it--dat .kcs-lk__kl { color: var(--moss-deep); }
-.kcs-lk__it--dat_mot_phan .kcs-lk__kl { color: var(--rust-deep); }
-.kcs-lk__it--khong_dat .kcs-lk__kl { color: var(--signal-deep); }
+
 .kcs-lk__so {
   font-size: 13px;
   color: var(--ash);
 }
-.kcs-lk__so b {
+
+.kcs-lk__n {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.kcs-lk__so b.is-loi { color: var(--rust-deep); }
+
+.kcs-lk__n.is-loi { color: var(--tt-do-fg); }
+
 .kcs-lk__luc {
   flex: none;
   font-size: 12px;
   color: var(--ash-2);
   font-variant-numeric: tabular-nums;
 }
+
 .kcs-lk__phu {
   display: flex;
   flex-wrap: wrap;
@@ -1063,6 +180,7 @@ button.kcs-chuoi__kho-ma {
   color: var(--ash);
   overflow-wrap: anywhere;
 }
+
 .kcs-lk__gc {
   margin: 0;
   font-size: 12.5px;
@@ -1079,6 +197,7 @@ button.kcs-chuoi__kho-ma {
   flex-direction: column;
   gap: 2px;
 }
+
 .kcs-lk__tc-it {
   display: flex;
   flex-wrap: wrap;
@@ -1087,21 +206,25 @@ button.kcs-chuoi__kho-ma {
   font-size: 12.5px;
   color: var(--ink);
 }
+
 .kcs-lk__tc-ic {
   flex: none;
   align-self: center;
   color: var(--moss);
 }
+
 .kcs-lk__tc-ten {
   flex: 1 1 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
 .kcs-lk__tc-kq {
   flex: none;
   font-size: 12px;
   color: var(--ash);
 }
+
 .kcs-lk__tc-gc {
   flex-basis: 100%;
   padding-left: 20px;
@@ -1109,12 +232,15 @@ button.kcs-chuoi__kho-ma {
   color: var(--ash);
   overflow-wrap: anywhere;
 }
+
 .kcs-lk__tc-it.is-khong .kcs-lk__tc-ic,
 .kcs-lk__tc-it.is-khong .kcs-lk__tc-kq,
 .kcs-lk__tc-it.is-khong .kcs-lk__tc-gc {
   color: var(--tt-do-fg);
 }
+
 .kcs-lk__tc-gc-phu { color: var(--ash); }
+
 .kcs-lk__tc-lenh {
   display: block;
   font-size: 11.5px;
@@ -1128,57 +254,57 @@ button.kcs-chuoi__kho-ma {
   gap: 2px;
   margin-top: var(--sp-1);
   padding-left: var(--sp-3);
-  border-left: 1px solid var(--rule-hair);
 }
+
 .kcs-lk__loi-dau {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
 }
+
 .kcs-lk__loi-mota {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 13px;
-  font-weight: var(--fw-bold);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
+
 .kcs-lk__loi-sl {
   flex: none;
   font-size: 13px;
-  font-weight: var(--fw-bold);
-  color: var(--rust-deep);
+  color: var(--tt-do-fg);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
 .kcs-lk__loi-phu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
   margin: 0;
   font-size: 12px;
   color: var(--ash);
   overflow-wrap: anywhere;
 }
-.kcs-lk__chiu b { color: var(--ink); font-weight: var(--fw-medium); }
-.kcs-lk__xem { color: var(--rust-deep); }
-.kcs-lk__xem.is-da { color: var(--moss-deep); }
+
+.kcs-lk__tep-meta { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+
 .kcs-lk__anh { margin-top: 4px; }
 
 /* Lỗi KCS tổ chịu (tab KCS bàn tổ) — danh sách phẳng, vạch trái đỏ gạch thay cho thẻ lồng. */
-.kcs-bs__tong {
-  margin-left: auto;
-  padding: 1px 8px;
-  border-radius: var(--r-pill);
-  background: var(--rule-hair);
-  color: var(--rust-deep);
-  font-size: 12px;
-  font-weight: var(--fw-bold);
-  font-variant-numeric: tabular-nums;
-}
+/* Dòng bước cuối: hai mẩu tách bằng khoảng trống, không nối dấu. */
 .kcs-bs__cuoi {
   margin: 0 0 var(--sp-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   font-size: 13px;
   color: var(--ash);
+  font-variant-numeric: tabular-nums;
 }
-.kcs-bs__cuoi b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
 .kcs-bs {
   list-style: none;
   margin: 0;
@@ -1187,44 +313,52 @@ button.kcs-chuoi__kho-ma {
   flex-direction: column;
   gap: var(--sp-3);
 }
+
 .kcs-bs__it {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 2px 0 2px var(--sp-3);
-  border-left: 3px solid var(--rust);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--rule-hair);
 }
+
+.kcs-bs__it:last-child { padding-bottom: 0; border-bottom: 0; }
+
 .kcs-bs__dau {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
 }
+
 .kcs-bs__mota {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 13.5px;
-  font-weight: var(--fw-bold);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
+
 .kcs-bs__so {
   flex: none;
   font-size: 13.5px;
-  font-weight: var(--fw-bold);
-  color: var(--rust-deep);
+  color: var(--tt-do-fg);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Dòng phụ: các mẩu tách rời bằng khoảng trống (không nối dấu), chip đã xem / chưa xem cuối dòng. */
 .kcs-bs__phu {
-  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
   font-size: 12px;
   color: var(--ash);
   overflow-wrap: anywhere;
 }
-.kcs-bs__phu b { color: var(--ink); font-weight: var(--fw-medium); }
-.kcs-bs__xem { color: var(--rust-deep); }
-.kcs-bs__xem.is-da { color: var(--moss-deep); }
+
 .kcs-bs__anh { margin-top: 4px; }
+
 .kcs-lk__trong {
   margin: 0;
   font-size: 13px;
@@ -1235,6 +369,3 @@ button.kcs-chuoi__kho-ma {
   border-radius: var(--r-2);
   border: 1px dashed var(--rule-soft);
 }
-
-/* Nút đóng / mở lại bị khoá vì thiếu ô "Đóng lệnh thiếu" — lý do đứng ngay cạnh nút. */
-.kcs-chot__khoa { align-self: center; font-size: 12.5px; color: var(--ash); }

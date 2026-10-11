@@ -669,7 +669,7 @@ export function BuocChungForm({
                               <div className="khsx-vattu-cell-name">
                                 <span className="khsx-vattu-code">{dm?.ma ?? snap?.ma ?? "—"}</span>
                                 {/* Công thức định mức hiện khi rê chuột vào TÊN (cùng lối ngăn bước của lệnh). */}
-                                <CongThucTip congThuc={goiY?.dien_giai}>
+                                <CongThucTip tieuDe={dm?.ten ?? snap?.ten} congThuc={goiY?.dien_giai}>
                                   <span className="khsx-vattu-name">{dm?.ten ?? snap?.ten ?? `Vật tư #${row.vat_tu_id}`}</span>
                                 </CongThucTip>
                               </div>
@@ -1016,6 +1016,7 @@ export function BuocChungForm({
                         <span className="khsx-time-tag khsx-time-tag--moss">Chạy máy</span>
                         {/* Công thức quy đổi hiện khi rê chuột vào tiêu đề — thẻ chỉ giữ phép chia ngắn. */}
                         <CongThucTip
+                          tieuDe="Thời gian chạy cả tờ ghép"
                           congThuc={
                             Number(tg.nang_suat_hieu_dung ?? 0) > 0 && tg.quy_doi_dien_giai
                               ? String(tg.quy_doi_dien_giai)

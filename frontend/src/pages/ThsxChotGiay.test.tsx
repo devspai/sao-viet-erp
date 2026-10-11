@@ -30,7 +30,7 @@ function dong(kw: Partial<ChotGiayDong>): ChotGiayDong {
       giay_id: 1, ma: "C250", ten: "Couche 250", kho_rong: 790, kho_dai: 1090, nhan_kho: "790×1090 mm",
       so_to: 5260, don_vi: "to_nguyen", ton_to_dung_kho: 3000,
     }],
-    cuon_cung_ma: [], chot: null, sua_duoc: true, buoc_truoc_in: [], cau_hinh_san: false,
+    lo_cung_ma: [], chot: null, sua_duoc: true, buoc_truoc_in: [], cau_hinh_san: false,
     cong_doan_chen_duoc: [{ id: 7, ma: "CD-0112", ten: "Cắt tờ" }],
     ...kw,
   };

@@ -40,10 +40,17 @@ describe("KcsLanKiemList · tiêu chí gom theo công đoạn", () => {
 
 describe("KcsLanKiemList · ảnh lỗi", () => {
   it("mỗi ảnh một dòng có tên + giờ và người kiểm, bấm là mở hộp xem trước ngay trên trang", () => {
-    render(<KcsLanKiemList lanKiem={lanKiem} />);
+    const { container } = render(<KcsLanKiemList lanKiem={lanKiem} />);
 
     expect(screen.getByText("loi-chong-mau.png")).toBeTruthy();
-    expect(screen.getByText(/Bùi Tổ Trưởng$/, { selector: ".thsx-tep__meta" })).toBeTruthy();
+    // Danh sách lần kiểm: không nối mẩu bằng "·", không chữ đậm, không vạch màu bên trái.
+    expect(container.textContent).not.toContain("·");
+    expect(container.querySelector("b")).toBeNull();
+    expect(container.querySelector("[class*='kcs-lk__it--']")).toBeNull();
+    // Giờ và người kiểm là hai mẩu riêng trong dòng phụ, không nối bằng "·".
+    const meta = document.querySelector(".thsx-tep__meta") as HTMLElement;
+    expect(within(meta).getByText("Bùi Tổ Trưởng")).toBeTruthy();
+    expect(meta.textContent).not.toContain("·");
     // Ảnh không còn là link mở tab mới — tab mới làm mất ngăn đang xem.
     expect(document.querySelector('a[target="_blank"] img')).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -87,6 +94,9 @@ describe("KcsLoiCuaTo · tab KCS bàn tổ chỉ bày lỗi tổ chịu", () => 
     expect(it).toHaveLength(2);
     expect(it[0].textContent).toContain("Bắt ở Dán");
     expect(it[1].textContent).not.toContain("Bắt ở");
+    // Dòng phụ là các mẩu tách rời, không nối bằng dấu chấm giữa; chưa xem là chip.
+    expect(it[0].textContent).not.toContain("·");
+    expect(within(it[0] as HTMLElement).getByText("chưa xem")).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/đạt/i);
   });
 });

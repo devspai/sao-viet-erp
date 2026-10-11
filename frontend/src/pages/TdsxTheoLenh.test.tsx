@@ -54,8 +54,10 @@ describe("TdsxTheoLenh · bảng theo lệnh", () => {
       <TdsxTheoLenh data={DATA} dangTai={false} rong={<p>RỖNG</p>} onMo={() => {}}
         cotAn={new Set(["khach", "han"])} thuTu={["van_de", "sp"]} />,
     );
+    // xepCot (LuoiDs): cột chưa có trong thuTu chen sau cột đứng trước nó ở mặc định, không dồn cuối
+    // — Ngày tạo đứng đầu mặc định nên vẫn đứng đầu nhóm; Vấn đề vẫn trước Sản phẩm như đã kéo.
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Lệnh", "Vấn đề", "Sản phẩm", "Ngày tạo", "Số lượng", "Đang ở",
+      "Lệnh", "Ngày tạo", "Vấn đề", "Sản phẩm", "Số lượng", "Đang ở",
     ]);
   });
 

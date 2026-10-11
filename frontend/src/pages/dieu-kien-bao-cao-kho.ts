@@ -4,9 +4,11 @@
  *
  *  Luật tiền: hai khoảng Đơn giá / Thành tiền CHỈ có khi người xem có ô "Xem giá thành" của màn
  *  (`bao_cao_kho:view_cost`); máy chủ cũng bỏ qua hai khoảng đó với người không có ô này. */
-import { Banknote, Hash, Tag, Warehouse } from "lucide-react";
+import {
+  ArrowDownUp, ArrowLeftRight, Banknote, Boxes, ClipboardList, Hash, Layers, Package, Tag, Truck, Users, Warehouse,
+} from "lucide-react";
 
-import type { BaoCaoKhoParams } from "../api/client";
+import type { BaoCaoKhoParams, LocThuocTinhKho, LuaChonBaoCaoKho, LuaChonDem } from "../api/client";
 import type { GiaTriUrl } from "./ke-toan/shared/urlMan";
 import { khoangKy, kyLenUrl, kyTuUrl, soLenUrl, soTuUrl, type KyDS } from "./thanh-loc/ky-danh-sach";
 import { chuThanhId, idThanhChu } from "./thanh-loc/lua-chon";
@@ -40,21 +42,6 @@ export function thamSoKySoKho(ky: KyDS): Pick<BaoCaoKhoParams, "tu_ngay" | "den_
   return k ? { tu_ngay: k.tu, den_ngay: k.den, moc: ky.moc } : {};
 }
 
-/** Tham số máy chủ của các điều kiện (không gồm kỳ, tìm, trang). */
-export function thamSoLocSoKho(loc: LocSoKho): Pick<
-  BaoCaoKhoParams, "kho_id" | "sl_from" | "sl_to" | "dg_from" | "dg_to" | "tt_from" | "tt_to"
-> {
-  return {
-    kho_id: loc.kho ?? null,
-    sl_from: loc.sl_tu ?? null,
-    sl_to: loc.sl_den ?? null,
-    dg_from: loc.dg_tu ?? null,
-    dg_to: loc.dg_den ?? null,
-    tt_from: loc.tt_tu ?? null,
-    tt_to: loc.tt_den ?? null,
-  };
-}
-
 const KHOA_SO = ["sl_tu", "sl_den", "dg_tu", "dg_den", "tt_tu", "tt_den"] as const;
 
 export function locManSoKhoTuUrl(p: URLSearchParams): LocManSoKho {
@@ -70,8 +57,8 @@ export function locManSoKhoLenUrl(t: LocManSoKho): GiaTriUrl {
 }
 
 /** Điều kiện của Sổ kho. `chuyen` = sổ Chuyển kho (tiền là giá VỐN); `xemGia` = có ô xem giá. */
-export function dieuKienSoKho(kho: GiaTriDK[], { chuyen, xemGia }: { chuyen: boolean; xemGia: boolean }): DieuKien<LocSoKho>[] {
-  const ds: DieuKien<LocSoKho>[] = [
+export function dieuKienSoKho<L extends LocSoKho>(kho: GiaTriDK[], { chuyen, xemGia }: { chuyen: boolean; xemGia: boolean }): DieuKien<L>[] {
+  const ds: DieuKien<L>[] = [
     {
       khoa: "kho", nhan: "Kho", icon: Warehouse, kieu: "mot", tim: true, giaTri: kho,
       doc: (l) => idThanhChu(l.kho),
@@ -99,7 +86,56 @@ export function dieuKienSoKho(kho: GiaTriDK[], { chuyen, xemGia }: { chuyen: boo
   ];
 }
 
-/** Người không xem được giá: bỏ hai khoảng tiền (vd mở link của người khác có lọc theo tiền). */
-export function boLocTien(loc: LocSoKho): LocSoKho {
-  return { ...loc, dg_tu: undefined, dg_den: undefined, tt_tu: undefined, tt_den: undefined };
+/* ---------------------------------------------------------------- điều kiện thuộc tính (11/10/2026) */
+
+/** Bảng của tab Nhập-Xuất-Tồn: `nxt` = Tổng hợp / Biểu đồ, `chitiet` = Chi tiết phiếu. Máy chủ lọc +
+ *  đếm; giá trị chọn được chỉ gồm những gì CÓ trong kỳ + kho + ô tìm đang xem (`lua_chon`). */
+export type BangBaoCaoKho = "nxt" | "chitiet";
+
+const gt = (ds: LuaChonDem[] | undefined): GiaTriDK[] => (ds ?? []).map((x) => ({ value: x.value, nhan: x.nhan, so: x.so }));
+
+type KhoaNhieu = keyof LocThuocTinhKho;
+
+function dkNhieu<L extends LocThuocTinhKho>(
+  khoa: KhoaNhieu, nhan: string, icon: DieuKien<L>["icon"], giaTri: GiaTriDK[], tim = false,
+): DieuKien<L> {
+  return {
+    khoa, nhan, icon, kieu: "nhieu", tim, giaTri,
+    doc: (l) => l[khoa] ?? [],
+    ghi: (l, v) => ({ ...l, [khoa]: v.length ? v : undefined }),
+  };
+}
+
+/** Điều kiện của nút Lọc — CHỈ những gì người ta thật sự cắt báo cáo theo (11/10/2026, bị chê nhét quá
+ *  nhiều). Trạng thái của bảng đứng đầu (Tổng hợp: Phát sinh + Tồn cuối kỳ; Chi tiết phiếu: Loại phiếu +
+ *  Lý do), rồi Loại hàng (Giấy / Vật tư / Thành phẩm) + Mặt hàng, cuối là đối tác của phiếu. Lệnh, bộ
+ *  phận, người lập… là CỘT để đọc, cần tìm thì gõ ô Tìm; kỳ khóa sổ đã có nút Kỳ. */
+export function dieuKienThuocTinh<L extends LocThuocTinhKho>(lc: LuaChonBaoCaoKho | null | undefined, bang: BangBaoCaoKho): DieuKien<L>[] {
+  const hang = [
+    dkNhieu<L>("hang_loai", "Loại hàng", Layers, gt(lc?.hang_loai)),
+    dkNhieu<L>("mat_hang", "Mặt hàng", Package, gt(lc?.mat_hang), true),
+  ];
+  if (bang === "nxt") {
+    return [
+      dkNhieu<L>("phat_sinh", "Phát sinh trong kỳ", ArrowLeftRight, gt(lc?.phat_sinh)),
+      dkNhieu<L>("ton", "Tồn cuối kỳ", Boxes, gt(lc?.ton)),
+      ...hang,
+    ];
+  }
+  return [
+    dkNhieu<L>("loai_phieu", "Loại phiếu", ArrowDownUp, gt(lc?.loai_phieu)),
+    dkNhieu<L>("ly_do", "Lý do nhập / xuất", ClipboardList, gt(lc?.ly_do)),
+    ...hang,
+    dkNhieu<L>("khach_hang", "Khách hàng", Users, gt(lc?.khach_hang), true),
+    dkNhieu<L>("nha_cung_cap", "Nhà cung cấp", Truck, gt(lc?.nha_cung_cap), true),
+  ];
+}
+
+/** Phần điều kiện thuộc tính máy chủ của bảng đó nhận — điều kiện của bảng kia (vd Tồn cuối kỳ khi
+ *  đang xem Chi tiết phiếu) không gửi, khối của nó cũng không hiện. */
+export function locTheoBang(l: LocThuocTinhKho, bang: BangBaoCaoKho): LocThuocTinhKho {
+  const chung = { hang_loai: l.hang_loai, mat_hang: l.mat_hang };
+  return bang === "nxt"
+    ? { ...chung, phat_sinh: l.phat_sinh, ton: l.ton }
+    : { ...chung, loai_phieu: l.loai_phieu, ly_do: l.ly_do, khach_hang: l.khach_hang, nha_cung_cap: l.nha_cung_cap };
 }

@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bàn tổ — phương án A nâng cấp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f5; --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a; --rust-2:#e0560f;
+  --chay:#16a34a; --chay-bg:#dcfce7; --chay-fg:#15803d;
+  --cho:#3b82f6;  --cho-bg:#dbeafe;  --cho-fg:#1d4ed8;
+  --dung:#f59e0b; --dung-bg:#fef3c7; --dung-fg:#b45309;
+  --xong:#6b7280; --xong-bg:#e5e7eb; --xong-fg:#374151;
+  --ngoai:#7c3aed; --ngoai-bg:#ede9fe;
+  --kcs:#0891b2; --kcs-bg:#cffafe;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.note{max-width:1360px;margin:28px auto 0;padding:0 16px;color:var(--ash);font-size:13.5px}
+.note h1{font-size:22px;font-weight:500;color:var(--ink);margin:0 0 6px}
+.note ul{margin:8px 0 0;padding-left:18px;display:grid;gap:3px}
+.shell{max-width:1360px;margin:20px auto 80px;padding:0 16px}
+.app{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:16px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -12px rgba(15,23,42,.12);overflow:hidden}
+
+/* đầu màn */
+.top{display:flex;align-items:flex-end;gap:20px;padding:28px 36px 0}
+.top .ey{font-size:12.5px;color:var(--ash-2);margin-bottom:2px}
+.top h2{margin:0;font-size:26px;font-weight:500;letter-spacing:-.015em}
+.top h2 span{color:var(--ash-3);font-weight:400}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ash-2);margin-left:14px;transform:translateY(-4px)}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--chay);position:relative}
+.live i::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--chay);opacity:.5;animation:ping 1.8s ease-out infinite}
+@keyframes ping{0%{transform:scale(.4);opacity:.7}100%{transform:scale(1.6);opacity:0}}
+.views{margin-left:auto;display:flex;padding:3px;border-radius:10px;background:var(--rule-hair)}
+.views span{padding:6px 14px;font-size:13px;color:var(--ash);border-radius:8px}
+.views span.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+
+/* dải tình hình: một dòng chữ, không thẻ số */
+.pulse{display:flex;align-items:center;gap:28px;padding:18px 36px 0;font-size:13px;color:var(--ash-2);flex-wrap:wrap}
+.pulse b{font-weight:500;color:var(--ink);font-size:15px;margin-right:4px}
+.pulse .meter{display:flex;align-items:center;gap:10px;min-width:280px}
+.pulse .meter .t{flex:1;height:6px;border-radius:999px;background:var(--rule-hair);overflow:hidden;display:flex}
+.pulse .meter .t i{display:block;height:100%}
+
+/* thanh lọc */
+.tools{display:flex;align-items:center;gap:10px;padding:20px 36px 16px;flex-wrap:wrap}
+.search{height:36px;border:1px solid var(--rule-soft);border-radius:10px;padding:0 12px;display:flex;align-items:center;gap:8px;color:var(--ash-3);width:280px;font-size:13px;background:var(--canvas)}
+.search kbd{margin-left:auto;font:inherit;font-size:11px;border:1px solid var(--rule-soft);border-radius:5px;padding:0 5px;color:var(--ash-3)}
+.btn{height:36px;border:1px solid var(--rule-soft);border-radius:10px;background:var(--canvas);padding:0 12px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.tabs{display:flex;gap:2px;margin-left:auto;padding:3px;border-radius:10px;background:var(--rule-hair)}
+.tabs button{border:0;background:transparent;font:inherit;font-size:13px;color:var(--ash);padding:5px 12px;border-radius:8px;display:inline-flex;gap:7px;align-items:center;cursor:pointer}
+.tabs button.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.tabs .c{color:var(--ash-3);font-variant-numeric:tabular-nums}
+.d{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+
+/* lưới */
+.grid-wrap{border-top:1px solid var(--rule-soft)}
+table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+th{position:sticky;top:0;background:var(--paper);font-size:12px;font-weight:400;color:var(--ash-2);text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+th:first-child,td:first-child{padding-left:36px}
+th:last-child,td:last-child{padding-right:28px}
+td{height:58px;padding:0 14px;border-bottom:1px solid var(--rule-hair);font-size:13px;vertical-align:middle;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tbody tr{transition:background .12s}
+tbody tr:hover td{background:#f8fafc}
+tbody tr.sel td{background:#f1f5f9}
+tbody tr.hide{display:none}
+.lenh{font-variant-numeric:tabular-nums;color:var(--ash)}
+.sp{color:var(--ink)}
+.kh{display:block;font-size:12px;color:var(--ash-3);margin-top:1px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:12.5px}
+.chip.chay{background:var(--chay-bg);color:var(--chay-fg)} .chip.chay .d{background:var(--chay)}
+.chip.cho{background:var(--cho-bg);color:var(--cho-fg)} .chip.cho .d{background:var(--cho)}
+.chip.dung{background:var(--dung-bg);color:var(--dung-fg)} .chip.dung .d{background:var(--dung)}
+.chip.xong{background:var(--xong-bg);color:var(--xong-fg)} .chip.xong .d{background:var(--xong)}
+.chip.chay .d{position:relative}
+.chip.chay .d::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--chay);animation:ping 1.8s ease-out infinite}
+.sub{display:block;font-size:12px;color:var(--ash-3);margin-top:1px}
+.sub.warn{color:var(--dung-fg)}
+
+/* tiến độ */
+.pg{display:flex;flex-direction:column;gap:5px}
+.pg .n{font-variant-numeric:tabular-nums}
+.pg .n small{color:var(--ash-3);font-size:12px}
+.pg .t{height:4px;border-radius:999px;background:var(--rule-hair);overflow:hidden;width:100%;max-width:140px}
+.pg .t i{display:block;height:100%;border-radius:999px;background:var(--chay)}
+
+/* người */
+.ppl{display:flex;align-items:center;gap:8px}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;color:#fff;flex:none}
+.none{color:var(--ash-3);display:inline-flex;align-items:center;gap:6px}
+.none .av{background:transparent;border:1.5px dashed var(--rule);color:var(--ash-3)}
+
+/* tuyến công đoạn: đường ray + nút */
+.rt{display:flex;align-items:center;position:relative;padding:0 2px}
+.st{position:relative;display:flex;align-items:center;flex:1;min-width:0}
+.st:last-child{flex:0 0 auto}
+.st .nd{width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);background:var(--canvas);flex:none;position:relative;z-index:1;cursor:default}
+.st .rail{flex:1;height:2px;background:var(--rule-soft);margin:0 2px}
+.st.done .nd{background:var(--xong);border-color:var(--xong)}
+.st.done .rail{background:var(--xong)}
+.st.run .nd{background:var(--chay);border-color:var(--chay)}
+.st.ngoai .nd{border-color:var(--ngoai)}
+.st.kcs .nd{border-color:var(--kcs)}
+/* công đoạn của tổ: nút to thành nhãn chữ */
+.st.me .nd{width:auto;height:22px;border-radius:999px;padding:0 9px 0 7px;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink);border:1.5px solid var(--ink-2);background:var(--canvas)}
+.st.me .nd::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ash-3)}
+.st.me.run .nd::before{background:var(--chay)} .st.me.wait .nd::before{background:var(--cho)} .st.me.stop .nd::before{background:var(--dung)} .st.me.done .nd::before{background:var(--xong)}
+.st.me.run .nd{box-shadow:0 0 0 4px var(--chay-bg)}
+.rt-lab{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ash-3);margin-top:5px;gap:8px}
+.rt-lab span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt-lab .nx{color:var(--ash-2)}
+/* chú thích khi rê */
+.tip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translate(-50%,4px);background:var(--ink);color:#fff;font-size:12px;padding:7px 10px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:.12s;z-index:5}
+.tip small{display:block;color:#cbd5e1;font-size:11.5px}
+.st .nd:hover + .tip,.st .nd:hover ~ .tip{opacity:1;transform:translate(-50%,0)}
+.st .tip{left:6px}
+
+/* hành động */
+.act{display:flex;gap:6px;justify-content:flex-end}
+.a{height:30px;border-radius:8px;padding:0 12px;font:inherit;font-size:12.5px;border:1px solid var(--rule-soft);background:var(--canvas);color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.a.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.a.pri:hover{background:var(--rust-2)}
+.a.ic{width:30px;padding:0;color:var(--ash-2)}
+tbody tr .a.ic{opacity:.0;transition:opacity .12s}
+tbody tr:hover .a.ic{opacity:1}
+
+/* chân */
+tfoot td{height:42px;background:var(--paper);color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-soft);border-bottom:0}
+tfoot td b{font-weight:500;color:var(--ink)}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:14px 36px 18px;color:var(--ash-2);font-size:12.5px;border-top:1px solid var(--rule-hair)}
+.legend{display:flex;gap:18px;align-items:center}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.lg{width:10px;height:10px;border-radius:50%;border:2px solid var(--rule)}
+.timer{font-variant-numeric:tabular-nums}
+
+/* ngăn xem nhanh */
+.peek{position:fixed;top:0;right:0;bottom:0;width:460px;background:var(--canvas);border-left:1px solid var(--rule-soft);box-shadow:-16px 0 40px -20px rgba(15,23,42,.25);transform:translateX(100%);transition:transform .22s ease;z-index:40;display:flex;flex-direction:column}
+.peek.on{transform:none}
+.pk-h{padding:24px 28px 16px;border-bottom:1px solid var(--rule-hair)}
+.pk-h .ey{font-size:12.5px;color:var(--ash-2)}
+.pk-h h3{margin:2px 0 10px;font-size:20px;font-weight:500}
+.pk-x{position:absolute;top:20px;right:20px;width:32px;height:32px;border-radius:8px;border:1px solid var(--rule-soft);background:var(--canvas);cursor:pointer;color:var(--ash)}
+.pk-b{padding:24px 28px;overflow:auto;flex:1}
+.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:24px}
+.nums .l{font-size:12px;color:var(--ash-2)}
+.nums .v{font-size:24px;font-weight:500;letter-spacing:-.01em}
+.nums .v small{font-size:12px;color:var(--ash-3);font-weight:400;margin-left:3px}
+.vt{list-style:none;margin:0 0 24px;padding:0;position:relative}
+.vt::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:var(--rule-soft)}
+.vt li{position:relative;padding:0 0 14px 26px;font-size:13px}
+.vt li::before{content:"";position:absolute;left:0;top:4px;width:14px;height:14px;border-radius:50%;background:var(--canvas);border:2px solid var(--rule)}
+.vt li.done::before{background:var(--xong);border-color:var(--xong)}
+.vt li.run::before{background:var(--chay);border-color:var(--chay)}
+.vt li.me{color:var(--ink)}
+.vt li small{display:block;color:var(--ash-3);font-size:12px}
+.sec{font-size:12px;color:var(--ash-2);margin:0 0 10px}
+.kv{display:grid;grid-template-columns:130px 1fr;row-gap:10px;font-size:13px;margin-bottom:24px}
+.kv dt{color:var(--ash-2)} .kv dd{margin:0}
+.pk-f{padding:14px 28px;border-top:1px solid var(--rule-soft);display:flex;gap:8px}
+.pk-f .a{height:38px;padding:0 16px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="note">
+  <h1>Phương án A nâng cấp</h1>
+  Vẫn là một lưới phẳng kiểu bảng tính (khuôn Airtable), thêm các điểm sau. Rê chuột lên từng chấm công đoạn, bấm các nút lọc, bấm một dòng để xem nhanh — đều chạy thật trong file này.
+  <ul>
+    <li>Tuyến công đoạn vẽ thành đường ray có chấm: đoạn đã xong tô xám đậm, công đoạn của tổ phình ra thành nhãn chữ, rê chuột lên chấm khác thấy tên công đoạn, tổ làm và tình trạng.</li>
+    <li>Dưới mỗi tuyến ghi rõ "Bước 1 trên 4" và công đoạn sau mình; trạng thái có dòng phụ trả lời "vì sao": chờ nhận giấy, dừng vì chờ giấy, đồng hồ đang chạy.</li>
+    <li>Một dòng tình hình đầu màn: một thanh chia màu theo trạng thái và tổng tờ đã làm trong ngày, thay cho các ô số to.</li>
+    <li>Nút chính mỗi dòng đúng theo luồng: chưa có thợ thì Giao thợ, có thợ và đã nhận đầu vào thì Bắt đầu, đang chạy thì Ghi mẻ, tạm dừng thì Chạy tiếp.</li>
+    <li>Bấm dòng mở ngăn xem nhanh bên phải (không che lưới), có tuyến dọc đầy đủ và số nhận vào, làm đạt, đã giao.</li>
+  </ul>
+</div>
+
+<div class="shell"><div class="app">
+  <div class="top">
+    <div><div class="ey">Bàn tổ</div><h2>Cắt 2 <span>5 việc</span></h2></div>
+    <span class="live"><i></i>Tự cập nhật</span>
+    <div class="views"><span class="on">Bảng</span><span>Lịch</span><span>Sản lượng</span></div>
+  </div>
+
+  <div class="pulse">
+    <div class="meter"><span>Tình hình</span><div class="t"><i style="width:20%;background:var(--chay)"></i><i style="width:40%;background:var(--cho)"></i><i style="width:20%;background:var(--dung)"></i><i style="width:20%;background:var(--xong)"></i></div></div>
+    <span><b>620</b>tờ in đã làm trên 2.600 cần</span>
+    <span><b>1</b>việc chưa giao thợ</span>
+    <span><b>1</b>việc đang dừng</span>
+  </div>
+
+  <div class="tools">
+    <div class="search">⌕ Tìm lệnh, khách, sản phẩm<kbd>/</kbd></div>
+    <button class="btn">Mọi thời gian ▾</button>
+    <button class="btn">Lọc</button>
+    <button class="btn">Sắp: mới nhận trước ▾</button>
+    <div class="tabs" id="tabs">
+      <button class="on" data-f="all">Tất cả <span class="c">5</span></button>
+      <button data-f="chay"><i class="d" style="background:var(--chay)"></i>Đang chạy <span class="c">1</span></button>
+      <button data-f="cho"><i class="d" style="background:var(--cho)"></i>Chờ làm <span class="c">2</span></button>
+      <button data-f="dung"><i class="d" style="background:var(--dung)"></i>Tạm dừng <span class="c">1</span></button>
+      <button data-f="xong"><i class="d" style="background:var(--xong)"></i>Xong <span class="c">1</span></button>
+    </div>
+    <button class="btn">Cột</button>
+  </div>
+
+  <div class="grid-wrap">
+  <table>
+    <colgroup><col style="width:152px"><col style="width:180px"><col style="width:132px"><col style="width:128px"><col style="width:96px"><col style="width:140px"><col><col style="width:118px"></colgroup>
+    <thead><tr><th>Lệnh</th><th>Sản phẩm</th><th>Trạng thái</th><th>Đã làm / cần</th><th>Máy</th><th>Người làm</th><th>Công đoạn của lệnh</th><th></th></tr></thead>
+    <tbody id="rows">
+      <tr data-s="chay" data-id="4" class="">
+        <td class="lenh">LSX26-0004</td>
+        <td><span class="sp">Bìa sách A5</span><span class="kh">Công ty Cổ phần Bibica</span></td>
+        <td><span class="chip chay"><i class="d"></i>Đang chạy</span><span class="sub timer" data-t="2530">đã chạy 42:10</span></td>
+        <td><div class="pg"><span class="n">200 <small>/ 350 tờ in</small></span><span class="t"><i style="width:57%"></i></span></div></td>
+        <td>ITO 100</td>
+        <td><div class="ppl"><span class="av" style="background:#0e7490">ĐH</span>Đào Văn Hoan</div></td>
+        <td><div class="rt">
+          <div class="st me run"><span class="nd">Cắt tờ</span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">In 3 màu 4 màu<small>Nhóm thợ in máy 4 màu, đã nhận 200 tờ in</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Cán màng<small>Tổ Cán màng, chưa tới</small></span><span class="rail"></span></div>
+          <div class="st ngoai"><span class="nd"></span><span class="tip">Cắt thành phẩm<small>Thuê ngoài: Gia công Thành Công</small></span></div>
+        </div><div class="rt-lab"><span>Bước 1 trên 4</span><span class="nx">Sau mình: In 3 màu 4 màu</span></div></td>
+        <td><div class="act"><button class="a ic" title="Tạm dừng">❚❚</button><button class="a pri">Ghi mẻ</button></div></td>
+      </tr>
+      <tr data-s="cho" data-id="3">
+        <td class="lenh">LSX26-0003</td>
+        <td><span class="sp">Ruột sách A5 64 trang</span><span class="kh">Công ty Cổ phần Bibica</span></td>
+        <td><span class="chip cho"><i class="d"></i>Chờ làm</span><span class="sub">chưa giao thợ</span></td>
+        <td><div class="pg"><span class="n">0 <small>/ 350 tờ in</small></span><span class="t"><i style="width:0"></i></span></div></td>
+        <td>Kyodo 132</td>
+        <td><span class="none"><span class="av">+</span>Chưa giao</span></td>
+        <td><div class="rt">
+          <div class="st me wait"><span class="nd">Cắt tờ</span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">In 3 màu 4 màu<small>Nhóm thợ in máy 4 màu</small></span><span class="rail"></span></div>
+          <div class="st ngoai"><span class="nd"></span><span class="tip">Gấp<small>Thuê ngoài: Gia công Thành Công</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Bắt tay, vào keo<small>Tổ Thành phẩm</small></span><span class="rail"></span></div>
+          <div class="st kcs"><span class="nd"></span><span class="tip">Xén 3 mặt<small>Tổ Cắt, KCS kiểm cuối ở đây</small></span></div>
+        </div><div class="rt-lab"><span>Bước 1 trên 5</span><span class="nx">Sau mình: In 3 màu 4 màu</span></div></td>
+        <td><div class="act"><button class="a pri">Giao thợ</button></div></td>
+      </tr>
+      <tr data-s="dung" data-id="6">
+        <td class="lenh">LSX26-0006</td>
+        <td><span class="sp">Hộp kẹo Tết 2027</span><span class="kh">Tân Phú</span></td>
+        <td><span class="chip dung"><i class="d"></i>Tạm dừng</span><span class="sub warn">chờ giấy về</span></td>
+        <td><div class="pg"><span class="n">120 <small>/ 600 tờ in</small></span><span class="t"><i style="width:20%;background:var(--dung)"></i></span></div></td>
+        <td>ITO 100</td>
+        <td><div class="ppl"><span class="av" style="background:#6d28d9">LT</span>Lê Minh Tú</div></td>
+        <td><div class="rt">
+          <div class="st me stop"><span class="nd">Cắt tờ</span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">In 4 màu<small>Đã nhận 120 tờ in</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Cán màng</span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Bế</span><span class="rail"></span></div>
+          <div class="st kcs"><span class="nd"></span><span class="tip">Dán hộp<small>KCS kiểm cuối ở đây</small></span></div>
+        </div><div class="rt-lab"><span>Bước 1 trên 5</span><span class="nx">Sau mình: In 4 màu</span></div></td>
+        <td><div class="act"><button class="a">Chạy tiếp</button></div></td>
+      </tr>
+      <tr data-s="cho" data-id="7">
+        <td class="lenh">LSX26-0007</td>
+        <td><span class="sp">Tờ rơi khai trương</span><span class="kh">Phúc Long</span></td>
+        <td><span class="chip cho"><i class="d"></i>Chờ làm</span><span class="sub">đã nhận giấy, sẵn sàng</span></td>
+        <td><div class="pg"><span class="n">0 <small>/ 1.000 tờ in</small></span><span class="t"><i style="width:0"></i></span></div></td>
+        <td>Kyodo 132</td>
+        <td><div class="ppl"><span class="av" style="background:#6d28d9">LT</span>Lê Minh Tú</div></td>
+        <td><div class="rt">
+          <div class="st me wait"><span class="nd">Cắt tờ</span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">In 4 màu</span><span class="rail"></span></div>
+          <div class="st kcs"><span class="nd"></span><span class="tip">Cắt thành phẩm<small>KCS kiểm cuối ở đây</small></span></div>
+        </div><div class="rt-lab"><span>Bước 1 trên 3</span><span class="nx">Sau mình: In 4 màu</span></div></td>
+        <td><div class="act"><button class="a pri">Bắt đầu</button></div></td>
+      </tr>
+      <tr data-s="xong" data-id="2">
+        <td class="lenh">LSX26-0002</td>
+        <td><span class="sp">Lịch bàn 2027</span><span class="kh">Vinamilk</span></td>
+        <td><span class="chip xong"><i class="d"></i>Xong</span><span class="sub">8/10 16:20</span></td>
+        <td><div class="pg"><span class="n">300 <small>/ 300 tờ in</small></span><span class="t"><i style="width:100%;background:var(--xong)"></i></span></div></td>
+        <td>ITO 100</td>
+        <td><div class="ppl"><span class="av" style="background:#0e7490">ĐH</span>Đào Văn Hoan</div></td>
+        <td><div class="rt">
+          <div class="st me done"><span class="nd">Cắt tờ</span><span class="rail"></span></div>
+          <div class="st run"><span class="nd"></span><span class="tip">In 4 màu<small>Đang chạy, đã làm 180 / 300</small></span><span class="rail"></span></div>
+          <div class="st"><span class="nd"></span><span class="tip">Cán màng</span><span class="rail"></span></div>
+          <div class="st kcs"><span class="nd"></span><span class="tip">Đóng lò xo<small>KCS kiểm cuối ở đây</small></span></div>
+        </div><div class="rt-lab"><span>Đã giao đủ 300 tờ in</span><span class="nx">In 4 màu đang chạy</span></div></td>
+        <td><div class="act"></div></td>
+      </tr>
+    </tbody>
+    <tfoot><tr><td>5 việc</td><td></td><td><b>1</b> đang chạy</td><td><b>620</b> / 2.600 tờ in</td><td></td><td><b>1</b> chưa giao thợ</td><td></td><td></td></tr></tfoot>
+  </table>
+  </div>
+  <div class="foot">
+    <div class="legend"><span><i class="lg" style="background:var(--xong);border-color:var(--xong)"></i>Đã xong</span><span><i class="lg" style="background:var(--chay);border-color:var(--chay)"></i>Đang chạy</span><span><i class="lg"></i>Chưa tới</span><span><i class="lg" style="border-color:var(--ngoai)"></i>Thuê ngoài</span><span><i class="lg" style="border-color:var(--kcs)"></i>KCS kiểm cuối</span></div>
+    <span>Trang 1/1</span>
+  </div>
+</div></div>
+
+<aside class="peek" id="peek">
+  <button class="pk-x" id="pkx">✕</button>
+  <div class="pk-h"><div class="ey">LSX26-0004 Bìa sách A5</div><h3>Cắt tờ</h3><span class="chip chay"><i class="d"></i>Đang chạy</span></div>
+  <div class="pk-b">
+    <div class="nums">
+      <div><div class="l">Nhận vào</div><div class="v">175<small>tờ nguyên</small></div></div>
+      <div><div class="l">Làm đạt</div><div class="v" style="color:var(--chay-fg)">200<small>tờ in</small></div></div>
+      <div><div class="l">Đã giao sang In</div><div class="v">200<small>tờ in</small></div></div>
+    </div>
+    <p class="sec">Tuyến công đoạn</p>
+    <ul class="vt">
+      <li class="run me">Cắt tờ<small>Cắt 2, tổ của mình, 200 / 350 tờ in</small></li>
+      <li>In 3 màu 4 màu<small>Nhóm thợ in máy 4 màu, đã nhận 200 tờ in</small></li>
+      <li>Cán màng<small>Tổ Cán màng</small></li>
+      <li>Cắt thành phẩm<small>Thuê ngoài: Gia công Thành Công</small></li>
+    </ul>
+    <p class="sec">Quy cách</p>
+    <dl class="kv"><dt>Giấy</dt><dd>Ivory 210 gsm</dd><dt>Khổ giấy nguyên</dt><dd>1090 × 790 mm</dd><dt>Cắt ra khổ</dt><dd>790 × 540 mm</dd><dt>1 tờ nguyên</dt><dd>thành 2 tờ in</dd></dl>
+  </div>
+  <div class="pk-f"><button class="a pri">Ghi mẻ</button><button class="a">Giao sang công đoạn sau</button><button class="a">Mở đầy đủ</button></div>
+</aside>
+
+<script>
+// lọc theo trạng thái
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  const f=b.dataset.f;
+  document.querySelectorAll('#rows tr').forEach(r=>r.classList.toggle('hide',f!=='all'&&r.dataset.s!==f));
+});
+// đồng hồ việc đang chạy
+const tm=document.querySelector('.timer');let s=+tm.dataset.t;
+setInterval(()=>{s++;const m=Math.floor(s/60),x=String(s%60).padStart(2,'0');tm.textContent='đã chạy '+m+':'+x},1000);
+// xem nhanh
+const pk=document.getElementById('peek');
+document.querySelectorAll('#rows tr').forEach(r=>r.onclick=e=>{
+  if(e.target.closest('button'))return;
+  document.querySelectorAll('#rows tr').forEach(x=>x.classList.toggle('sel',x===r));
+  pk.classList.add('on');
+});
+document.getElementById('pkx').onclick=()=>{pk.classList.remove('on');document.querySelectorAll('#rows tr').forEach(x=>x.classList.remove('sel'))};
+</script>
+</body>
+</html>

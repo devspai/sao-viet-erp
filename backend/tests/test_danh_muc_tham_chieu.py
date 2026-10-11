@@ -48,7 +48,7 @@ def _mau(db):
         # Nhóm máy đặt tên RIÊNG: `_may_thiet_bi` chặn khi đây là máy CUỐI của nhóm mà có
         # công đoạn chỉ cho phép nhóm đó. Lấy tên thật ("Máy in") là mẫu tự chặn chính mình.
         "may_thiet_bi": MayThietBi(ma="ZZMAY", ten="ZZ Máy", loai_may="ZZ Nhóm riêng"),
-        "giay": GiayNguyen(ma="ZZG", ten="ZZ Giấy", gsm=100),
+        "giay": GiayNguyen(don_vi_them=["to"], ma="ZZG", ten="ZZ Giấy", gsm=100),
         "vat_tu": VatTuInAn(ma="ZZVT", ten="ZZ Vật tư"),
         # Hạng mục kiểm KCS — không ai trỏ ngược về nó (mg `0285` gỡ bảng nối) ⇒ xoá hẳn được.
         "san_xuat_kcs_tieu_chi": SanXuatKcsTieuChi(ma="ZZTC", ten="ZZ Tiêu chí", cong_doan_id=cd.id),

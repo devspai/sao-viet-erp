@@ -152,7 +152,7 @@ def _ly_do_chan_go_toa(db: Session, cuoi) -> str | None:
         return None
     ma = GiaCongNgoaiRepository(db).ma_cua_lenh({d.lsx_id for d in da_lam if d.lsx_id})
     ten = ", ".join(f"{ma.get(d.lsx_id, '')} (bước “{d.ten_cong_doan}”)" for d in da_lam)
-    return (f"Lệnh {ten} đã ghi mẻ trên số đã chia — không mở lại được. Nhờ tổ xoá mẻ đó trước "
+    return (f"Lệnh {ten} đã ghi sản lượng trên số đã chia — không mở lại được. Nhờ tổ xoá lần ghi đó trước "
             "nếu số chốt cần sửa.")
 
 

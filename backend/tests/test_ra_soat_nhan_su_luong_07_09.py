@@ -260,23 +260,6 @@ def test_C7_nghi_viec_thi_refresh_khong_cap_token_moi(client):
     assert client.post("/api/auth/login", json={"username": "nv_c7", "password": "Matkhau123!"}).status_code == 200
 
 
-def test_C13_set_is_kcs_luu_that(client):
-    """`rbac_repo.set_is_kcs` từng quên commit + return ⇒ bấm "Tổ KCS" không lưu."""
-    db = SessionLocal()
-    try:
-        depts = DepartmentRepository(db)
-        d = depts.create(name="Tổ KCS rà")
-        out = depts.set_is_kcs(d, True)
-        assert out is not None and out.is_kcs is True
-    finally:
-        db.close()
-    db = SessionLocal()
-    try:
-        assert DepartmentRepository(db).get_by_name("Tổ KCS rà").is_kcs is True
-    finally:
-        db.close()
-
-
 # =============================================================================================
 # A/D — hai đường tính và ca biên hồ sơ
 # =============================================================================================

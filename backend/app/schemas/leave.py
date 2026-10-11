@@ -98,6 +98,7 @@ class LeaveRequestOut(BaseModel):
     reason: str | None = None
     status: str
     decided_by: int | None = None
+    decided_by_name: str | None = None      # filled by the router
     decided_at: datetime | None = None
     decision_note: str | None = None
     created_at: datetime | None = None

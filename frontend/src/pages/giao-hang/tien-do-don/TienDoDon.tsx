@@ -3,7 +3,7 @@
 //
 // Số liệu do máy chủ tính (`GET /api/orders/{id}/tien-do`) — FE chỉ vẽ, không tự suy "giao được".
 // Luật chốt: KHÔNG lập yêu cầu giao cho phần chưa nhập kho ⇒ ô số lượng trần = `giao_duoc`.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   api,
   type DonTienDo,
@@ -153,7 +153,9 @@ function soNgayToi(han: string, homNay: Date): number {
   return Math.round((moc - nay) / 86_400_000);
 }
 
-export type TheViec = { nhan: string; tone?: "ok" | "warn" | "bad" };
+/** `loai: "han"` = thẻ số ngày tới hạn giao — thẻ tóm tắt đơn vẽ nó ở cột hạn giao bên phải, không
+ *  lặp trong hàng thẻ (10/10/2026). */
+export type TheViec = { nhan: string; tone?: "ok" | "warn" | "bad"; loai?: "han" };
 export type ViecTiepTheo = {
   cau: string;
   the: TheViec[];
@@ -186,9 +188,9 @@ export function viecTiepTheo(o: {
   const giaoXong = td != null && tt.giaoXong;
   if (o.hanGiao && !giaoXong) {
     const n = soNgayToi(o.hanGiao, o.homNay ?? new Date());
-    the.push(n > 0 ? { nhan: `còn ${n} ngày tới hạn giao` }
-      : n === 0 ? { nhan: "hôm nay là hạn giao", tone: "warn" }
-      : { nhan: `quá hạn giao ${-n} ngày`, tone: "bad" });
+    the.push(n > 0 ? { nhan: `còn ${n} ngày tới hạn giao`, loai: "han" }
+      : n === 0 ? { nhan: "hôm nay là hạn giao", tone: "warn", loai: "han" }
+      : { nhan: `quá hạn giao ${-n} ngày`, tone: "bad", loai: "han" });
   }
   if (o.gap) the.unshift({ nhan: "đơn gấp", tone: "warn" });
 
@@ -241,6 +243,22 @@ export function viecTiepTheo(o: {
       : `Xưởng đang chạy ${dangChay.length} lệnh`;
     return { cau, the: [...theSx, ...the] };
   }
+  // Lệnh đã đóng mà chưa đủ hàng: không còn gì đang tới — nói thẳng thiếu bao nhiêu và lối đi tiếp
+  // (làm bù ở Kế hoạch SX, hoặc thỏa thuận giao thiếu), thay vì "chờ KCS" chẳng bao giờ tới (11/10/2026).
+  const dongThieu = cum.filter((c) => c.o === "dong_thieu");
+  if (dongThieu.length > 0) {
+    const c = dongThieu[0];
+    const co = Math.min(c.dat, coHangCum(c));
+    const dv = c.don_vi ? ` ${c.don_vi}` : "";
+    const cau = dongThieu.length === 1
+      ? `Đã đóng lệnh khi ${c.ten} mới có ${so(co)}/${so(c.dat)}${dv}, thiếu ${so(c.dat - co)}${dv}`
+      : `Đã đóng lệnh khi ${dongThieu.length} món chưa đủ hàng`;
+    return {
+      cau,
+      the: [{ nhan: "làm bù hoặc thỏa thuận giao thiếu với khách", tone: "bad" }, ...the],
+      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
+    };
+  }
   if (!tt.khoXong) return { cau: "Chờ KCS gửi thành phẩm sang kho", the };
   if (!giaoXong) {
     const giaoDuoc = cum.reduce((a, c) => a + c.giao_duoc, 0);
@@ -258,62 +276,111 @@ export function viecTiepTheo(o: {
 function khucCum(c: DonTienDoCum) {
   const dat = Math.max(c.dat, 0);
   const giao = Math.min(dat, c.da_giao);
-  const kho = c.co_lenh
-    ? Math.max(0, Math.min(dat - giao, c.kho_da_nhan - (c.da_giao - c.giao_thang)))
-    : Math.max(0, Math.min(dat - giao, c.ton_that));
+  // Hàng ĐÃ CÓ cho đơn = phần yêu cầu giao đang giữ + phần giao được ngay (11/10/2026: tồn của mã
+  // là hàng của khách, kể cả phần đơn trước làm dư) — khớp `don_hang_san_xuat` ở máy chủ. Đếm theo
+  // hàng lệnh của đơn đã nhập kho thì đơn có lệnh mà kho sẵn hàng vẫn báo "chưa có hàng".
+  const kho = Math.max(0, Math.min(dat - giao, c.dang_giu + c.giao_duoc));
   const choKho = Math.max(0, Math.min(dat - giao - kho, c.cho_kho));
   const conLai = Math.max(0, dat - giao - kho - choKho);
   const dangChay = c.lenh.some((l) => l.da_xuong_xuong && !l.xong);
   return { dat, giao, kho, choKho, sx: dangChay ? conLai : 0, chua: dangChay ? 0 : conLai };
 }
 
-const KHUC = [
-  { k: "giao", nhan: "Đã giao", cls: "giao" },
-  { k: "kho", nhan: "Trong kho chờ giao", cls: "kho" },
-  { k: "choKho", nhan: "Chờ kho nhận", cls: "chokho" },
-  { k: "sx", nhan: "Đang sản xuất", cls: "sx" },
-  { k: "chua", nhan: "Chưa làm", cls: "chua" },
-] as const;
+/** Một ô của dải số đầu mỗi chặng (phương án 2, 10/10/2026). `tone`: "chu" = ô cần để mắt (viền
+ *  cam), "ok" = đã xong (viền xanh). `vua` = giá trị là chữ / ngày, cỡ nhỏ hơn số. */
+/** `dv` là đơn vị đứng NGAY sau số (cùng dòng) — ô chỉ có dòng phụ khi thật sự có điều cần nói. */
+export type OSo = { nhan: string; so: ReactNode; dv?: string; phu?: ReactNode; tone?: "chu" | "ok"; vua?: boolean };
 
-/** Thanh chồng theo từng sản phẩm của chặng GIAO. Chặng Sản xuất (gồm nhập kho) vẽ riêng bằng
- *  `SanXuatTheoMon` — ba thanh công đoạn → KCS → kho nhận (05/10/2026). */
+export function DaiSo({ o }: { o: OSo[] }) {
+  return (
+    <div className="dhb__so4">
+      {o.map((x) => (
+        <div key={x.nhan} className={`dhb__so4-o${x.tone ? ` is-${x.tone}` : ""}`}>
+          <small>{x.nhan}</small>
+          <span className={x.vua ? "is-vua" : undefined}>{x.so}{x.dv && <i className="dhb__so4-dv">{x.dv}</i>}</span>
+          {x.phu && <em>{x.phu}</em>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Lệnh đang chạy đầu tiên của món: "Cắt tờ 3%". */
+function buocDangChay(c: DonTienDoCum): string | null {
+  const l = c.lenh.find((x) => x.da_xuong_xuong && !x.xong && x.buoc_hien_tai);
+  return l ? `${l.buoc_hien_tai} ${so(Math.round(l.pct))}%` : null;
+}
+
+/** Từng sản phẩm của chặng GIAO (phương án A + khuôn phương án 2, 10/10/2026): dải bốn ô số rồi bảng
+ *  hàng đang nằm ở KHO NÀO. Từ 11/10/2026 thành phẩm thuộc về khách: tồn của mã là hàng của khách,
+ *  đơn nào của khách cũng giao được — trừ phần đơn khác của khách đang giữ (dòng chân bảng). */
 export function BangCum({ td }: { td: DonTienDo | null }) {
   if (!td) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tiến độ…" />;
   if (td.cum.length === 0) return <p className="dhb__td-note">Đơn chưa có sản phẩm.</p>;
   return (
     <div className="dhb__td-cums">
-      <div className="dhb__td-legend">
-        {KHUC.map((x) => (
-          <span key={x.k}><i className={`dhb__td-seg--${x.cls}`} />{x.nhan}</span>
-        ))}
-      </div>
       {td.cum.map((c) => {
         const k = khucCum(c);
         const dv = c.don_vi ?? "";
+        const conLai = k.choKho + k.sx + k.chua;
+        const dangChay = k.sx > 0;
+        const ton = c.ton_kho ?? [];
+        const buoc = buocDangChay(c);
         return (
           <div key={c.khoa} className="dhb__td-cum">
             <div className="dhb__td-cum-head">
-              <b>{c.ten}</b>
-              <span className="dhb__mono">{so(c.dat)} {dv}</span>
+              <span className="dhb__td-cum-ten">{c.ten}</span>
+              <span className="dhb__td-cum-dat">khách đặt {so(c.dat)} {dv}</span>
             </div>
-            <div className="dhb__td-bar" role="img"
-              aria-label={KHUC.map((x) => `${x.nhan} ${so(k[x.k])}`).join(", ")}>
-              {KHUC.map((x) => k[x.k] > 0 && (
-                <span key={x.k} className={`dhb__td-seg--${x.cls}`}
-                  style={{ width: `${(k[x.k] / (k.dat || 1)) * 100}%` }}
-                  title={`${x.nhan}: ${so(k[x.k])} ${dv}`} />
-              ))}
-            </div>
-            <div className="dhb__td-cum-nums">
-              <span>
-                Đã giao <b>{so(c.da_giao)}</b>
-                {c.dang_giu > 0 && <> · đang giữ cho yêu cầu {so(c.dang_giu)}</>}
-                {" "}· còn phải giao {so(c.con_phai_giao)} · <b>giao được ngay {so(c.giao_duoc)}</b> {dv}
-              </span>
-            </div>
+            <DaiSo o={[
+              { nhan: "Đã giao", so: so(c.da_giao), dv, phu: c.khach_nhan_du ? "khách đã nhận đủ" : undefined,
+                tone: c.khach_nhan_du ? "ok" : undefined },
+              { nhan: "Còn phải giao", so: so(c.con_phai_giao), dv,
+                phu: c.dang_giu > 0 ? `đã trừ ${so(c.dang_giu)} đang giữ cho yêu cầu` : undefined },
+              { nhan: "Giao được ngay", so: so(c.giao_duoc), dv, tone: c.con_phai_giao > 0 ? "chu" : undefined,
+                phu: c.giao_duoc > 0 ? `ở ${ton.length} kho`
+                  : (c.giu_don_khac ?? 0) > 0 ? "đơn khác của khách đang giữ"
+                  : c.co_lenh ? "kho chưa nhận hàng" : "kho không còn hàng" },
+              conLai === 0
+                ? { nhan: "Còn phải làm", so: "0", dv, phu: "đã đủ hàng" }
+                : { nhan: dangChay ? "Đang làm ở xưởng" : k.choKho > 0 ? "Chờ kho nhận" : "Chưa có hàng",
+                    so: so(conLai), dv,
+                    phu: k.choKho > 0 && dangChay ? `${so(k.choKho)} chờ kho nhận` : buoc ?? undefined },
+            ]} />
+            <BangTonKho ton={ton} dv={dv} giuDonKhac={c.giu_don_khac ?? 0} ten={c.ten} />
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function BangTonKho({ ton, dv, giuDonKhac, ten }: {
+  ton: NonNullable<DonTienDoCum["ton_kho"]>; dv: string; giuDonKhac: number; ten: string;
+}) {
+  if (ton.length === 0) return <p className="dhb__td-note">Không kho nào đang có {ten}.</p>;
+  return (
+    <div className="dhb__td-kho">
+      <table>
+        <thead>
+          <tr><th>Kho</th><th className="dhb__text-right">Đang có</th></tr>
+        </thead>
+        <tbody>
+          {ton.map((r) => (
+            <tr key={r.kho_id}>
+              <td>{r.kho_ten}</td>
+              <td className="dhb__text-right dhb__mono">{so(r.so_luong)}</td>
+            </tr>
+          ))}
+        </tbody>
+        {giuDonKhac > 0 && (
+          <tfoot>
+            <tr><td colSpan={2}>
+              {so(giuDonKhac)} {dv} đang giữ cho đơn khác của khách, chưa tính vào giao được.
+            </td></tr>
+          </tfoot>
+        )}
+      </table>
     </div>
   );
 }
@@ -351,6 +418,8 @@ export function BuocGiaoHang({
   }
   const tongGiaoDuoc = td.cum.reduce((a, c) => a + c.giao_duoc, 0);
   const conPhai = td.cum.some((c) => c.con_phai_giao > 0);
+  const lenhCho = td.cum.filter((c) => c.con_phai_giao > 0).flatMap((c) => c.lenh.map((l) => l.ma))
+    .filter((m, i, a) => a.indexOf(m) === i);
 
   const huyYc = () => {
     if (!token || !huy) return;
@@ -367,7 +436,9 @@ export function BuocGiaoHang({
       {loi && <div className="banner banner--error" role="alert">{loi}</div>}
 
       <div className="dhb__td-yc-list">
-        {td.yeu_cau.length === 0 && <p className="dhb__td-note">Chưa có yêu cầu giao hàng nào.</p>}
+        {/* Danh sách trống mà nút "Tạo yêu cầu" đang hiện thì nút đã nói đủ — khỏi thêm một dòng. */}
+        {td.yeu_cau.length === 0 && !(order.status === "ordered" && canWrite && conPhai)
+          && <p className="dhb__td-note">Chưa có yêu cầu giao hàng nào.</p>}
         {td.yeu_cau.map((y) => {
           const ch = y.chuyen;
           const suaDuoc = canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
@@ -429,11 +500,12 @@ export function BuocGiaoHang({
           <Button variant="accent" disabled={tongGiaoDuoc <= 0} onClick={() => setMo(true)}>
             Tạo yêu cầu giao hàng
           </Button>
-          {tongGiaoDuoc <= 0 && (
-            <span className="dhb__td-note">
-              Chưa có hàng trong kho để giao — chỉ lập yêu cầu cho phần kho đã nhận.
-            </span>
-          )}
+          <span className="dhb__td-note">
+            {tongGiaoDuoc > 0 ? `Giao được tối đa ${so(tongGiaoDuoc)}${td.cum.length === 1 && td.cum[0].don_vi ? ` ${td.cum[0].don_vi}` : ""}`
+              : lenhCho.length > 0
+                ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(", ")} xong là giao được.`
+                : "Chưa có hàng của đơn này ở kho nào."}
+          </span>
         </div>
       )}
       {order.status === "ordered" && !canWrite && conPhai && (

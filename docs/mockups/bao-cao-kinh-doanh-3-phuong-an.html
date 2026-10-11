@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo kinh doanh: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--canvas:#fff;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--charcoal:#0f172a;
+  --tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;--tt-la-bg:#dcfce7;--tt-la-fg:#15803d;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;--tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;
+  --tt-slate-bg:#f1f5f9;--tt-slate-fg:#475569;
+  /* Một sắc cho dữ liệu (xanh dương), bậc đậm → nhạt cho "đã / còn". */
+  --d1:#1d4ed8;--d2:#60a5fa;--d3:#dbeafe;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+.n{text-align:right;font-variant-numeric:tabular-nums}
+.mu{color:var(--ash-2)} .mu3{color:var(--ash-3)}
+
+/* ---------- phần giải thích ---------- */
+.doc{max-width:1680px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:1620px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;border:1px solid var(--rule-soft);border-radius:6px;display:block;background:#111}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink);font-weight:500}
+.can{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);font-size:13px;max-width:1120px}
+.can th,.can td{padding:6px 12px;border-bottom:1px solid var(--rule-hair);text-align:left;vertical-align:top}
+.can th{color:var(--ash-2);font-weight:500;font-size:12px;background:#f8fafc}
+.can td:first-child{white-space:nowrap}
+
+/* ---------- thanh chọn phương án ---------- */
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:22px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px;max-width:1620px;overflow:hidden}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.desc .ref-mini{float:right;width:300px;margin:0 0 6px 16px;border:1px solid var(--rule-soft);border-radius:6px;background:#111}
+.pa{display:none}.pa.on{display:block}
+
+/* ---------- khung app ---------- */
+.frame{width:1620px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{padding:20px 24px 28px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.dau{display:flex;align-items:center;gap:14px}
+.dau h2{font-size:20px;font-weight:500;margin:0;letter-spacing:-.015em}
+.dau .phai{margin-left:auto;display:flex;gap:8px}
+.nut{height:32px;padding:0 12px;border:1px solid var(--rule);background:#fff;border-radius:7px;display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink)}
+.the{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;min-width:0}
+.thanh{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--rule-hair);flex-wrap:wrap}
+.o-tim{height:32px;width:300px;border:1px solid var(--rule);border-radius:7px;display:flex;align-items:center;padding:0 10px;color:var(--ash-3)}
+.ky{height:32px;border:1px solid var(--rule);border-radius:7px;display:flex;align-items:center;gap:6px;padding:0 11px}
+.ky small{color:var(--ash-2);font-size:12px}
+.loc{height:32px;border:1px solid var(--rule);border-radius:7px;display:flex;align-items:center;padding:0 11px}
+.sg{display:inline-flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;margin-left:auto}
+.sg span{padding:0 12px;height:30px;display:inline-flex;align-items:center;color:var(--ash);border-right:1px solid var(--rule)}
+.sg span:last-child{border-right:0}
+.sg span.on{background:var(--paper);color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.ghi{padding:6px 12px;font-size:12.5px;color:var(--ash-2);display:flex;gap:18px;flex-wrap:wrap;border-bottom:1px solid var(--rule-hair)}
+.ghi span b{color:var(--ink);font-weight:400}
+
+/* dải số */
+.dai{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.dai>div{padding:12px 16px;border-right:1px solid var(--rule-hair);display:flex;flex-direction:column;gap:3px}
+.dai>div:last-child{border-right:0}
+.dai .nh{font-size:12px;color:var(--ash-2)}
+.dai .so{font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.dai .ph{font-size:12px;color:var(--ash-2)}
+.thanh-pt{height:4px;border-radius:2px;background:var(--d3);overflow:hidden;margin-top:4px}
+.thanh-pt i{display:block;height:100%;background:var(--d1);border-radius:2px}
+
+.luoi2{display:grid;gap:10px}
+.k-tieu{padding:10px 14px 0;display:flex;align-items:baseline;gap:10px}
+.k-tieu h4{margin:0;font-size:14px;font-weight:500}
+.k-tieu small{color:var(--ash-2);font-size:12px}
+.k-tieu .chon{margin-left:auto}
+svg text{font-family:"Be Vietnam Pro",system-ui,sans-serif}
+
+/* bảng */
+table.g{border-collapse:collapse;width:100%;table-layout:fixed}
+table.g th,table.g td{border-bottom:1px solid var(--rule-hair);border-right:1px solid var(--rule-hair);padding:6px 10px;font-size:13px;text-align:left;vertical-align:top;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.g th:last-child,table.g td:last-child{border-right:0}
+table.g th{background:var(--paper);color:var(--ash-2);font-weight:500;font-size:12px;vertical-align:middle}
+table.g th.n,table.g td.n{text-align:right}
+table.g tr.cong td{background:var(--paper);color:var(--ash-2)}
+table.g tr.cong td.n{color:var(--ink)}
+table.g tr.tong td{background:#eef2f7;color:var(--ink);border-top:1px solid var(--rule)}
+table.g td.nd{white-space:normal}
+table.g td.nd span{display:block}
+table.g td.nd span+span{font-size:12px;color:var(--ash-2)}
+.bar{display:flex;align-items:center;gap:8px}
+.bar .r{flex:1;height:8px;background:var(--rule-hair);border-radius:4px;overflow:hidden}
+.bar .r i{display:block;height:100%;background:var(--d2);border-radius:4px}
+.bar .v{width:44px;text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px}
+.chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:11px;font-size:12px}
+.chip.cam{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.chip.do{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.chip.la{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.chip.xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}
+.chip.slate{background:var(--tt-slate-bg);color:var(--tt-slate-fg)}
+.do{color:var(--tt-do-fg)}
+.chu-thich{font-size:12px;color:var(--ash-2);padding:8px 14px}
+.chu-thich p{margin:2px 0}
+
+/* phương án C: đầu báo cáo kiểu tờ in */
+.to-dau{text-align:center;padding:18px 0 10px}
+.to-dau .cty{font-size:12px;color:var(--ash-2);letter-spacing:.02em}
+.to-dau h3{margin:4px 0 2px;font-size:18px;font-weight:500}
+.to-dau p{margin:0;font-size:12.5px;color:var(--ash-2)}
+.ong{display:grid;grid-template-columns:150px 1fr 150px 70px;align-items:center;gap:6px 14px;padding:4px 24px 14px}
+.ong .lb{color:var(--ash)}
+.ong .r{height:22px;background:var(--rule-hair);border-radius:4px;position:relative;overflow:hidden}
+.ong .r i{position:absolute;left:0;top:0;bottom:0;background:var(--d1);border-radius:4px}
+.ong .r i.nhat{background:var(--d2)}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Báo cáo kinh doanh: thêm thông tin cho ra báo cáo + 3 phương án cách xem Biểu đồ</h1>
+<p>Ngày 11/10/2026. Mọi con số dưới đây là SỐ THẬT của 4 đơn đã chốt trong DB dev (<code>svn_erp_trong</code>, tháng 10/2026), đọc thẳng từ bảng đơn, chuyến giao, hoá đơn, phiếu thu. Không có số bịa; chỗ nào là giả định thì ghi rõ.</p>
+
+<h2>Đã đọc gì trước khi vẽ</h2>
+<ul>
+  <li>Màn hiện tại: <code>pages/bao-cao-kinh-doanh/BaoCaoKinhDoanhPage.tsx</code> (lưới khách / đơn / mặt hàng, nút Cột kéo và ghim, Lọc: khách, sale, cọc, tỷ lệ báo giá, tổng đơn) và máy chủ <code>services/bao_cao_kinh_doanh.py</code>.</li>
+  <li>Số đã giao: <code>delivery_trip_lines.qty_giao</code> (đã có hàm cộng theo dòng đơn <code>delivery_repo.da_giao_theo_dong</code>).</li>
+  <li>Hoá đơn: <code>sales_invoices</code> trạng thái đã ghi (<code>accounting_repo.issued_invoice_sums</code>). Đã thu: phiếu thu đã thu của đơn (cọc) và của hoá đơn (<code>received_invoice_receipt_sums</code>).</li>
+  <li>Giá vốn: KHÔNG dùng. <code>order_lines.cost_snapshot</code> chỉ là giá ước tính lúc tính giá; giá thành thật do kế toán điền ở Báo cáo kho › Giá gốc thành phẩm. Lãi gộp để pha sau.</li>
+  <li>Công nợ chi tiết đã có ở Báo cáo kế toán › Công nợ phải thu, nên ở đây chỉ một cột Đã thu và Còn phải thu, không dựng sổ công nợ thứ hai.</li>
+</ul>
+
+<h2>Một báo cáo bán hàng cần trả lời được gì</h2>
+<table class="can">
+  <tr><th>Câu hỏi</th><th>Thông tin trên màn</th><th>Lấy theo</th></tr>
+  <tr><td>Báo cáo này là của kỳ nào, ai xem, lập lúc nào?</td><td>Kỳ + mốc ngày chốt, phạm vi (toàn công ty / phòng / của tôi), điều kiện đang lọc, thời điểm lập, số liệu thực hiện tính tới ngày nào</td><td>MISA "Chọn tham số", Zoho đầu báo cáo</td></tr>
+  <tr><td>Kỳ này bán được bao nhiêu?</td><td>Số đơn, số khách, doanh số chưa VAT và có VAT, so với kỳ trước</td><td>Odoo bảng điều khiển</td></tr>
+  <tr><td>Đơn đã làm tới đâu?</td><td>Đã giao, đã xuất hoá đơn, đã thu, còn phải thu (tiền và %)</td><td>MISA Tình hình thực hiện đơn đặt hàng, Odoo Sales Analysis</td></tr>
+  <tr><td>Tiền đến từ đâu?</td><td>Theo khách, theo sale, theo ngày</td><td>Odoo, Zoho bán hàng theo khách / theo sale</td></tr>
+  <tr><td>Cái gì cần lo?</td><td>Đơn sắp tới hẹn giao mà chưa giao, đơn đã giao xong mà chưa thu đủ, cọc còn thiếu</td><td>Thêm từ nghiệp vụ xưởng</td></tr>
+  <tr><td>Số có cộng đúng không?</td><td>Dòng Tổng cộng cuối bảng, chú thích công thức</td><td>Zoho, Odoo (dòng Total)</td></tr>
+</table>
+
+<h2>Ảnh đã mở và học được gì</h2>
+<div class="refs">
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/odoo-bang-dieu-khien.jpg" alt="Odoo Dashboards"><p><span class="t">Odoo Dashboards</span> (odoo.com/documentation/19.0 › Dashboards). Dải số có dòng "so với kỳ trước" ngay dưới số, một biểu đồ theo thời gian, rồi các bảng "Top" có thanh dữ liệu. Khuôn của phương án A.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/odoo-phan-tich-ban-hang-cot-chong.jpg" alt="Odoo Sales Analysis biểu đồ cột chồng"><p><span class="t">Odoo Sales Analysis, biểu đồ</span> (Essentials › Reporting). Chọn MỘT thước đo, chọn nhóm theo gì, cột chồng khi có hai nhóm. Khuôn của phương án B (phần biểu đồ).</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/odoo-phan-tich-ban-hang-bang-xoay.jpg" alt="Odoo Sales Analysis bảng xoay"><p><span class="t">Odoo Sales Analysis, bảng xoay</span>. Ngay dưới biểu đồ là bảng cùng nhóm, nhiều thước đo đứng cạnh nhau, có dòng Tổng. Khuôn của phương án B (phần bảng).</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/misa-tinh-hinh-thuc-hien-don-tham-so.jpg" alt="MISA tham số"><p><span class="t">MISA AMIS, Tình hình thực hiện đơn đặt hàng</span> (helpact.misa.vn/?p=1281). Có ô "Lấy tình hình đã thực hiện đến cuối kỳ báo cáo"; cột SL đặt, đã giao, còn lại, doanh số đã và chưa thực hiện. Khuôn của phương án C và các cột thêm vào Bảng.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/zoho-ban-hang-theo-khach.jpg" alt="Zoho Books Sales by Customer"><p><span class="t">Zoho Books, Sales by Customer</span> (zoho.com/books/help/reports/sales.html). Đầu báo cáo ghi tên công ty, tên báo cáo, kỳ ở giữa; cuối bảng có dòng Total. Khuôn đầu báo cáo của phương án C.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/odoo-thanh-du-lieu-trong-bang.jpg" alt="Odoo thanh dữ liệu"><p><span class="t">Odoo, thanh dữ liệu trong ô</span>. Biểu đồ nằm ngay trong cột số, không tách khung riêng. Dùng cho bảng "Top khách" (A) và cột % (C).</p></div>
+</div>
+<p class="mu" style="margin-top:8px">Trang đã mở mà bỏ: Shopify Help › Analytics (trang chỉ có chữ, không ảnh màn), Stripe Docs › Dashboard basics (chỉ có ảnh video), trang Sales Analysis bản 17.0 của Odoo (đã gỡ, trả 404).</p>
+
+<div class="sw">
+  <span class="lb">Xem:</span>
+  <button class="pill on" data-pa="bang"><span class="k">0</span>Bảng (chung cho cả 3)</button>
+  <button class="pill" data-pa="a"><span class="k">A</span>Bảng điều khiển</button>
+  <button class="pill" data-pa="b"><span class="k">B</span>Một biểu đồ + bảng xoay</button>
+  <button class="pill" data-pa="c"><span class="k">C</span>Tờ báo cáo tiến độ</button>
+</div>
+
+<!-- ================================================================ BẢNG CHUNG ======== -->
+<section class="pa on" id="pa-bang">
+<div class="desc">
+  <h3>0. Cách xem Bảng: thêm cột tiến độ + dòng Tổng cộng (chung cho cả 3 phương án)</h3>
+  <p>Mặt hàng có SL đặt, Đã giao, Còn phải giao. Đơn có Tổng có VAT, Đã xuất HĐ, Đã thu, Còn phải thu, Hẹn giao. Cột Cọc gọn lại còn "% cọc" và "còn thiếu" (tiền cọc đã nằm trong Đã thu). Tỷ lệ báo giá ẩn mặc định, bật lại ở nút Cột. Cuối bảng có dòng Tổng cộng. Bảng rộng nên cuộn ngang, Khách hàng và Đơn hàng ghim bên trái.</p>
+  <p>Dải ghi chú dưới thanh lọc nói rõ đây là báo cáo của kỳ nào, của ai, tính tới ngày nào. Đó là phần "đầu báo cáo" đang thiếu.</p>
+</div>
+<div class="frame"><div class="rail"><i></i><i class="on"></i><i></i><i></i></div>
+<div class="main">
+  <div class="dau"><h2>Báo cáo kinh doanh</h2><div class="phai"><span class="nut">Xuất Excel</span></div></div>
+  <div class="the">
+    <div class="thanh">
+      <span class="o-tim">Tìm số đơn, PO, khách, mặt hàng…</span>
+      <span class="ky">Tháng này <small>theo ngày chốt đơn</small></span>
+      <span class="loc">Lọc</span>
+      <span class="sg"><span class="on">Bảng</span><span>Biểu đồ</span></span>
+      <span class="nut">Cột</span>
+    </div>
+    <div class="ghi">
+      <span>Kỳ <b>01/10/2026 đến 31/10/2026</b></span>
+      <span>Đơn đã chốt, vào kỳ theo <b>ngày chốt</b></span>
+      <span>Phạm vi <b>toàn công ty</b></span>
+      <span>Giao, hoá đơn, thu tính tới <b>31/10/2026</b></span>
+      <span>Lập lúc <b>11/10/2026 12:50</b></span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="g" style="min-width:2050px">
+      <colgroup>
+        <col style="width:200px"><col style="width:120px"><col style="width:140px"><col style="width:220px">
+        <col style="width:80px"><col style="width:60px"><col style="width:90px"><col style="width:90px"><col style="width:110px">
+        <col style="width:130px"><col style="width:130px"><col style="width:130px"><col style="width:130px"><col style="width:130px">
+        <col style="width:110px"><col style="width:120px">
+      </colgroup>
+      <thead><tr>
+        <th>Khách hàng</th><th>Đơn hàng</th><th>Sale</th><th>Mặt hàng</th>
+        <th class="n">SL đặt</th><th>ĐVT</th><th class="n">Đã giao</th><th class="n">Còn phải giao</th><th class="n">Đơn giá</th>
+        <th class="n">Thành tiền</th><th class="n">Tổng có VAT</th><th class="n">Đã xuất HĐ</th><th class="n">Đã thu</th><th class="n">Còn phải thu</th>
+        <th>Hẹn giao</th><th>Cọc</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td rowspan="2">CÔNG TY CỔ PHẦN BIBICA</td>
+          <td rowspan="2" class="nd"><span>DH002</span><span>6/10/2026</span><span>PO451263</span></td>
+          <td rowspan="2">Nguyễn Thị Huyên</td>
+          <td>Ruột sách A5 64 trang</td><td class="n">1.000</td><td>cuốn</td><td class="n mu3">0</td><td class="n">1.000</td><td class="n">21.538 đ</td><td class="n">21.537.799 đ</td>
+          <td rowspan="2" class="n">26.943.796 đ</td><td rowspan="2" class="n">26.943.796 đ</td><td rowspan="2" class="n">13.472.000 đ</td><td rowspan="2" class="n">13.471.796 đ</td>
+          <td rowspan="2">06/11/2026</td><td rowspan="2" class="mu3">Không cọc</td>
+        </tr>
+        <tr><td>Bìa sách A5</td><td class="n">1.000</td><td>cuốn</td><td class="n mu3">0</td><td class="n">1.000</td><td class="n">2.957 đ</td><td class="n">2.956.561 đ</td></tr>
+        <tr class="cong"><td>Cộng 1 đơn</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">24.494.360 đ</td><td class="n">26.943.796 đ</td><td class="n">26.943.796 đ</td><td class="n">13.472.000 đ</td><td class="n">13.471.796 đ</td><td></td><td></td></tr>
+        <tr>
+          <td rowspan="2">CÔNG TY CỔ PHẦN CAFÉ KATINAT</td>
+          <td class="nd"><span>DH003</span><span>6/10/2026</span><span>po45623</span></td><td>Nguyễn Thị Huyên</td>
+          <td>Tờ rơi A4 4/4</td><td class="n">3.000</td><td>tờ</td><td class="n mu3">0</td><td class="n">3.000</td><td class="n">1.576 đ</td><td class="n">4.728.546 đ</td>
+          <td class="n">5.201.400 đ</td><td class="n">3.120.840 đ</td><td class="n">2.028.420 đ</td><td class="n">3.172.980 đ</td><td>27/10/2026</td><td>30% <span class="mu">đủ cọc</span></td>
+        </tr>
+        <tr>
+          <td class="nd"><span>DH004</span><span>7/10/2026</span><span>www</span></td><td>Nguyễn Thị Huyên</td>
+          <td>Tờ rơi A4 4/4</td><td class="n">4.000</td><td>tờ</td><td class="n mu3">0</td><td class="n">4.000</td><td class="n">1.307 đ</td><td class="n">5.226.354 đ</td>
+          <td class="n">5.748.989 đ</td><td class="n">5.748.989 đ</td><td class="n mu3">0 đ</td><td class="n">5.748.989 đ</td><td>27/10/2026</td><td class="mu3">Không cọc</td>
+        </tr>
+        <tr class="cong"><td>Cộng 2 đơn</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">9.954.900 đ</td><td class="n">10.950.389 đ</td><td class="n">8.869.829 đ</td><td class="n">2.028.420 đ</td><td class="n">8.921.969 đ</td><td></td><td></td></tr>
+        <tr>
+          <td>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</td>
+          <td class="nd"><span>DH001</span><span>5/10/2026</span><span>PO999</span></td><td>Nguyễn Thị Huyên</td>
+          <td>Hộp kem 50ml (5×5×12 cm)</td><td class="n">5.000</td><td>cái</td><td class="n">5.000</td><td class="n mu3">0</td><td class="n">1.538 đ</td><td class="n">7.691.794 đ</td>
+          <td class="n">8.460.973 đ</td><td class="n">8.460.973 đ</td><td class="n">1.000.000 đ</td><td class="n">7.460.973 đ</td><td>30/10/2026</td><td class="mu3">Không cọc</td>
+        </tr>
+        <tr class="cong"><td>Cộng 1 đơn</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">7.691.794 đ</td><td class="n">8.460.973 đ</td><td class="n">8.460.973 đ</td><td class="n">1.000.000 đ</td><td class="n">7.460.973 đ</td><td></td><td></td></tr>
+        <tr class="tong"><td>Tổng cộng 4 đơn</td><td>3 khách</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td class="n">42.141.054 đ</td><td class="n">46.355.158 đ</td><td class="n">44.273.598 đ</td><td class="n">16.500.420 đ</td><td class="n">29.854.738 đ</td><td></td><td></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="chu-thich">
+      <p>Tổng có VAT, Đã xuất HĐ, Đã thu cùng công thức với màn Đơn hàng bán và Công nợ phải thu. Đã thu gồm cả tiền cọc. Hoá đơn và phiếu thu đã huỷ không tính.</p>
+    </div>
+  </div>
+</div></div>
+</section>
+
+<!-- ================================================================ A ================== -->
+<section class="pa" id="pa-a">
+<div class="desc">
+  <img class="ref-mini" src="tham-khao-bao-cao-kinh-doanh/odoo-bang-dieu-khien.jpg" alt="">
+  <h3>A. Bảng điều khiển (khuôn Odoo Dashboards)</h3>
+  <p>Năm ô số trên cùng, mỗi ô có dòng phụ: số đơn, % trên doanh số, hoặc so với kỳ trước. Dưới là doanh số theo ngày chốt. Hàng dưới chia ba: Top khách, theo sale (bảng có thanh dữ liệu trong ô), và danh sách "Cần chú ý".</p>
+  <p>Hợp khi: sếp mở màn để nắm nhanh tình hình trong 10 giây. Nhược: có ô số to, trái với kiểu "một lưới đặc như Excel" đã chọn cho các bảng tổng quan. Ở đây nó nằm trong cách xem Biểu đồ riêng, cách xem Bảng vẫn như cũ.</p>
+</div>
+<div class="frame"><div class="rail"><i></i><i class="on"></i><i></i><i></i></div>
+<div class="main">
+  <div class="dau"><h2>Báo cáo kinh doanh</h2><div class="phai"><span class="nut">Xuất Excel</span></div></div>
+  <div class="the">
+    <div class="thanh">
+      <span class="o-tim">Tìm số đơn, PO, khách, mặt hàng…</span>
+      <span class="ky">Tháng này <small>theo ngày chốt đơn</small></span>
+      <span class="loc">Lọc</span>
+      <span class="sg"><span>Bảng</span><span class="on">Biểu đồ</span></span>
+    </div>
+    <div class="ghi">
+      <span>Kỳ <b>01/10/2026 đến 31/10/2026</b></span><span>Phạm vi <b>toàn công ty</b></span><span>Giao, hoá đơn, thu tính tới <b>31/10/2026</b></span><span>So với <b>tháng 9/2026</b></span>
+    </div>
+    <div class="dai">
+      <div><span class="nh">Doanh số có VAT</span><span class="so">46.355.158 đ</span><span class="ph">4 đơn của 3 khách</span><span class="ph">Tháng 9 chưa có đơn chốt</span></div>
+      <div><span class="nh">Đã giao</span><span class="so">8.460.973 đ</span><span class="ph">18% doanh số</span><div class="thanh-pt"><i style="width:18%"></i></div></div>
+      <div><span class="nh">Đã xuất hoá đơn</span><span class="so">44.273.598 đ</span><span class="ph">96% doanh số</span><div class="thanh-pt"><i style="width:96%"></i></div></div>
+      <div><span class="nh">Đã thu</span><span class="so">16.500.420 đ</span><span class="ph">36% doanh số, gồm 1.560.420 đ cọc</span><div class="thanh-pt"><i style="width:36%"></i></div></div>
+      <div><span class="nh">Còn phải thu</span><span class="so">29.854.738 đ</span><span class="ph">trên 4 đơn</span></div>
+    </div>
+  </div>
+
+  <div class="the">
+    <div class="k-tieu"><h4>Doanh số theo ngày chốt</h4><small>có VAT, triệu đồng</small><span class="sg chon"><span class="on">Ngày</span><span>Tuần</span><span>Tháng</span></span></div>
+    <svg width="1500" height="250" viewBox="0 0 1500 250" role="img" aria-label="Doanh số theo ngày chốt tháng 10/2026">
+      <g font-size="11" fill="#64748b">
+        <line x1="50" x2="1480" y1="210" y2="210" stroke="#cbd5e1"/>
+        <line x1="50" x2="1480" y1="154" y2="154" stroke="#f1f5f9"/><text x="40" y="158" text-anchor="end">10</text>
+        <line x1="50" x2="1480" y1="98" y2="98" stroke="#f1f5f9"/><text x="40" y="102" text-anchor="end">20</text>
+        <line x1="50" x2="1480" y1="42" y2="42" stroke="#f1f5f9"/><text x="40" y="46" text-anchor="end">30</text>
+        <text x="40" y="214" text-anchor="end">0</text>
+      </g>
+      <g font-size="11" fill="#64748b" text-anchor="middle" id="truc-ngay"></g>
+      <g>
+        <rect x="254" y="162.6" width="26" height="47.4" rx="4" fill="#1d4ed8"><title>05/10/2026: 8.460.973 đ (DH001)</title></rect>
+        <rect x="300" y="30" width="26" height="180" rx="4" fill="#1d4ed8"><title>06/10/2026: 32.145.196 đ (DH002, DH003)</title></rect>
+        <rect x="346" y="177.8" width="26" height="32.2" rx="4" fill="#1d4ed8"><title>07/10/2026: 5.748.989 đ (DH004)</title></rect>
+        <text x="313" y="22" font-size="11.5" fill="#0f172a" text-anchor="middle">32,1</text>
+      </g>
+      <text x="740" y="120" font-size="12" fill="#94a3b8" text-anchor="middle">Từ 08/10 chưa có đơn chốt</text>
+    </svg>
+  </div>
+
+  <div class="luoi2" style="grid-template-columns:1.1fr .8fr 1.1fr">
+    <div class="the">
+      <div class="k-tieu"><h4>Top khách theo doanh số</h4><small>bấm để xem ở Bảng</small></div>
+      <table class="g" style="margin-top:8px">
+        <colgroup><col><col style="width:150px"><col style="width:200px"></colgroup>
+        <thead><tr><th>Khách hàng</th><th class="n">Doanh số</th><th>Đã thu</th></tr></thead>
+        <tbody>
+          <tr><td>CÔNG TY CỔ PHẦN BIBICA</td><td class="n">26.943.796 đ</td><td><div class="bar"><span class="r"><i style="width:50%"></i></span><span class="v">50%</span></div></td></tr>
+          <tr><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td class="n">10.950.389 đ</td><td><div class="bar"><span class="r"><i style="width:19%"></i></span><span class="v">19%</span></div></td></tr>
+          <tr><td>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</td><td class="n">8.460.973 đ</td><td><div class="bar"><span class="r"><i style="width:12%"></i></span><span class="v">12%</span></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="the">
+      <div class="k-tieu"><h4>Theo sale</h4></div>
+      <table class="g" style="margin-top:8px">
+        <colgroup><col><col style="width:60px"><col style="width:140px"></colgroup>
+        <thead><tr><th>Sale</th><th class="n">Đơn</th><th class="n">Doanh số</th></tr></thead>
+        <tbody><tr><td>Nguyễn Thị Huyên</td><td class="n">4</td><td class="n">46.355.158 đ</td></tr></tbody>
+      </table>
+    </div>
+    <div class="the">
+      <div class="k-tieu"><h4>Cần chú ý</h4><small>tính tới hôm nay 11/10/2026</small></div>
+      <table class="g" style="margin-top:8px">
+        <colgroup><col style="width:90px"><col><col style="width:150px"></colgroup>
+        <tbody>
+          <tr><td>DH003</td><td>Hẹn giao 27/10, chưa giao</td><td><span class="chip cam">Còn 16 ngày</span></td></tr>
+          <tr><td>DH004</td><td>Hẹn giao 27/10, chưa giao</td><td><span class="chip cam">Còn 16 ngày</span></td></tr>
+          <tr><td>DH001</td><td>Đã giao đủ, còn phải thu 7.460.973 đ</td><td><span class="chip do">Giao xong chưa thu</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div></div>
+</section>
+
+<!-- ================================================================ B ================== -->
+<section class="pa" id="pa-b">
+<div class="desc">
+  <img class="ref-mini" src="tham-khao-bao-cao-kinh-doanh/odoo-phan-tich-ban-hang-cot-chong.jpg" alt="">
+  <h3>B. Một biểu đồ + bảng xoay (khuôn Odoo Sales Analysis)</h3>
+  <p>Một biểu đồ lớn, người xem tự chọn Nhóm theo (Khách / Sale / Ngày chốt / Mặt hàng) và Thước đo (Doanh số / Đã giao / Đã xuất HĐ / Đã thu). Thanh chia hai khúc: phần đã làm (đậm) và phần còn lại (nhạt), nên một biểu đồ trả lời được cả "bán bao nhiêu" lẫn "đã thu tới đâu". Ngay dưới là bảng cùng nhóm, mọi thước đo đứng cạnh nhau, có dòng Tổng.</p>
+  <p>Hợp khi: kế toán hoặc trưởng phòng muốn tự xoay để soi. Nhược: phải bấm chọn mới ra câu trả lời, không có "cần chú ý" sẵn.</p>
+</div>
+<div class="frame"><div class="rail"><i></i><i class="on"></i><i></i><i></i></div>
+<div class="main">
+  <div class="dau"><h2>Báo cáo kinh doanh</h2><div class="phai"><span class="nut">Xuất Excel</span></div></div>
+  <div class="the">
+    <div class="thanh">
+      <span class="o-tim">Tìm số đơn, PO, khách, mặt hàng…</span>
+      <span class="ky">Tháng này <small>theo ngày chốt đơn</small></span>
+      <span class="loc">Lọc</span>
+      <span class="sg"><span>Bảng</span><span class="on">Biểu đồ</span></span>
+    </div>
+    <div class="ghi">
+      <span>Kỳ <b>01/10/2026 đến 31/10/2026</b></span><span>Phạm vi <b>toàn công ty</b></span><span>Giao, hoá đơn, thu tính tới <b>31/10/2026</b></span><span>Lập lúc <b>11/10/2026 12:50</b></span>
+    </div>
+    <div class="thanh" style="border-bottom:0">
+      <span class="mu">Nhóm theo</span>
+      <span class="sg" style="margin-left:0"><span class="on">Khách</span><span>Sale</span><span>Ngày chốt</span><span>Mặt hàng</span></span>
+      <span class="mu" style="margin-left:18px">Thước đo</span>
+      <span class="sg" style="margin-left:0"><span>Doanh số</span><span>Đã giao</span><span>Đã xuất HĐ</span><span class="on">Đã thu</span></span>
+    </div>
+    <svg width="1500" height="200" viewBox="0 0 1500 200" role="img" aria-label="Đã thu và còn phải thu theo khách">
+      <g font-size="12.5" fill="#0f172a">
+        <text x="300" y="44" text-anchor="end">CÔNG TY CỔ PHẦN BIBICA</text>
+        <text x="300" y="94" text-anchor="end">CÔNG TY CỔ PHẦN CAFÉ KATINAT</text>
+        <text x="300" y="144" text-anchor="end">CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</text>
+      </g>
+      <g>
+        <rect x="316" y="28" width="269.4" height="24" rx="4" fill="#1d4ed8"><title>Bibica đã thu 13.472.000 đ</title></rect>
+        <rect x="587.4" y="28" width="269.4" height="24" rx="4" fill="#bfdbfe"><title>Bibica còn phải thu 13.471.796 đ</title></rect>
+        <rect x="316" y="78" width="40.6" height="24" rx="4" fill="#1d4ed8"><title>Katinat đã thu 2.028.420 đ</title></rect>
+        <rect x="358.6" y="78" width="178.4" height="24" rx="4" fill="#bfdbfe"><title>Katinat còn phải thu 8.921.969 đ</title></rect>
+        <rect x="316" y="128" width="20" height="24" rx="4" fill="#1d4ed8"><title>Cao Lợi Hưng đã thu 1.000.000 đ</title></rect>
+        <rect x="338" y="128" width="149.2" height="24" rx="4" fill="#bfdbfe"><title>Cao Lợi Hưng còn phải thu 7.460.973 đ</title></rect>
+      </g>
+      <g font-size="12" fill="#475569">
+        <text x="868" y="45">26.943.796 đ  thu 50%</text>
+        <text x="549" y="95">10.950.389 đ  thu 19%</text>
+        <text x="499" y="145">8.460.973 đ  thu 12%</text>
+      </g>
+      <g font-size="12" fill="#475569">
+        <rect x="316" y="176" width="12" height="12" rx="3" fill="#1d4ed8"/><text x="334" y="186">Đã thu</text>
+        <rect x="396" y="176" width="12" height="12" rx="3" fill="#bfdbfe"/><text x="414" y="186">Còn phải thu</text>
+      </g>
+    </svg>
+  </div>
+  <div class="the">
+    <table class="g">
+      <colgroup><col><col style="width:70px"><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:150px"><col style="width:150px"></colgroup>
+      <thead><tr><th>Khách hàng</th><th class="n">Đơn</th><th class="n">Thành tiền</th><th class="n">Doanh số có VAT</th><th class="n">Đã giao</th><th class="n">Đã xuất HĐ</th><th class="n">Đã thu</th><th class="n">Còn phải thu</th><th class="n">Cọc còn thiếu</th></tr></thead>
+      <tbody>
+        <tr><td>CÔNG TY CỔ PHẦN BIBICA</td><td class="n">1</td><td class="n">24.494.360 đ</td><td class="n">26.943.796 đ</td><td class="n mu3">0 đ</td><td class="n">26.943.796 đ</td><td class="n">13.472.000 đ</td><td class="n">13.471.796 đ</td><td class="n mu3">0 đ</td></tr>
+        <tr><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td class="n">2</td><td class="n">9.954.900 đ</td><td class="n">10.950.389 đ</td><td class="n mu3">0 đ</td><td class="n">8.869.829 đ</td><td class="n">2.028.420 đ</td><td class="n">8.921.969 đ</td><td class="n mu3">0 đ</td></tr>
+        <tr><td>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</td><td class="n">1</td><td class="n">7.691.794 đ</td><td class="n">8.460.973 đ</td><td class="n">8.460.973 đ</td><td class="n">8.460.973 đ</td><td class="n">1.000.000 đ</td><td class="n">7.460.973 đ</td><td class="n mu3">0 đ</td></tr>
+        <tr class="tong"><td>Tổng cộng</td><td class="n">4</td><td class="n">42.141.054 đ</td><td class="n">46.355.158 đ</td><td class="n">8.460.973 đ</td><td class="n">44.273.598 đ</td><td class="n">16.500.420 đ</td><td class="n">29.854.738 đ</td><td class="n">0 đ</td></tr>
+      </tbody>
+    </table>
+    <div class="chu-thich"><p>Bấm một dòng hoặc một thanh: sang Bảng, lọc sẵn theo khách đó. Đã giao tính bằng tiền: SL đã giao nhân đơn giá có VAT của dòng.</p></div>
+  </div>
+</div></div>
+</section>
+
+<!-- ================================================================ C ================== -->
+<section class="pa" id="pa-c">
+<div class="desc">
+  <img class="ref-mini" src="tham-khao-bao-cao-kinh-doanh/zoho-ban-hang-theo-khach.jpg" alt="">
+  <h3>C. Tờ báo cáo tiến độ (khuôn MISA Tình hình thực hiện đơn + đầu báo cáo Zoho)</h3>
+  <p>Nhìn như một tờ báo cáo in: đầu tờ có tên công ty, tên báo cáo, kỳ, ngày tính số liệu. Ngay dưới là "ống tiến độ": bốn thanh cùng một thước, chốt, giao, xuất hoá đơn, thu, để thấy tiền đang kẹt ở khâu nào. Rồi bảng theo khách, cột % là thanh dữ liệu trong ô, cuối có Tổng cộng.</p>
+  <p>Hợp khi: in hoặc gửi cho sếp, đọc từ trên xuống như MISA. Ít biểu đồ nhất, gần lối "bảng kiểu Excel" nhất. Nhược: không có biểu đồ theo thời gian.</p>
+</div>
+<div class="frame"><div class="rail"><i></i><i class="on"></i><i></i><i></i></div>
+<div class="main">
+  <div class="dau"><h2>Báo cáo kinh doanh</h2><div class="phai"><span class="nut">Xuất Excel</span></div></div>
+  <div class="the">
+    <div class="thanh">
+      <span class="o-tim">Tìm số đơn, PO, khách, mặt hàng…</span>
+      <span class="ky">Tháng này <small>theo ngày chốt đơn</small></span>
+      <span class="loc">Lọc</span>
+      <span class="sg"><span>Bảng</span><span class="on">Biểu đồ</span></span>
+    </div>
+    <div class="to-dau">
+      <div class="cty">CÔNG TY SAO VIỆT NHẬT</div>
+      <h3>Tình hình bán hàng và thực hiện đơn</h3>
+      <p>Đơn chốt từ 01/10/2026 đến 31/10/2026. Giao, hoá đơn, thu tính tới 31/10/2026. Phạm vi toàn công ty.</p>
+    </div>
+    <div class="ong">
+      <span class="lb">Chốt đơn</span><span class="r"><i style="width:100%"></i></span><span class="n">46.355.158 đ</span><span class="n mu">100%</span>
+      <span class="lb">Đã giao</span><span class="r"><i class="nhat" style="width:18.3%"></i></span><span class="n">8.460.973 đ</span><span class="n mu">18%</span>
+      <span class="lb">Đã xuất hoá đơn</span><span class="r"><i class="nhat" style="width:95.5%"></i></span><span class="n">44.273.598 đ</span><span class="n mu">96%</span>
+      <span class="lb">Đã thu</span><span class="r"><i class="nhat" style="width:35.6%"></i></span><span class="n">16.500.420 đ</span><span class="n mu">36%</span>
+      <span class="lb">Còn phải thu</span><span></span><span class="n">29.854.738 đ</span><span class="n mu">64%</span>
+    </div>
+  </div>
+  <div class="the">
+    <table class="g">
+      <colgroup><col><col style="width:60px"><col style="width:150px"><col style="width:190px"><col style="width:190px"><col style="width:190px"><col style="width:150px"><col style="width:150px"></colgroup>
+      <thead><tr><th>Khách hàng</th><th class="n">Đơn</th><th class="n">Doanh số có VAT</th><th>Đã giao</th><th>Đã xuất HĐ</th><th>Đã thu</th><th class="n">Còn phải thu</th><th>Cần chú ý</th></tr></thead>
+      <tbody>
+        <tr><td>CÔNG TY CỔ PHẦN BIBICA</td><td class="n">1</td><td class="n">26.943.796 đ</td>
+          <td><div class="bar"><span class="r"><i style="width:0"></i></span><span class="v">0%</span></div></td>
+          <td><div class="bar"><span class="r"><i style="width:100%"></i></span><span class="v">100%</span></div></td>
+          <td><div class="bar"><span class="r"><i style="width:50%"></i></span><span class="v">50%</span></div></td>
+          <td class="n">13.471.796 đ</td><td><span class="chip slate">Hẹn giao 06/11</span></td></tr>
+        <tr><td>CÔNG TY CỔ PHẦN CAFÉ KATINAT</td><td class="n">2</td><td class="n">10.950.389 đ</td>
+          <td><div class="bar"><span class="r"><i style="width:0"></i></span><span class="v">0%</span></div></td>
+          <td><div class="bar"><span class="r"><i style="width:81%"></i></span><span class="v">81%</span></div></td>
+          <td><div class="bar"><span class="r"><i style="width:19%"></i></span><span class="v">19%</span></div></td>
+          <td class="n">8.921.969 đ</td><td><span class="chip cam">2 đơn hẹn 27/10</span></td></tr>
+        <tr><td>CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM</td><td class="n">1</td><td class="n">8.460.973 đ</td>
+          <td><div class="bar"><span class="r"><i style="width:100%"></i></span><span class="v">100%</span></div></td>
+          <td><div class="bar"><span class="r"><i style="width:100%"></i></span><span class="v">100%</span></div></td>
+          <td><div class="bar"><span class="r"><i style="width:12%"></i></span><span class="v">12%</span></div></td>
+          <td class="n">7.460.973 đ</td><td><span class="chip do">Giao xong chưa thu</span></td></tr>
+        <tr class="tong"><td>Tổng cộng 3 khách</td><td class="n">4</td><td class="n">46.355.158 đ</td><td class="n">18%</td><td class="n">96%</td><td class="n">36%</td><td class="n">29.854.738 đ</td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="chu-thich">
+      <p>% tính trên doanh số có VAT của khách. Đã giao tính bằng tiền: SL đã giao nhân đơn giá có VAT của dòng. Đã thu gồm cả tiền cọc. Theo sale và theo mặt hàng: đổi ở ô "Nhóm theo" (ẩn ở đây vì chỉ có một sale).</p>
+    </div>
+  </div>
+</div></div>
+</section>
+
+<h2>Còn để ngỏ</h2>
+<ul>
+  <li>So với kỳ trước: tháng 9/2026 trên DB dev chưa có đơn chốt nên ô so sánh để chữ "chưa có đơn". Có số rồi thì hiện mức tăng giảm.</li>
+  <li>Lãi gộp: chờ kế toán điền giá gốc thành phẩm, không vẽ ở đây.</li>
+  <li>Ba phương án chỉ khác ở cách xem Biểu đồ. Phần Bảng (khung 0) là chung, chọn phương án nào cũng làm.</li>
+</ul>
+</div>
+
+<script>
+// Trục ngày 1–31 của biểu đồ phương án A (mỗi ngày 46px, bắt đầu x=70).
+const g = document.getElementById("truc-ngay");
+for (let d = 1; d <= 31; d++) {
+  if (d !== 1 && d % 5 !== 0) continue;
+  const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  t.setAttribute("x", 70 + (d - 1) * 46 + 13);
+  t.setAttribute("y", 228);
+  t.textContent = String(d).padStart(2, "0") + "/10";
+  g.appendChild(t);
+}
+document.querySelectorAll(".pill").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll(".pill").forEach((x) => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".pa").forEach((p) => p.classList.toggle("on", p.id === "pa-" + b.dataset.pa));
+}));
+</script>
+</body>
+</html>

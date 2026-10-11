@@ -10,7 +10,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal, flushSync } from "react-dom";
 
-import type { DonTienDo, MonO, MonSanXuat } from "../../../api/client";
+import type { DonTienDo, DonTienDoCum, MonO, MonSanXuat } from "../../../api/client";
 import { EmptyState } from "../../../components/EmptyState";
 import {
   chiTietO, hangVe, kieuLam, lenhDaiDien, nhanO, type MonCoBan, type TongMau,
@@ -160,6 +160,16 @@ export function SanXuatO({
   );
 }
 
+/** "Hàng về" của bảng trong ngăn đơn: hàng về kho thì gọi tên kho đang có hàng (10/10/2026; từ
+ *  11/10/2026 tồn của mã là hàng của khách nên mọi kho có tồn đều tính), chưa kho nào có thì "Kho". */
+function hangVeKho(m: MonCoBan, ton: DonTienDoCum["ton_kho"]) {
+  const v = hangVe(m);
+  if (v !== "Kho") return v;
+  const ten = [...new Set((ton ?? []).map((r) => r.kho_ten))];
+  if (ten.length === 0) return v;
+  return <span className="sxm-o-cot">{ten.map((t) => <span key={t}>{t}</span>)}</span>;
+}
+
 /** Khối Sản xuất trong ngăn đơn — bảng gọn mỗi mặt hàng một hàng (phương án B). */
 export function BangSanXuatMon({
   td, onMoLenh,
@@ -178,6 +188,7 @@ export function BangSanXuatMon({
             <th>Lệnh</th>
             <th>Kiểu làm</th>
             <th>Đang ở</th>
+            <th>Vướng mắc</th>
             <th>Đã có hàng</th>
             <th>Hàng về</th>
           </tr>
@@ -226,8 +237,14 @@ export function BangSanXuatMon({
                   <span className="sxm-o-cot">
                     <TheO m={m} />
                     {ct && <span className="sxm-mo-nhat">{ct}</span>}
-                    {tre.map((w) => <span key={w} className="sxm-the sxm-the--tre">{NHAN_LY_DO_TRE[w] ?? w}</span>)}
                   </span>
+                </td>
+                <td>
+                  {tre.length === 0 ? <span className="sxm-mo-nhat">—</span> : (
+                    <span className="sxm-o-cot">
+                      {tre.map((w) => <span key={w} className="sxm-the sxm-the--tre">{NHAN_LY_DO_TRE[w] ?? w}</span>)}
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span className="sxm-co-cot">
@@ -235,7 +252,7 @@ export function BangSanXuatMon({
                     <span className="sxm-so">{so(m.co_hang)} / {so(m.dat)}{m.don_vi ? ` ${m.don_vi}` : ""}</span>
                   </span>
                 </td>
-                <td>{hangVe(m)}</td>
+                <td>{hangVeKho(m, c.ton_kho)}</td>
               </tr>
             );
           })}

@@ -301,16 +301,20 @@ class AuditLogRepository:
             ).scalars()
         )
 
-    def list_by_targets(self, targets, actions) -> dict[str, list[AuditLog]]:
+    def list_by_targets(self, targets, actions=None) -> dict[str, list[AuditLog]]:
         """Như `list_by_target` cho NHIỀU đối tượng một lượt (danh sách cả trang), chỉ lấy các
-        `actions` cần — hỏi từng đối tượng là N+1."""
+        `actions` cần — hỏi từng đối tượng là N+1. `actions=None` = mọi hành động (tab Lịch sử của
+        một công việc cần đủ vết của các đối tượng gắn với nó)."""
         targets = sorted(set(targets or []))
         ra: dict[str, list[AuditLog]] = {t: [] for t in targets}
         if not targets:
             return ra
+        dk = [AuditLog.target.in_(targets)]
+        if actions is not None:
+            dk.append(AuditLog.action.in_(list(actions)))
         for log in self.db.execute(
             select(AuditLog)
-            .where(AuditLog.target.in_(targets), AuditLog.action.in_(list(actions)))
+            .where(*dk)
             .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
         ).scalars():
             ra[log.target].append(log)

@@ -16,15 +16,14 @@ export function soNgayVi(v: number | null): string {
 export function khoaVatTu(item: {
   item_name: string;
   unit: string;
-  dang_ban?: string | null;
   kho_rong?: number;
   kho_dai?: number;
 }): string {
-  // Dạng bán + khổ thuộc khoá (07/10/2026): giấy tờ hai khổ là hai dòng giá khác nhau.
+  // Khổ thuộc khoá: giấy hai khổ là hai dòng giá khác nhau (10/10/2026 bỏ dạng cuộn/tờ).
   return `${item.item_name.trim().replace(/\s+/g, " ").toLowerCase()}|${item.unit
     .trim()
     .replace(/\s+/g, " ")
-    .toLowerCase()}|${item.dang_ban ?? ""}|${item.kho_rong ?? 0}|${item.kho_dai ?? 0}`;
+    .toLowerCase()}|${item.kho_rong ?? 0}|${item.kho_dai ?? 0}`;
 }
 
 /** Gộp danh sách vừa đọc từ Excel VÀO danh sách đang có trong form.
@@ -58,7 +57,6 @@ export function gopVatTu(
 export function emptySupplierItem(): SupplierItemInput {
   return {
     item_name: "",
-    dang_ban: null,
     kho_rong: 0,
     kho_dai: 0,
     unit: "",
@@ -111,7 +109,6 @@ export function fromSupplier(row: SupplierRow): SupplierInput {
           // theo bảng so giá trống.
           hang_loai: item.hang_loai,
           hang_id: item.hang_id,
-          dang_ban: item.dang_ban ?? null,
           kho_rong: item.kho_rong ?? 0,
           kho_dai: item.kho_dai ?? 0,
           item_name: item.item_name,
@@ -132,9 +129,10 @@ export function cleanSupplierItems(
     .map((item) => ({
       hang_loai: item.hang_loai ?? null,
       hang_id: item.hang_id ?? null,
-      dang_ban: item.hang_loai === "giay" ? (item.dang_ban ?? null) : null,
+      // Khổ chỉ có nghĩa với giấy; chưa có rộng thì bỏ cả dài (khổ chỉ-dài vô nghĩa).
       kho_rong: item.hang_loai === "giay" ? Number(item.kho_rong || 0) : 0,
-      kho_dai: item.hang_loai === "giay" && item.dang_ban === "to" ? Number(item.kho_dai || 0) : 0,
+      kho_dai:
+        item.hang_loai === "giay" && Number(item.kho_rong || 0) > 0 ? Number(item.kho_dai || 0) : 0,
       item_name: (item.item_name ?? "").trim(),
       unit: (item.unit ?? "").trim(),
       unit_price: Number(item.unit_price || 0),

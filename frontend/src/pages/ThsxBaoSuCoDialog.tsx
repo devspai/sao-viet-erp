@@ -18,9 +18,11 @@ const MUC_DO_OPTS = Object.entries(NHAN_MUC_DO);
 const MUC_DO_MAC_DINH =
   "trung_binh" in NHAN_MUC_DO ? "trung_binh" : (MUC_DO_OPTS[0]?.[0] ?? "trung_binh");
 
-export function ThsxBaoSuCoDialog({ mayNhan, dangChay, busy, onGui, onClose }: {
+export function ThsxBaoSuCoDialog({ mayNhan, tenCongDoan, dangChay, busy, onGui, onClose }: {
   /** Nhãn máy của công việc (chỉ để đọc). */
   mayNhan: string;
+  /** Tên công đoạn của việc — câu dưới ô tick nói đúng việc nào sẽ tạm dừng. */
+  tenCongDoan?: string;
   /** Công việc đang CHẠY (không phải tạm dừng) — tick "máy dừng" mới đóng phiên máy. */
   dangChay: boolean;
   busy: boolean;
@@ -28,24 +30,18 @@ export function ThsxBaoSuCoDialog({ mayNhan, dangChay, busy, onGui, onClose }: {
   onGui: (body: SxSuCoIn) => Promise<boolean>;
   onClose: () => void;
 }) {
-  const [boPhan, setBoPhan] = useState("");
   const [moTa, setMoTa] = useState("");
   const [mucDo, setMucDo] = useState(MUC_DO_MAC_DINH);
   const [mayDung, setMayDung] = useState(false);
-  const [thuGui, setThuGui] = useState(false);
   const nganKeoRef = useRef<HTMLElement>(null);
   const nhanTrenNen = useRef(false);
   useEffect(() => { nganKeoRef.current?.focus({ preventScroll: true }); }, []);
 
-  const thieuBoPhan = !boPhan.trim();
-  // Service là trọng tài (`mo_ta` bắt buộc khi dừng sản xuất) — chặn sẵn ở đây để khỏi đi một vòng 422.
-  const thieuMoTa = mayDung && !moTa.trim();
-
+  // Không hỏi bộ phận hỏng, triệu chứng không bắt buộc (11/10/2026): người đứng máy thường không
+  // biết hỏng chỗ nào — tổ sửa chữa ghi chỗ hỏng lúc tiếp nhận.
   const gui = async () => {
-    setThuGui(true);
-    if (busy || thieuBoPhan || thieuMoTa) return;
+    if (busy) return;
     const ok = await onGui({
-      bo_phan_hong: boPhan.trim(),
       mo_ta: moTa.trim() || null,
       muc_do: mucDo,
       dung_san_xuat: mayDung,
@@ -84,83 +80,60 @@ export function ThsxBaoSuCoDialog({ mayNhan, dangChay, busy, onGui, onClose }: {
 
         <form className="ktm-drawer__form" onSubmit={(e) => { e.preventDefault(); void gui(); }}>
           <div className="rc-drawer__body">
-            <div className="ktm-form-card">
-              <div className="ktm-form-card__head">
-                <div className="ktm-form-card__icon">
-                  <Icon name="alert" size={15} />
+            {/* Thẻ cảnh báo máy đang dừng — bỏ khung thẻ lồng (09/10/2026), ô tick đứng thẳng trong thân. */}
+            <label className={`ktm-emergency-card${mayDung ? " is-active" : ""}`}>
+              <input type="checkbox" className="ktm-emergency-card__checkbox" checked={mayDung} disabled={busy}
+                onChange={(e) => setMayDung(e.target.checked)} />
+              <div className="ktm-emergency-card__body">
+                <div className="ktm-emergency-card__title">
+                  <span>Máy đang dừng, không chạy được</span>
+                  {mayDung && <span className="ktm-emergency-card__badge">Ưu tiên cao và tạm dừng việc</span>}
                 </div>
-                <h3 className="ktm-form-card__title">Thông tin báo sự cố máy</h3>
+                <span className="ktm-emergency-card__desc">
+                  {dangChay
+                    ? `Yêu cầu lên đầu hàng chờ. Việc ${tenCongDoan ?? "này"} sẽ tạm dừng và phiên máy đóng lại, giờ máy ngừng tính từ lúc gửi.`
+                    : "Yêu cầu lên đầu hàng chờ. Việc đang tạm dừng nên không đóng thêm phiên nào."}
+                </span>
               </div>
+            </label>
 
-              {/* Thẻ cảnh báo Máy Đang Dừng (Emergency Stop Alert Card) */}
-              <label className={`ktm-emergency-card${mayDung ? " is-active" : ""}`}>
-                <input type="checkbox" className="ktm-emergency-card__checkbox" checked={mayDung} disabled={busy}
-                  onChange={(e) => setMayDung(e.target.checked)} />
-                <div className="ktm-emergency-card__body">
-                  <div className="ktm-emergency-card__title">
-                    <span>Máy đang dừng, không chạy được</span>
-                    {mayDung && <span className="ktm-emergency-card__badge">🛑 Ưu tiên cao & Tạm dừng LXS</span>}
-                  </div>
-                  <span className="ktm-emergency-card__desc">
-                    Đánh dấu yêu cầu lên đầu hàng chờ.{" "}
-                    {dangChay
-                      ? "Công việc sẽ TẠM DỪNG và phiên máy đóng lại — giờ máy ngừng tính từ lúc gửi."
-                      : "Công việc đang tạm dừng nên không đóng thêm phiên nào."}
-                  </span>
-                </div>
+            <div className="rc-grid" style={{ gap: "14px" }}>
+              <label className="rc-field rc-field--full">
+                <span className="rc-field__label">Máy</span>
+                <input className="rc-input ktm-input-modern" value={mayNhan} disabled />
+                <span className="rc-field__hint">Máy của việc đang chạy trên bàn tổ.</span>
               </label>
 
-              <div className="rc-grid" style={{ gap: "14px" }}>
-                <label className="rc-field">
-                  <span className="rc-field__label">Máy *</span>
-                  <input className="rc-input ktm-input-modern" value={mayNhan} disabled />
-                  <span className="rc-field__hint">Máy của công việc đang chạy trên bàn tổ.</span>
-                </label>
-
-                <label className="rc-field">
-                  <span className="rc-field__label">Bộ phận hỏng *</span>
-                  <input className="rc-input ktm-input-modern" value={boPhan} maxLength={150} autoFocus disabled={busy}
-                    placeholder="vd: Trục cán & bạc đạn"
-                    onChange={(e) => setBoPhan(e.target.value)} />
-                  {thuGui && thieuBoPhan && <span className="rc-field__hint ktm-hint--loi">Chưa ghi bộ phận hỏng.</span>}
-                </label>
-
-                <div className="rc-field rc-field--full">
-                  <span className="rc-field__label">Mức độ (theo bạn cảm nhận)</span>
-                  <div className="ktm-priority-seg" style={{ marginBottom: "6px" }}>
-                    {MUC_DO_OPTS.map(([ma, nhan]) => {
-                      const isSel = mucDo === ma;
-                      return (
-                        <button key={ma} type="button"
-                          disabled={busy} aria-pressed={isSel}
-                          className={`ktm-priority-btn ktm-priority-btn--${ma}${isSel ? " is-selected" : ""}`}
-                          onClick={() => setMucDo(ma)}>
-                          <span className={`ktm-priority-dot ktm-priority-dot--${ma}`} />
-                          {nhan}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <span className="rc-field__hint">Cứ chọn theo cảm nhận — tổ sửa chữa sẽ đánh giá lại khi tiếp nhận.</span>
+              <div className="rc-field rc-field--full">
+                <span className="rc-field__label">Mức độ theo bạn thấy</span>
+                <div className="ktm-priority-seg" style={{ marginBottom: "6px" }}>
+                  {MUC_DO_OPTS.map(([ma, nhan]) => {
+                    const isSel = mucDo === ma;
+                    return (
+                      <button key={ma} type="button"
+                        disabled={busy} aria-pressed={isSel}
+                        className={`ktm-priority-btn ktm-priority-btn--${ma}${isSel ? " is-selected" : ""}`}
+                        onClick={() => setMucDo(ma)}>
+                        <span className={`ktm-priority-dot ktm-priority-dot--${ma}`} />
+                        {nhan}
+                      </button>
+                    );
+                  })}
                 </div>
-
-                <label className="rc-field rc-field--full">
-                  <span className="rc-field__label">Triệu chứng{mayDung ? " *" : ""}</span>
-                  <textarea className="rc-input ktm-input-modern" rows={2} value={moTa} disabled={busy}
-                    placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép…"
-                    onChange={(e) => setMoTa(e.target.value)} />
-                  {mayDung && (
-                    <span className={`rc-field__hint${thuGui && thieuMoTa ? " ktm-hint--loi" : ""}`}>
-                      Bắt buộc khi máy dừng — đây là mốc mất giờ máy của lệnh.
-                    </span>
-                  )}
-                </label>
+                <span className="rc-field__hint">Tổ sửa chữa sẽ đánh giá lại khi nhận.</span>
               </div>
+
+              <label className="rc-field rc-field--full">
+                <span className="rc-field__label">Triệu chứng</span>
+                <textarea className="rc-input ktm-input-modern" rows={2} value={moTa} disabled={busy}
+                  placeholder="Kể đúng cái mình thấy, ví dụ máy kêu to ở tốc độ cao, tờ ra bị nhăn mép"
+                  onChange={(e) => setMoTa(e.target.value)} />
+              </label>
             </div>
           </div>
 
           <footer className="rc-drawer__foot">
-            <Button variant="ghost" type="button" onClick={onClose} disabled={busy}>Hủy</Button>
+            <Button variant="ghost" type="button" onClick={onClose} disabled={busy}>Huỷ</Button>
             <Button variant="accent" type="submit" disabled={busy}>
               {busy ? "Đang gửi…" : "Gửi yêu cầu"}
             </Button>

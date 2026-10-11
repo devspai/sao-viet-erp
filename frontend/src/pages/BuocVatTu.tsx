@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import type { Row } from "../api/rebuildCatalog";
+import { HoverTip } from "../components/HoverTip";
 import { Select } from "../components/Select";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 
@@ -104,11 +105,11 @@ export function soDinhMuc(v: number): string {
   return v.toLocaleString("vi-VN", { maximumFractionDigits: le });
 }
 
-/** Ô lượng + tooltip HAI DÒNG khi rê chuột / chạm (04/10/2026), cùng khuôn với dòng tiền ở bảng giá
- *  vốn: dòng 1 công thức bằng chữ, dòng 2 "= thế số = kết quả". Công thức chỉ là một biến ("Số bản
- *  kẽm") thì dòng 2 chỉ "= 32 bản", khỏi lặp kết quả hai lần. Ô nhận focus để bàn phím / chạm cũng mở. */
-function OLuong({ dm, dvMacDinh }: { dm: DinhMuc | undefined; dvMacDinh: string }) {
-  const id = useId();
+/** Ô lượng + bong bóng công thức khi rê chuột / chạm — cùng khuôn bong bóng trắng của dòng tiền ở
+ *  khối Giá vốn (09/10/2026): thẻ "Công thức" bằng chữ, thẻ "Thế số" "= thế số = kết quả". Công thức
+ *  chỉ là một biến ("Số bản kẽm") thì thế số chỉ "= 32 bản", khỏi lặp kết quả hai lần. Ô nhận focus
+ *  để bàn phím / chạm cũng mở. */
+function OLuong({ ten, dm, dvMacDinh }: { ten: string; dm: DinhMuc | undefined; dvMacDinh: string }) {
   const dv = (dm?.donVi ? tenDonVi(dm.donVi) : undefined) ?? dvMacDinh;
   const co = dm?.so != null;
   const ketQua = co ? `${soDinhMuc(dm!.so!)}${dv ? ` ${dv}` : ""}` : "";
@@ -116,24 +117,36 @@ function OLuong({ dm, dvMacDinh }: { dm: DinhMuc | undefined; dvMacDinh: string 
   const coPhepTinh = /[×÷+−()]/.test(thaySo);
   const dong2 = !co ? "" : thaySo && coPhepTinh ? `= ${thaySo} = ${ketQua}` : `= ${thaySo || ketQua}`;
   return (
-    <span
-      className={`tg-bvt__luong${co ? "" : " tg-bvt__luong--chua"}`}
-      tabIndex={0}
-      aria-describedby={id}
+    <HoverTip
+      tieuDe={ten}
+      rong={420}
+      lopNeo={`tg-bvt__luong${co ? "" : " tg-bvt__luong--chua"}`}
+      neo={
+        <>
+          <span className="tg-bvt__luong-so">{co ? soDinhMuc(dm!.so!) : "—"}</span>
+          {dv ? <span className="tg-bvt__dv">{dv}</span> : null}
+        </>
+      }
     >
-      <span className="tg-bvt__luong-so">{co ? soDinhMuc(dm!.so!) : "—"}</span>
-      {dv ? <span className="tg-bvt__dv">{dv}</span> : null}
-      <span role="tooltip" id={id} className="tg-bvt__tip">
-        {dm?.dienGiai ? <span className="tg-bvt__tip-goc">{dm.dienGiai}</span> : null}
-        {co ? (
-          <span className="tg-bvt__tip-so">{dong2}</span>
-        ) : (
-          <span className="tg-bvt__tip-so">
-            {dm ? `Chưa tính được: ${dm.lyDo ?? "không rõ lý do"}` : "Đang chờ tính…"}
-          </span>
-        )}
-      </span>
-    </span>
+      {co ? (
+        <dl className="hover-tip__dong">
+          {dm?.dienGiai ? (
+            <div className="hover-tip__hang">
+              <dt>Công thức</dt>
+              <dd>{dm.dienGiai}</dd>
+            </div>
+          ) : null}
+          <div className="hover-tip__hang">
+            <dt>Thế số</dt>
+            <dd className="hover-tip__so">{dong2}</dd>
+          </div>
+        </dl>
+      ) : (
+        <p className="hover-tip__dan">
+          {dm ? `Chưa tính được: ${dm.lyDo ?? "không rõ lý do"}` : "Đang chờ tính…"}
+        </p>
+      )}
+    </HoverTip>
   );
 }
 
@@ -175,7 +188,9 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
 
   // Cột LƯỢNG bên phải mọi hàng (04/10/2026): số định mức engine tính + đơn vị, thẳng cột giữa các
   // vật tư. Chưa tính ra thì gạch, rê chuột đọc lý do — không bịa số.
-  const oLuong = (vatTuId: number, dvDm: string) => <OLuong dm={dinhMuc?.get(vatTuId)} dvMacDinh={dvDm} />;
+  const oLuong = (vatTuId: number, dvDm: string, ten: string) => (
+    <OLuong ten={ten} dm={dinhMuc?.get(vatTuId)} dvMacDinh={dvDm} />
+  );
 
   // Danh sách GỌN (thiết kế B, 04/10/2026): mỗi vật tư một hàng [tên, lượng + đơn vị, ×]. Vật tư có
   // chip đứng trước, ô chip nằm ở dòng dưới của chính hàng đó, dồn về mép phải. Cuối cùng là ô nét
@@ -198,7 +213,7 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
             chips.length > 0 ? (
               <li className="tg-bvt__dong tg-bvt__dong--chip" key={d.uid}>
                 <span className="tg-bvt__ten" title={ten}>{ten}</span>
-                {oLuong(d.vat_tu_id, dv)}
+                {oLuong(d.vat_tu_id, dv, ten)}
                 {nutXoa(i, ten)}
                 <div className="tg-bvt__luoi">
                   {chips.map((c) => (
@@ -216,7 +231,7 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
             ) : (
               <li className="tg-bvt__dong" key={d.uid}>
                 <span className="tg-bvt__ten" title={ten}>{ten}</span>
-                {oLuong(d.vat_tu_id, dv)}
+                {oLuong(d.vat_tu_id, dv, ten)}
                 {nutXoa(i, ten)}
               </li>
             ),

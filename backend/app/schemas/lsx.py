@@ -84,6 +84,11 @@ class PreviewLine(BaseModel):
     # Đã tạo lệnh rồi → khoá dòng.
     lsx_id: int | None = None
     lsx_ma: str | None = None
+    # Kho đang có bao nhiêu SẢN PHẨM BÁN này của khách (11/10/2026, mg 0394): tồn của mã thành phẩm
+    # trừ phần các yêu cầu giao (mọi đơn) đang giữ chưa xuất. Tính theo CỤM — ruột và bìa cùng một
+    # cuốn mang cùng số, đơn vị là đơn vị cụm (`ton_dvt`). None = khách chưa từng có mã này.
+    ton_san: float | None = None
+    ton_dvt: str | None = None
 
 
 class PreviewOut(BaseModel):
@@ -119,7 +124,7 @@ class LsxBuocVatTuIn(BaseModel):
     hang_loai: Literal["giay", "vat_tu"] = "vat_tu"
     vat_tu_id: int
     # Vật tư khác: máy TỰ TÍNH bằng công thức định mức của vật tư + chip — số gửi lên bị bỏ
-    # (01/10/2026). Giấy cũng vậy: số + khổ + dạng + đơn vị do máy chủ ghi theo ĐẦU VÀO của bước
+    # (01/10/2026). Giấy cũng vậy: số + khổ + đơn vị (+ đơn vị gốc) do máy chủ ghi theo ĐẦU VÀO của bước
     # (spec 2026-10-01 dong-giay-theo-dau-vao §4) — `so_luong` / `kho_*` giữ để client cũ không 422.
     so_luong: float | None = Field(default=None, ge=0)
     # True = dòng MÁY bung khi chọn công việc khoán ⇒ lần bung sau thay được. False = người tự thêm
@@ -144,7 +149,9 @@ class LsxBuocVatTuOut(BaseModel):
     so_luong: float
     kho_rong: int = 0
     kho_dai: int = 0
-    dang_giay: str | None = None   # giấy: `to` / `cuon` (máy chủ ghi theo đầu vào của bước)
+    # Giấy: đơn vị gốc của dòng (`to` khi bước nhận tờ; đơn vị giá của mã khi nhận giấy khổ rộng) —
+    # máy chủ ghi theo đầu vào của bước. Hàng khác "". Thay `dang_giay` (10/10/2026).
+    don_vi_goc: str = ""
     tu_dong: bool = False
     sua_tay: bool = False
     gia_tri_chip: dict[str, float] = Field(default_factory=dict)
@@ -420,6 +427,25 @@ class DanhMucDoiOut(BaseModel):
     buocs: list[DanhMucDoiBuoc] = Field(default_factory=list)
 
 
+class TieuChiKcsDoiCongDoan(BaseModel):
+    cong_viec_id: int
+    ten: str
+    cu: list[str] = Field(default_factory=list)
+    moi: list[str] = Field(default_factory=list)
+    them: list[str] = Field(default_factory=list)
+    bo: list[str] = Field(default_factory=list)
+    doi_thu_tu: bool = False
+    da_bat_dau: bool = False
+
+
+class TieuChiKcsDoiOut(BaseModel):
+    """Thẻ việc của lệnh đã phát hành mà tiêu chí KCS chụp lúc phát hành khác danh mục
+    hiện tại — `None` ở `LsxOut` khi khớp hết. Lấy bộ mới bằng nút "Cập nhật tiêu chí" của băng."""
+
+    so_cong_doan: int
+    cong_doans: list[TieuChiKcsDoiCongDoan] = Field(default_factory=list)
+
+
 class LsxOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -509,6 +535,7 @@ class LsxOut(BaseModel):
     # Danh mục Công đoạn đã đổi sau lúc lệnh chụp ảnh (None = còn khớp). Lệnh KHÔNG tự lấy số mới;
     # băng trên màn lệnh nói lệch chỗ nào rồi để người lập kế hoạch bấm "Cập nhật theo danh mục".
     danh_muc_doi: DanhMucDoiOut | None = None
+    tieu_chi_kcs_doi: TieuChiKcsDoiOut | None = None
 
 
 class BuocBiDeOut(BaseModel):
@@ -692,10 +719,17 @@ class TrangThaiIn(BaseModel):
 
 
 class LsxActivityItem(BaseModel):
-    at: datetime
+    """Một dòng nhật ký lệnh — câu dựng ở máy chủ (`services/lsx_nhat_ky.py`), gom cả vết của gia
+    công ngoài, phiếu chi, xưởng, kho… chứ không riêng audit target `lsx:{id}`."""
+    at: datetime | None = None
     actor_name: str | None = None
     action: str
-    detail: str
+    tieu_de: str
+    #: Mẩu phụ (số hỏng, mã phiếu, lý do) — FE vẽ thành thẻ nhỏ.
+    the: list[str] = []
+    #: Tên công đoạn khi dòng đến từ một công việc ở xưởng.
+    buoc: str | None = None
+    tone: str | None = None
 
 
 class LsxActivityOut(BaseModel):

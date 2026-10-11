@@ -121,6 +121,29 @@
   margin-top: 1px;
 }
 
+.tline__item--tone-rust .tline__dot { border-color: var(--rust); }
+.tline__item--tone-moss .tline__dot { border-color: var(--moss); background: var(--moss-soft); }
+.tline__item--tone-steel .tline__dot { border-color: var(--steel); background: var(--steel-soft); }
+.tline__item--tone-signal .tline__dot { border-color: var(--signal); background: var(--signal-soft); }
+
+/* Thẻ nhỏ sau câu (tên công đoạn, mã phiếu, lý do) — tách mẩu dữ liệu bằng thẻ, không nối bằng dấu. */
+.tline__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-top: 3px;
+}
+
+.tline__tag {
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 0 6px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 4px;
+  color: var(--ink-2, var(--ink));
+  overflow-wrap: anywhere;
+}
+
 .tline__empty {
   font-size: 12.5px;
   color: var(--ash-2);

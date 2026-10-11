@@ -111,6 +111,19 @@ def test_huy_tron_goi_ve_nhap_thu_hoi_goi(sess, admin, lenh):
     assert d["trang_thai"] == TT_DA_HUY
 
 
+def test_lenh_tron_goi_khong_len_man_kcs(sess, admin, lenh):
+    """Trọn gói không xuống xưởng, KCS không kiểm hàng gia công về (09/10/2026) — đặt trọn gói cũng
+    đưa lệnh vào nhóm thành phẩm, nhưng màn KCS (danh sách + ô Khách hàng) không được liệt kê nó."""
+    from app.services.san_xuat import kcs
+    from tests.test_san_xuat_kcs import _to_kiem
+
+    _d, nguoi = _to_kiem(sess)
+    _dat(sess, admin, lenh)
+    out = kcs.danh_sach_lenh_kcs(sess, nguoi)
+    assert lenh.id not in [i["lsx_id"] for i in out["items"]] and out["tong"] == 0
+    assert kcs.khach_loc_kcs(sess, nguoi) == []
+
+
 def _lo_to(sess, giay_id, rong, dai, so_to, *, ma):
     """Một lô giấy TỜ đúng khổ trong một kho riêng của test."""
     from datetime import date
@@ -124,7 +137,7 @@ def _lo_to(sess, giay_id, rong, dai, so_to, *, ma):
         sess.add(kho)
         sess.flush()
     sess.add(StockLot(ma_lo=ma, hang_loai="giay", hang_id=giay_id, kho_id=kho.id,
-                      dang_giay="to", kho_rong=rong, kho_dai=dai, ngay_nhap=date(2026, 10, 1),
+                      don_vi_goc="to", kho_rong=rong, kho_dai=dai, ngay_nhap=date(2026, 10, 1),
                       sl_ban_dau=so_to, sl_con_lai=so_to))
     sess.commit()
 
@@ -163,7 +176,7 @@ def test_xuong_cap_giay_lap_de_nghi_xuat_mot_lan(sess, admin, lenh):
     _xuat(sess, admin, lan, kho=(1090, 790), so_to=1200)
     req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_XUAT).one()
     (ln,) = req.lines
-    assert (ln.hang_loai, ln.hang_id, ln.dang_giay, ln.kho_rong, ln.kho_dai) == (
+    assert (ln.hang_loai, ln.hang_id, ln.don_vi_goc, ln.kho_rong, ln.kho_dai) == (
         "giay", int(lenh.quy_cach_json["giay_id"]), "to", 790, 1090)
     assert float(ln.sl_de_nghi) == 1200 and ln.dvt == don_vi_goc_to() and ln.lsx_id == lenh.id
     (d,) = lan_cua_lenh(sess, lenh.id)
@@ -713,3 +726,39 @@ def test_bat_giu_cho_giu_duoc_giay_tron_goi(sess, admin, lenh):
     assert giu() == [(790, 1090, float(lenh.so_to_nguyen))]
     _xuat(sess, admin, lan, kho=(650, 860), so_to=1000)
     assert giu() == [(650, 860, 1000.0)]
+
+
+def test_nhat_ky_lenh_gom_ca_gia_cong_kho_va_xuong(sess, admin, lenh):
+    """Tab Nhật ký của lệnh (10/10/2026): trước chỉ đọc audit `lsx:{id}` nên lệnh trọn gói đã giao,
+    đã xuất giấy, đã nhận về vẫn chỉ hiện "Tạo lệnh". Nay gom cả lần gia công ngoài, đề nghị kho,
+    và công việc xưởng của lệnh (gắn thẻ tên công đoạn)."""
+    from app.services.lsx_nhat_ky import nhat_ky
+
+    lan = _dat(sess, admin, lenh)
+    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
+         sl_cuoi=19_800, noi_ve=NOI_VE_KHO)
+
+    items = nhat_ky(sess, lenh.id)
+    actions = [x["action"] for x in items]
+    for a in ("gia_cong_ngoai_dat", "gia_cong_ngoai_chot"):
+        assert a in actions, a
+    # Đề nghị nhập kho của lần gia công đã có dòng audit "chốt" ⇒ không lặp dòng "Lập đề nghị".
+    assert "kho_de_nghi" not in actions
+    # Việc trọn gói không thuộc tổ ⇒ không có dòng "Tổ nhận lệnh" sai nghĩa.
+    assert not any(x["tieu_de"] == "Tổ nhận lệnh" for x in items)
+    # Mới nhất trên cùng, câu không rỗng, có người thao tác cho dòng audit.
+    ats = [x["at"] for x in items if x["at"]]
+    assert ats == sorted(ats, reverse=True)
+    assert all(x["tieu_de"] for x in items)
+    assert next(x for x in items if x["action"] == "gia_cong_ngoai_chot")["actor_name"]
+
+
+def test_nhat_ky_lenh_co_de_nghi_xuat_giay(sess, admin, lenh):
+    from app.services.lsx_nhat_ky import nhat_ky
+
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    _xuat(sess, admin, lan, so_to=1200)
+    req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_XUAT).one()
+    items = nhat_ky(sess, lenh.id)
+    assert any(x["action"] == "gia_cong_ngoai_xuat_giay" and req.ma in x["tieu_de"] for x in items)
+    assert not any(x["action"] == "kho_de_nghi" for x in items)

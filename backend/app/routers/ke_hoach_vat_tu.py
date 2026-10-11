@@ -24,6 +24,7 @@ from ..db import get_db
 from ..deps import CurrentUser, get_purchase_service, require_permission
 from ..services.can_doi_cache import bang_can_doi, lay_hoac_tinh, xoa_cache_can_doi
 from ..services import luoi_vat_tu
+from ..services.kho_giay import co_don_vi_goc
 from ..repositories.bai_ghep_repo import BaiGhepRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.lsx_repo import LsxRepository
@@ -202,9 +203,16 @@ def luoi_hang(
     hang_id: int = Query(gt=0),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
+    don_vi_goc: str = Query(default="", max_length=16),
 ) -> LuoiHangOut:
-    """Ngăn mặt hàng: đơn mua (đặt cho ai, dư bao nhiêu), phiếu nên huỷ, lệnh dùng, lịch sử."""
-    ra = luoi_vat_tu.mot_hang(_luoi(giu), f"{hang_loai}:{hang_id}:{kho_rong}:{kho_dai}")
+    """Ngăn mặt hàng: đơn mua (đặt cho ai, dư bao nhiêu), phiếu nên huỷ, lệnh dùng, lịch sử.
+
+    `don_vi_goc` = đơn vị gốc của khoá (giấy cùng khổ đếm tờ / đếm kg là hai mặt hàng, 10/10/2026;
+    vật tư kg / thùng cũng vậy). Giấy / vật tư gửi rỗng mà không có khoá rỗng thì khớp khoá có nhu cầu đúng mã +
+    khổ (`mot_hang`) — không 404 khi lệnh vẫn cần."""
+    goc = don_vi_goc.strip().lower() if co_don_vi_goc(hang_loai) else ""
+    ra = luoi_vat_tu.mot_hang(_luoi(giu), f"{hang_loai}:{hang_id}:{kho_rong}:{kho_dai}:{goc}",
+                              mo_goc=co_don_vi_goc(hang_loai) and not goc)
     if ra is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             detail="Mặt hàng này không còn lệnh nào cần.")

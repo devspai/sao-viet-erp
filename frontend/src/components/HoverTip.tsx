@@ -10,7 +10,7 @@
 //   · "Lưu ý: …"                → dòng chú thích nhỏ ở cuối.
 // Đoạn nào có dạng "Cho phép: việc A; việc B; việc C." (ngăn bằng dấu `;`) thì bày thành danh
 // sách gạch đầu dòng — nhiều việc dồn một câu dài thì không ai đọc nổi.
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "./Icons";
 import "./hover-tip.css";
@@ -62,12 +62,22 @@ function DoanVan({ text, className }: { text: string; className?: string }) {
   );
 }
 
-export function HoverTip({ text, tieuDe }: { text: string; tieuDe?: string }) {
+//: `children` thay phần thân dựng từ `text` — cho nội dung không phải câu chữ (vd. công thức nhiều
+//: dòng thụt lề ở khối Giá vốn). `rong` nới bề ngang tối đa cho nội dung dài. `neo` thay dấu hỏi
+//: bằng chính phần tử được rê chuột (vd. ô lượng vật tư), `lopNeo` là lớp CSS của phần tử đó.
+export function HoverTip({ text = "", tieuDe, children, rong = RONG, neo: noiDungNeo, lopNeo }: {
+  text?: string;
+  tieuDe?: string;
+  children?: ReactNode;
+  rong?: number;
+  neo?: ReactNode;
+  lopNeo?: string;
+}) {
   const id = useId();
   const neo = useRef<HTMLSpanElement | null>(null);
   const bong = useRef<HTMLDivElement | null>(null);
   const [mo, setMo] = useState(false);
-  const [vt, setVt] = useState<{ top: number; left: number; tren: boolean; mui: number } | null>(null);
+  const [vt, setVt] = useState<{ top: number; left: number; tren: boolean; mui: number; lech: boolean } | null>(null);
 
   useLayoutEffect(() => {
     if (!mo || !neo.current || !bong.current) return;
@@ -77,9 +87,14 @@ export function HoverTip({ text, tieuDe }: { text: string; tieuDe?: string }) {
     const vh = window.innerHeight;
     const giua = r.left + r.width / 2;
     const left = Math.min(Math.max(giua - b.width / 2, LE), vw - b.width - LE);
-    const tren = r.bottom + KHOANG + b.height > vh - LE && r.top - KHOANG - b.height > LE;
-    const top = tren ? r.top - KHOANG - b.height : r.bottom + KHOANG;
-    setVt({ top, left, tren, mui: Math.min(Math.max(giua - left, 14), b.width - 14) });
+    // Dưới đủ chỗ thì mở xuống, không thì lật lên; cả hai phía đều thiếu (công thức `if` nhiều tầng)
+    // thì đặt bên rộng hơn rồi ép trọn trong màn hình — thà che neo còn hơn mất nửa dưới công thức.
+    const choDuoi = vh - LE - r.bottom - KHOANG;
+    const choTren = r.top - KHOANG - LE;
+    const tren = b.height > choDuoi && (b.height <= choTren || choTren > choDuoi);
+    const muon = tren ? r.top - KHOANG - b.height : r.bottom + KHOANG;
+    const top = Math.min(Math.max(muon, LE), Math.max(vh - b.height - LE, LE));
+    setVt({ top, left, tren, mui: Math.min(Math.max(giua - left, 14), b.width - 14), lech: top !== muon });
   }, [mo, text]);
 
   useLayoutEffect(() => {
@@ -98,16 +113,16 @@ export function HoverTip({ text, tieuDe }: { text: string; tieuDe?: string }) {
     setMo(true);
   };
   const tat = () => setMo(false);
-  const nd = mo ? phanTich(text) : null;
+  const nd = mo ? (children ? { dan: "", dong: [], luuY: [] } : phanTich(text)) : null;
 
   return (
     <>
       <span
         ref={neo}
-        className="hover-tip__icon"
+        className={noiDungNeo ? lopNeo : "hover-tip__icon"}
         tabIndex={0}
-        role="button"
-        aria-label={tieuDe ? `Giải thích: ${tieuDe}` : "Giải thích"}
+        role={noiDungNeo ? undefined : "button"}
+        aria-label={noiDungNeo ? undefined : tieuDe ? `Giải thích: ${tieuDe}` : "Giải thích"}
         aria-describedby={mo ? id : undefined}
         onMouseEnter={bat}
         onMouseLeave={tat}
@@ -117,7 +132,7 @@ export function HoverTip({ text, tieuDe }: { text: string; tieuDe?: string }) {
           if (e.key === "Escape") tat();
         }}
       >
-        <Icon name="help" size={13} />
+        {noiDungNeo ?? <Icon name="help" size={13} />}
       </span>
       {nd &&
         createPortal(
@@ -125,15 +140,16 @@ export function HoverTip({ text, tieuDe }: { text: string; tieuDe?: string }) {
             ref={bong}
             id={id}
             role="tooltip"
-            className={`hover-tip${vt ? " hover-tip--hien" : ""}${vt?.tren ? " hover-tip--tren" : ""}`}
+            className={`hover-tip${vt ? " hover-tip--hien" : ""}${vt?.tren ? " hover-tip--tren" : ""}${vt?.lech ? " hover-tip--lech" : ""}`}
             style={{
-              maxWidth: RONG,
+              maxWidth: `min(${rong}px, calc(100vw - ${LE * 2}px))`,
               top: vt?.top ?? 0,
               left: vt?.left ?? 0,
               ["--mui" as string]: `${vt?.mui ?? 14}px`,
             }}
           >
             {tieuDe && <div className="hover-tip__tieu-de">{tieuDe}</div>}
+            {children}
             {nd.dan && <DoanVan className="hover-tip__dan" text={nd.dan} />}
             {nd.dong.length > 0 && (
               <dl className="hover-tip__dong">

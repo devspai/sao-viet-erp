@@ -18,7 +18,7 @@ export function HopChepTieuChi({
   token, nguon: nguonSan, dichSan, onDong, onXong,
 }: {
   token: string;
-  /** Công đoạn đang chọn khi bấm "Chép sang…"; null = "Chép từ công đoạn khác" (chọn nguồn trước). */
+  /** Công đoạn đang chọn khi bấm "Chép sang công đoạn khác"; null = "Chép từ công đoạn khác" (chọn nguồn trước). */
   nguon: CongDoanTc | null;
   /** Công đoạn tick sẵn làm đích ("Chép từ công đoạn khác"). */
   dichSan: number | null;

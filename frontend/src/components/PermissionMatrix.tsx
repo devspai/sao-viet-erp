@@ -177,6 +177,15 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       hint: "Cho phép báo máy hỏng và sửa lời báo của mình khi chưa ai nhận. Không cho nhận hay đóng phiếu sửa.",
     },
   ],
+  // KCS (09/10/2026, thay cờ phòng ban "Tổ KCS đích danh"). Xem = màn KCS + báo cáo mọi tổ + Xuất
+  // Excel; Thao tác (`can_create`) = ghi lần kiểm, gửi nhập kho, đóng lệnh đủ.
+  kcs: [
+    {
+      key: "can_close_short",
+      label: "Đóng lệnh thiếu",
+      hint: "Cho phép: đóng lệnh khi còn hàng chưa kiểm, chưa gửi kho, thiếu số so với đơn hoặc còn việc đang làm; mở lại lệnh đã đóng. Lưu ý: phải bật kèm Thao tác. Đóng khi đã đủ hết thì chỉ cần Thao tác.",
+    },
+  ],
   xep_lich: [
     {
       key: "can_approve",
@@ -691,6 +700,7 @@ const MODULE_GROUPS: {
       "ke_hoach_vat_tu",
       "bai_ghep_2",
       "xep_lich",
+      "kcs",
     ],
   },
   // (Nhóm "Tổ sản xuất" chèn ở ĐÂY lúc chạy — nó dựng từ các dòng `to_sx_<id>` máy chủ trả về,
@@ -803,35 +813,53 @@ const MODULE_GROUPS: {
 // Nhóm "Tổ sản xuất" (mg 0302, chốt 14/09/2026): MỖI NÚT của khối sản xuất trong Phòng ban là một
 // dòng `to_sx_<id>`, máy chủ tự sinh / đổi tên / gỡ theo cây. Dòng không có cột Thao tác — ba quyền
 // chi tiết dưới đây thay nó, và cùng Xem đi theo Phạm vi của dòng. Không có ô "KCS" (gỡ mg 0306):
-// người KCS là thành viên phòng ban có cờ "Tổ KCS", kiểm được mọi tổ — không cấp theo từng tổ.
-// Riêng dòng của tổ có cờ KCS có thêm ô "Đóng lệnh thiếu" (`FINE_TO_KCS`, mg 0382).
+// KCS là dòng `kcs` riêng ở nhóm Sản xuất (09/10/2026), kiểm được mọi tổ — không cấp theo từng tổ.
 const KHOA_TO_TIEN_TO = "to_sx_";
 const laDongTo = (moduleKey: string) => moduleKey.startsWith(KHOA_TO_TIEN_TO);
+
+/** Cây dòng tổ (`modules` về theo thứ tự cây kèm `cap`): `cha` của từng dòng, và với mỗi dòng là
+ *  NHÓM (dòng ngay sau sâu hơn) thì danh sách khoá các tổ LÁ bên trong. Dòng lá không có trong
+ *  `laCuaNhom`. */
+export function cayDongTo(dong: { key: string; cap?: number }[]): {
+  cha: Map<string, string>;
+  laCuaNhom: Map<string, string[]>;
+} {
+  const cha = new Map<string, string>();
+  const laCuaNhom = new Map<string, string[]>();
+  const chong: { key: string; cap: number }[] = [];
+  dong.forEach((d, i) => {
+    const cap = d.cap ?? 0;
+    while (chong.length && chong[chong.length - 1].cap >= cap) chong.pop();
+    if (chong.length) cha.set(d.key, chong[chong.length - 1].key);
+    if ((dong[i + 1]?.cap ?? -1) > cap) laCuaNhom.set(d.key, []);
+    else for (const c of chong) laCuaNhom.get(c.key)?.push(d.key);
+    chong.push({ key: d.key, cap });
+  });
+  return { cha, laCuaNhom };
+}
+
+/** Chỉ tổ LÁ nhận việc và mang quyền (10/10/2026); tổ cha là NHÓM y như thanh bên — tiêu đề gập/mở,
+ *  không cấp quyền riêng (máy chủ lưu dòng nhóm trắng, mg 0387 đã chép quyền cũ xuống tổ lá). */
+const hintDongTo = (ten: string, soLa: number | undefined) =>
+  soLa != null
+    ? `${ten} là nhóm: không nhận việc, không cấp quyền riêng. Bấm tên để gập, mở các tổ bên trong. Ô tích bên trái bật hoặc tắt hết quyền của cả ${soLa} tổ bên trong. Lưu ý: tổ mới thêm vào nhóm sau này chưa có quyền, phải bật ở dòng của tổ đó.`
+    : `Xem: mục ${ten} dưới Tổ sản xuất trên thanh bên; mở Bàn tổ của tổ này. Phạm vi “Của tôi”: chỉ thấy việc mình được giao. “Cả phòng”: người ngồi ở tổ này hoặc ở nhóm trên nó. Ba quyền chi tiết là việc làm được trên bàn này.`;
 
 const FINE_TO: { key: ActionKey; label: string; hint: string }[] = [
   {
     key: "can_run_order",
     label: "Thực hiện lệnh",
-    hint: "Cho phép: giao hoặc rút người khỏi việc; bắt đầu, tạm dừng, đổi máy, kết thúc việc; báo sự cố; nhận và trả khuôn; ghi mẻ sản xuất; chốt giấy.",
+    hint: "Cho phép: giao hoặc rút người khỏi việc; bắt đầu, tạm dừng, đổi máy, kết thúc việc; báo sự cố; nhận và trả khuôn; ghi sản lượng; chốt giấy.",
   },
   {
     key: "can_confirm_output",
     label: "Xác nhận sản lượng",
-    hint: "Cho phép: đề xuất bàn giao sang tổ sau; xác nhận nhận bàn giao và điều chỉnh số; đề xuất, xác nhận, huỷ hỗ trợ chéo; đánh dấu đã xem lỗi KCS báo về.",
+    hint: "Cho phép: sửa số sản lượng đã ghi; đề xuất bàn giao sang tổ sau; xác nhận nhận bàn giao; đánh dấu đã xem lỗi KCS báo về.",
   },
   {
     key: "can_warehouse",
     label: "Kho",
     hint: "Cho phép: đề nghị lĩnh vật tư; xác nhận đã nhận vật tư; nhập lại vật tư thừa.",
-  },
-];
-
-const FINE_TO_KCS: { key: ActionKey; label: string; hint: string }[] = [
-  ...FINE_TO,
-  {
-    key: "can_close_short",
-    label: "Đóng lệnh thiếu",
-    hint: "Cho phép: đóng nhóm lệnh khi còn hàng chưa kiểm, chưa gửi kho, thiếu số so với đơn hoặc còn việc đang làm; mở lại nhóm đã đóng. Đóng khi đã đủ hết thì mọi người KCS làm được, không cần ô này.",
   },
 ];
 
@@ -853,13 +881,16 @@ const cotThaoTac = (moduleKey: string): ActionKey[] =>
     ? ["can_create", "can_delete"]
     : moduleKey === "kho"
       ? ["can_request"]
-      : laDongKho(moduleKey)
-        ? ["can_set_threshold"]
-        : WRITE_ACTIONS;
+      : moduleKey === "kcs"
+        ? ["can_create"]
+        : laDongKho(moduleKey)
+          ? ["can_set_threshold"]
+          : WRITE_ACTIONS;
 
 const NHAN_THAO_TAC: Record<string, string> = {
   noi_quy: "Thao tác (thêm, xóa)",
   kho: "Thao tác (tạo yêu cầu)",
+  kcs: "Thao tác (kiểm, gửi nhập kho, đóng lệnh)",
 };
 const nhanThaoTac = (moduleKey: string) =>
   NHAN_THAO_TAC[moduleKey] ??
@@ -875,11 +906,11 @@ const FINE_KHO: FineAction[] = [
   ),
 ];
 
-const fineCua = (moduleKey: string, laKcs = false): FineAction[] | undefined =>
+const fineCua = (moduleKey: string): FineAction[] | undefined =>
   FINE_ACTIONS[moduleKey]?.length
     ? FINE_ACTIONS[moduleKey]
     : laDongTo(moduleKey)
-      ? (laKcs ? FINE_TO_KCS : FINE_TO)
+      ? FINE_TO
       : laDongKho(moduleKey)
         ? FINE_KHO
         : undefined;
@@ -938,8 +969,7 @@ export function defaultMatrix(modules: ModuleDef[]): PermissionRow[] {
 /** Một module có "quyền" nào không (để đếm N/M ở đầu nhóm + quyết định nhóm nào mở sẵn). */
 function rowHasAny(row: PermissionRow): boolean {
   if (row.can_read || cotThaoTac(row.module_key).some((k) => row[k])) return true;
-  // `laKcs = true`: dòng tổ thường luôn tắt ô Đóng lệnh thiếu nên đếm thêm cũng vô hại.
-  const fine = fineCua(row.module_key, true);
+  const fine = fineCua(row.module_key);
   return fine ? fine.some((a) => row[a.key]) : false;
 }
 
@@ -984,6 +1014,8 @@ const PHAM_VI_CHO_PHEP: Record<string, Scope[]> = {
   ke_hoach_vat_tu: ["all"],
   bai_ghep_2: ["all"],
   xep_lich: ["all"],
+  // KCS (09/10/2026): kiểm cả chuỗi mọi tổ — máy chủ ép `all` (`SCOPELESS_MODULES`).
+  kcs: ["all"],
   phieu_bao_tri: ["all"],
   // Hai khoá tách ra 24/09/2026 (mg `0329`) cũng nằm trong `SCOPELESS_MODULES` của máy chủ nhưng
   // ở nhóm CÓ cột Phạm vi (Kinh doanh · Kho hàng), nên khoá về một lựa chọn để ô hiện mờ thay vì
@@ -1118,6 +1150,13 @@ export function PermissionMatrix({
     .filter((m) => laDongTo(m.key))
     .map((m) => byKey.get(m.key))
     .filter((r): r is PermissionRow => !!r);
+  const cayTo = cayDongTo(modules.filter((m) => laDongTo(m.key)));
+  // Nhóm tổ đang GẬP trên ma trận (giống thanh bên).
+  const [toGap, setToGap] = useState<Set<string>>(new Set());
+  const anVaoNhomGap = (key: string): boolean => {
+    for (let c = cayTo.cha.get(key); c; c = cayTo.cha.get(c)) if (toGap.has(c)) return true;
+    return false;
+  };
   // Dòng kho theo thứ tự máy chủ trả (mã kho; chỉ kho ĐANG DÙNG — kho ngừng dùng giữ quyền nhưng
   // không bày, đúng như thanh bên).
   const dongKho = modules
@@ -1179,7 +1218,7 @@ export function PermissionMatrix({
         ks.forEach((k) => out.push({ khoa, key: k, on: !!row[k] }));
       }
     }
-    for (const a of fineCua(khoa, !!moduleDef.get(khoa)?.la_kcs) ?? []) {
+    for (const a of fineCua(khoa) ?? []) {
       if (!oSong(khoa, a.key.replace("can_", ""))) continue;
       if (doiPhamViToanCty(khoa, a.key) && row.scope !== "all") continue;
       (a.keys ?? [a.key]).forEach((k) => out.push({ khoa, key: k, on: !!row[k] }));
@@ -1199,9 +1238,13 @@ export function PermissionMatrix({
   return (
     <div className="rdx-perm">
       {groups.map((g) => {
-        const granted = g.rows.filter(rowHasAny).length;
+        // Khối Tổ sản xuất: dòng NHÓM chỉ là tiêu đề — đếm và "tích hết" chỉ tính dòng tổ lá.
+        const rowsCoQuyen = g.key === "to_san_xuat"
+          ? g.rows.filter((r) => !cayTo.laCuaNhom.has(r.module_key))
+          : g.rows;
+        const granted = rowsCoQuyen.filter(rowHasAny).length;
         const open = groupOverride.has(g.key) ? groupOverride.get(g.key)! : granted > 0;
-        const oNhom = g.rows.flatMap((r) => oCuaDong(r, g.noWrite));
+        const oNhom = rowsCoQuyen.flatMap((r) => oCuaDong(r, g.noWrite));
         return (
           <section key={g.key} className={`rdx-perm__group${open ? " is-open" : ""}`}>
             <button
@@ -1217,7 +1260,7 @@ export function PermissionMatrix({
               <span
                 className={`rdx-perm__gcount${granted > 0 ? " is-on" : ""}`}
               >
-                {granted}/{g.rows.length} có quyền
+                {granted}/{rowsCoQuyen.length} có quyền
               </span>
             </button>
 
@@ -1257,6 +1300,52 @@ export function PermissionMatrix({
                 </div>
                 {g.rows.map((row) => {
                   const label = moduleLabel.get(row.module_key) ?? row.module_key;
+                  if (laDongTo(row.module_key) && anVaoNhomGap(row.module_key)) return null;
+                  const laTrongNhom = laDongTo(row.module_key) ? cayTo.laCuaNhom.get(row.module_key) : undefined;
+                  if (laTrongNhom) {
+                    const oLa = laTrongNhom
+                      .map((k) => byKey.get(k))
+                      .filter((r): r is PermissionRow => !!r)
+                      .flatMap((r) => oCuaDong(r, true));
+                    const gap = toGap.has(row.module_key);
+                    const capNhom = moduleDef.get(row.module_key)?.cap;
+                    return (
+                      <div key={row.module_key} className="rdx-perm__row rdx-perm__row--nhom">
+                        <div
+                          className="rdx-perm__cell rdx-perm__cell--mod"
+                          style={capNhom ? { paddingLeft: `${capNhom * 18}px` } : undefined}
+                        >
+                          {!readOnly && (oLa.length > 0 ? (
+                            <TickTatCa o={oLa} nhan={`các tổ trong ${label}`} onClick={() => batTat(oLa)} />
+                          ) : (
+                            <span className="rdx-perm__tick-cho" aria-hidden="true" />
+                          ))}
+                          <button
+                            type="button"
+                            className="rdx-perm__nhom"
+                            aria-expanded={!gap}
+                            title={`${label}: nhóm tổ, bấm để ${gap ? "mở" : "thu gọn"} các tổ bên trong`}
+                            onClick={() =>
+                              setToGap((cur) => {
+                                const next = new Set(cur);
+                                if (next.has(row.module_key)) next.delete(row.module_key);
+                                else next.add(row.module_key);
+                                return next;
+                              })
+                            }
+                          >
+                            <span className="rdx-perm__mod">{label}</span>
+                            <Icon
+                              name="chevron"
+                              size={14}
+                              className={`rdx-perm__nhom-caret${gap ? " is-collapsed" : ""}`}
+                            />
+                          </button>
+                          <HoverTip tieuDe={label} text={hintDongTo(label, laTrongNhom.length)} />
+                        </div>
+                      </div>
+                    );
+                  }
                   const isNoiQuy = row.module_key === "noi_quy";
                   const actionKeys = cotThaoTac(row.module_key);
                   const canWrite = actionKeys.every((k) => row[k]);
@@ -1273,7 +1362,7 @@ export function PermissionMatrix({
                   const phamViChoPhep =
                     PHAM_VI_CHO_PHEP[row.module_key] ?? (laDongKho(row.module_key) ? ["all"] : undefined);
                   const def = moduleDef.get(row.module_key);
-                  const fineActs = fineCua(row.module_key, !!def?.la_kcs);
+                  const fineActs = fineCua(row.module_key);
                   // Công tắc gộp (`keys`): bật = TẤT CẢ cột bật.
                   const fineOn = (a: FineAction) =>
                     a.keys ? a.keys.every((k) => row[k]) : !!row[a.key];
@@ -1297,11 +1386,13 @@ export function PermissionMatrix({
                         )}
                         <span className="rdx-perm__mod">
                           {label}
-                          {def?.la_kcs && <span className="rdx-perm__tag">KCS</span>}
-                          {(MODULE_HINTS[row.module_key] || laDongKho(row.module_key)) && (
+                          {(MODULE_HINTS[row.module_key] || laDongKho(row.module_key) || laDongTo(row.module_key)) && (
                             <HoverTip
                               tieuDe={label}
-                              text={MODULE_HINTS[row.module_key] ?? hintDongKho(label)}
+                              text={MODULE_HINTS[row.module_key]
+                                ?? (laDongTo(row.module_key)
+                                  ? hintDongTo(label, undefined)
+                                  : hintDongKho(label))}
                             />
                           )}
                         </span>

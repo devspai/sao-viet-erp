@@ -168,16 +168,19 @@ def don_vi_cua_mat_hang(
     hang_id: int,
     svc: Service,
     _: Annotated[User, Depends(_doc_mat_hang)],
-    dang: Annotated[str | None, Query(pattern="^(to|cuon)$", description=(
-        "Giấy: dạng dòng kho — tờ ⇒ gốc là tờ nguyên, cuộn ⇒ gốc là kg"))] = None,
+    goc: Annotated[str | None, Query(max_length=16, description=(
+        "Giấy: đơn vị gốc của dòng (to ⇒ chỉ họ tờ; đơn vị khác ⇒ họ của nó). Bỏ trống ⇒ gộp họ tờ "
+        "+ họ đơn vị giá, mỗi dòng `ds` kèm `goc`/`goc_ten`"))] = None,
 ) -> DonViCuaMatHangOut:
     """Đơn vị gốc + mọi đơn vị đổi được với nó, TÍNH THEO CHÍNH MẶT HÀNG.
 
-    Giấy có khổ + định lượng nên thấy cả tờ/ram/m²; hoá chất chỉ khai kg thì chỉ thấy kg/g/tấn.
-    Chưa khai đơn vị gốc → `ds` rỗng kèm `ly_do` để UI khoá ô và chỉ đường về danh mục.
+    Giấy KHÔNG còn dạng cuộn/tờ: tờ và kg không quy đổi, mỗi họ một gốc — không gửi `goc` thì dropdown
+    cho chọn cả hai họ. Hoá chất chỉ khai kg thì chỉ thấy kg/g/tấn. Chưa khai đơn vị gốc → `ds` rỗng
+    kèm `ly_do` để UI khoá ô và chỉ đường về danh mục.
     """
     try:
-        return DonViCuaMatHangOut(**svc.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang))
+        return DonViCuaMatHangOut(**svc.don_vi_cua_mat_hang(
+            hang_loai, hang_id, goc=(goc or "").strip().lower() or None))
     except (VatLieuKhoNotFound, VatLieuKhoValidationError) as e:
         raise loi_http(e) from None
 

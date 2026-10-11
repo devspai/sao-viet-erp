@@ -106,8 +106,10 @@ def test_sua_gia_goc_lan_xuong_lo_dieu_chuyen_va_bao_cao(db, orders, lsx_svc, ad
 
     hom_nay = date.today()
     nxt = _nxt_compute(db, tu=hom_nay, den=hom_nay, kho_ids=[a.id, b.id])
-    assert nxt[(a.id, "vat_tu", goc.hang_id, 0, 0)]["nhap_gt"] == 12_000 * 90
-    assert nxt[(b.id, "vat_tu", goc.hang_id, 0, 0)]["nhap_gt"] == 12_000 * 30
+    # Vật tư (cả thành phẩm) tách N-X-T theo đơn vị gốc của lô (mg 0390).
+    assert goc.don_vi_goc and o_b.don_vi_goc == goc.don_vi_goc
+    assert nxt[(a.id, "vat_tu", goc.hang_id, 0, 0, goc.don_vi_goc)]["nhap_gt"] == 12_000 * 90
+    assert nxt[(b.id, "vat_tu", goc.hang_id, 0, 0, goc.don_vi_goc)]["nhap_gt"] == 12_000 * 30
 
     assert _mon(gg.ds_chua_gia_goc(db, q=goc.ma_lo, chi_chua_gia=True, page=1, size=20), goc.ma_lo) == []
     [sau] = _mon(gg.ds_chua_gia_goc(db, q=goc.ma_lo, chi_chua_gia=False, page=1, size=20), goc.ma_lo)
@@ -142,6 +144,14 @@ def test_loc_nang_cao_theo_ngay_nhap_kho_khach(db, orders, lsx_svc, admin, custo
     assert loc_rong["total"] == 0
     # Lựa chọn lọc không co lại theo bộ lọc đang áp — bỏ một tiêu chí là quay lại được.
     assert loc_rong["cac_kho"] == tat_ca["cac_kho"] and loc_rong["cac_khach"] == tat_ca["cac_khach"]
+    # Nút Lọc (11/10/2026): kho / khách / mặt hàng chọn NHIỀU; trạng thái giá chua | co | tat_ca.
+    [hang] = tat_ca["cac_hang"]
+    assert hang["id"] == dong["hang_id"]
+    assert _mon(_ds(kho_id=[b.id, a.id], hang_id=[hang["id"]]), goc.ma_lo)
+    assert _mon(_ds(hang_id=[hang["id"] + 999]), goc.ma_lo) == []
+    assert _mon(_ds(gia="chua"), goc.ma_lo)
+    assert _mon(_ds(gia="co"), goc.ma_lo) == []
+    assert _mon(_ds(gia="tat_ca"), goc.ma_lo)
     with pytest.raises(gg.GiaGocError):
         _ds(tu_ngay=ngay, den_ngay=ngay - mot_ngay)
 
@@ -289,7 +299,7 @@ def test_thieu_quyen_xem_gia_von_bi_403(client):
     assert client.patch("/api/kho/phieu/lo/999999/gia-goc", headers=kt, json={"don_gia": -5}).status_code == 422
     r = client.get("/api/kho/bao-cao/thanh-pham-chua-gia-goc", headers=kt, params={"page": 1, "size": 20})
     assert r.status_code == 200 and r.json() == {"items": [], "total": 0, "page": 1, "size": 20,
-                                                 "cac_kho": [], "cac_khach": []}
+                                                 "cac_kho": [], "cac_khach": [], "cac_hang": []}
     r = client.get("/api/kho/bao-cao/thanh-pham-chua-gia-goc", headers=kt,
                    params={"tu": "2026-09-10", "den": "2026-09-01"})
     assert r.status_code == 400

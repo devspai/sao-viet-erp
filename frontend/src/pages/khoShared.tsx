@@ -84,7 +84,9 @@ export function DecimalInput({
       }}
       onBlur={(e) => {
         focused.current = false;
-        setText(showDecimal(parseDecimal(text))); // rời ô → chuẩn hóa (bỏ "0" trơ, dấu lẻ…)
+        // Rời ô → hiện lại số CHỦ ô đang giữ: chuẩn hoá ("0" trơ, dấu lẻ…) và cả khi chủ ô chặn trần
+        // (gõ 12 mà lô còn 8 thì ô về 8, không đứng "12" trong khi số thật đã là 8).
+        setText(showDecimal(value));
         rest.onBlur?.(e);
       }}
       onChange={(e) => {
@@ -227,8 +229,9 @@ export function GiaGocKcs({ gia }: { gia: number | null }) {
   return gia != null ? (
     <>{gia.toLocaleString("vi-VN")} đ</>
   ) : (
-    <span className="badge-sem badge-sem--amber" title="Kế toán kho gõ ở Báo cáo kho › Giá gốc thành phẩm">
-      Chưa có giá gốc
+    // Cột đã mang tên "Giá gốc" ⇒ chip chỉ cần "Chưa có" (chữ dài đẩy bảng ngăn phải cuộn ngang).
+    <span className="badge-sem badge-sem--amber" title="Chưa có giá gốc — kế toán kho gõ ở Báo cáo kho › Giá gốc thành phẩm">
+      Chưa có
     </span>
   );
 }
@@ -240,7 +243,7 @@ export function GiaBanDong({ gia, dvt, donMa }: { gia: number | null; dvt: strin
   const dv = tenDonVi(dvt) || dvt;
   return (
     <>
-      {gia.toLocaleString("vi-VN")} đ{dv ? `/${dv}` : ""}
+      {gia.toLocaleString("vi-VN")} đ{dv && <span className="kna-dv">/{dv}</span>}
       {donMa && <div className="kho-hint">{donMa}</div>}
     </>
   );

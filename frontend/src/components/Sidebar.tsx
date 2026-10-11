@@ -131,10 +131,13 @@ export const NAV: NavSection[] = [
       // bỏ đánh số về `xep_lich`, mg `0314` chép quyền của `xep_lich_3` sang nên không ai mất
       // đường vào. Dấu trang cũ `/xep-lich-3` và `/xep-lich-cong-doan-2` không còn dùng được.
       { id: "xep-lich", label: "Xếp lịch", icon: "gantt", module: "xep_lich" },
+      // KCS (09/10/2026) — ô quyền thật `kcs` (Xem · Thao tác · Đóng lệnh thiếu), thay cờ phòng ban
+      // "Tổ KCS đích danh" từng tiêm mục này động vào khối Tổ sản xuất. Kiểm cả chuỗi mọi tổ.
+      { id: "kcs", label: "KCS", icon: "badgeCheck", module: "kcs" },
     ],
   },
   // KHỐI RIÊNG 24/09/2026 (chủ chốt: *"tách ra làm phân hệ sản xuất riêng đi"*). Mục ở đây KHÔNG
-  // khai tĩnh: cây tổ + mục KCS do AppShell tiêm động qua `dynamicItems["to-san-xuat"]` theo đúng
+  // khai tĩnh: cây tổ do AppShell tiêm động qua `dynamicItems["to-san-xuat"]` theo đúng
   // những tổ mà người dùng có Xem. Không ai thấy tổ nào ⇒ khối rỗng ⇒ Sidebar tự ẩn cả khối.
   // Ma trận có nhóm cùng tên ("Tổ sản xuất", dựng runtime từ các dòng `to_sx_<id>`), nay hai bên
   // là một khối đúng nghĩa chứ không còn nấp chung trong "Sản xuất".
@@ -593,14 +596,16 @@ function NavRow({ item, activeId, isOpen, badge, coCon, dangGap, onSelect, onTog
         type="button"
         className={`sidebar__link${active ? " is-active" : ""}`}
         // Tooltip = nhãn ĐẦY ĐỦ: hàng menu cắt chữ (…) khi rail hẹp, rê chuột vẫn đọc được tên module.
-        title={item.label}
+        title={coCon ? `${item.label}: nhóm tổ, bấm để ${dangGap ? "mở" : "thu gọn"} các tổ bên trong` : item.label}
         // Thụt tối đa 4 nấc: cây sâu hơn mà thụt tiếp thì rail hẹp không còn chỗ cho tên tổ.
         style={item.indent ? { paddingLeft: `calc(var(--sp-3) + ${Math.min(item.indent, 4) * 14}px)` } : undefined}
         aria-current={activeId === item.id ? "page" : undefined}
-        aria-expanded={hasChildren ? isOpen : undefined}
-        onClick={() => (hasChildren ? onToggle() : onSelect(item.id))}
+        aria-expanded={hasChildren ? isOpen : coCon ? !dangGap : undefined}
+        // Tổ cha chỉ là nhóm: bấm tên = gập/mở nhánh, không mở bàn (chỉ tổ lá nhận việc, 10/10/2026).
+        onClick={() => (hasChildren ? onToggle() : coCon ? onGap?.() : onSelect(item.id))}
       >
-        <Icon name={item.icon} className="sidebar__icon" />
+        {/* Tổ cha là nhóm, không có bàn ⇒ không mang icon tổ; icon chỉ ở tổ lá (nơi nhận việc). */}
+        {!coCon && <Icon name={item.icon} className="sidebar__icon" />}
         <span className="sidebar__label">{item.label}</span>
         {/* Chỉ CHẤM ĐỎ, không in số (chủ chốt 29/09/2026). */}
         {badge != null && badge > 0 && (
@@ -618,8 +623,7 @@ function NavRow({ item, activeId, isOpen, badge, coCon, dangGap, onSelect, onTog
           />
         )}
       </button>
-      {/* Nút gập RIÊNG, không gộp vào hàng: bấm vào tên tổ vẫn phải MỞ BÀN của tổ đó — cha ở cây
-          này là một tổ thật có việc, không phải cái nhãn nhóm. */}
+      {/* Mũi tên gập ở mép phải — cùng việc với bấm tên tổ cha, giữ làm dấu hiệu "có nhánh". */}
       {coCon && (
         <button
           type="button"

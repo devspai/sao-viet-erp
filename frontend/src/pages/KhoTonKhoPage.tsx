@@ -35,7 +35,7 @@ import { Select } from "../components/Select";
 import type { NavigateFn } from "../components/AppShell";
 import { fmtDate, fmtDateISO, fmtDateTime, money } from "../utils/format";
 import { qrToSvg } from "../lib/qr";
-import { khoaNguong, khoaTon, nhanDongTon } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, khoaNguong, khoaTon, nhanDongTon, nhanKho } from "../lib/khoGiay";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   DecimalInput,
@@ -91,13 +91,12 @@ import {
 
 
 
-/** Nhãn dạng/khổ cạnh mã của MỘT dòng tồn: giấy tờ "780 × 905 mm", cuộn kèm khổ các lô, giấy cũ
- *  chưa có dạng "chưa rõ dạng/khổ"; hàng khác rỗng. */
+/** Nhãn khổ + đơn vị gốc cạnh mã của MỘT dòng tồn: giấy "780 × 905 mm (tờ)", "khổ 1000 mm (kg)",
+ *  lô chưa có khổ "chưa có khổ (kg)"; hàng khác rỗng — vật tư khác cũng tách dòng theo đơn vị gốc
+ *  nhưng không có khổ, đơn vị đã nằm ở cột ĐVT. */
 function nhanTonNhom(g: MaterialGroup): string {
-  return nhanDongTon(g.dang, g.khoRong, g.khoDai, {
-    laGiay: g.hang_loai === "giay",
-    khoCuon: g.dang === "cuon" ? g.lots.map((l) => l.kho_rong) : undefined,
-  });
+  const laGiay = g.hang_loai === "giay";
+  return nhanDongTon(laGiay ? g.goc : "", g.khoRong, g.khoDai, { laGiay });
 }
 
 interface MaterialGroup {
@@ -106,8 +105,8 @@ interface MaterialGroup {
   hang_loai: HangLoai;
   hang_id: number;
   key: string;
-  /** Giấy: dạng + khổ của DÒNG tồn (tờ tách theo khổ, cuộn gom theo mã). Hàng khác: null · 0 · 0. */
-  dang: "to" | "cuon" | null;
+  /** Giấy: đơn vị gốc của DÒNG tồn (mã + khổ + đơn vị gốc là một dòng). Hàng khác: "" · 0 · 0. */
+  goc: string;
   khoRong: number;
   khoDai: number;
   code: string | null;
@@ -153,11 +152,15 @@ const NHOM_TON_TRONG: Record<NhomTon, number> = { all: 0, can_mua: 0, du_ton: 0,
 // ── Lưới danh sách (khuôn chung 08/10/2026) ──────────────────────────────────
 interface CotKho extends CotLuoi { w?: number; n?: boolean; tip?: string }
 
-/** Tồn kho: [chọn] Vật tư, Nhập gần nhất, Vị trí, Hạn sử dụng (khi có), Đang có, Sắp xuất, Sắp về, Dự kiến
+/** Tồn kho: [chọn] Vật tư, Khổ, ĐVT, Nhập gần nhất, Vị trí, Hạn sử dụng (khi có), Đang có, Sắp xuất, Sắp về, Dự kiến
  *  còn, Giá trị (khi thấy giá), Mức tồn, Tình trạng. */
 const COT_TON: CotKho[] = [
   { key: "chon", label: "Chọn", coDinh: true, w: 40 },
-  { key: "vattu", label: "Vật tư", coDinh: true, w: 280 },
+  { key: "vattu", label: "Vật tư", coDinh: true, w: 260 },
+  // Khổ và ĐVT là hai cột riêng như Báo cáo kho (10/10/2026): cùng mã cùng khổ mà khác đơn vị là
+  // hai dòng, đọc theo cột ĐVT là phân biệt được.
+  { key: "kho", label: "Khổ", w: 130 },
+  { key: "dvt", label: "ĐVT", w: 70 },
   { key: "nhap", label: "Nhập gần nhất", w: 120 },
   { key: "vitri", label: "Vị trí", w: 150 },
   { key: "hsd", label: "Hạn sử dụng", w: 150, tip: "Hạn SỚM NHẤT của lô còn tồn" },
@@ -206,18 +209,20 @@ const NHAN_NGAY_PHIEU: Record<string, string> = { nhap: "Ngày nhập", xuat: "N
 function gomNhomTon(lots: StockLot[], mucs: Record<string, TonNhomMuc>): MaterialGroup[] {
   const m = new Map<string, MaterialGroup>();
     for (const lot of lots) {
-      // Giấy tờ: một dòng mỗi (mã, khổ), đếm tờ nguyên; cuộn gom theo mã (kg) — spec §3.2.
+      // Giấy: một dòng mỗi (mã, khổ, đơn vị gốc); vật tư khác: một dòng mỗi (mã, đơn vị gốc) — khoá
+      // 5 phần trùng `TonNhomMuc.khoa` của máy chủ. Cùng khổ mà một lô đếm tờ, một lô đếm kg là HAI
+      // dòng: tờ và kg không cộng được.
       const key = khoaTon(lot);
       let g = m.get(key);
       if (!g) {
-        const dang = lot.hang_loai === "giay" ? lot.dang_giay : null;
+        const laGiay = lot.hang_loai === "giay";
         g = {
           hang_loai: lot.hang_loai,
           hang_id: lot.hang_id,
           key,
-          dang,
-          khoRong: dang === "to" ? lot.kho_rong : 0,
-          khoDai: dang === "to" ? lot.kho_dai : 0,
+          goc: coDonViGoc(lot.hang_loai) ? lot.don_vi_goc ?? "" : "",
+          khoRong: laGiay ? lot.kho_rong : 0,
+          khoDai: laGiay ? lot.kho_dai : 0,
           code: lot.hang_ma,
           name: lot.hang_ten,
           dvt: lot.dvt_ten ?? lot.dvt,
@@ -417,9 +422,9 @@ export function KhoTonKhoPage({
   useEffect(() => {
     loadNguong();
   }, [loadNguong]);
-  // Ngưỡng của một dòng: tra theo khoá NGƯỠNG (giấy luôn kèm khổ, cuộn và giấy cũ 0 × 0) chứ không theo khoá dòng.
+  // Ngưỡng của một dòng: tra theo khoá NGƯỠNG (giấy kèm khổ + đơn vị gốc, cùng khoá với dòng tồn).
   const nguongCua = useCallback(
-    (g: MaterialGroup) => thresholds[khoaNguong({ hang_loai: g.hang_loai, hang_id: g.hang_id, kho_rong: g.khoRong, kho_dai: g.khoDai })],
+    (g: MaterialGroup) => thresholds[khoaNguong({ hang_loai: g.hang_loai, hang_id: g.hang_id, kho_rong: g.khoRong, kho_dai: g.khoDai, don_vi_goc: g.goc })],
     [thresholds],
   );
 
@@ -994,7 +999,7 @@ export function KhoTonKhoPage({
           dong={{
             hang_loai: nguongFor.hang_loai,
             hang_id: nguongFor.hang_id,
-            dang: nguongFor.dang,
+            goc: nguongFor.goc,
             khoRong: nguongFor.khoRong,
             khoDai: nguongFor.khoDai,
             ten: nguongFor.name ?? nguongFor.code ?? "vật tư",
@@ -1008,7 +1013,7 @@ export function KhoTonKhoPage({
           onSaved={(t) => {
             setThresholds((prev) => ({
               ...prev,
-              [khoaNguong({ hang_loai: nguongFor.hang_loai, hang_id: nguongFor.hang_id, kho_rong: nguongFor.khoRong, kho_dai: nguongFor.khoDai })]: t,
+              [khoaNguong({ hang_loai: nguongFor.hang_loai, hang_id: nguongFor.hang_id, kho_rong: nguongFor.khoRong, kho_dai: nguongFor.khoDai, don_vi_goc: nguongFor.goc })]: t,
             }));
             load();
           }}
@@ -1111,7 +1116,6 @@ function MaterialRow({
 }) {
   const newest = g.lots.length ? g.lots[g.lots.length - 1].ngay_nhap : null;
   const viMore = g.viTris.length - 1;
-  const nhan = nhanTonNhom(g);
   const min = threshold?.nguong_ton ?? null;
   const max = threshold?.nguong_toi_da ?? null;
   // Cần mua, chip Tình trạng và các số dự báo đều do máy chủ trả (`g.muc`); ở đây chỉ trình bày.
@@ -1141,15 +1145,22 @@ function MaterialRow({
           </td>
         );
       case "vattu":
-        // Tên và khổ cùng một hàng; mã nằm ở ô tìm kiếm và đầu ngăn.
+        // Chỉ tên; mã nằm ở ô tìm kiếm và đầu ngăn, khổ và ĐVT ở cột riêng.
         return (
           <td key={c.key} title={[g.name, g.code].filter(Boolean).join(" ")}>
             <div className="tkh-vt">
               <span className="tkh-vt__ten">{g.name ?? g.code ?? "—"}</span>
-              {nhan && <span className="tkh-the">{nhan}</span>}
             </div>
           </td>
         );
+      case "kho":
+        return (
+          <td key={c.key}>
+            {g.hang_loai === "giay" ? nhanKho(g.khoRong, g.khoDai) : <span className="lds-mu3">–</span>}
+          </td>
+        );
+      case "dvt":
+        return <td key={c.key}>{g.dvt ?? <span className="lds-mu3">–</span>}</td>;
       case "nhap":
         return <td key={c.key}>{newest == null ? <span className="lds-mu3">–</span> : fmtDateISO(newest)}</td>;
       case "vitri":
@@ -1192,7 +1203,6 @@ function MaterialRow({
         return (
           <td key={c.key} className="n">
             {fmtQty(g.total)}
-            {g.dvt ? <span className="lds-u">{g.dvt}</span> : null}
           </td>
         );
       // Phép tính: Đang có − Sắp xuất + Sắp về = Dự kiến còn.
@@ -1410,7 +1420,8 @@ function MaterialHistoryDrawer({
   // Tab Tổng quan cần số trên tab + tồn thực có ⇒ hỏi trang đầu của Lô tồn (nhẹ nhất). Bấm sang
   // Lô tồn trang 1 thì trùng khoá ⇒ không hỏi lại.
   const tabNap: TabLichSuMatHang = tab === "tong_quan" ? "lo_ton" : tab;
-  const giay = material.dang ? { dang: material.dang, kho_rong: material.khoRong, kho_dai: material.khoDai } : undefined;
+  // Đúng một dòng tồn: giấy theo khổ + đơn vị gốc, vật tư khác theo đơn vị gốc (khổ 0).
+  const giay = coDonViGoc(material.hang_loai) ? { goc: material.goc, kho_rong: material.khoRong, kho_dai: material.khoDai } : undefined;
   const khoaNap = JSON.stringify([material.hang_loai, material.hang_id, khoId, giay, tabNap, page, refreshTick]);
   const khoaDaNap = useRef<string | null>(null);
   useEffect(() => {
@@ -1547,6 +1558,9 @@ function MaterialHistoryDrawer({
                 dvt,
                 ton: material.total,
                 giaTri: material.value,
+                goc: material.goc,
+                khoRong: material.khoRong,
+                khoDai: material.khoDai,
               }}
               loTon={loTon}
               th={threshold}
@@ -1618,12 +1632,10 @@ function MaterialHistoryDrawer({
                         <td className="n">{`${fmtQty(lot.sl_con_lai)} ${dvtGoc}`.trim()}</td>
                         {material.hang_loai === "giay" && (
                           <td>
-                            {lot.dang_giay
-                              ? nhanDongTon(lot.dang_giay, lot.kho_rong, lot.kho_dai)
-                              : "chưa rõ dạng/khổ"}
-                            {!lot.dang_giay && canCreate && (
+                            {nhanKho(lot.kho_rong, lot.kho_dai)}
+                            {!lot.kho_rong && canCreate && (
                               <button type="button" className="kho-bsdk__nut" onClick={() => setBsLot(lot)}>
-                                Bổ sung dạng/khổ
+                                Bổ sung khổ
                               </button>
                             )}
                           </td>
@@ -1841,14 +1853,14 @@ function MaterialHistoryDrawer({
           )}
       </NganPhai>
     {bsLot && (
-      <BoSungDangKhoDialog
+      <BoSungKhoDialog
         token={token}
         lot={bsLot}
         dvt={dvtGoc}
         onDone={() => {
           setBsLot(null);
           onDieuChuyenDone();
-          onClose(); // dòng tồn đổi nhóm (chưa rõ → tờ/cuộn) → đóng ngăn, cha nạp lại danh sách
+          onClose(); // dòng tồn đổi nhóm (chưa có khổ → có khổ) → đóng ngăn, cha nạp lại danh sách
         }}
         onCancel={() => setBsLot(null)}
       />
@@ -1872,9 +1884,9 @@ function MaterialHistoryDrawer({
   );
 }
 
-// Kho bổ sung DẠNG + KHỔ cho một lô giấy cũ (nhập trước khi có dạng/khổ). Tờ: máy chủ đổi số
-// lượng (kg…) → tờ nguyên theo khổ + gsm; cuộn: giữ số, chỉ ghi khổ rộng.
-function BoSungDangKhoDialog({
+// Kho bổ sung KHỔ cho một lô giấy chưa có khổ (nhập trước khi khai khổ). Chỉ ghi khổ — số lượng,
+// đơn vị và giá của lô giữ nguyên: tờ và kg không quy đổi lẫn nhau nên không có gì để đổi.
+function BoSungKhoDialog({
   token,
   lot,
   dvt,
@@ -1887,30 +1899,24 @@ function BoSungDangKhoDialog({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const [dang, setDang] = useState<"to" | "cuon">("to");
   const [rong, setRong] = useState("");
   const [dai, setDai] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function save() {
-    const r = Math.round(Number(rong));
-    const d = Math.round(Number(dai));
-    if (!(r > 0) || (dang === "to" && !(d > 0))) {
-      setError(dang === "to" ? "Nhập đủ hai cạnh khổ (mm)." : "Nhập khổ rộng của cuộn (mm).");
+    const [r, d] = chuanKho(rong, dai);
+    if (!(r > 0)) {
+      setError("Nhập khổ (mm), ít nhất cạnh rộng.");
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await api.kho.phieu.boSungDangKhoLo(token, lot.id, {
-        dang_giay: dang,
-        kho_rong: r,
-        kho_dai: dang === "to" ? d : 0,
-      });
+      await api.kho.phieu.boSungKhoLo(token, lot.id, { kho_rong: r, kho_dai: d });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không bổ sung được dạng/khổ.");
+      setError(e instanceof ApiError ? e.message : "Không bổ sung được khổ.");
     } finally {
       setBusy(false);
     }
@@ -1919,7 +1925,7 @@ function BoSungDangKhoDialog({
   return (
     <ConfirmDialog
       open
-      title="Bổ sung dạng/khổ cho lô cũ"
+      title="Bổ sung khổ cho lô"
       confirmLabel="Lưu"
       cancelLabel="Hủy"
       busy={busy}
@@ -1930,21 +1936,8 @@ function BoSungDangKhoDialog({
       <div className="rc-grid">
         <p className="rc-field__hint">
           {`Lô ${lot.ma_lo} đang ghi ${fmtQty(lot.sl_con_lai)} ${dvt}.`.trim()}{" "}
-          {dang === "to"
-            ? "Chọn Tờ: số lượng được đổi ra tờ theo khổ và định lượng của mã (làm tròn xuống)."
-            : "Chọn Cuộn: giữ nguyên số lượng, chỉ ghi khổ."}
+          Chỉ ghi khổ, số lượng và đơn vị giữ nguyên. Chỉ có khổ rộng thì để trống ô dài.
         </p>
-        <div className="rc-field">
-          <span className="rc-field__label">Dạng</span>
-          <div style={{ display: "flex", gap: 16 }}>
-            <label>
-              <input type="radio" name="bsdk-dang" checked={dang === "to"} onChange={() => setDang("to")} /> Tờ
-            </label>
-            <label>
-              <input type="radio" name="bsdk-dang" checked={dang === "cuon"} onChange={() => setDang("cuon")} /> Cuộn
-            </label>
-          </div>
-        </div>
         <div className="rc-field">
           <span className="rc-field__label">Khổ</span>
           <div className="kho-bsdk__kho">
@@ -1952,24 +1945,22 @@ function BoSungDangKhoDialog({
               type="number"
               min={1}
               inputMode="numeric"
-              placeholder={dang === "to" ? "rộng" : "khổ"}
+              placeholder="rộng"
+              aria-label="Cạnh rộng (mm)"
               value={rong}
               autoFocus
               onChange={(e) => setRong(e.target.value)}
             />
-            {dang === "to" && (
-              <>
-                <span>×</span>
-                <input
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  placeholder="dài"
-                  value={dai}
-                  onChange={(e) => setDai(e.target.value)}
-                />
-              </>
-            )}
+            <span>×</span>
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              placeholder="dài"
+              aria-label="Cạnh dài (mm), để trống nếu chỉ có khổ rộng"
+              value={dai}
+              onChange={(e) => setDai(e.target.value)}
+            />
             <span>mm</span>
           </div>
         </div>
@@ -1985,8 +1976,8 @@ function BoSungDangKhoDialog({
 interface DcItem {
   hang_loai: HangLoai;
   hang_id: number;
-  /** Giấy: dạng + khổ của dòng tồn — máy chủ chặn điều chuyển giấy thiếu dạng. */
-  dang: "to" | "cuon" | null;
+  /** Giấy: đơn vị gốc + khổ của dòng tồn — điều chuyển đúng nhóm lô đó. Hàng khác: "" · 0 · 0. */
+  goc: string;
   khoRong: number;
   khoDai: number;
   ten: string;
@@ -1999,7 +1990,7 @@ function dcItemTu(g: MaterialGroup, tonKhaDung: number): DcItem {
   const kho = nhanTonNhom(g);
   const ten = g.name ?? g.code ?? "vật tư";
   return {
-    hang_loai: g.hang_loai, hang_id: g.hang_id, dang: g.dang, khoRong: g.khoRong, khoDai: g.khoDai,
+    hang_loai: g.hang_loai, hang_id: g.hang_id, goc: g.goc, khoRong: g.khoRong, khoDai: g.khoDai,
     ten: kho ? `${ten} · ${kho}` : ten, dvt: g.dvt ?? "", tonKhaDung,
   };
 }
@@ -2022,7 +2013,7 @@ function DieuChuyenDialog({
   onCancel: () => void;
 }) {
   const keyOf = (it: DcItem) =>
-    khoaTon({ hang_loai: it.hang_loai, hang_id: it.hang_id, dang_giay: it.dang, kho_rong: it.khoRong, kho_dai: it.khoDai });
+    khoaTon({ hang_loai: it.hang_loai, hang_id: it.hang_id, don_vi_goc: it.goc, kho_rong: it.khoRong, kho_dai: it.khoDai });
   const [khoDenId, setKhoDenId] = useState<number | null>(null);
   // SL chuyển từng mặt hàng — mặc định = tồn khả dụng (chuyển hết), sửa được từng dòng.
   const [qty, setQty] = useState<Record<string, string>>(() =>
@@ -2065,7 +2056,7 @@ function DieuChuyenDialog({
         items: chosen.map((x) => ({
           hang_loai: x.it.hang_loai,
           hang_id: x.it.hang_id,
-          ...(x.it.dang ? { dang_giay: x.it.dang, kho_rong: x.it.khoRong, kho_dai: x.it.khoDai } : {}),
+          ...(coDonViGoc(x.it.hang_loai) ? { don_vi_goc: x.it.goc, kho_rong: x.it.khoRong, kho_dai: x.it.khoDai } : {}),
           so_luong: x.sl,
           vi_tri: (viTri[keyOf(x.it)] ?? "").trim() || null,
         })),

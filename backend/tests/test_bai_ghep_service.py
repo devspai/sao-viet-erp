@@ -163,7 +163,7 @@ def bg_svc(db):
 def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = ()) -> PhieuTinhGia:
     """PTG 2 thành phần in cùng giấy. `sl_them` nối thêm thành phần — cần khi test tầm ngắm của
     `_do_thi_cua`: phải có lệnh CÙNG ĐƠN nhưng NGOÀI bài để đồ thị còn chỗ mà lan tới."""
-    giay = GiayNguyen(
+    giay = GiayNguyen(don_vi_them=["to"], 
         ma="G-IV350B", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
         cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000",
     )

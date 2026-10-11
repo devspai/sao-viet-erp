@@ -104,13 +104,8 @@ export function cleanRequest(
   };
 }
 
-/** Dạng giấy của dòng yêu cầu mua — quyết ĐVT hiện trên form (spec giấy theo khổ §4.4): đủ hai
- *  cạnh khổ ⇒ tờ (đơn vị kho `to`), thiếu khổ ⇒ cuộn (đơn vị gốc của mã). Không phải giấy ⇒ null. */
-export function dangGiayDong(
-  line: Pick<DepartmentPurchaseRequestLineInput, "hang_loai" | "kho_rong" | "kho_dai" | "dang_giay">,
-): "to" | "cuon" | null {
-  if (line.hang_loai !== "giay") return null;
-  // Người đã bấm chọn Tờ / Cuộn ở ô khổ ghép thì theo đó — Tờ chưa gõ khổ vẫn là Tờ.
-  if (line.dang_giay) return line.dang_giay;
-  return (line.kho_rong ?? 0) > 0 && (line.kho_dai ?? 0) > 0 ? "to" : "cuon";
+/** Dòng yêu cầu mua là GIẤY — có ô khổ (hai cạnh hoặc chỉ rộng) và ĐVT tự chọn (tờ, ram, kg…).
+ *  10/10/2026 bỏ dạng cuộn/tờ: đơn vị gốc máy chủ suy từ ĐVT, form không đoán dạng theo khổ nữa. */
+export function laGiayDong(line: Pick<DepartmentPurchaseRequestLineInput, "hang_loai">): boolean {
+  return line.hang_loai === "giay";
 }

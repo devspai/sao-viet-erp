@@ -959,7 +959,11 @@ def test_phai_thu_chi_tong_bang_dung_so_tong_cua_loi_thuong(client):
     co = client.get("/api/accounting/receivables", headers=h,
                     params={**_ky_thang_nay(), "chi_tong": True}).json()
     assert co["total_due"] == 900_000 and co["overdue_amount"] == 200_000
-    assert co["ban_trong_ky"] == 700_000 and co["received_in_period"] == 100_000
+    # Hoá đơn CT1 đề hôm nay − 10 ngày: từ ngày 11 trong tháng nó rơi vào kỳ tháng này, nên
+    # "bán trong kỳ" phụ thuộc lịch chạy test chứ không cố định 700.000.
+    hn = _hom_nay()
+    ban_trong_ky = 700_000 + (300_000 if hn - timedelta(days=10) >= hn.replace(day=1) else 0)
+    assert co["ban_trong_ky"] == ban_trong_ky and co["received_in_period"] == 100_000
     assert co["vuot_han_muc_count"] == 1
 
 

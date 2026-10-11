@@ -1,6 +1,6 @@
-"""Thực hiện sản xuất — TÌNH TRẠNG NGƯỜI lúc chọn người giao việc / mời hỗ trợ chéo.
+"""Thực hiện sản xuất — TÌNH TRẠNG NGƯỜI lúc chọn người giao việc / thêm người tổ khác vào lần ghi.
 
-Một nguồn cho ô "Giao người" (§7.1), ô "Thợ hỗ trợ" (§9) và các luật chặn ở mặt ghi. Tổ trưởng cần
+Một nguồn cho ô "Giao người" (§7.1), ô "Thêm người tổ khác" của hộp Ghi sản lượng / Sửa số (mg 0389) và các luật chặn ở mặt ghi. Tổ trưởng cần
 thấy ba thứ TRƯỚC khi chọn:
   · đang CHẠY việc nào — khoảng tham gia còn mở, cùng nguồn với hàng rào "không hai khoảng chồng
     giờ" (§7.1);
@@ -11,12 +11,12 @@ thấy ba thứ TRƯỚC khi chọn:
     Đơn còn chờ duyệt không tính: chưa ai chốt người đó nghỉ.
 
 Luật chặn:
-  · nghỉ dài hạn, đình chỉ, nghỉ phép đã duyệt đúng ngày ⇒ CHẶN giao, chặn Bắt đầu khi người đó còn
-    trong tổ, chặn đề xuất hỗ trợ cho ngày đó;
-  · đang chạy việc khác ⇒ chỉ chặn lúc sắp MỞ khoảng tham gia (giao vào việc đang chạy, bấm Bắt
-    đầu/Tiếp tục). Giao trước vào việc chưa chạy vẫn được — ô chọn hiện cảnh báo.
-Hỗ trợ chéo KHÔNG chặn người đang chạy việc ở tổ mình: thỏa thuận tính theo NGÀY chứ không theo
-giờ, sáng đứng máy tổ mình chiều sang giúp tổ khác là chuyện thường — ô chọn chỉ cảnh báo.
+  · nghỉ dài hạn, đình chỉ, nghỉ phép đã duyệt đúng ngày ⇒ CHẶN Giao người bằng tay, chặn đề xuất
+    hỗ trợ cho ngày đó. Bắt đầu KHÔNG chặn: phát hành là giao cả tổ (10/10/2026) nên tổ nào cũng có
+    người nghỉ trong danh sách — chỉ không mở khoảng tham gia cho họ;
+  · đang chạy việc khác ⇒ KHÔNG chặn nữa (gỡ 10/10/2026). Ai cũng có tên ở mọi việc của tổ, chặn
+    là việc thứ hai của tổ không bao giờ bắt đầu được; ai làm lần nào thì tổ tick lúc ghi sản lượng
+    (`nguoi_ghi.py`). Ô chọn vẫn hiện người đó đang chạy việc nào.
 """
 from __future__ import annotations
 
@@ -120,11 +120,8 @@ def kiem_di_lam(db: Session, emp: Employee, ngay: date, *, duoi: str) -> None:
         raise ValueError(f"{emp.full_name} nghỉ phép {khi} (đơn đã duyệt) — {duoi}.")
 
 
-def kiem_khong_chay_viec_khac(db: Session, emp: Employee, *, duoi: str) -> None:
-    """Chặn mở khoảng tham gia thứ hai cho người đang chạy việc khác (§7.1) — câu báo nói rõ việc
-    nào để tổ trưởng biết phải sang dừng/rút ở đâu."""
-    chay = SanXuatThucThiRepository(db).viec_dang_chay_cua_nhieu({emp.id})
-    if emp.id not in chay:
-        return
-    v = nhan_viec(db, [chay[emp.id]])[chay[emp.id].id]
-    raise ValueError(f"{emp.full_name} đang chạy {mo_ta_viec(v)} — {duoi}.")
+def di_lam_nhieu(db: Session, emps: list[Employee], ngay: date) -> set[int]:
+    """Ai trong `emps` đi làm ngày `ngay` — cùng luật `kiem_di_lam`, không báo lỗi."""
+    nghi_phep = {d.employee_id for d in LeaveRepository(db).approved_for_employees(
+        {e.id for e in emps}, tu=ngay, den=ngay)}
+    return {e.id for e in emps if e.status not in _CAU_NGHI and e.id not in nghi_phep}

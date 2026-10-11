@@ -24,7 +24,8 @@ import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 import { fmtQty } from "../../../khoShared";
 import { OMuaCho } from "../../mua-cho/OMuaCho";
 import { SOURCE_TYPE_LABELS } from "../shared/constants";
-import { dangGiayDong, emptyLine, todayInputValue } from "../shared/helpers";
+import { chuanKho, coDonViGoc } from "../../../../lib/khoGiay";
+import { emptyLine, laGiayDong, todayInputValue } from "../shared/helpers";
 import "../../../ke-toan/ke-toan.css";
 import "../../../kho-ngan-a.css";
 import "./yc-form-a.css";
@@ -98,36 +99,53 @@ export function RequestFormDrawer({
   // Dòng đang có mặt hàng; dòng trống cuối (mồi để gõ) không đếm.
   const mon = form.lines.filter((l) => l.hang_loai && l.hang_id);
   const thieuSo = mon.filter((l) => !(Number(l.quantity) > 0)).length;
-  // Giấy tờ phải đủ HAI cạnh khổ — kho đếm tờ theo khổ, thiếu khổ thì không biết mua tờ nào.
-  const thieuKho = mon.filter((l) => dangGiayDong(l) === "to" && !((l.kho_rong ?? 0) > 0 && (l.kho_dai ?? 0) > 0));
+  // Giấy phải có khổ (hai cạnh, hoặc ít nhất khổ rộng) — kho và mua hàng tách giấy theo khổ, thiếu
+  // khổ thì không biết mua giấy nào, không NCC nào khớp.
+  const thieuKho = mon.filter((l) => laGiayDong(l) && !((l.kho_rong ?? 0) > 0));
   const [daBam, setDaBam] = useState(false);
   // Cho lệnh SX chỉ sinh từ Kế hoạch vật tư (máy chủ chốt) — form chỉ hiện, không cho đổi.
   const laChoLenh = !!form.nguon_lenh?.length || form.loai_mua === "cho_lsx";
 
-  function tonDong(l: DepartmentPurchaseRequestLineInput): number | null {
+  /** Tồn của dòng. Giấy: CÙNG khổ (khổ chỉ-rộng không khớp khổ hai cạnh), tách theo đơn vị gốc —
+   *  tờ và kg không cộng được nên mỗi đơn vị một số, hiện cạnh nhau. Vật tư khác: không khổ, tách
+   *  theo đơn vị gốc như giấy (kg và thùng không cộng được). Hàng khác: một số. */
+  function tonDong(l: DepartmentPurchaseRequestLineInput): { so: number; dv: string }[] | null {
     const rows = ton[`${l.hang_loai}:${l.hang_id}`];
     if (!rows) return null;
-    if (l.hang_loai !== "giay") return rows.reduce((s, r) => s + r.ton, 0);
-    const dang = dangGiayDong(l);
-    if (dang === "to") {
-      if (!(l.kho_rong && l.kho_dai)) return null;
-      return rows.find((r) => r.dang_giay === "to" && r.kho_rong === l.kho_rong && r.kho_dai === l.kho_dai)?.ton ?? 0;
+    if (!coDonViGoc(l.hang_loai)) return [{ so: rows.reduce((s, r) => s + r.ton, 0), dv: "" }];
+    const laGiay = l.hang_loai === "giay";
+    const [r0, d0] = chuanKho(l.kho_rong, l.kho_dai);
+    if (laGiay && !r0) return null;
+    const theoGoc = new Map<string, { so: number; dv: string }>();
+    for (const r of rows) {
+      const [r1, d1] = chuanKho(r.kho_rong, r.kho_dai);
+      if (laGiay && (r1 !== r0 || d1 !== d0)) continue;
+      const k = r.don_vi_goc ?? "";
+      const cu = theoGoc.get(k) ?? { so: 0, dv: r.don_vi_goc_ten ?? r.don_vi_goc ?? "" };
+      theoGoc.set(k, { ...cu, so: cu.so + r.ton });
     }
-    return rows.filter((r) => r.dang_giay === "cuon").reduce((s, r) => s + r.ton, 0);
+    return theoGoc.size ? [...theoGoc.values()] : [{ so: 0, dv: "" }];
   }
 
+  /** Khổ đang có trong kho của mã — gộp các đơn vị gốc cùng khổ vào một gợi ý. */
   function goiYKho(l: DepartmentPurchaseRequestLineInput) {
     const rows = ton[`${l.hang_loai}:${l.hang_id}`] ?? [];
-    return rows
-      .filter((r) => r.dang_giay === "to" || r.dang_giay === "cuon")
-      .map((r) => ({ rong: r.kho_rong, dai: r.kho_dai, ghiChu: `Tồn ${fmtQty(r.ton)} ${r.don_vi_goc_ten ?? ""}`.trim() }));
+    const theoKho = new Map<string, { rong: number; dai: number; chu: string[] }>();
+    for (const r of rows) {
+      if (!r.kho_rong) continue;
+      const [rr, dd] = chuanKho(r.kho_rong, r.kho_dai);
+      const k = `${rr}:${dd}`;
+      const g = theoKho.get(k) ?? { rong: rr, dai: dd, chu: [] };
+      g.chu.push(`${fmtQty(r.ton)} ${r.don_vi_goc_ten ?? ""}`.trim());
+      theoKho.set(k, g);
+    }
+    return [...theoKho.values()].map((g) => ({ rong: g.rong, dai: g.dai, ghiChu: `Tồn ${g.chu.join("  ")}` }));
   }
 
   function themMon(m: { hang_loai: "giay" | "vat_tu"; hang_id: number; ten: string }) {
     setForm((c) => {
       const dong: DepartmentPurchaseRequestLineInput = {
         ...emptyLine(), hang_loai: m.hang_loai, hang_id: m.hang_id, item_name: m.ten,
-        ...(m.hang_loai === "giay" ? { dang_giay: "to" as const } : {}),
       };
       // Dòng trống mồi sẵn (form mới) thì thay luôn, khỏi để một hàng rác.
       const lines = c.lines.filter((l) => l.hang_loai || l.item_name.trim());
@@ -141,7 +159,7 @@ export function RequestFormDrawer({
         <b>{mon.length} món</b>
         {thieuSo > 0 && <span className="ycf-do">còn {thieuSo} món chưa nhập số lượng</span>}
         {thieuSo === 0 && thieuKho.length > 0 && (
-          <span className="ycf-do">{daBam ? `${thieuKho[0].item_name} chưa có khổ tờ` : ""}</span>
+          <span className="ycf-do">{daBam ? `${thieuKho[0].item_name} chưa có khổ` : ""}</span>
         )}
       </span>
       <span className="rc__spacer" />
@@ -160,7 +178,7 @@ export function RequestFormDrawer({
       tieuDe={editing ? "Sửa yêu cầu mua hàng" : "Tạo yêu cầu mua hàng"}
       phuDe={
         <div className="mh-kv">
-          <span>Người yêu cầu<b>{user?.name ?? "Tôi"}</b></span>
+          <span>NV yêu cầu<b>{user?.name ?? "Tôi"}</b></span>
           <span>Bộ phận<b>{departmentName || "Nội bộ"}</b></span>
           <span>Gửi tới<b>Thu mua</b></span>
           {form.source_type && <span>Nguồn<b>{SOURCE_TYPE_LABELS[form.source_type]}</b></span>}
@@ -279,7 +297,6 @@ export function RequestFormDrawer({
                           onPick={(m) => setLine(index, {
                             hang_loai: m.hang_loai, hang_id: m.hang_id, item_name: m.ten, unit: "",
                             kho_rong: 0, kho_dai: 0,
-                            dang_giay: m.hang_loai === "giay" ? "to" : undefined,
                           })}
                         />
                       </td>
@@ -292,7 +309,7 @@ export function RequestFormDrawer({
                     </tr>
                   );
                 }
-                const dang = dangGiayDong(line);
+                const laGiay = laGiayDong(line);
                 const t = tonDong(line);
                 const sl = Number(line.quantity) || 0;
                 return (
@@ -304,17 +321,12 @@ export function RequestFormDrawer({
                       {line.item_name}
                     </td>
                     <td>
-                      {line.hang_loai === "giay" ? (
+                      {laGiay ? (
                         <KhungKho
-                          dang={dang ?? "to"}
                           rong={line.kho_rong ?? 0}
                           dai={line.kho_dai ?? 0}
                           goiY={goiYKho(line)}
-                          onChange={(v) => setLine(index, {
-                            dang_giay: v.dang, kho_rong: v.rong, kho_dai: v.dai,
-                            // Đổi dạng ⇒ đơn vị gốc khác (tờ ↔ kg): ô đơn vị tự điền lại.
-                            ...(v.dang !== dang ? { unit: "" } : {}),
-                          })}
+                          onChange={(v) => setLine(index, { kho_rong: v.rong, kho_dai: v.dai })}
                         />
                       ) : (
                         <span className="mh-mo3">Không theo khổ</span>
@@ -322,8 +334,18 @@ export function RequestFormDrawer({
                     </td>
                     {coQuyenTon && (
                       <td className="n">
-                        {t == null ? <span className="mh-mo3">{dang === "to" ? "Chọn khổ" : ""}</span>
-                          : <span className={t <= 0 ? "mh-do" : undefined}>{fmtQty(t)}</span>}
+                        {t == null ? (
+                          <span className="mh-mo3">{laGiay ? "Chọn khổ" : ""}</span>
+                        ) : (
+                          // Cùng khổ khác đơn vị gốc (tờ và kg) là hai số đứng cạnh, không cộng.
+                          <span className="ycf3-ton">
+                            {t.map((x, i) => (
+                              <span key={i} className={x.so <= 0 ? "mh-do" : undefined}>
+                                {fmtQty(x.so)}{t.length > 1 && x.dv ? ` ${x.dv}` : ""}
+                              </span>
+                            ))}
+                          </span>
+                        )}
                       </td>
                     )}
                     <td className="n">
@@ -337,12 +359,15 @@ export function RequestFormDrawer({
                             setLine(index, { quantity: so ? Number(so) : 0 });
                           }}
                         />
+                        {/* Giấy + vật tư khác (10/10/2026, khai nhiều ĐVT): ĐVT tự chọn trong các đơn vị
+                            đã khai ở danh mục — chính nó quyết dòng đếm theo đơn vị gốc nào (tờ hay kg,
+                            kg hay thùng). Thành phẩm, khuôn: đơn vị của mặt hàng. */}
                         <DonViChonTheoHang
-                          chiDoc
+                          chiDoc={!coDonViGoc(line.hang_loai)}
+                          gon={coDonViGoc(line.hang_loai)}
                           token={token ?? ""}
                           hangLoai={line.hang_loai ?? null}
                           hangId={line.hang_id ?? null}
-                          dang={dang}
                           value={line.unit}
                           onChange={(ma) => setLine(index, { unit: ma })}
                         />

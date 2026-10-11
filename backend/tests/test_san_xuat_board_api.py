@@ -47,7 +47,7 @@ def test_teams_admin_thay_to_moi(client):
     row = next((t for t in teams if t["id"] == to_id), None)
     assert row is not None
     assert set(row) == {
-        "id", "ten", "ma", "cap", "la_kcs", "la_tho", "so_viec_cho", "quyen", "so_cho_xac_nhan",
+        "id", "ten", "ma", "cap", "la_tho", "so_viec_cho", "quyen", "so_cho_xac_nhan",
         "la_to_cat",
     }
     assert row["ten"] == "Tổ In API" and row["so_viec_cho"] == 0
@@ -144,48 +144,6 @@ def test_work_items_nhom_la_bi_chan(client):
     assert r.status_code == 422
 
 
-# --- Luỹ kế sản lượng tháng của CHÍNH mình (spec 2026-09-11 §6) -----------------------------
-# Route gác `require_quyen_to("read")`: admin seed KHÔNG có dòng tổ nào (không bypass) → mỗi bài tự
-# cấp Xem ở một tổ trước khi gọi, như quản trị tích ma trận.
-def test_luy_ke_khong_co_xem_o_to_nao_bi_chan(client):
-    r = client.get("/api/san-xuat/toi/san-luong", params={"nam": 2026, "thang": 9},
-                   headers=_admin_h(client))
-    assert r.status_code == 403
-
-
-def test_luy_ke_san_luong_cua_toi_hinh_dang(client):
-    _to_la_sx(ten="Tổ Luỹ Kế API", ma="TO-LK-API")
-    r = client.get("/api/san-xuat/toi/san-luong", params={"nam": 2026, "thang": 9},
-                   headers=_admin_h(client))
-    assert r.status_code == 200
-    d = r.json()
-    assert set(d) == {"nam", "thang", "employee_id", "me", "so_me"}
-    assert d["nam"] == 2026 and d["thang"] == 9
-    assert "tien" not in str(d) and "don_gia" not in str(d)
-
-
-def test_luy_ke_khong_nhan_employee_id_tu_client(client):
-    """Nhận `employee_id` từ URL là mở cửa cho bất kỳ ai xem sản lượng người khác."""
-    _to_la_sx(ten="Tổ Luỹ Kế API", ma="TO-LK-API")
-    r = client.get("/api/san-xuat/toi/san-luong",
-                   params={"nam": 2026, "thang": 9, "employee_id": 999},
-                   headers=_admin_h(client))
-    assert r.status_code in (200, 422)
-    if r.status_code == 200:
-        assert r.json()["employee_id"] != 999
-
-
-def test_luy_ke_can_dang_nhap(client):
-    assert client.get("/api/san-xuat/toi/san-luong?nam=2026&thang=9").status_code == 401
-
-
-def test_luy_ke_thang_ngoai_1_12_bi_chan(client):
-    _to_la_sx(ten="Tổ Luỹ Kế API", ma="TO-LK-API")
-    r = client.get("/api/san-xuat/toi/san-luong", params={"nam": 2026, "thang": 13},
-                   headers=_admin_h(client))
-    assert r.status_code == 422
-
-
 # --- Tab Sản lượng của bàn tổ (spec 2026-09-14 §6) ------------------------------------------
 def test_san_luong_to_khong_co_xem_bi_chan(client):
     r = client.get("/api/san-xuat/san-luong", params={"team_id": 1}, headers=_admin_h(client))
@@ -203,3 +161,21 @@ def test_san_luong_to_hinh_dang_va_khoang_ngay_sai(client):
     r = client.get("/api/san-xuat/san-luong",
                    params={"team_id": to_id, "tu": "2026-09-10", "den": "2026-09-01"}, headers=h)
     assert r.status_code == 400
+
+
+def test_work_items_loc_dem_qua_http(client):
+    """Thanh lọc 6 điều kiện (09/10): route đếm nằm TRƯỚC `/work-items/{id}` — không thì
+    "loc-dem" bị đọc thành id và trả 422."""
+    to_id = _to_la_sx("Tổ In Lọc", "TO-LOC")
+    h = _admin_h(client)
+    r = client.get("/api/san-xuat/work-items/loc-dem", params={"team_id": to_id}, headers=h)
+    assert r.status_code == 200
+    assert set(r.json()) == {"trang_thai", "cho", "toi", "vuong", "tre", "nguoi", "gap"}
+    r = client.get("/api/san-xuat/work-items/loc-dem", params={"team_id": 999_999}, headers=h)
+    assert r.status_code == 403
+    r = client.get("/api/san-xuat/work-items",
+                   params={"team_id": to_id, "vuong": ["chua_giao_tho"], "toi": "toi", "tre": "xong",
+                           "nguoi": [1], "cho_loai": ["kcs"]}, headers=h)
+    assert r.status_code == 200
+    r = client.get("/api/san-xuat/work-items", params={"team_id": to_id, "toi": "xa_lam"}, headers=h)
+    assert r.status_code == 422

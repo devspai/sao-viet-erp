@@ -1,6 +1,6 @@
 // Đầu màn Yêu cầu mua hàng: tiêu đề + nút tạo, rồi thẻ lọc CHUNG với Mua hàng › Yêu cầu chờ xử lý
-// (phương án 3, 07/10/2026): ô tìm + `ThanhLoc` + nút "Xem theo", hàng chip trạng thái có số. Chip là
-// trạng thái yêu cầu hay tình trạng món tuỳ chế độ xem — cha truyền vào.
+// (phương án 3, 07/10/2026): ô tìm + `ThanhLoc` + nút "Xem theo"; trạng thái có số nằm trong nút Lọc
+// (10/10/2026). Trạng thái yêu cầu hay tình trạng món tuỳ chế độ xem — cha truyền vào.
 import type { ReactNode } from "react";
 import { Button } from "../../../../components/Button";
 import type { KyDS } from "../../../thanh-loc/ky-danh-sach";

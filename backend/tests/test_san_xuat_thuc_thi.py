@@ -192,14 +192,15 @@ def test_phan_cong_bao_notify_khi_co_tai_khoan(db, orders, lsx_svc, admin, custo
     assert res["notify_user_id"] == u.id
 
 
-def test_buoc_noi_bo_chi_nhan_tho_khoan(db, orders, lsx_svc, admin, customer):
+def test_buoc_noi_bo_nhan_ca_nguoi_cong_nhat(db, orders, lsx_svc, admin, customer):
+    """09/10/2026 gỡ luật "bước nội bộ chỉ nhận thợ khoán" — tổ ăn công nhật vẫn phải giao được."""
     to, cv = _mot_cv(db, orders, lsx_svc, admin, customer)
     cv.loai_buoc = BUOC_TO
     db.commit()
     cn = _emp(db, _to_cong_nhat(db), "NV-CN-1")    # tổ không khoán
-    with pytest.raises(ValueError, match="là người công nhật — bước nội bộ không nhận người công nhật") as loi:
-        thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=cn.id)
-    assert "khoán" not in str(loi.value)                   # tổ không cần nghe chữ "khoán"
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=cn.id)
+    pc = db.query(SanXuatPhanCong).filter_by(cong_viec_id=cv.id).one()
+    assert pc.la_luong_khoan is False                      # vẫn chụp chế độ lương cho bảng lương
 
 
 def test_khong_giao_trung_mot_nguoi(db, orders, lsx_svc, admin, customer):
@@ -351,25 +352,20 @@ def test_version_lech_bi_chan(db, orders, lsx_svc, admin, customer):
 
 
 # --- Phiên chạy (§7.2) ----------------------------------------------------------------------
-def test_bat_dau_can_it_nhat_mot_khoan(db, orders, lsx_svc, admin, customer):
+def test_bat_dau_can_it_nhat_mot_nguoi_cong_nhat_cung_duoc(db, orders, lsx_svc, admin, customer):
+    """Luật chỉ còn "≥1 người được giao" — chỉ toàn công nhật vẫn bắt đầu được (09/10/2026)."""
     to, cv = _mot_cv(db, orders, lsx_svc, admin, customer)
     with pytest.raises(ValueError, match="^Cần giao ít nhất 1 thợ mới bắt đầu được.$"):   # chưa giao ai
         thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
 
-    cn = _emp(db, _to_cong_nhat(db), "NV-CN-2")             # chỉ công nhật → chưa đủ
+    cn = _emp(db, _to_cong_nhat(db), "NV-CN-2")             # chỉ công nhật → vẫn mở được
     thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=cn.id)
-    with pytest.raises(ValueError, match="^Người đang giao đều là công nhật — cần thêm ít nhất 1 thợ") as loi:
-        thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
-    assert "khoán" not in str(loi.value)
-
-    khoan = _emp(db, to, "NV-K-1")                          # thêm thợ khoán → mở được
-    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=khoan.id)
     res = thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
 
     assert res["trang_thai"] == CV_DANG_CHAY
     phien = db.query(SanXuatPhienChay).filter_by(cong_viec_id=cv.id).all()
     assert len(phien) == 1 and phien[0].ket_thuc is None
-    assert len(_mo_khoang(db, cv)) == 2                     # mở khoảng cho cả roster
+    assert len(_mo_khoang(db, cv)) == 1
 
 
 def test_bat_dau_tre_khong_hoi_ly_do(db, orders, lsx_svc, admin, customer):
@@ -413,7 +409,9 @@ def test_so_nguoi_khac_dinh_muc_cu_khong_hoi_ly_do(db, orders, lsx_svc, admin, c
     assert not hasattr(phien, "ly_do_so_nguoi")
 
 
-def test_mot_nguoi_khong_hai_khoang_chong_gio(db, orders, lsx_svc, admin, customer):
+def test_nguoi_dang_chay_viec_khac_khong_chan_bat_dau(db, orders, lsx_svc, admin, customer):
+    """10/10/2026 gỡ luật "không hai khoảng chồng giờ": phát hành là giao cả tổ, chặn thì việc thứ
+    hai của tổ không bao giờ bắt đầu được. Ai làm lần nào thì tổ tick lúc ghi sản lượng."""
     to = _to_khoan(db, admin)
     _phat_hanh_vao_to(db, orders, lsx_svc, admin, customer, to.id)
     cvs = _cvs(db, to)
@@ -425,16 +423,14 @@ def test_mot_nguoi_khong_hai_khoang_chong_gio(db, orders, lsx_svc, admin, custom
     e = _emp(db, to, "NV-DUP", ten="Thợ Đang Chạy")
 
     thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv1.id, employee_id=e.id)
-    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv1.id)             # e có khoảng mở ở cv1
-    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv2.id, employee_id=e.id)  # cv2 chưa chạy → ok
-    # Chồng giờ → chặn, và câu báo phải nói AI đang giữ VIỆC NÀO (trước đây chỉ "Nhân viên #id").
-    with pytest.raises(ValueError) as loi:
-        thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv2.id)
-    assert "Thợ Đang Chạy" in str(loi.value) and cv1.ten_cong_doan in str(loi.value)
-    assert "#" not in str(loi.value)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv1.id)
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv2.id, employee_id=e.id)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv2.id)
+    assert {k.cong_viec_id for k in db.query(SanXuatKhoangThamGia).filter_by(employee_id=e.id, ket_thuc=None)} == {
+        cv1.id, cv2.id}
 
 
-def test_giao_vao_viec_dang_chay_bao_viec_nguoi_do_dang_giu(db, orders, lsx_svc, admin, customer):
+def test_giao_vao_viec_dang_chay_khi_dang_chay_viec_khac_van_duoc(db, orders, lsx_svc, admin, customer):
     to = _to_khoan(db, admin, ma="TO-GIU")
     _phat_hanh_vao_to(db, orders, lsx_svc, admin, customer, to.id)
     cv1, cv2 = _cvs(db, to)[0], _cvs(db, to)[1]
@@ -449,12 +445,8 @@ def test_giao_vao_viec_dang_chay_bao_viec_nguoi_do_dang_giu(db, orders, lsx_svc,
     thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv2.id, employee_id=b.id)
     thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv2.id)
 
-    with pytest.raises(ValueError) as loi:                  # A đang chạy cv1, cv2 cũng đang chạy
-        thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv2.id, employee_id=a.id)
-    assert "Thợ A" in str(loi.value) and cv1.ten_cong_doan in str(loi.value)
-    db.rollback()
-    # Chặn TRƯỚC khi ghi: không sót dòng phân công nào của A ở cv2.
-    assert db.query(SanXuatPhanCong).filter_by(cong_viec_id=cv2.id, employee_id=a.id).count() == 0
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv2.id, employee_id=a.id)
+    assert db.query(SanXuatPhanCong).filter_by(cong_viec_id=cv2.id, employee_id=a.id).count() == 1
 
 
 def test_tam_dung_dong_phien_va_khoang(db, orders, lsx_svc, admin, customer):
@@ -757,20 +749,21 @@ def test_phan_cong_chan_nguoi_nghi_phep_hom_nay(db, orders, lsx_svc, admin, cust
     thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=mai.id)
 
 
-def test_bat_dau_chan_khi_nguoi_trong_to_nghi_phep_hom_nay(db, orders, lsx_svc, admin, customer):
-    """Giao từ hôm trước, hôm nay người đó có đơn nghỉ đã duyệt: bấm Bắt đầu là mở khoảng tham gia
-    (tính phút, chia lương) cho người vắng mặt ⇒ chặn, bảo rút người đó ra."""
+def test_bat_dau_bo_qua_nguoi_nghi_phep_hom_nay(db, orders, lsx_svc, admin, customer):
+    """Phát hành giao cả tổ nên người nghỉ luôn có tên — Bắt đầu không chặn, chỉ không mở khoảng
+    tham gia cho họ. Ai cũng nghỉ thì mới chặn."""
     to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-PHEP-BD")
     lam = _emp(db, to, "NV-PBD-1", ten="Thợ Đi Làm")
     vang = _emp(db, to, "NV-PBD-2", ten="Thợ Vắng")
-    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=lam.id)
     thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=vang.id)
     _don_nghi(db, vang, _hom_nay())
 
-    with pytest.raises(ValueError, match="Thợ Vắng nghỉ phép hôm nay"):
+    with pytest.raises(ValueError, match="đều nghỉ hôm nay"):
         thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
     db.rollback()
-    assert db.query(SanXuatPhienChay).filter_by(cong_viec_id=cv.id).count() == 0
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=lam.id)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    assert {k.employee_id for k in _mo_khoang(db, cv)} == {lam.id}
 
 
 def test_nhan_vien_chon_kem_tinh_trang(db, orders, lsx_svc, admin, customer):

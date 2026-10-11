@@ -37,10 +37,10 @@ def _dong(ma, lsx_id, can, *, han, giu=0.0, loai="vat_tu"):
 
 
 def test_du_bao_gop_theo_lenh_va_cong_hang_dang_ve(monkeypatch):
-    giay = ("giay", 5, 650, 860)
+    giay = ("giay", 5, 650, 860, "to")
     bang = {"items": [{
         "loai_nhom": "vat_tu", "hang_loai": "giay", "hang_id": 5, "kho_rong": 650, "kho_dai": 860,
-        "ton": 5000,
+        "don_vi_goc": "to", "ton": 5000,
         "dong": [
             _dong("LSX-0318", 1, 1200, han="2026-10-09", giu=1200),
             _dong("LSX-0318", 1, 300, han="2026-10-08", giu=1200),  # cùng lệnh, bước khác
@@ -55,14 +55,14 @@ def test_du_bao_gop_theo_lenh_va_cong_hang_dang_ve(monkeypatch):
         "loai_mua": "cho_lsx", "lenh": [{"loai": "lsx", "id": 1, "ma": "LSX-0318", "so_luong": 1000.0}]}})
     kh = _KhGia(
         {giay: [(date(2026, 10, 15), 1000.0, "PMH-1", 11), (date(2026, 10, 15), 500.0, "PMH-1", 12)]},
-        {("vat_tu", 9, 0, 0): [{"ma": "YCMH-1", "loai": "ycmh", "trang_thai": "open", "ngay_ve": None}]},
+        {("vat_tu", 9, 0, 0, ""): [{"ma": "YCMH-1", "loai": "ycmh", "trang_thai": "open", "ngay_ve": None}]},
     )
 
     rows = {(r["hang_loai"], r["hang_id"]): r
             for r in DuBaoTonService(kh, None).du_bao([giay, ("vat_tu", 9)])}
 
     g = rows[("giay", 5)]
-    assert g["ton_toan_xuong"] == 5000
+    assert g["ton_toan_xuong"] == 5000 and g["don_vi_goc"] == "to"
     assert [(x["ma"], x["can"], x["da_giu"], x["han_sx"]) for x in g["lenh"]] == [
         ("LSX-0318", 1500.0, 1200.0, "2026-10-08"), ("LSX-0322", 700.0, 0.0, "2026-10-12")]
     assert g["can_lenh"] == 2200.0
@@ -74,7 +74,7 @@ def test_du_bao_gop_theo_lenh_va_cong_hang_dang_ve(monkeypatch):
     v = rows[("vat_tu", 9)]
     assert v["ton_toan_xuong"] is None and v["lenh"] == [] and v["can_lenh"] == 0
     assert [p["ma"] for p in v["phieu_mua"]] == ["YCMH-1"]
-    assert ("vat_tu", 9, 0, 0) in kh.hoi       # cặp (loai, id) được chuẩn thành khoá 4 phần
+    assert ("vat_tu", 9, 0, 0, "") in kh.hoi   # cặp (loai, id) được chuẩn thành khoá 5 phần
 
 
 def test_du_bao_rong_khi_kho_khong_co_hang():

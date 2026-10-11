@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phiếu xuất nhiều vật tư</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --rust:#c5400a; --charcoal:#0f172a;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309;
+  --tt-cam-bg:#ffedd5;  --tt-cam-fg:#c2410c;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8;
+  --tt-la-bg:#dcfce7;   --tt-la-fg:#15803d;
+  --tt-do-bg:#fee2e2;   --tt-do-fg:#b91c1c;
+  --tt-tim-bg:#ede9fe;  --tt-tim-fg:#6d28d9;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1260px;margin:0 auto;padding:32px 16px 120px}
+h1{font-size:24px;margin:0 0 6px;font-weight:500;letter-spacing:-.01em}
+.lead{color:var(--ash);margin:0 0 18px;max-width:940px}
+.box{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.box h2{font-size:15px;margin:0 0 10px;font-weight:500}
+.box ul{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--ash);font-size:13.5px}
+.box b{color:var(--ink);font-weight:500}
+.cmp{border-collapse:collapse;width:100%;font-size:13px}
+.cmp th{font-size:12px;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);font-weight:500}
+.cmp td{padding:9px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:top;color:var(--ash)}
+.cmp td:first-child{color:var(--ink);white-space:nowrap}
+.cmp tr:last-child td{border-bottom:0}
+.optnav{position:sticky;top:0;z-index:30;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);padding:12px 0;margin:28px 0 22px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.optnav button{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer}
+.optnav button:hover{background:var(--rule-hair)}
+.optnav button.on{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-h{margin:0 0 6px;font-size:20px;font-weight:500}
+.why{color:var(--ash);margin:0 0 16px;max-width:980px;font-size:13.5px}
+.why ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
+.why b{color:var(--ink);font-weight:500}
+
+/* ---------- vỏ ngăn ---------- */
+.ngan{background:var(--canvas);border:1px solid var(--rule);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.10);max-width:1180px;overflow:hidden}
+.ngan-dau{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--rule-soft)}
+.ngan-dau .dd{font-size:12.5px;color:var(--ash-2)}
+.ngan-dau h4{margin:0;font-size:18px;font-weight:500}
+.ngan-dau .x{margin-left:auto;color:var(--ash-2);font-size:20px}
+.ngan-than{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;padding:18px 24px 24px;align-items:start}
+.the{border:1px solid var(--rule-soft);border-radius:10px;background:var(--canvas)}
+.the-dau{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.the-dau h5{margin:0;font-size:14px;font-weight:500}
+.the-than{padding:12px 14px}
+.lien{color:var(--tt-xanh-fg);cursor:pointer;font-size:13px;background:none;border:0;font:inherit;padding:0}
+.lien:hover{text-decoration:underline}
+.phai{margin-left:auto;display:flex;gap:10px;align-items:center}
+
+/* ---------- chung ---------- */
+.muted{color:var(--ash-2)} .num{font-variant-numeric:tabular-nums} .r{text-align:right} .nw{white-space:nowrap}
+.u{font-size:12px;color:var(--ash-2);margin-left:3px}
+.red{color:var(--tt-do-fg)} .amb{color:var(--tt-vang-fg)} .grn{color:var(--tt-la-fg)}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--rule-hair);border:1px solid var(--rule-soft);font-size:11.5px;color:var(--ash);white-space:nowrap}
+.tag--ma{color:var(--ink)}
+.tag--canh{background:var(--tt-vang-bg);border-color:transparent;color:var(--tt-vang-fg)}
+.tag--don{background:var(--tt-tim-bg);border-color:transparent;color:var(--tt-tim-fg)}
+.tags{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.seg button{height:28px;padding:0 10px;border:0;background:var(--canvas);font:inherit;font-size:12.5px;color:var(--ash);cursor:pointer}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button.on{background:var(--rule-hair);color:var(--ink)}
+.seg .dem{margin-left:5px;color:var(--ash-2)}
+.tim{height:28px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;font:inherit;font-size:12.5px;width:180px}
+.o{height:28px;border:1px solid var(--rule-soft);border-radius:6px;padding:0 8px;font:inherit;font-size:13px;width:100%;background:var(--canvas)}
+.o:hover{border-color:var(--rule)}
+.o:focus{outline:2px solid var(--tt-xanh-bg);border-color:var(--tt-xanh-fg)}
+.o.so{text-align:right;font-variant-numeric:tabular-nums}
+.o.loi{border-color:var(--tt-do-fg)}
+.cuon{overflow:auto}
+
+table.g{border-collapse:collapse;width:100%;font-size:13px;table-layout:fixed}
+.g th{font-size:12px;color:var(--ash-2);font-weight:500;text-align:left;padding:7px 8px;border-bottom:1px solid var(--rule-soft);background:var(--paper);position:sticky;top:0;z-index:1}
+.g th.r{text-align:right}
+.g td{padding:5px 8px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+.g tr.dong:hover td{background:var(--rule-hair)}
+.ten{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ma{font-size:11.5px;color:var(--ash-2)}
+.mui{width:22px;height:22px;border:0;background:none;cursor:pointer;color:var(--ash-2);border-radius:5px;display:inline-flex;align-items:center;justify-content:center}
+.mui:hover{background:var(--rule-soft);color:var(--ink)}
+.mui svg{transition:transform .15s}
+.mui.mo svg{transform:rotate(90deg)}
+.ghi{font-size:12px}
+
+/* lô lồng trong phương án A */
+.bung td{background:var(--paper)}
+.bung-than{padding:6px 0 10px 30px;display:grid;gap:8px}
+.lo{border-collapse:collapse;width:100%;font-size:12.5px;table-layout:fixed;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:8px}
+.lo th{font-size:11.5px;color:var(--ash-2);font-weight:500;text-align:left;padding:5px 8px;border-bottom:1px solid var(--rule-soft)}
+.lo th.r{text-align:right}
+.lo td{padding:4px 8px;border-bottom:1px solid var(--rule-hair)}
+.lo tr:last-child td{border-bottom:0}
+.lo tr.khong td{color:var(--ash-3)}
+.lo tr.khong td .o{color:var(--ash-2)}
+.canh{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;padding:7px 10px;border-radius:8px;background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.truong{display:grid;gap:4px;font-size:12.5px;color:var(--ash)}
+.truong em{color:var(--tt-do-fg);font-style:normal}
+
+/* B: danh sách + khung lô */
+.b-luoi{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:560px}
+.b-ds{border-right:1px solid var(--rule-soft);max-height:620px;overflow:auto}
+.b-mon{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 12px;border:1px solid transparent;border-bottom-color:var(--rule-hair);cursor:pointer}
+.b-mon:hover{background:var(--rule-hair)}
+.b-mon.chon{border:1px solid var(--tt-xanh-fg);border-radius:6px;background:var(--canvas)}
+.b-mon .sl{font-size:12.5px;text-align:right;white-space:nowrap}
+.b-mon .phu{grid-column:1/-1;display:flex;gap:6px;align-items:center;font-size:12px}
+.b-sua{padding:14px 16px;display:grid;gap:12px;align-content:start}
+.b-sua h6{margin:0;font-size:15px;font-weight:500}
+.b-so{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule-soft);border-radius:8px}
+.b-so>div{padding:8px 12px}
+.b-so>div+div{border-left:1px solid var(--rule-soft)}
+.b-so .k{font-size:11.5px;color:var(--ash-2)}
+.b-so .v{font-size:16px;font-variant-numeric:tabular-nums}
+.b-dieu{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ash-2)}
+.phim{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border:1px solid var(--rule);border-radius:4px;font-size:11px;background:var(--paper)}
+
+/* C: phiếu nhặt theo lô */
+.nhom td{background:var(--paper);padding:6px 8px;border-bottom:1px solid var(--rule-soft)}
+.nhom .tn{display:flex;gap:8px;align-items:center;min-width:0}
+.c-lo td:first-child{padding-left:30px}
+
+/* cột phải dùng chung */
+.ben{display:grid;gap:12px}
+.ben label{display:grid;gap:4px;font-size:12.5px;color:var(--ash)}
+.ben .o{height:34px}
+.tong{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px;display:grid;gap:6px;font-size:13px}
+.tong div{display:flex;justify-content:space-between}
+.tong .lon{font-size:18px;font-variant-numeric:tabular-nums}
+.nut{height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;cursor:pointer}
+.nut--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.nuts{display:flex;gap:8px;justify-content:flex-end}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Phiếu xuất kho khi yêu cầu có khoảng 20 vật tư</h1>
+  <p class="lead">Hiện mỗi vật tư kéo theo một bảng lô bên dưới. 20 món nghĩa là khoảng 60–80 dòng, dù máy đã tự chọn lô đúng cho gần hết. Cả ba phương án giữ nguyên luật: máy rót số vào lô hết hạn trước, kho chỉ sửa khi muốn lấy lô khác; món kho không đủ phải ghi lý do cấp thiếu. Dữ liệu mẫu bên dưới gồm 20 món thật kiểu xưởng in. Có 3 món cần xem: 2 món kho thiếu và 1 món dính lô sắp hết hạn. Ô số sửa được, gõ xong nhấn Enter hoặc bấm ra ngoài.</p>
+
+  <div class="box">
+    <h2>Tham khảo</h2>
+    <ul>
+      <li><b>Odoo, phiếu giao hàng (Delivery)</b>: mỗi sản phẩm một dòng. Cuối dòng có nút mở "Chi tiết thao tác" để chọn lô và vị trí. Lô do máy gợi ý theo FEFO, người dùng chỉ mở khi cần đổi.</li>
+      <li><b>NetSuite, Item Fulfillment</b>: dòng hàng gọn, lô và ô kệ nằm trong "Inventory Detail" mở theo từng dòng, không trải sẵn.</li>
+      <li><b>SAP S/4HANA, Batch Determination</b>: lô xác định tự động; chỉ khi muốn chia lô khác thì mới mở màn chia lô (batch split).</li>
+      <li><b>Phiếu nhặt hàng của các hệ WMS</b> (Odoo Barcode, Linnworks): một dòng một lô cần lấy, xếp theo vị trí kệ để thủ kho đi một vòng là nhặt xong.</li>
+    </ul>
+  </div>
+
+  <div class="box">
+    <h2>So sánh nhanh</h2>
+    <table class="cmp">
+      <thead><tr><th style="width:160px">Phương án</th><th>20 món dài bao nhiêu</th><th>Sửa lô thế nào</th><th>Hợp với</th></tr></thead>
+      <tbody>
+        <tr><td>A. Một dòng một món</td><td>20 dòng; chỉ món thiếu hoặc có cảnh báo tự bung sẵn bảng lô</td><td>Gõ thẳng tổng ô Cấp, máy chia lô. Muốn chỉ định lô thì bấm mũi tên, bảng lô bung ngay dưới dòng.</td><td>Gần cách làm hiện tại nhất, ít đổi thói quen</td></tr>
+        <tr><td>B. Danh sách và khung lô</td><td>Danh sách 20 món bên trái, luôn thấy hết; bên phải là lô của món đang chọn</td><td>Chọn món bên trái, sửa lô bên phải. Phím lên/xuống để chuyển món.</td><td>Kho hay phải đổi lô, muốn đi lần lượt từng món</td></tr>
+        <tr><td>C. Phiếu nhặt theo lô</td><td>Khoảng 25 dòng lô được lấy, mỗi món một dòng tiêu đề mảnh</td><td>Sửa ô Lấy ngay trên dòng lô; lô không lấy thì ẩn, bấm "Lô khác" mới hiện. Có nút xếp theo vị trí kệ.</td><td>Thủ kho cầm phiếu đi nhặt, quan tâm kệ nào lô nào</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="optnav">
+    <button class="on" data-opt="A">A. Một dòng một món</button>
+    <button data-opt="B">B. Danh sách và khung lô</button>
+    <button data-opt="C">C. Phiếu nhặt theo lô</button>
+  </div>
+
+  <section class="opt on" id="opt-A">
+    <h3 class="opt-h">A. Một dòng một món, bung lô khi cần</h3>
+    <div class="why"><ul>
+      <li>Mỗi món đúng một dòng. Cột <b>Lấy từ</b> cho biết máy đang lấy lô nào, ở kệ nào, không cần mở bảng lô.</li>
+      <li>Ô <b>Cấp</b> gõ được. Gõ tổng thì máy chia lại vào các lô theo hạn dùng; muốn chỉ định lô thì bấm mũi tên đầu dòng.</li>
+      <li>Món kho thiếu, món dính lô có cảnh báo tự bung sẵn và nằm lên đầu. Nút <b>Cần xem</b> lọc chỉ còn những món đó.</li>
+    </ul></div>
+    <div id="A"></div>
+  </section>
+
+  <section class="opt" id="opt-B">
+    <h3 class="opt-h">B. Danh sách món bên trái, lô của món đang chọn bên phải</h3>
+    <div class="why"><ul>
+      <li>Trái: 20 món, mỗi món hai dòng chữ nhỏ (tên, cấp trên yêu cầu, lô đang lấy). Món cần xem có chữ màu ở dòng dưới.</li>
+      <li>Phải: bốn số của món đang chọn (Yêu cầu, Tồn, Cấp, Thành tiền) rồi bảng lô đầy đủ để sửa. Món thiếu có ô lý do ngay đây.</li>
+      <li>Khung lô cố định một chỗ, nên phiếu dài bao nhiêu món thì chiều cao vẫn vậy.</li>
+    </ul></div>
+    <div id="B"></div>
+  </section>
+
+  <section class="opt" id="opt-C">
+    <h3 class="opt-h">C. Phiếu nhặt: một dòng một lô được lấy</h3>
+    <div class="why"><ul>
+      <li>Mỗi món có một dòng tiêu đề mảnh (tên, yêu cầu, cấp). Dưới đó chỉ là các lô máy đang lấy, có vị trí và ô Lấy sửa được.</li>
+      <li>Lô không lấy thì ẩn; bấm <b>Lô khác</b> trên dòng tiêu đề để hiện ra khi muốn đổi.</li>
+      <li>Bật <b>Xếp theo vị trí</b> thì bỏ nhóm, các lô xếp theo kệ để đi một vòng nhặt hết.</li>
+    </ul></div>
+    <div id="C"></div>
+  </section>
+</div>
+
+<script>
+const MON = [
+  ["MUC-C","Mực Cyan Toyo FX","kg",12,[["PN00412","2026-08-02","A1-03","2026-11-20",5,285000,"Sắp hết hạn"],["PN00455","2026-09-18","A1-04","2027-03-02",20,290000]]],
+  ["MUC-M","Mực Magenta Toyo FX","kg",10,[["PN00455","2026-09-18","A1-04","2027-03-02",18,290000]]],
+  ["MUC-Y","Mực Yellow Toyo FX","kg",8,[["PN00398","2026-07-20","A1-02","2026-12-15",3,280000],["PN00455","2026-09-18","A1-04","2027-03-02",15,290000]]],
+  ["MUC-K","Mực Black Toyo FX","kg",15,[["PN00455","2026-09-18","A1-04","2027-03-02",30,260000]]],
+  ["KEM-1030","Bản kẽm CTP 1030×790","tấm",40,[["PN00460","2026-09-25","B2-01",null,120,92000]]],
+  ["KEM-745","Bản kẽm CTP 745×605","tấm",24,[["PN00431","2026-08-28","B2-02",null,10,61000],["PN00460","2026-09-25","B2-02",null,6,62000]]],
+  ["UV-01","Keo phủ UV bóng","kg",20,[["PN00402","2026-07-25","C1-01","2027-01-10",8,145000],["PN00449","2026-09-10","C1-01","2027-04-01",25,148000]]],
+  ["DB-NUOC","Dầu bóng gốc nước","kg",25,[["PN00449","2026-09-10","C1-02","2027-03-15",60,78000]]],
+  ["CS-OFF","Cao su offset 1060×860","tấm",2,[["PN00380","2026-06-30","B3-05",null,4,1850000]]],
+  ["HC-RUA","Hoá chất rửa lô","lít",10,[["PN00422","2026-08-15","D1-01","2027-02-01",6,52000],["PN00458","2026-09-22","D1-01","2027-06-01",20,54000]]],
+  ["BOT-CD","Bột chống dính","kg",3,[["PN00410","2026-08-01","D1-03",null,12,210000]]],
+  ["NUOC-MANG","Dung dịch nước máng","lít",20,[["PN00436","2026-09-01","D1-02","2027-01-20",8,68000]]],
+  ["MANG-BONG","Màng BOPP bóng 32cm","cuộn",6,[["PN00457","2026-09-20","E1-01",null,10,640000],["PN00441","2026-09-05","E1-02",null,4,630000,null,"DH26-0112"]]],
+  ["MANG-MO","Màng BOPP mờ 32cm","cuộn",4,[["PN00457","2026-09-20","E1-01",null,9,690000]]],
+  ["KEO-HOP","Keo dán hộp","kg",18,[["PN00429","2026-08-25","C2-01","2026-12-01",10,58000],["PN00450","2026-09-12","C2-01","2027-03-01",30,58000]]],
+  ["GIAY-C150","Giấy Couche 150 khổ 65×86","tờ",4500,[["PN00401","2026-07-24","G1-01",null,2000,2450],["PN00444","2026-09-08","G1-02",null,6000,2480]]],
+  ["GIAY-IV300","Giấy Ivory 300 khổ 79×109","tờ",3200,[["PN00444","2026-09-08","G2-01",null,5000,5900]]],
+  ["BANG-KEO","Băng keo trong 5cm","cuộn",30,[["PN00419","2026-08-10","F1-01",null,100,14000]]],
+  ["DAY-DAI","Dây đai PP","cuộn",5,[["PN00419","2026-08-10","F1-02",null,12,165000]]],
+  ["KHAN-LAU","Khăn lau máy","kg",6,[["PN00426","2026-08-20","F2-01",null,4,32000],["PN00451","2026-09-14","F2-01",null,10,32000]]],
+];
+
+const vn = new Intl.NumberFormat("vi-VN");
+const qty = n => vn.format(Math.round(n*100)/100);
+const ngay = s => s ? s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4) : "";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const MUI = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 2l4 4-4 4"/></svg>';
+const CANH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:none;margin-top:1px"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>';
+
+function moi(){
+  return MON.map(([ma,ten,dvt,yc,lots]) => {
+    const m = {ma,ten,dvt,yc,lyDo:"",tay:false,lots:lots.map(([pn,nhap,vt,hsd,con,gia,canh,don]) => ({pn,nhap,vt,hsd,con,gia,canh,don,lay:0}))};
+    rot(m, yc); return m;
+  });
+}
+// Máy rót số vào lô theo đúng thứ tự gợi ý (hết hạn trước); lô giữ cho đơn khác để cuối và không tự lấy.
+function rot(m, can){
+  let con = can;
+  for (const l of m.lots){ if (l.don){ l.lay = 0; continue; } l.lay = Math.max(0, Math.min(l.con, con)); con -= l.lay; }
+}
+const ton = m => m.lots.reduce((s,l)=>s+(l.don?0:l.con),0);
+const cap = m => m.lots.reduce((s,l)=>s+l.lay,0);
+const tien = m => m.lots.reduce((s,l)=>s+l.lay*l.gia,0);
+const thieu = m => Math.max(0, m.yc - cap(m));
+const loCanh = m => m.lots.find(l => l.lay>0 && (l.canh||l.don));
+const canXem = m => thieu(m)>0 || !!loCanh(m);
+const dangLay = m => m.lots.filter(l=>l.lay>0);
+
+function ghiChu(m){
+  if (thieu(m)>0 && !m.lyDo) return `<span class="ghi red">Thiếu ${qty(thieu(m))} ${m.dvt}, chưa ghi lý do</span>`;
+  if (thieu(m)>0) return `<span class="ghi amb">Cấp thiếu ${qty(thieu(m))} ${m.dvt}</span>`;
+  const c = loCanh(m);
+  if (c) return `<span class="ghi amb">${c.don ? "Lấy hàng của "+c.don : "Lô "+c.pn+" "+c.canh.toLowerCase()}</span>`;
+  if (m.tay) return `<span class="ghi muted">Đã chọn lô tay</span>`;
+  return "";
+}
+function tagsLay(m, toiDa){
+  const ds = dangLay(m);
+  if (!ds.length) return '<span class="muted ghi">Chưa lấy lô nào</span>';
+  const dau = ds.slice(0,toiDa).map(l => `<span class="tag tag--ma">${l.pn}</span><span class="tag">${l.vt}</span>`).join("");
+  return `<span class="tags">${dau}${ds.length>toiDa?`<span class="tag">+${ds.length-toiDa} lô</span>`:""}</span>`;
+}
+function bangLo(m, i, gon){
+  const coGia = true;
+  const rows = m.lots.map((l,j) => `<tr class="${l.lay>0?"":"khong"}">
+    <td><span class="tags"><span class="tag tag--ma">${l.pn}</span>${l.canh?`<span class="tag tag--canh">${l.canh}</span>`:""}${l.don?`<span class="tag tag--don">Hàng của ${l.don}</span>`:""}</span></td>
+    ${gon?"":`<td class="num">${ngay(l.nhap)}</td>`}<td>${l.vt}</td>
+    <td class="num">${l.hsd?ngay(l.hsd):'<span class="muted">Không hạn</span>'}</td>
+    <td class="r num">${qty(l.con)}</td>
+    ${coGia?`<td class="r num">${vn.format(l.gia)}</td>`:""}
+    <td><input class="o so" data-i="${i}" data-lo="${j}" value="${qty(l.lay)}"></td></tr>`).join("");
+  return `<table class="lo"><colgroup><col>${gon?"":'<col style="width:88px">'}<col style="width:64px"><col style="width:90px"><col style="width:64px"><col style="width:84px"><col style="width:86px"></colgroup>
+    <thead><tr><th>Lô (máy chọn lô hết hạn trước)</th>${gon?"":"<th>Nhập</th>"}<th>Vị trí</th><th>Hạn dùng</th><th class="r">Còn</th><th class="r">Đơn giá</th><th class="r">Lấy</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+function oLyDo(m,i){
+  if (thieu(m)<=0) return "";
+  return `<label class="truong"><span>Lý do cấp thiếu ${qty(thieu(m))} ${m.dvt} <em>*</em></span>
+    <input class="o ${m.lyDo?"":"loi"}" data-i="${i}" data-lydo="1" value="${esc(m.lyDo)}" placeholder="Ví dụ: kho chỉ còn ${qty(ton(m))} ${m.dvt}, chờ hàng về"></label>`;
+}
+function oCanh(m){
+  if (ton(m) >= m.yc) return "";
+  return `<div class="canh">${CANH}<span>Kho chỉ còn ${qty(ton(m))} ${m.dvt}. Phần còn lại chờ nhập hoặc tạo yêu cầu mới.</span></div>`;
+}
+
+function benPhai(ds){
+  const du = ds.filter(m=>thieu(m)<=0).length;
+  const t = ds.reduce((s,m)=>s+tien(m),0);
+  return `<div class="ben">
+    <label>Xuất từ kho<select class="o"><option>Kho vật tư chính</option></select></label>
+    <label>Ngày xuất<input class="o" value="11/10/2026"></label>
+    <label>Người nhận<input class="o" value="Trần Văn Hùng"></label>
+    <label>Ghi chú<input class="o" placeholder="Không bắt buộc"></label>
+    <div class="tong"><div><span class="muted">Cấp đủ</span><span class="num">${du}/${ds.length} món</span></div>
+      <div><span class="muted">Tổng giá vốn</span><span class="lon">${vn.format(Math.round(t))}</span></div></div>
+    <div class="nuts"><button class="nut">Đóng</button><button class="nut nut--chinh">Tạo và ghi sổ</button></div></div>`;
+}
+function vo(ds, trai){
+  return `<div class="ngan"><div class="ngan-dau"><div><div class="dd">Lập phiếu xuất kho</div><h4>Theo DNX00086</h4></div><span class="x">×</span></div>
+    <div class="ngan-than"><div>${trai}</div>${benPhai(ds)}</div></div>`;
+}
+function locMon(ds, st){
+  const q = (st.q||"").toLowerCase();
+  return ds.map((m,i)=>({m,i})).filter(({m}) => (!st.canXem || canXem(m)) && (!q || (m.ten+" "+m.ma).toLowerCase().includes(q)));
+}
+function dauThe(tieuDe, ds, st, them){
+  const n = ds.filter(canXem).length;
+  return `<div class="the-dau"><h5>${tieuDe}</h5>
+    <span class="seg"><button data-act="loc" data-v="0" class="${st.canXem?"":"on"}">Tất cả<span class="dem">${ds.length}</span></button><button data-act="loc" data-v="1" class="${st.canXem?"on":""}">Cần xem<span class="dem">${n}</span></button></span>
+    <input class="tim" data-act="tim" placeholder="Tìm vật tư" value="${esc(st.q||"")}">
+    <span class="phai">${them||""}<button class="lien" data-act="day">Cấp tối đa theo tồn</button></span></div>`;
+}
+
+/* ---------- A ---------- */
+const A = {ds:moi(), canXem:false, q:"", mo:new Set()};
+function veA(){
+  const ds = A.ds;
+  // Món cần xem nằm lên đầu, giữ thứ tự gốc trong mỗi nhóm.
+  const hang = locMon(ds, A).sort((x,y)=> (canXem(y.m)-canXem(x.m)) || x.i-y.i);
+  const rows = hang.map(({m,i}) => {
+    const mo = A.mo.has(i) || (canXem(m) && !A.mo.has(-1-i));
+    return `<tr class="dong">
+      <td><button class="mui ${mo?"mo":""}" data-act="mo" data-i="${i}" title="Chọn lô">${MUI}</button></td>
+      <td><span class="ten">${m.ten}</span><span class="ma">${m.ma}</span></td>
+      <td class="r num">${qty(m.yc)}<span class="u">${m.dvt}</span></td>
+      <td class="r num">${qty(ton(m))}</td>
+      <td><input class="o so" data-i="${i}" data-cap="1" value="${qty(cap(m))}"></td>
+      <td>${tagsLay(m,1)}<div>${ghiChu(m)}</div></td>
+      <td class="r num">${vn.format(Math.round(tien(m)))}</td></tr>
+      ${mo?`<tr class="bung"><td colspan="7"><div class="bung-than">${oCanh(m)}${bangLo(m,i)}${oLyDo(m,i)}</div></td></tr>`:""}`;
+  }).join("") || `<tr><td colspan="7" class="muted" style="padding:16px">Không còn món nào cần xem.</td></tr>`;
+  document.getElementById("A").innerHTML = vo(ds, `<div class="the">${dauThe("Vật tư cấp", ds, A)}
+    <div class="cuon" style="max-height:640px"><table class="g"><colgroup><col style="width:34px"><col><col style="width:84px"><col style="width:64px"><col style="width:92px"><col style="width:196px"><col style="width:96px"></colgroup>
+    <thead><tr><th></th><th>Vật tư</th><th class="r">Yêu cầu</th><th class="r">Tồn</th><th class="r">Cấp</th><th>Lấy từ</th><th class="r">Thành tiền</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+}
+
+/* ---------- B ---------- */
+const B = {ds:moi(), canXem:false, q:"", chon:0};
+function veB(){
+  const ds = B.ds, hang = locMon(ds, B);
+  if (hang.length && !hang.some(h=>h.i===B.chon)) B.chon = hang[0].i;
+  const ds_ = hang.map(({m,i}) => `<div class="b-mon ${i===B.chon?"chon":""}" data-act="chon" data-i="${i}">
+      <span class="ten">${m.ten}</span><span class="sl num ${thieu(m)>0?"red":""}">${qty(cap(m))} / ${qty(m.yc)}<span class="u">${m.dvt}</span></span>
+      <span class="phu">${ghiChu(m) || tagsLay(m,1)}</span></div>`).join("") || `<div class="muted" style="padding:16px">Không còn món nào cần xem.</div>`;
+  const m = ds[B.chon], i = B.chon;
+  const sua = `<div class="b-sua">
+    <div><h6>${m.ten}</h6><span class="ma">${m.ma}</span></div>
+    <div class="b-so"><div><div class="k">Yêu cầu</div><div class="v">${qty(m.yc)}<span class="u">${m.dvt}</span></div></div>
+      <div><div class="k">Tồn khả dụng</div><div class="v">${qty(ton(m))}</div></div>
+      <div><div class="k">Cấp lần này</div><div class="v ${thieu(m)>0?"red":""}">${qty(cap(m))}</div></div>
+      <div><div class="k">Thành tiền</div><div class="v">${vn.format(Math.round(tien(m)))}</div></div></div>
+    ${oCanh(m)}${bangLo(m,i,true)}${oLyDo(m,i)}
+    <div class="b-dieu"><span class="phim">↑</span><span class="phim">↓</span> chuyển món <span style="margin-left:auto"></span>
+      <button class="lien" data-act="truoc">Món trước</button><button class="lien" data-act="sau">Món sau</button></div></div>`;
+  document.getElementById("B").innerHTML = vo(ds, `<div class="the">${dauThe("Vật tư cấp", ds, B)}
+    <div class="b-luoi"><div class="b-ds">${ds_}</div>${sua}</div></div>`);
+}
+
+/* ---------- C ---------- */
+const C = {ds:moi(), canXem:false, q:"", theoKe:false, mo:new Set()};
+function dongLo(m,i,l,j,hienTen){
+  return `<tr class="dong c-lo">
+    <td>${hienTen?`<span class="ten">${m.ten}</span>`:""}<span class="tags"><span class="tag tag--ma">${l.pn}</span>${l.canh?`<span class="tag tag--canh">${l.canh}</span>`:""}${l.don?`<span class="tag tag--don">Hàng của ${l.don}</span>`:""}</span></td>
+    <td>${l.vt}</td><td class="num">${l.hsd?ngay(l.hsd):'<span class="muted">Không hạn</span>'}</td>
+    <td class="r num">${qty(l.con)}</td>
+    <td><input class="o so" data-i="${i}" data-lo="${j}" value="${qty(l.lay)}"></td>
+    <td class="r num">${vn.format(Math.round(l.lay*l.gia))}</td></tr>`;
+}
+function veC(){
+  const ds = C.ds, hang = locMon(ds, C);
+  let rows = "";
+  if (C.theoKe){
+    const lo = [];
+    hang.forEach(({m,i}) => m.lots.forEach((l,j)=>{ if (l.lay>0) lo.push({m,i,l,j}); }));
+    lo.sort((a,b)=> a.l.vt.localeCompare(b.l.vt) || a.i-b.i);
+    rows = lo.map(x=>dongLo(x.m,x.i,x.l,x.j,true)).join("");
+  } else {
+    rows = hang.map(({m,i}) => {
+      const mo = C.mo.has(i);
+      const an = m.lots.filter(l=>l.lay<=0).length;
+      const lo = m.lots.map((l,j)=>({l,j})).filter(x=>mo || x.l.lay>0);
+      return `<tr class="nhom"><td colspan="4"><div class="tn"><span class="ten">${m.ten}</span><span class="ma">${m.ma}</span>${ghiChu(m)}
+          ${an?`<button class="lien" data-act="mo" data-i="${i}" style="margin-left:auto;font-size:12px">${mo?"Ẩn lô không lấy":"Lô khác ("+an+")"}</button>`:""}</div></td>
+        <td class="r num ${thieu(m)>0?"red":""}">${qty(cap(m))} / ${qty(m.yc)}<span class="u">${m.dvt}</span></td><td class="r num">${vn.format(Math.round(tien(m)))}</td></tr>
+        ${lo.map(x=>dongLo(m,i,x.l,x.j,false)).join("")}
+        ${(thieu(m)>0)?`<tr class="c-lo"><td colspan="6" style="padding-bottom:10px"><div style="display:grid;gap:8px">${oCanh(m)}${oLyDo(m,i)}</div></td></tr>`:""}`;
+    }).join("");
+  }
+  rows = rows || `<tr><td colspan="6" class="muted" style="padding:16px">Không còn món nào cần xem.</td></tr>`;
+  const seg = `<span class="seg"><button data-act="ke" data-v="0" class="${C.theoKe?"":"on"}">Theo vật tư</button><button data-act="ke" data-v="1" class="${C.theoKe?"on":""}">Theo vị trí</button></span>`;
+  document.getElementById("C").innerHTML = vo(ds, `<div class="the">${dauThe("Vật tư cấp", ds, C, seg)}
+    <div class="cuon" style="max-height:640px"><table class="g"><colgroup><col><col style="width:66px"><col style="width:92px"><col style="width:66px"><col style="width:118px"><col style="width:96px"></colgroup>
+    <thead><tr><th>${C.theoKe?"Vật tư và lô":"Lô"}</th><th>Vị trí</th><th>Hạn dùng</th><th class="r">Còn</th><th class="r">Lấy</th><th class="r">Thành tiền</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+}
+
+/* ---------- nối sự kiện ---------- */
+const OPT = {A:[A,veA], B:[B,veB], C:[C,veC]};
+const so = s => Number(String(s).replace(/\./g,"").replace(",", ".")) || 0;
+for (const [k,[st,ve]] of Object.entries(OPT)){
+  const el = document.getElementById(k);
+  el.addEventListener("click", e => {
+    const b = e.target.closest("[data-act]"); if (!b) return;
+    const act = b.dataset.act, i = Number(b.dataset.i);
+    if (act==="loc") st.canXem = b.dataset.v==="1";
+    else if (act==="day") st.ds.forEach(m=>{ rot(m, m.yc); m.tay=false; });
+    else if (act==="ke") st.theoKe = b.dataset.v==="1";
+    else if (act==="chon") st.chon = i;
+    else if (act==="truoc"||act==="sau"){ const h = locMon(st.ds,st).map(x=>x.i); const p = h.indexOf(st.chon); st.chon = h[Math.max(0,Math.min(h.length-1,p+(act==="sau"?1:-1)))] ?? st.chon; }
+    else if (act==="mo"){
+      if (k==="A"){ const m = st.ds[i]; const dangMo = st.mo.has(i) || (canXem(m) && !st.mo.has(-1-i));
+        st.mo.delete(i); st.mo.delete(-1-i); if (!dangMo) st.mo.add(i); else if (canXem(m)) st.mo.add(-1-i); }
+      else st.mo.has(i) ? st.mo.delete(i) : st.mo.add(i);
+    } else return;
+    ve();
+  });
+  el.addEventListener("change", e => {
+    const t = e.target, i = Number(t.dataset.i); if (t.dataset.act==="tim" || isNaN(i)) return;
+    const m = st.ds[i];
+    if (t.dataset.lydo) m.lyDo = t.value.trim();
+    else if (t.dataset.cap) { rot(m, Math.min(so(t.value), ton(m))); m.tay = false; }
+    else if (t.dataset.lo!=null) { const l = m.lots[Number(t.dataset.lo)]; l.lay = Math.max(0, Math.min(l.con, so(t.value))); m.tay = true; }
+    ve();
+  });
+  el.addEventListener("input", e => { if (e.target.dataset.act==="tim"){ st.q = e.target.value; const pos = e.target.selectionStart; ve(); const n = el.querySelector('[data-act="tim"]'); n.focus(); n.setSelectionRange(pos,pos); } });
+  el.addEventListener("keydown", e => { if (e.key==="Enter" && e.target.matches("input.o")) e.target.blur(); });
+  ve();
+}
+document.addEventListener("keydown", e => {
+  if (!document.getElementById("opt-B").classList.contains("on") || e.target.matches("input,select")) return;
+  if (e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault(); const h = locMon(B.ds,B).map(x=>x.i); const p = h.indexOf(B.chon); B.chon = h[Math.max(0,Math.min(h.length-1,p+(e.key==="ArrowDown"?1:-1)))] ?? B.chon; veB(); }
+});
+document.querySelectorAll(".optnav button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".optnav button").forEach(x=>x.classList.toggle("on", x===b));
+  document.querySelectorAll(".opt").forEach(x=>x.classList.toggle("on", x.id==="opt-"+b.dataset.opt));
+}));
+</script>
+</body>
+</html>

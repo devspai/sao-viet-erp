@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 
 from ..models.kho_ky_ton import KhoKyTon
 
-Key = tuple[int, str, int, int, int]   # (kho_id, hang_loai, hang_id, kho_rong, kho_dai)
+# (kho_id, hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc) — giấy cùng khổ khác đơn vị gốc (tờ / kg)
+# là hai dòng tồn riêng; hàng khác 0 · 0 · "".
+Key = tuple[int, str, int, int, int, str]
 
 
 class KhoKyTonRepository:
@@ -20,7 +22,7 @@ class KhoKyTonRepository:
         self.db = db
 
     def latest_before(self, kho_id: int, hang_loai: str, hang_id: int, ngay: date, *,
-                      kho_rong: int = 0, kho_dai: int = 0) -> KhoKyTon | None:
+                      kho_rong: int = 0, kho_dai: int = 0, don_vi_goc: str = "") -> KhoKyTon | None:
         """Snapshot có `den_ngay` LỚN NHẤT nhưng < `ngay` (tồn cuối kỳ liền trước) của 1 mặt hàng.
 
         Kỳ RỜI NGÀY: kỳ trước kết thúc HẾT ngày `den`, kỳ sau bắt đầu ngày kế tiếp ⇒ snapshot chốt
@@ -34,6 +36,7 @@ class KhoKyTonRepository:
                 KhoKyTon.hang_id == hang_id,
                 KhoKyTon.kho_rong == kho_rong,
                 KhoKyTon.kho_dai == kho_dai,
+                KhoKyTon.don_vi_goc == (don_vi_goc or ""),
                 KhoKyTon.den_ngay < ngay,
             )
             .order_by(KhoKyTon.den_ngay.desc())
@@ -48,13 +51,14 @@ class KhoKyTonRepository:
         stmt = stmt.order_by(KhoKyTon.den_ngay.asc())   # asc → dòng sau (mới hơn) đè dòng trước
         out: dict[Key, KhoKyTon] = {}
         for row in self.db.execute(stmt).scalars():
-            out[(row.kho_id, row.hang_loai, row.hang_id, int(row.kho_rong or 0), int(row.kho_dai or 0))] = row
+            out[(row.kho_id, row.hang_loai, row.hang_id, int(row.kho_rong or 0), int(row.kho_dai or 0),
+                 row.don_vi_goc or "")] = row
         return out
 
     def upsert(
         self, *, kho_id: int, hang_loai: str, hang_id: int, tu_ngay: date, den_ngay: date,
         ten_ky: str | None, sl_cuoi: float, gt_cuoi: int, don_gia_bq: float | None,
-        khoa_so_id: int | None, kho_rong: int = 0, kho_dai: int = 0,
+        khoa_so_id: int | None, kho_rong: int = 0, kho_dai: int = 0, don_vi_goc: str = "",
     ) -> KhoKyTon:
         row = self.db.execute(
             select(KhoKyTon).where(
@@ -63,13 +67,14 @@ class KhoKyTonRepository:
                 KhoKyTon.hang_id == hang_id,
                 KhoKyTon.kho_rong == kho_rong,
                 KhoKyTon.kho_dai == kho_dai,
+                KhoKyTon.don_vi_goc == (don_vi_goc or ""),
                 KhoKyTon.den_ngay == den_ngay,
             )
         ).scalar_one_or_none()
         if row is None:
             row = KhoKyTon(
                 kho_id=kho_id, hang_loai=hang_loai, hang_id=hang_id,
-                kho_rong=kho_rong, kho_dai=kho_dai,
+                kho_rong=kho_rong, kho_dai=kho_dai, don_vi_goc=don_vi_goc or "",
                 tu_ngay=tu_ngay, den_ngay=den_ngay,
             )
             self.db.add(row)
@@ -140,6 +145,17 @@ class KhoKyTonRepository:
         if kho_ids:
             stmt = stmt.where(KhoKyTon.kho_id.in_(kho_ids))
         return self.db.execute(stmt).first()
+
+    def ky_da_tinh_tu(self, kho_id: int, ngay: date):
+        """Kỳ đã tính giá SỚM NHẤT của kho có `den_ngay >= ngay` — None nếu không có. Phiếu ngày `ngay`
+        đã nằm trong số chốt của kỳ đó (hoặc trong đầu kỳ nối chuỗi của các kỳ sau). Trả
+        (tu_ngay, den_ngay, ten_ky)."""
+        return self.db.execute(
+            select(KhoKyTon.tu_ngay, KhoKyTon.den_ngay, KhoKyTon.ten_ky)
+            .where(KhoKyTon.kho_id == kho_id, KhoKyTon.den_ngay >= ngay)
+            .order_by(KhoKyTon.den_ngay.asc())
+            .limit(1)
+        ).first()
 
     def delete_range(self, tu: date, den: date, kho_ids: list[int] | None = None) -> int:
         """Xoá snapshot có `den_ngay` trong [tu, den] — gọi khi MỞ SỔ kỳ đó: bỏ chốt giá để khoá lại

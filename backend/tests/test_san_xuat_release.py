@@ -314,6 +314,10 @@ def test_diem_toa_buoc_cat_doi_he_so_theo_so_con_tren_to_ghep(
     # đúng hình dạng Cắt thành phẩm ngoài đời: vào tờ, ra con, hệ số theo bình bài riêng = 2.
     cat_cd = db.query(LsxCongDoan).filter_by(lsx_id=a.id, ten="Cắt thành phẩm").one()
     cat_cd.don_vi_ra, cat_cd.he_so_quy_doi = "con", 2
+    # Xả tờ là bước cuối lệnh B nên luật 11/10/2026 (spec buoc-cuoi-theo-don-vi-san-pham) ép ra
+    # Thành phẩm — khai lại tờ → tờ để vẫn soi nhánh "bước riêng còn ở tờ thì giữ hệ số".
+    xa_cd = db.query(LsxCongDoan).filter_by(lsx_id=b.id, ten="Xả tờ").one()
+    xa_cd.don_vi_ra, xa_cd.he_so_quy_doi = "to", 1
     db.commit()
 
     goi = release.phat_hanh(db, lsx_ids={a.id, b.id}, bai_ghep_ids={bg.id}, actor=admin)

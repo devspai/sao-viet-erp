@@ -21,7 +21,7 @@ class _GiayRepo(CatalogRepo):
     model = GiayNguyen
     fields = ("ten", "gsm", "caliper_micron",
               "tho", "don_vi_gia", "don_gia", "gia_thi_truong", "kho_tinh_gia", "ghi_chu",
-              "active", "cong_thuc_gia", "thay_the_ids")
+              "active", "cong_thuc_gia", "thay_the_ids", "don_vi_them")
     commit_on_write = False
     bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
 
@@ -33,7 +33,7 @@ class _GiayRepo(CatalogRepo):
 class _VatTuRepo(CatalogRepo):
     model = VatTuInAn
     fields = ("ten", "don_vi_gia", "don_gia", "ghi_chu", "active", "cong_thuc_gia",
-              "cong_thuc_dinh_muc", "thay_the_ids")
+              "cong_thuc_dinh_muc", "thay_the_ids", "don_vi_them")
     commit_on_write = False
 
     def _base_select(self):
@@ -157,6 +157,49 @@ class VatLieuKhoRepository:
 
     def find_by_ma(self, kind: str, ma: str):
         return self._r(kind).find_by_ma(ma)
+
+    def noi_dung_don_vi(self, hang_loai: str, hang_id: int) -> dict:
+        """Chỗ đang DÙNG đơn vị của một mã — để chặn bỏ đơn vị ở danh mục (spec 2026-10-10 §2.5).
+
+        Trả số thô, service tự quy đơn vị về gốc: `ton` = {đơn vị gốc: tổng còn lại của lô},
+        `yeu_cau_kho` = {đơn vị gốc: số yêu cầu kho chưa xong}, `bang_gia` / `don_mua` / `yeu_cau_mua`
+        = danh sách ĐVT các dòng (bảng giá NCC, đơn mua chưa về hết, yêu cầu mua chưa xong)."""
+        from ..models.purchase import (
+            DPR_CANCELLED, DPR_DONE, PR_CANCELLED, PR_RECEIVED, PR_REJECTED,
+            DepartmentPurchaseRequest, DepartmentPurchaseRequestLine, PurchaseRequest,
+            PurchaseRequestLine, SupplierItem,
+        )
+        from ..models.stock_lot import StockLot
+        from ..models.stock_request import REQ_CANCELLED, REQ_DONE, REQ_REJECTED, StockRequest, StockRequestLine
+
+        hid = int(hang_id)
+        ton = {g or "": float(sl or 0) for g, sl in self.db.execute(
+            select(StockLot.don_vi_goc, func.sum(StockLot.sl_con_lai))
+            .where(StockLot.hang_loai == hang_loai, StockLot.hang_id == hid, StockLot.sl_con_lai > 0)
+            .group_by(StockLot.don_vi_goc))}
+        yck = {g or "": int(n) for g, n in self.db.execute(
+            select(StockRequestLine.don_vi_goc, func.count(func.distinct(StockRequest.id)))
+            .join(StockRequest, StockRequest.id == StockRequestLine.request_id)
+            .where(StockRequestLine.hang_loai == hang_loai, StockRequestLine.hang_id == hid,
+                   StockRequest.trang_thai.notin_((REQ_DONE, REQ_CANCELLED, REQ_REJECTED)))
+            .group_by(StockRequestLine.don_vi_goc))}
+        bang_gia = list(self.db.execute(
+            select(SupplierItem.unit).where(SupplierItem.hang_loai == hang_loai,
+                                            SupplierItem.hang_id == hid)).scalars())
+        don_mua = list(self.db.execute(
+            select(PurchaseRequestLine.unit)
+            .join(PurchaseRequest, PurchaseRequest.id == PurchaseRequestLine.purchase_request_id)
+            .where(PurchaseRequestLine.hang_loai == hang_loai, PurchaseRequestLine.hang_id == hid,
+                   PurchaseRequest.status.notin_((PR_RECEIVED, PR_CANCELLED, PR_REJECTED)))).scalars())
+        yeu_cau_mua = list(self.db.execute(
+            select(DepartmentPurchaseRequestLine.unit)
+            .join(DepartmentPurchaseRequest,
+                  DepartmentPurchaseRequest.id == DepartmentPurchaseRequestLine.department_request_id)
+            .where(DepartmentPurchaseRequestLine.hang_loai == hang_loai,
+                   DepartmentPurchaseRequestLine.hang_id == hid,
+                   DepartmentPurchaseRequest.status.notin_((DPR_DONE, DPR_CANCELLED)))).scalars())
+        return {"ton": ton, "yeu_cau_kho": yck, "bang_gia": bang_gia, "don_mua": don_mua,
+                "yeu_cau_mua": yeu_cau_mua}
 
     def nguon_goc_thanh_pham(
         self, customer_ids, order_ids,

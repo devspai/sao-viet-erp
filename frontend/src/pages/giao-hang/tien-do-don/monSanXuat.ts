@@ -49,6 +49,8 @@ export function nhanO(m: MonCoBan): { nhan: string; mau: TongMau } {
       return { nhan: "Xưởng", mau: "xuong" };
     case "cho_kho":
       return { nhan: "Chờ KCS và kho", mau: "xuong" };
+    case "dong_thieu":
+      return { nhan: "Đóng thiếu", mau: "tre" };
     case "chua_xuong":
       return { nhan: "Chưa xuống xưởng", mau: "cho" };
     default:
@@ -74,6 +76,8 @@ export function chiTietO(m: MonCoBan): string {
       return l.pct != null ? `${l.buoc} ${so(Math.round(l.pct))}%` : l.buoc;
     case "cho_kho":
       return "xưởng làm xong, kho chưa nhận đủ";
+    case "dong_thieu":
+      return `đã đóng lệnh, thiếu ${so(Math.max(0, m.dat - m.co_hang))}${m.don_vi ? ` ${m.don_vi}` : ""}`;
     case "chua_xuong":
       return "chờ Kế hoạch phát hành lệnh";
     default:

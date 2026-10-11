@@ -141,7 +141,7 @@ def _cong_viec_khoan(db: Session, obj) -> ThamChieu:
 
     return ThamChieu(chan=_gom(
         _cau(_dem(db, SanXuatBatch, SanXuatBatch.piece_rate_id == obj.id),
-             "mẻ sản lượng đã ghi"),
+             "lần ghi sản lượng"),
     ))
 
 

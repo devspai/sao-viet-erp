@@ -399,6 +399,41 @@ class DeliveryRepository:
                    StockRequestLine.lsx_id.in_(ids))
         ).all())
 
+    def dong_giu_theo_ma(self, hang_ids) -> list:
+        """`[(yêu cầu, dòng)]` yêu cầu giao CHƯA huỷ có dòng mang các mã kho (thành phẩm) này — MỌI
+        đơn. Tồn của mã thành phẩm là hàng của khách (11/10/2026), nên phần đơn khác đang giữ phải
+        trừ khỏi "giao được" của đơn này."""
+        ids = {int(i) for i in hang_ids if i}
+        if not ids:
+            return []
+        return list(self.db.execute(
+            select(DeliveryRequest, DeliveryRequestLine)
+            .join(DeliveryRequestLine, DeliveryRequestLine.request_id == DeliveryRequest.id)
+            .where(DeliveryRequestLine.hang_loai == "vat_tu",
+                   DeliveryRequestLine.hang_id.in_(ids),
+                   DeliveryRequest.trang_thai != YC_DA_HUY)
+        ).all())
+
+    def da_xuat_theo_yeu_cau_giao(self, request_ids) -> dict[tuple[int, int], float]:
+        """`{(id yêu cầu giao, hang_id): Σ đã xuất kho ghi sổ}` qua các yêu cầu XUẤT của chuyến. Phần
+        đã xuất thì tồn kho đã giảm — trừ thêm lần nữa ở "đang giữ" là đếm hai lần."""
+        from ..models.stock_request import REQ_CANCELLED, REQ_REJECTED, StockRequest, StockRequestLine
+
+        ids = {int(i) for i in request_ids if i}
+        if not ids:
+            return {}
+        rows = self.db.execute(
+            select(DeliveryTrip.request_id, StockRequestLine.hang_id,
+                   func.coalesce(func.sum(StockRequestLine.sl_da_ung), 0))
+            .join(StockRequest, StockRequest.delivery_trip_id == DeliveryTrip.id)
+            .join(StockRequestLine, StockRequestLine.request_id == StockRequest.id)
+            .where(DeliveryTrip.request_id.in_(ids), StockRequest.loai == "XUAT",
+                   StockRequest.trang_thai.notin_([REQ_CANCELLED, REQ_REJECTED]),
+                   StockRequestLine.hang_loai == "vat_tu")
+            .group_by(DeliveryTrip.request_id, StockRequestLine.hang_id)
+        ).all()
+        return {(int(r), int(h)): float(sl or 0) for r, h, sl in rows}
+
     def yeu_cau_kho_cua_chuyen(self, trip_id: int, loai: str):
         """Yêu cầu kho còn sống (không huỷ/từ chối) của chuyến — đọc thẳng, không cần service kho."""
         from ..models.stock_request import REQ_CANCELLED, REQ_REJECTED, StockRequest

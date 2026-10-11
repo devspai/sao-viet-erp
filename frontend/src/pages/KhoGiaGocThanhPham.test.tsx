@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { api, type ThanhPhamChuaGiaGocPage, type ThanhPhamChuaGiaGocRow } from "../api/client";
 import { KhoGiaGocThanhPham } from "./KhoGiaGocThanhPham";
 
@@ -14,43 +15,29 @@ const trang = (items: ThanhPhamChuaGiaGocRow[]): ThanhPhamChuaGiaGocPage => ({
   items, total: items.length, page: 1, size: 50,
   cac_kho: [{ id: 4, ten: "Kho Vật tư đóng gói" }, { id: 6, ten: "Kho thành phẩm" }],
   cac_khach: [{ id: 9, ten: "Công ty TNHH Thực phẩm Minh Long" }],
+  cac_hang: [{ id: 64, ten: "Menu để bàn A4 in 2 mặt" }],
 });
 
 describe("KhoGiaGocThanhPham", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("lọc nâng cao: kho nhập gửi lên máy chủ, gập lại còn nhãn, ✕ trên nhãn bỏ lọc", async () => {
+  it("nút Lọc: chọn nhiều kho nhập gửi danh sách id lên máy chủ; bỏ Trạng thái giá là xin mọi lô", async () => {
+    const user = userEvent.setup();
     const ds = vi.spyOn(api.kho.baoCao, "thanhPhamChuaGiaGoc").mockResolvedValue(trang([lo({})]));
     render(<KhoGiaGocThanhPham token="t" />);
     await screen.findByText("LOT-TP-00010-260918-01");
+    // Mặc định chỉ lô chưa có giá gốc.
+    expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ gia: "chua", khoIds: [] }));
 
-    fireEvent.click(screen.getByRole("button", { name: /Lọc nâng cao/ }));
-    fireEvent.change(screen.getByLabelText("Kho nhập"), { target: { value: "6" } });
-    await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ khoId: 6, page: 1 })));
+    await user.click(screen.getByRole("button", { name: "Lọc" }));
+    await user.click(screen.getByRole("menuitem", { name: /Kho nhập/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Kho Vật tư đóng gói/ }));
+    await user.click(screen.getByRole("checkbox", { name: /Kho thành phẩm/ }));
+    await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ khoIds: [4, 6], page: 1 })));
+    await user.keyboard("{Escape}");
 
-    fireEvent.click(screen.getByRole("button", { name: /Lọc nâng cao/ }));
-    expect(screen.getByText("Kho thành phẩm")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Bỏ lọc Kho nhập" }));
-    await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ khoId: undefined })));
-  });
-
-  it("ngày 'đến' trước ngày 'từ': ô không nhận, không hỏi máy chủ", async () => {
-    const ds = vi.spyOn(api.kho.baoCao, "thanhPhamChuaGiaGoc").mockResolvedValue(trang([lo({})]));
-    render(<KhoGiaGocThanhPham token="t" />);
-    await screen.findByText("LOT-TP-00010-260918-01");
-    fireEvent.click(screen.getByRole("button", { name: /Lọc nâng cao/ }));
-    // Ô ngày tự vẽ (ChonNgay): gõ dd/mm/yyyy, rời ô là chốt.
-    const tu = screen.getByLabelText("Ngày nhập từ") as HTMLInputElement;
-    fireEvent.change(tu, { target: { value: "10/09/2026" } });
-    fireEvent.blur(tu);
-    await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ tu: "2026-09-10" })));
-    const soLan = ds.mock.calls.length;
-    // "Đến" có min = ngày "từ": gõ ngày sớm hơn thì ô trả về như cũ, không có lọc ngược nào bay lên máy chủ.
-    const den = screen.getByLabelText("Ngày nhập đến") as HTMLInputElement;
-    fireEvent.change(den, { target: { value: "01/09/2026" } });
-    fireEvent.blur(den);
-    expect(den.value).toBe("");
-    expect(ds.mock.calls.length).toBe(soLan);
+    await user.click(screen.getByRole("button", { name: /^Bỏ lọc Trạng thái giá/ }));
+    await waitFor(() => expect(ds).toHaveBeenLastCalledWith("t", expect.objectContaining({ gia: "tat_ca" })));
   });
 
   it("ô giá: gõ là định dạng, nút Lưu giữ chỗ sẵn, Esc/để trống là trả về giá cũ", async () => {

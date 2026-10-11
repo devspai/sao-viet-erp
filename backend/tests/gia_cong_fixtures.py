@@ -105,15 +105,16 @@ from app.repositories.employee_repo import EmployeeRepository
 
 
 def nguoi_kcs(sess, ma: str = "TO-KCS-GC") -> User:
-    """Một tài khoản thành viên phòng ban `is_kcs` (admin seed KHÔNG đứng phòng này — xem
-    `test_san_xuat_kcs.py::_to_kiem`) — đọc `chuoi_cong_doan_kcs` cần đúng quyền này."""
-    d = Department(name="Tổ KCS gia công", code=ma, is_kcs=True)
+    """Một tài khoản có dòng `kcs` (Xem + Thao tác) — đọc `chuoi_cong_doan_kcs` cần đúng quyền này."""
+    from tests.quyen_to_fixtures import cap_kcs
+
+    d = Department(name="Tổ KCS gia công", code=ma)
     sess.add(d)
     sess.flush()
     u = User(username=f"kcs_{ma.lower()}", name=f"KCS {ma}", password_hash="x", department_id=d.id)
     sess.add(u)
-    sess.commit()
-    return u
+    sess.flush()
+    return cap_kcs(sess, u)
 
 
 def nhan_vien_cua(sess, user) -> Employee:

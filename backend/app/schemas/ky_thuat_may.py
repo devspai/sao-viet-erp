@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class SuaChuaIn(BaseModel):
     may_id: int
-    bo_phan_hong: str = Field(min_length=1, max_length=150)
+    bo_phan_hong: str = Field(default="", max_length=150)   # không bắt buộc (11/10/2026)
     mo_ta: str | None = None
     muc_do: str | None = None                # nhe | trung_binh | nghiem_trong
     # KHÔNG có `nguoi_bao_id`/`nguoi_bao_ten` (14/09/2026): người báo do SERVER chốt — tài khoản lập
@@ -32,13 +32,8 @@ class SuaChuaIn(BaseModel):
 class SuaChuaPatch(BaseModel):
     """Sửa từng phần — mọi field optional, router lọc bằng `exclude_unset`."""
 
-    # KHÔNG có `may_id`: máy chốt lúc lập phiếu (chép từ yêu cầu, hoặc chọn lúc tự lập) — xem
-    # `SUA_DUOC_SUA_CHUA` bên repo.
-    bo_phan_hong: str | None = Field(default=None, max_length=150)
-    mo_ta: str | None = None
-    muc_do: str | None = None
-    # Người báo KHÔNG sửa được trên phiếu — xem `SuaChuaIn`.
-    thoi_diem: datetime | None = None
+    # Máy, người báo, triệu chứng, mức độ, giờ hỏng, chỗ hỏng chốt lúc lập phiếu (11/10/2026) —
+    # xem `SUA_DUOC_SUA_CHUA` bên repo. Chỉ còn phần tổ sửa chữa ghi.
     nguyen_nhan_phuong_an: str | None = None
     ghi_chu: str | None = None
 
@@ -92,9 +87,9 @@ class YeuCauIn(BaseModel):
     hỏng, không phải ngồi bàn giấy."""
 
     may_id: int
-    bo_phan_hong: str = Field(min_length=1, max_length=150)
+    bo_phan_hong: str = Field(default="", max_length=150)   # không bắt buộc (11/10/2026)
     mo_ta: str | None = None
-    muc_do: str | None = None                # mức người báo TỰ THẤY; tổ sửa chữa đặt lại lúc tạo phiếu
+    muc_do: str | None = None                # mức người báo TỰ THẤY; phiếu chép nguyên, không ai đặt lại
     may_dung: bool = False                   # máy đang dừng hẳn — cái quyết định thứ tự ưu tiên
     # KHÔNG có `nguoi_bao_id`: server lấy từ tài khoản đăng nhập. Cho client gửi lên là mở cửa hậu
     # báo hỏng dưới tên người khác.

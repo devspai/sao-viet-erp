@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from .kho_giay import khoa_dong, khoa_ton_cua
+from .kho_giay import DON_VI_TO_KHO, chuan_kho, co_don_vi_goc, khoa_dong, khoa_ton_cua
 from .thong_bao_man import bao
 from ..models.document_sequence import (
     SEQ_DOC_TYPE_STOCK_REQUEST_IN,
@@ -107,7 +107,7 @@ class StockRequestService:
 
         def dau_van(kho_id, ghi_chu, dong) -> tuple:
             return (kho_id, chu(ghi_chu), tuple(sorted((
-                (khoa_dong(d["hang_loai"], int(d["hang_id"]), d.get("dang_giay"),
+                (khoa_dong(d["hang_loai"], int(d["hang_id"]), d.get("don_vi_goc"),
                            d.get("kho_rong"), d.get("kho_dai")),
                  (d.get("dvt") or "").strip(),
                  so(d["sl_de_nghi"]), d.get("lsx_id"), d.get("bai_ghep_id"),
@@ -123,7 +123,7 @@ class StockRequestService:
         for req in self.requests.vua_tao_boi(nguoi_tao_id=user.id, loai=loai, tu_luc=tu_luc):
             co = dau_van(req.kho_id, req.ghi_chu, [
                 {"hang_loai": ln.hang_loai, "hang_id": ln.hang_id, "dvt": ln.dvt,
-                 "dang_giay": ln.dang_giay, "kho_rong": ln.kho_rong, "kho_dai": ln.kho_dai,
+                 "don_vi_goc": ln.don_vi_goc, "kho_rong": ln.kho_rong, "kho_dai": ln.kho_dai,
                  "sl_de_nghi": ln.sl_de_nghi, "lsx_id": ln.lsx_id, "bai_ghep_id": ln.bai_ghep_id,
                  "don_gia": ln.don_gia, "don_gia_ban": ln.don_gia_ban, "ghi_chu": ln.ghi_chu}
                 for ln in req.lines
@@ -133,7 +133,8 @@ class StockRequestService:
         return None
 
     def create(self, *, user, loai: str, lines: list[dict], ma: str | None = None,
-               commit: bool = True, chong_gui_lai: bool = False, **header) -> StockRequest:
+               commit: bool = True, chong_gui_lai: bool = False, kho_to_bat_buoc: bool = False,
+               **header) -> StockRequest:
         """`commit=False` = KHÔNG tự chốt giao dịch, chỉ `flush()` xuống DB.
 
         Dành cho người gọi đang ôm một giao dịch lớn hơn (`san_xuat/vat_tu_de_nghi.tao()` khoá công
@@ -150,7 +151,7 @@ class StockRequestService:
         """
         if loai not in REQUEST_KINDS:
             raise StockRequestError("Loại yêu cầu không hợp lệ (chỉ NHAP hoặc XUAT).")
-        self._validate_lines(lines)
+        self._validate_lines(lines, kho_to_bat_buoc=kho_to_bat_buoc)
         if header.get("uu_tien") and header["uu_tien"] not in PRIORITIES:
             raise StockRequestError("Mức ưu tiên không hợp lệ.")
         header.setdefault("uu_tien", PRIORITY_NORMAL)
@@ -264,23 +265,33 @@ class StockRequestService:
             self._notif_kho_moi(req)
         return req
 
-    def update(self, req: StockRequest, *, lines: list[dict] | None = None, **header) -> StockRequest:
+    def update(self, req: StockRequest, *, lines: list[dict] | None = None,
+               kho_to_bat_buoc: bool = False, **header) -> StockRequest:
         self._require_editable(req)
         if lines is not None:
             # Mặt hàng vốn đã có trên đề nghị thì giữ lại được kể cả khi danh mục đã ngừng nó.
             dang_co = {(ln.hang_loai, int(ln.hang_id))
                        for ln in (req.lines or []) if ln.hang_loai and ln.hang_id}
-            self._validate_lines(lines, dang_co)
+            self._validate_lines(lines, dang_co, kho_to_bat_buoc=kho_to_bat_buoc)
             self.requests.replace_lines(req, lines)
         self.requests.update_header(req, header)
         return self.requests.save(req)
 
-    def _validate_lines(self, lines: list[dict], dang_co: set[tuple] | None = None) -> None:
+    def _validate_lines(self, lines: list[dict], dang_co: set[tuple] | None = None, *,
+                        kho_to_bat_buoc: bool = False) -> None:
         """SIẾT (chủ chốt 2026-08-08): mỗi dòng phải trỏ một mặt hàng CÓ THẬT trong danh mục gốc,
         và đơn vị phải đổi được về đơn vị gốc của chính mặt hàng đó.
 
         Không còn đường "gõ tên hàng mới rồi kho gắn mã sau" — đó là nguồn đẻ mã trùng/tên lệch,
         đúng thứ làm kho và mua hàng không nối được với nhau.
+
+        GIẤY + VẬT TƯ: ghi `don_vi_goc` vào CHÍNH dict dòng — suy từ ĐVT (`quy_ve_goc`: đơn vị đã khai
+        ở danh mục mà nhóm của nó chứa ĐVT dòng; chưa khai ⇒ lỗi) để repo ghi xuống dòng; người gọi
+        gửi gì ở khoá này cũng bị đè.
+
+        `kho_to_bat_buoc` (cửa người gõ trên màn kho): giấy đếm TỜ phải đủ khổ hai cạnh — tờ không
+        khổ thì không biết lấy lô nào, không ghép được với bảng cân đối. Luồng nội bộ (điều chuyển lô
+        cũ chưa có khổ, đề nghị của xưởng) không bật để không chặn hàng đã nằm sẵn trong kho.
         """
         if not lines:
             raise StockRequestError("Yêu cầu phải có ít nhất 1 dòng vật tư.")
@@ -296,8 +307,16 @@ class StockRequestService:
             # Khoá trùng gồm CẢ lệnh/bài (mg 0175): cùng một loại giấy xin cho HAI lệnh khác nhau
             # là hai dòng hợp lệ — gộp lại thì mất luôn thông tin "phần nào cho lệnh nào", mà đó
             # đúng là thứ bảng cân đối cần để trừ đã-cấp vào đúng chỗ.
-            # Giấy: cùng mã khác dạng/khổ là hai dòng hợp lệ (spec 2026-10-01 §4.5).
-            key = (khoa_dong(loai, int(hid), ln.get("dang_giay"),
+            goc = self._kiem_hang_va_don_vi(loai, int(hid), ln.get("dvt"), ln["sl_de_nghi"],
+                                            giu_duoc=(loai, int(hid)) in (dang_co or set()))
+            ln["don_vi_goc"] = goc if co_don_vi_goc(loai) else ""
+            if kho_to_bat_buoc and loai == "giay" and goc == DON_VI_TO_KHO:
+                kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
+                if not (kr and kd):
+                    raise StockRequestError(
+                        "Giấy đếm theo tờ phải khai đủ khổ (rộng × dài, mm).")
+            # Giấy: cùng mã khác khổ / khác đơn vị gốc là hai dòng hợp lệ.
+            key = (khoa_dong(loai, int(hid), ln["don_vi_goc"],
                              ln.get("kho_rong"), ln.get("kho_dai")),
                    ln.get("lsx_id"), ln.get("bai_ghep_id"))
             if key in seen:
@@ -305,9 +324,6 @@ class StockRequestService:
                     "Một mặt hàng cho cùng một lệnh chỉ được xuất hiện 1 dòng — gộp số lượng lại."
                 )
             seen.add(key)
-            self._kiem_hang_va_don_vi(loai, int(hid), ln.get("dvt"), ln["sl_de_nghi"],
-                                      giu_duoc=(loai, int(hid)) in (dang_co or set()),
-                                      dang=ln.get("dang_giay"))
             self._kiem_lenh(ln.get("lsx_id"), ln.get("bai_ghep_id"))
 
     def _kiem_lenh(self, lsx_id, bai_ghep_id) -> None:
@@ -324,8 +340,9 @@ class StockRequestService:
             raise StockRequestError(f"Bài ghép #{bai_ghep_id} không tồn tại — chọn lại.")
 
     def _kiem_hang_va_don_vi(self, hang_loai: str, hang_id: int, dvt, so_luong,
-                             *, giu_duoc: bool = False, dang: str | None = None) -> None:
-        """Mặt hàng còn dùng được + đơn vị quy được về gốc. Lỗi trả nguyên văn lý do của danh mục
+                             *, giu_duoc: bool = False) -> str:
+        """Mặt hàng còn dùng được + đơn vị quy được về gốc; trả MÃ đơn vị gốc của dòng (giấy: gốc của
+        họ ĐVT — "to" hoặc đơn vị giá). Lỗi trả nguyên văn lý do của danh mục
         (vd "chưa chọn đơn vị tính", "không đổi được từ tờ về kg") để người khai biết sửa ở đâu.
 
         `giu_duoc` = dòng này vốn đã có trên đề nghị. Mặt hàng ngừng dùng sau khi đề nghị được lập
@@ -340,7 +357,7 @@ class StockRequestService:
             obj = self.hang.get(hang_loai, hang_id)
             if not getattr(obj, "active", True) and not giu_duoc:
                 raise StockRequestError(f"“{obj.ten}” đã ngừng dùng — chọn mặt hàng khác.")
-            self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong, dang=dang)
+            return (self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong)["don_vi_goc"] or "").lower()
         except VatLieuKhoError as e:
             raise StockRequestError(str(e)) from None
 
@@ -356,6 +373,7 @@ class StockRequestService:
     # `services/san_xuat/vat_tu_de_nghi.py` được gọi — mọi cửa khác vẫn giữ luật "đã duyệt là khoá".
 
     def dong_bo_tu_san_xuat(self, req_id: int, lines: list[dict], *, user, ngay_can,
+                            can_luc: datetime | None = None, ghi_chu: str | None = None,
                             cho_phep_khoi_phuc: bool = False) -> StockRequest:
         """Thay TOÀN BỘ dòng bằng dữ liệu mới, giữ nguyên mã và id.
 
@@ -391,6 +409,11 @@ class StockRequestService:
         for ln in req.lines:
             ln.sl_duyet = ln.sl_de_nghi
         req.ngay_can = ngay_can
+        # Giờ cần (mg 0384) + ghi chú tổ gõ: chỉ ghi khi tổ có gửi — không có thì giữ nguyên cái cũ.
+        if can_luc is not None:
+            req.can_luc = can_luc
+        if ghi_chu:
+            req.ghi_chu = ghi_chu
         if req.trang_thai == REQ_CANCELLED:
             req.ly_do_huy = None      # đang khôi phục đúng cái sản xuất đã hủy (đã qua chốt trên)
         # `co_voucher` ở trên đã bảo đảm chưa có phiếu nào nên `sl_da_ung` toàn 0 — set thẳng
@@ -431,7 +454,9 @@ class StockRequestService:
         self._notify(req, "Tổ xác nhận không cần cấp", targeted=False)
         return req
 
-    def khoi_phuc_tu_san_xuat(self, req_id: int, lines: list[dict], *, user, ngay_can) -> StockRequest:
+    def khoi_phuc_tu_san_xuat(self, req_id: int, lines: list[dict], *, user, ngay_can,
+                              can_luc: datetime | None = None,
+                              ghi_chu: str | None = None) -> StockRequest:
         """Tổ nhập lại số dương sau khi đã về 0 — dựng lại dòng trên CHÍNH yêu cầu đó.
 
         Không đẻ mã mới: một lần đề nghị của tổ là một chứng từ, tổ đổi ý ba lần trước khi kho
@@ -439,7 +464,7 @@ class StockRequestService:
         `cho_phep_khoi_phuc=True` để `dong_bo_tu_san_xuat` bỏ qua chốt chặn "kho đã hủy".
         """
         return self.dong_bo_tu_san_xuat(req_id, lines, user=user, ngay_can=ngay_can,
-                                        cho_phep_khoi_phuc=True)
+                                        can_luc=can_luc, ghi_chu=ghi_chu, cho_phep_khoi_phuc=True)
 
     # --- Vòng đời ----------------------------------------------------------
 
@@ -559,7 +584,7 @@ class StockRequestService:
         self, hangs: list[tuple[str, int]], kho_id: int
     ) -> tuple[dict[tuple[str, int], str], dict[tuple[str, int], float]]:
         """Trả CẢ mức tồn lẫn tồn khả dụng trong MỘT lượt (2 query) — router cần cả hai, tránh
-        gọi `on_hand_map` hai lần. Khoá là cặp `(hang_loai, hang_id)` hoặc khoá tồn 4 phần tử (giấy)."""
+        gọi `on_hand_map` hai lần. Khoá là cặp `(hang_loai, hang_id)` hoặc khoá tồn 5 phần tử (giấy)."""
         hangs = [tuple(h) for h in hangs]
         on_hand = self.lots.on_hand_map(hangs, kho_id)
         th = self.thresholds.map_for(hangs, kho_id)
@@ -645,6 +670,16 @@ class StockRequestService:
             bo_phan_id=req.bo_phan_id, creator_id=req.nguoi_tao_id,
         ):
             hub.publish(uid, signal)
+        # Yêu cầu nhập TỪ ĐỢT GIAO của đơn mua: màn Mua hàng / Kế toán bày nấc kho của đợt (Chờ gửi
+        # kho → Kho chưa nhập → Đã nhập kho, 11/10/2026) ⇒ kho đổi trạng thái là hai màn đó phải
+        # nhảy ngay, không đợi người mua hàng tải lại.
+        if getattr(req, "purchase_delivery_id", None):
+            from ..doi_tuong_nhan import MAN_KHVT, MAN_MUA_KE_TOAN, hop
+
+            hub.gui(
+                {"type": "purchase_changed", "code": req.ma},
+                quyen=hop(MAN_MUA_KE_TOAN, MAN_KHVT),
+            )
 
     # --- Thông báo lưu vào chuông (trung tâm thông báo) — song song với toast SSE ---------------
     def _notif_kho_moi(self, req: StockRequest) -> None:

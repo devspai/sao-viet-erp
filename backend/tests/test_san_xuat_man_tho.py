@@ -1,8 +1,8 @@
-"""Màn của THỢ (spec 2026-09-18 §7.5): "Các mẻ tôi tham gia" — sản lượng CẢ MẺ + danh sách người.
+"""Thợ xem lần ghi sản lượng trong drawer công việc: sản lượng CẢ LẦN + danh sách người cùng làm,
+không số phút của ai, không tiền (tầng chia gỡ hẳn ở mg 0322).
 
-Trước 18/09/2026 thợ đọc "phần của tôi" từ dòng chia sản lượng đã chốt. Tầng chia gỡ hẳn (mg 0322,
-chủ xưởng: *"ghi nhận thế thôi, đừng có chia bất cứ gì"*), nên thợ thấy con số của cả mẻ kèm tên
-những người cùng làm — không số phút của ai, không tiền.
+Băng "Sản lượng tôi tham gia" đầu Bàn tổ gỡ 10/10/2026: mỗi lần ghi đã nằm ở tab Sản lượng của
+chính công việc, băng chỉ nói lại lần nữa.
 
 Phần drawer soi ở tầng SERVICE (`board.chi_tiet_cong_viec`) vì dàn cảnh cần hai người cùng một mẻ có
 chấm công thật. "Thợ" là tài khoản thật được cấp dòng quyền của tổ theo vai mẫu Công nhân (Xem +
@@ -13,13 +13,10 @@ from __future__ import annotations
 from datetime import timedelta
 
 from app.models.role import SCOPE_OWN
-from app.models.san_xuat_phan_bo import HT_XAC_NHAN, SanXuatHoTro
 from app.models.user import User
 from app.services.san_xuat import board
-from app.services.san_xuat.nguoi_trong_me import ngay_cua_me
-from app.services.san_xuat.san_luong_cua_toi import san_luong_cua_toi
 from tests.quyen_to_fixtures import cap_quyen_to
-from tests.san_xuat_me_fixtures import T0, canh_me, cham_cong, khoang, tao_me
+from tests.san_xuat_me_fixtures import T0, canh_me, cham_cong, co_mat, khoang, tao_me
 from tests.test_san_xuat_board import _giao
 
 # Fixtures + helper luồng thật.
@@ -60,8 +57,7 @@ def _canh_2_nguoi(db, orders, lsx_svc, admin, customer, *, ma):
     db.commit()
     _giao(db, cv.id, a.id)
     _giao(db, cv.id, b.id)
-    khoang(db, cv, a, batch.bat_dau, batch.ket_thuc)
-    khoang(db, cv, b, batch.bat_dau, batch.ket_thuc)
+    co_mat(db, batch, a, b)
     db.commit()
     return to, cv, batch, u_a, a, b
 
@@ -77,16 +73,17 @@ def test_tho_thay_ca_danh_sach_nguoi_trong_me_khong_so_phut(db, orders, lsx_svc,
     assert me["so_nguoi"] == 2
     assert "chia_du_kien" not in me
     # Không phút, không phần chia — chỉ tên + nhãn tổ gốc (người cùng tổ ⇒ trơn).
-    assert all(set(n) == {"employee_id", "ho_ten", "to_ten"} for n in me["nguoi_tham_gia"])
+    assert all(set(n) == {"employee_id", "ho_ten", "to_ten", "la_ho_tro"} for n in me["nguoi_tham_gia"])
     assert all(n["to_ten"] is None for n in me["nguoi_tham_gia"])
 
 
-def test_cham_dung_moc_dau_me_khong_tinh_la_co_mat(db, orders, lsx_svc, admin, customer):
-    """Drawer và tab Sản lượng dùng CHUNG một luật: khoảng chỉ chạm mốc bắt đầu mẻ thì KHÔNG có mặt."""
+def test_nguoi_lam_doc_tu_anh_chup_khong_suy_tu_khoang(db, orders, lsx_svc, admin, customer):
+    """Từ 10/10/2026 người làm là ảnh chụp tổ tick lúc ghi — khoảng tham gia phủ trọn lần ghi cũng
+    không tự thêm ai vào."""
     to, cv, batch, _tho, a, b = _canh_2_nguoi(
         db, orders, lsx_svc, admin, customer, ma="TO-THO-MOC")
-    c = _emp(db, to, "NV-C-MOC", ten="Thợ Vừa Rời")
-    khoang(db, cv, c, batch.bat_dau - timedelta(hours=1), batch.bat_dau)
+    c = _emp(db, to, "NV-C-MOC", ten="Thợ Có Khoảng")
+    khoang(db, cv, c, batch.bat_dau, batch.ket_thuc)
     db.commit()
 
     d = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
@@ -94,51 +91,11 @@ def test_cham_dung_moc_dau_me_khong_tinh_la_co_mat(db, orders, lsx_svc, admin, c
     assert {n["ho_ten"] for n in me["nguoi_tham_gia"]} == {a.full_name, b.full_name}
 
 
-def test_cac_me_toi_tham_gia_tra_ca_me_va_nguoi_cung_lam(db, orders, lsx_svc, admin, customer):
-    _to, cv, batch, tho, a, b = _canh_2_nguoi(
-        db, orders, lsx_svc, admin, customer, ma="TO-THO-3")
-    # Mẻ thứ hai chỉ có B ⇒ không thuộc "của tôi" của A.
-    b2 = tao_me(db, user=admin, cong_viec_id=cv.id, bat_dau=T0 + timedelta(hours=3),
-                ket_thuc=T0 + timedelta(hours=4), tong=40, tot=40)["batch_id"]
-    khoang(db, cv, b, T0 + timedelta(hours=3), T0 + timedelta(hours=4))
-    db.commit()
-
-    d = san_luong_cua_toi(db, tho, nam=T0.year, thang=T0.month)
-    assert d["employee_id"] == a.id
-    assert d["so_me"] == 1 and [m["batch_id"] for m in d["me"]] == [batch.id]
-    assert b2 not in [m["batch_id"] for m in d["me"]]
-    m = d["me"][0]
-    assert m["tot"] == 100.0                                   # số của CẢ mẻ, không "phần của tôi"
-    # Công đoạn chưa cấu hình Khoán vẫn ghi mẻ bình thường; ảnh chụp Khoán vì thế để trống.
-    assert m["viec_khoan_ten"] is None
-    assert {n["ho_ten"] for n in m["nguoi_tham_gia"]} == {"tôi", b.full_name}
-    assert "tien" not in str(d) and "don_gia" not in str(d) and "phut" not in str(d)
-
-
-def test_tho_sang_giup_to_khac_thay_nhan_to_theo_to_cua_minh(db, orders, lsx_svc, admin, customer):
-    """§7.3b luật 2 ở màn thợ: "tổ đang xem" là tổ của CHÍNH thợ. Thợ tổ khác sang giúp thì người
-    của tổ chủ mẻ mang nhãn tổ gốc, còn "tôi" để trơn — không dán nhãn lên chính mình."""
-    to, cv, batch, _tho, a, b = _canh_2_nguoi(
-        db, orders, lsx_svc, admin, customer, ma="TO-THO-GIUP")
-    to2 = _to_cong_nhat(db, ma="TO-THO-GIUP2")
-    u_c = User(username="tho_c_giup", name="Thợ C", password_hash="x", department_id=to2.id)
-    db.add(u_c)
-    db.flush()
-    c = _emp(db, to2, "NV-C-GIUP", ten="Thợ C Tên", user_id=u_c.id)
-    khoang(db, cv, c, batch.bat_dau, batch.ket_thuc)
-    db.commit()
-
-    m = san_luong_cua_toi(db, u_c, nam=T0.year, thang=T0.month)["me"][0]
-    nhan = {n["ho_ten"]: n["to_ten"] for n in m["nguoi_tham_gia"]}
-    assert nhan == {"tôi": None, a.full_name: to.name, b.full_name: to.name}
-
-
-def test_nguoi_to_khac_sang_giup_qua_ho_tro_cheo_hien_o_drawer_va_man_tho(
+def test_nguoi_to_khac_sang_giup_hien_o_drawer_kem_nhan_to(
     db, orders, lsx_svc, admin, customer,
 ):
-    """Ô "Giao người" chỉ bày người trong tổ ⇒ người tổ khác vào mẻ bằng HỖ TRỢ CHÉO đã xác nhận
-    (đúng công việc, đúng ngày xưởng của mẻ), không có khoảng tham gia. Drawer phải liệt kê họ kèm
-    nhãn tổ gốc, và "Các mẻ tôi tham gia" của chính họ phải có mẻ đó (spec 18/09/2026 §13 bước 5-9)."""
+    """Người tổ khác sang giúp được tổ thêm thẳng lúc ghi (mg 0389, không còn thỏa thuận chờ hai
+    bên) ⇒ lần ghi mang `la_ho_tro`, drawer liệt kê kèm nhãn tổ gốc."""
     to, cv, batch, _tho, a, b = _canh_2_nguoi(
         db, orders, lsx_svc, admin, customer, ma="TO-THO-HT")
     to2 = _to_cong_nhat(db, ma="TO-THO-HT2")
@@ -146,26 +103,18 @@ def test_nguoi_to_khac_sang_giup_qua_ho_tro_cheo_hien_o_drawer_va_man_tho(
     db.add(u_c)
     db.flush()
     c = _emp(db, to2, "NV-C-HT", ten="Thợ C Giúp", user_id=u_c.id)
-    db.add(SanXuatHoTro(cong_viec_id=cv.id, employee_id=c.id, to_goc_id=to2.id,
-                        to_thuc_hien_id=to.id, ngay_lam_viec=ngay_cua_me(batch.bat_dau),
-                        trang_thai=HT_XAC_NHAN))
+    moc = T0 + timedelta(hours=2)
     db.commit()
+    moi = tao_me(db, user=admin, cong_viec_id=cv.id, bat_dau=moc, ket_thuc=moc + timedelta(hours=1),
+                 tong=30, tot=30, nguoi_ids=[a.id, b.id, c.id])["batch_id"]
 
     d = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
-    me = next(m for m in d["san_luong"]["batches"] if m["id"] == batch.id)
+    me = next(m for m in d["san_luong"]["batches"] if m["id"] == moi)
     assert {n["ho_ten"]: n["to_ten"] for n in me["nguoi_tham_gia"]} == {
         a.full_name: None, b.full_name: None, c.full_name: to2.name}
+    assert next(n for n in me["nguoi_tham_gia"] if n["ho_ten"] == c.full_name)["la_ho_tro"] is True
     assert me["so_nguoi"] == 3
+    # Lần ghi khác không có tên người giúp.
+    cu = next(m for m in d["san_luong"]["batches"] if m["id"] == batch.id)
+    assert c.full_name not in {n["ho_ten"] for n in cu["nguoi_tham_gia"]}
 
-    ds = san_luong_cua_toi(db, u_c, nam=T0.year, thang=T0.month)["me"]
-    assert [m["batch_id"] for m in ds] == [batch.id]
-    assert {n["ho_ten"]: n["to_ten"] for n in ds[0]["nguoi_tham_gia"]} == {
-        "tôi": None, a.full_name: to.name, b.full_name: to.name}
-
-
-def test_tai_khoan_chua_noi_ho_so_thi_rong(db, admin):
-    u = User(username="chua_noi_ho_so", name="Chưa Nối", password_hash="x")
-    db.add(u)
-    db.commit()
-    d = san_luong_cua_toi(db, u, nam=2026, thang=9)
-    assert d == {"nam": 2026, "thang": 9, "employee_id": None, "me": [], "so_me": 0}

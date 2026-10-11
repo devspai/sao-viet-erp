@@ -36,7 +36,7 @@ const FORM: PaymentVoucherBaseInput = {
 
 const dot = (id: number, seq: number, con_no: number) => ({
   id, seq_no: seq, con_no, amount: con_no, paid_amount: 0, coc_bu: 0, delivery_date: "2026-09-28",
-  invoice_number: null, invoice_date: null, due_date: null, chua_dat_han: false, da_nhap_kho: false,
+  invoice_number: null, invoice_date: null, due_date: null, chua_dat_han: false, da_nhap_kho: false, kho: "cho_gui_kho",
   stock_request_id: null, stock_request_ma: null, note: null, created_by_name: null, created_at: null, lines: [],
 });
 

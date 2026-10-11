@@ -12,22 +12,14 @@ import { anhNho, assetUrl } from "../api/client";
 import { nhatKyDanhMuc, type NhatKyItem } from "../api/rebuildCatalog";
 import { kyThuatMay, type Anh, type LoaiPhieu } from "../api/kyThuatMay";
 import { coChu, nenAnh } from "../lib/anhNen";
+import { useHep } from "../lib/useHep";
 
 /** Màn hẹp HOẶC không có hover (cảm ứng) ⇒ đổi sang bố cục danh sách/thẻ.
  *
  * Khai MỘT chỗ cho cả lịch lẫn bảng: hai định nghĩa breakpoint là sớm muộn một màn đổi hình còn
  * màn kia thì không, ngay trên cùng một cái điện thoại. */
 export function useManHep(): boolean {
-  const truyVan = "(max-width: 820px), (hover: none)";
-  const [hep, setHep] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia(truyVan).matches);
-  useEffect(() => {
-    const mq = window.matchMedia(truyVan);
-    const doi = () => setHep(mq.matches);
-    mq.addEventListener("change", doi);
-    return () => mq.removeEventListener("change", doi);
-  }, []);
-  return hep;
+  return useHep("(max-width: 820px), (hover: none)");
 }
 
 /** Màu chip trạng thái của cả hai màn — bộ `--tt-*` chung với Báo giá/Đơn hàng (07/10/2026).

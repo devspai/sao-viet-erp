@@ -64,7 +64,7 @@ def test_phieu_sua_dang_mo_chi_la_CANH_BAO_khong_phai_vung_khoa():
     tt = mtt.trang_thai_may(db, [may.id])[may.id]
     assert tt["trang_thai"] == mtt.TT_CO_PHIEU_SUA
     assert tt["nhan"] == "Có phiếu sửa chữa"
-    assert tt["chi_tiet"] == "SC-0001 · Trục cán"
+    assert tt["chi_tiet"] == "phiếu SC-0001 sửa Trục cán"
     assert tt["den"] is None                     # không có mốc "máy chạy lại" — nó không bị khoá
 
 
@@ -97,7 +97,7 @@ def test_nhieu_phieu_mo_thi_lay_cai_NANG_NHAT_va_dem_so_con_lai():
     _phieu_sua(db, may.id, ma="SC-0003", bo_phan="Bạc đạn", muc_do="trung_binh")
 
     tt = mtt.trang_thai_may(db, [may.id])[may.id]
-    assert tt["chi_tiet"] == "SC-0002 · Hệ thuỷ lực · +2 phiếu"
+    assert tt["chi_tiet"] == "phiếu SC-0002 sửa Hệ thuỷ lực và 2 phiếu khác"
 
 
 def test_may_khong_co_chuyen_gi_thi_KHONG_co_trong_map():

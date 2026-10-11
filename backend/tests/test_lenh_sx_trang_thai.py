@@ -966,8 +966,9 @@ def nhom_hai_lenh(db, orders, lsx_svc, admin, customer) -> tuple[int, int]:
     Trả `(than_chinh, phu)`.
     """
     a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
-    db.get(OrderLine, a.order_line_id).nhom = "Kỷ yếu"
-    db.get(OrderLine, b.order_line_id).nhom = "Kỷ yếu"
+    for ln in (db.get(OrderLine, a.order_line_id), db.get(OrderLine, b.order_line_id)):
+        ln.nhom = "Kỷ yếu"
+        ln.thanh_pham_id = None   # dán nhãn SAU chốt ⇒ dấu mã cũ lệch, tìm lại theo (khách, tên)
     to_cuoi = Department(name="Tổ Cắt Nhóm T8", code="CAT-NHOM-T8", la_san_xuat=True)
     db.add(to_cuoi)
     db.flush()

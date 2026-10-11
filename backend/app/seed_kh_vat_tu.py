@@ -76,7 +76,7 @@ from .seed_luong_ban_sx import (
     _utcnow,
 )
 from .services.bien_cong_thuc import quy_cach_bien
-from .services.kho_giay import DANG_TO, don_vi_goc_to, goi_y_dong_giay
+from .services.kho_giay import DON_VI_TO_KHO, don_vi_goc_to, goi_y_dong_giay
 from .services.sequence_service import SequenceService
 from .services.tinh_gia_service import compute_phieu_snapshot
 
@@ -215,6 +215,7 @@ def _khai_giay(db: Session, lsx: Lsx, cong_doan_id: int) -> None:
         lsx_cong_doan_id=buoc.id, hang_loai=HANG_GIAY, vat_tu_id=g.id,
         vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten, don_vi_snapshot=goi["don_vi"],
         so_luong=goi["so_luong"], kho_rong=goi["kho_rong"], kho_dai=goi["kho_dai"],
+        don_vi_goc=DON_VI_TO_KHO,  # gợi ý từ quy cách luôn đếm tờ nguyên
         thu_tu=len(buoc.vat_tus or []), tu_dong=False,
     ))
 
@@ -225,7 +226,7 @@ def _ton(db: Session, hang_loai: str, hang_id: int, kho_rong: int = 0, kho_dai: 
     q = select(StockLot).where(StockLot.hang_loai == hang_loai, StockLot.hang_id == hang_id,
                                StockLot.trang_thai == LOT_AVAILABLE)
     if hang_loai == HANG_GIAY:
-        q = q.where(StockLot.dang_giay == DANG_TO, StockLot.kho_rong == kho_rong,
+        q = q.where(StockLot.don_vi_goc == DON_VI_TO_KHO, StockLot.kho_rong == kho_rong,
                     StockLot.kho_dai == kho_dai)
     return float(sum(float(l.sl_con_lai or 0) for l in db.execute(q).scalars()))
 
@@ -233,7 +234,12 @@ def _ton(db: Session, hang_loai: str, hang_id: int, kho_rong: int = 0, kho_dai: 
 def _lo(db: Session, *, ma: str, kho_id: int, hang_loai: str, hang_id: int,
         sl: float, don_gia: int, ngay: date, kho: tuple[int, int] | None = None) -> None:
     """Lô tồn. `kho` (rộng, dài) ⇒ lô GIẤY TỜ đếm tờ nguyên theo khổ đó."""
-    giay = {"dang_giay": DANG_TO, "kho_rong": kho[0], "kho_dai": kho[1]} if kho else {}
+    if kho:
+        giay = {"don_vi_goc": DON_VI_TO_KHO, "kho_rong": kho[0], "kho_dai": kho[1]}
+    else:
+        # Lô không khổ đếm theo ĐVT chính của mã (khoá tồn vật tư/giấy mang đơn vị gốc).
+        mh = db.get(GiayNguyen if hang_loai == HANG_GIAY else VatTuInAn, hang_id)
+        giay = {"don_vi_goc": ((mh.don_vi_gia if mh else "") or "").lower()}
     db.add(StockLot(ma_lo=ma, hang_loai=hang_loai, hang_id=hang_id, kho_id=kho_id,
                     ngay_nhap=ngay, don_gia_nhap=don_gia, sl_ban_dau=sl, sl_con_lai=sl,
                     trang_thai=LOT_AVAILABLE, **giay))

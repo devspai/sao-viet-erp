@@ -25,7 +25,6 @@ from ...models.may_thiet_bi import MayThietBi
 from ...models.san_xuat import (
     BUOC_MAY,
     BUOC_THUE_NGOAI,
-    BUOC_TO,
     CV_DANG_CHAY,
     CV_HOAN_THANH,
     CV_PHAT_HANH,
@@ -50,7 +49,10 @@ from ..may_trang_thai import NHAN as NHAN_TT_MAY
 from ..may_trang_thai import TT_RANH, trang_thai_may
 from ..quyen_to import VIEC_THUC_HIEN, gate_to
 from .dau_vao import kiem_bat_dau
-from .tinh_trang_nguoi import hom_nay, kiem_di_lam, kiem_khong_chay_viec_khac
+from .tinh_trang_nguoi import di_lam_nhieu, hom_nay, kiem_di_lam
+
+# Sai số làm tròn cột Numeric(18,3) — dưới ngưỡng này coi như đã giao hết.
+_EPS_GIAO = 0.0005
 
 
 def _moc() -> datetime:
@@ -117,6 +119,26 @@ def _ket_qua(cv: SanXuatCongViec, *, notify_user_id: int | None = None) -> dict:
 
 
 # --- Phân công (§7.1) -----------------------------------------------------------------------
+def giao_ca_to(db: Session, cv: SanXuatCongViec) -> None:
+    """Lúc PHÁT HÀNH: giao mọi người còn làm của tổ vào việc, như tổ bấm Giao người cho từng người
+    (10/10/2026, chủ xưởng: *"khi lệnh được phát hành thì hệ thống sẽ tự động gán tất cả thành viên
+    thuộc phòng ban đấy"*). Ai không làm thì tổ Rút người; ai làm lần nào thì tick lúc ghi sản lượng.
+
+    Không kiểm nghỉ: người nghỉ vẫn có tên, hộp Ghi sản lượng làm mờ họ đúng ngày nghỉ. Bước thuê
+    ngoài và việc không có tổ thì bỏ qua. Không audit từng người — phát hành đã có dòng lịch sử."""
+    if not cv.department_id or cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None:
+        return
+    repo = SanXuatThucThiRepository(db)
+    dept = db.get(Department, cv.department_id)
+    la_khoan = bool(dept and dept.has_piece_work)
+    for emp in repo.nhan_vien_cua_to(cv.department_id):
+        if repo.phan_cong_hoat_dong_cua(cv.id, emp.id) is None:
+            repo.add(SanXuatPhanCong(
+                cong_viec_id=cv.id, employee_id=emp.id, la_luong_khoan=la_khoan,
+                trang_thai=PC_HOAT_DONG,
+            ))
+
+
 def phan_cong(
     db: Session,
     *,
@@ -127,8 +149,11 @@ def phan_cong(
 ) -> dict:
     """Giao MỘT người vào công việc. Lần giao đầu = tổ tiếp nhận (§5.2, không nút Nhận lệnh riêng).
 
-    Bước nội bộ chỉ nhận thợ lương khoán (§6). Nếu công việc ĐANG chạy, mở luôn khoảng tham gia
-    cho người mới (§7.2 "thêm người"), nhưng chặn nếu người đó còn khoảng mở ở việc khác (§7.1)."""
+    Người công nhật giao được như thợ khoán (09/10/2026 gỡ luật "bước nội bộ chỉ nhận thợ khoán" —
+    xưởng có tổ ăn công nhật, chặn là tổ đó không bao giờ chạy được việc). `la_luong_khoan` vẫn chụp
+    lại để lương biết ai ăn khoán. Nếu công việc ĐANG chạy, mở luôn khoảng tham gia cho người mới
+    (§7.2 "thêm người"). Người đang chạy việc khác KHÔNG chặn nữa (10/10/2026) — xem
+    `tinh_trang_nguoi`."""
     repo = SanXuatThucThiRepository(db)
     cv = _lay_cong_viec(repo, cong_viec_id)
     from .dong_lenh import chan_neu_da_dong
@@ -145,18 +170,9 @@ def phan_cong(
     # Nghỉ dài hạn / đình chỉ / nghỉ phép đã duyệt HÔM NAY ⇒ không giao (tinh_trang_nguoi).
     kiem_di_lam(db, emp, hom_nay(), duoi="không giao việc được")
     la_khoan = _la_luong_khoan(db, emp)
-    if cv.loai_buoc == BUOC_TO and not la_khoan:
-        # Câu tổ đọc: nói "công nhật" (ngoại lệ) chứ đừng nói "lương khoán" — cùng chữ với bàn tổ.
-        raise ValueError(f"{emp.full_name} là người công nhật — bước nội bộ không nhận người công nhật.")
     if repo.phan_cong_hoat_dong_cua(cong_viec_id, employee_id) is not None:
         raise ValueError("Nhân viên này đã được giao vào công việc.")
-    # Việc đang chạy thì giao = mở khoảng tham gia ngay ⇒ người đang chạy việc khác bị chặn. Kiểm
-    # TRƯỚC khi thêm dòng phân công, khỏi để dòng dở trong session khi báo lỗi.
     phien = repo.phien_dang_mo(cv.id) if cv.trang_thai == CV_DANG_CHAY else None
-    if phien is not None:
-        kiem_khong_chay_viec_khac(
-            db, emp, duoi="việc này đang chạy nên không giao chồng được, dừng hoặc rút người đó ở việc kia trước"
-        )
 
     pc = SanXuatPhanCong(
         cong_viec_id=cv.id,
@@ -224,9 +240,11 @@ def bat_dau(
 ) -> dict:
     """Bắt đầu (hoặc Tiếp tục) chạy: mở phiên mới + mở khoảng tham gia cho mọi người đang trong tổ.
 
-    Luật: phải có ≥1 thợ lương khoán đang được giao (§7.1); không ai được có khoảng tham gia chồng
-    giờ (§7.1). Sớm hay trễ so với dự kiến KHÔNG hỏi lý do (gỡ 16/09/2026) — lệch giờ đọc thẳng từ
-    mốc thực tế của phiên so với `du_kien_*`.
+    Luật: phải có ≥1 người đang được giao VÀ đi làm hôm nay (§7.1) — công nhật hay khoán đều được
+    (09/10/2026 gỡ luật "≥1 thợ khoán"). Người nghỉ hôm nay vẫn ở danh sách (phát hành là giao cả
+    tổ) nhưng không mở khoảng tham gia. Người đang chạy việc khác KHÔNG chặn nữa (10/10/2026). Sớm
+    hay trễ so với dự kiến KHÔNG hỏi lý do (gỡ 16/09/2026) — lệch giờ đọc thẳng từ mốc thực tế của
+    phiên so với `du_kien_*`.
 
     ⚠️ CỔNG "số người khác dự kiến thì bắt chọn lý do" GỠ 18/09/2026 cùng toàn bộ logic KÍP (mg
     `0321`). Hệ thôi biết một việc *nên* mấy người, nên tổ cử 1 người vào việc 5 người cũng không ai
@@ -243,28 +261,16 @@ def bat_dau(
         raise ValueError("Chỉ công việc đang chờ hoặc tạm dừng mới bắt đầu/tiếp tục được.")
 
     roster = repo.phan_cong_hoat_dong(cv.id)
-    if not any(pc.la_luong_khoan for pc in roster):
-        # Luật vẫn là ≥1 người hưởng khoán, nhưng câu báo dùng đúng chữ chân drawer bàn tổ
-        # (`ThsxDrawer`): chưa giao ai thì bảo giao thợ; chỉ khi roster toàn công nhật mới nói lý do.
-        if not roster:
-            raise ValueError("Cần giao ít nhất 1 thợ mới bắt đầu được.")
-        raise ValueError(
-            "Người đang giao đều là công nhật — cần thêm ít nhất 1 thợ không phải công nhật mới bắt đầu được."
-        )
+    if not roster:
+        # Cùng chữ chân drawer bàn tổ (`ThsxDrawer`).
+        raise ValueError("Cần giao ít nhất 1 thợ mới bắt đầu được.")
 
-    # Người trong tổ — kiểm TRƯỚC số người dự kiến: người vắng thì phải rút ra, đếm lại rồi mới
-    # biết có lệch không. Không ai vắng mặt hôm nay (nghỉ dài hạn / đình chỉ / nghỉ phép đã
-    # duyệt — giao từ hôm trước rồi mới có đơn), không ai đang mở khoảng ở việc khác (§7.1). Câu
-    # báo gọi TÊN người và việc họ đang giữ; "Nhân viên #57" thì tổ trưởng không biết ai.
-    ngay = hom_nay()
-    for pc in roster:
-        emp = repo.nhan_vien(pc.employee_id)
-        if emp is None:
-            continue
-        kiem_di_lam(db, emp, ngay, duoi="rút người này khỏi tổ rồi mới bắt đầu được")
-        kiem_khong_chay_viec_khac(
-            db, emp, duoi="dừng hoặc rút người đó ở việc kia trước, không mở được hai việc chồng giờ"
-        )
+    # Người nghỉ hôm nay (nghỉ dài hạn / đình chỉ / nghỉ phép đã duyệt) không mở khoảng tham gia.
+    emps = [e for pc in roster if (e := repo.nhan_vien(pc.employee_id)) is not None]
+    di_lam = di_lam_nhieu(db, emps, hom_nay())
+    roster = [pc for pc in roster if pc.employee_id in di_lam]
+    if not roster:
+        raise ValueError("Người được giao đều nghỉ hôm nay — giao thêm người đi làm rồi mới bắt đầu được.")
 
     # Cổng BƯỚC GHÉP (§10.2): công việc có cạnh phụ thuộc đổ vào (bài ghép gộp nhiều nhánh) chỉ
     # chạy được khi MỌI nhánh nguồn đã có bàn giao XÁC NHẬN số dương vào đây. Công việc một nhánh
@@ -374,6 +380,29 @@ def tam_dung(
     return res
 
 
+def _kiem_giao_het(db: Session, cv) -> None:
+    """Còn sản lượng TỐT chưa đề xuất giao sang chặng sau thì chưa cho Kết thúc (10/10/2026, chủ
+    xưởng: *"lúc nhấn kết thúc thì phải đề xuất giao hết thì mới kết thúc được"*). Đề xuất đang chờ
+    bên nhận xác nhận tính là đã giao. Bước cuối lệnh không bàn giao (thành phẩm qua KCS nhập kho)
+    nên không chặn."""
+    from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+
+    sl_repo = SanXuatSanLuongRepository(db)
+    chang_sau = sl_repo.cong_viec_chang_sau(cv)
+    if not chang_sau:
+        return
+    con = sl_repo.tong_tot(cv.id) - sl_repo.tong_da_giao(cv.id)
+    if con <= _EPS_GIAO:
+        return
+    ten = ", ".join(dict.fromkeys(c.ten_cong_doan for c in chang_sau if c.ten_cong_doan)) or "công đoạn sau"
+    dv = nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), cv.don_vi_ra or cv.don_vi_vao)
+    so = f"{con:,.3f}".rstrip("0").rstrip(".").replace(",", ".")
+    raise ValueError(
+        f"Còn {so}{f' {dv}' if dv else ''} chưa đề xuất giao sang {ten}. "
+        "Đề xuất giao hết rồi mới kết thúc."
+    )
+
+
 def ket_thuc(
     db: Session,
     *,
@@ -389,6 +418,7 @@ def ket_thuc(
     _kiem_version(cv, expected_version)
     if cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
         raise ValueError("Chỉ công việc đang chạy hoặc tạm dừng mới kết thúc được.")
+    _kiem_giao_het(db, cv)
 
     now = _moc()
     phien = repo.phien_dang_mo(cv.id)

@@ -261,19 +261,19 @@ def seed_rebuild_catalog(db: Session) -> None:
         db.add_all([
             GiayNguyen(ma="COUCHE-300-65x86", ten="Couché 300 65×86",
                        kho_dai=860, kho_rong=650, gsm=300, caliper_micron=310, tho="canh_dai",
-                       don_vi_gia="kg", don_gia=30000),
+                       don_vi_gia="kg", don_vi_them=["to"], don_gia=30000),
             GiayNguyen(ma="COUCHE-150-79x109", ten="Couché 150 79×109",
                        kho_dai=1090, kho_rong=790, gsm=150, caliper_micron=150, tho="canh_dai",
-                       don_vi_gia="kg", don_gia=28000),
+                       don_vi_gia="kg", don_vi_them=["to"], don_gia=28000),
             GiayNguyen(ma="FORD-70-65x86", ten="Ford 70 65×86",
                        kho_dai=860, kho_rong=650, gsm=70, caliper_micron=95, tho="canh_ngan",
-                       don_vi_gia="kg", don_gia=26000),
+                       don_vi_gia="kg", don_vi_them=["to"], don_gia=26000),
             GiayNguyen(ma="IVORY-350-79x109", ten="Ivory 350 79×109",
                        kho_dai=1090, kho_rong=790, gsm=350, caliper_micron=430, tho="canh_dai",
-                       don_vi_gia="kg", don_gia=32000),
+                       don_vi_gia="kg", don_vi_them=["to"], don_gia=32000),
             GiayNguyen(ma="DUPLEX-300", ten="Duplex 300",
                        kho_dai=1090, kho_rong=790, gsm=300, caliper_micron=380,
-                       don_vi_gia="kg", don_gia=18000),
+                       don_vi_gia="kg", don_vi_them=["to"], don_gia=18000),
         ])
         db.commit()
     if _empty(db, VatTuInAn):

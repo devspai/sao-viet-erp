@@ -60,6 +60,11 @@ class GiayNguyen(Base):
     # don_vi_dung_duoc`). NULL = chưa chọn: không mặc định "kg" nữa vì đoán sai một lần là sai
     # vĩnh viễn — màn danh mục hiện "Chưa chọn đơn vị" để người khai tự chọn.
     don_vi_gia: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    # ĐƠN VỊ THÊM (mg 0390, 10/10/2026) — mảng mã đơn vị mua/nhập được NGOÀI ĐVT chính, có thứ tự.
+    # Mỗi đơn vị kéo cả nhóm quy đổi của nó (tờ ⇒ ram); hai đơn vị khai không cùng nhóm, không quy đổi
+    # lẫn nhau (tờ và kg). Tồn tách theo đơn vị gốc. Đơn giá `don_gia` chỉ thuộc `don_vi_gia`.
+    # Đọc qua `kho_giay.don_vi_khai`. NULL = chỉ ĐVT chính.
+    don_vi_them: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     don_gia: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False, server_default="0", default=0)
     gia_thi_truong: Mapped[float | None] = mapped_column(Numeric(18, 2), nullable=True)   # giá tham khảo thị trường
     kho_tinh_gia: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)  # khổ này dùng để tính giá?
@@ -122,6 +127,8 @@ class VatTuInAn(Base):
     ten: Mapped[str] = mapped_column(String(150), nullable=False)
     # ĐƠN VỊ GỐC — mã trong `don_vi_do`. NULL = chưa chọn (xem ghi chú ở `GiayNguyen.don_vi_gia`).
     don_vi_gia: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    # ĐƠN VỊ THÊM (mg 0390) — như `GiayNguyen.don_vi_them`. Màn Thành phẩm (chung bảng) không khai.
+    don_vi_them: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     # BỎ quy cách đóng gói (`don_vi_dong_goi` / `he_so_dong_goi`, mg 0170 → gỡ 10/08/2026): khai
     # quy đổi hai nơi (ở đây và ở danh mục Đơn vị & quy đổi) là bắt người dùng nhớ luật vô ích.
     # Cần "thùng keo 20 kg" thì khai thẳng một đơn vị như vậy trong danh mục Đơn vị & quy đổi.
@@ -160,14 +167,10 @@ class VatTuInAn(Base):
     # mục nào. Nhưng kho chỉ xuất được thứ CÓ trong danh mục (luật 08/08/2026 bỏ ô tên tự do),
     # nên lúc CHỐT ĐƠN hệ tự khai mỗi dòng đơn thành một dòng ở đây.
     #
-    # ⚠️ NGƯNG DÙNG LÀM KHOÁ từ 21/08/2026 (mg 0228). Giữ cột để tra lịch sử "đơn đầu tiên của
-    # khách nào", KHÔNG được dùng lại làm công tắc màn hay phạm vi gộp trùng.
-    #
-    # Trước đó nó gánh HAI việc: chủ của thành phẩm + công tắc chia hai màn danh mục. Chủ dự án
-    # bỏ: "thành phẩm này là một cái tên hàng, nêu chưa khai để tái sử dụng, tránh phình lên" —
-    # tức nó KHÔNG thuộc về ai, giống bán cùng một cái quạt cho nhiều khách. Hệ quả:
-    #   · công tắc màn chuyển sang cột `la_thanh_pham` ngay dưới;
-    #   · phạm vi gộp trùng chuyển thành TÊN đã chuẩn hoá, không kèm khách.
+    # KHÁCH SỞ HỮU thành phẩm (11/10/2026, mg 0394): hàng in riêng cho khách nào là hàng của khách
+    # đó — tồn của mã là tồn của khách, đơn nào của khách cũng giao được. Danh tính do người lập
+    # phiếu CHỌN ở ô Sản phẩm tái bản (lọc theo khách), không đoán bằng tên: hai khách cùng tên hàng
+    # là hai mã. (21/08–11/10/2026 cột này chỉ là vết "khách đặt lần đầu", khoá gộp là tên.)
     customer_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
     # CÔNG TẮC chia hai màn dùng chung bảng này: `true` ⇒ màn "Thành phẩm", `false` ⇒ "Vật tư
@@ -184,6 +187,11 @@ class VatTuInAn(Base):
     # đã nhập kho, xoá là làm mồ côi lô tồn. Cùng khuôn `stock_requests.purchase_delivery_id`.
     order_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     order_line_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    # CẤU HÌNH TÁI BẢN của thành phẩm (mg 0394): list `ThanhPhanIn` (ruột + bìa… theo thứ tự dòng
+    # đơn) chụp ở lần CHỐT ĐƠN gần nhất có phiếu tính giá. Ô "Sản phẩm tái bản" nạp lại từ đây.
+    # NULL = mã chưa từng chốt qua phiếu tính giá (khai tay / nhập Excel) — vẫn chọn được, chỉ gắn mã.
+    cau_hinh_tai_ban: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    tai_ban_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Ảnh minh hoạ vật tư (1 ảnh) — xem ghi chú `GiayNguyen.anh_url`.
     anh_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)

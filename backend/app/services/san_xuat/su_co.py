@@ -28,9 +28,8 @@ from ...repositories.ky_thuat_may_repo import KyThuatMayRepository
 from ..ky_thuat_may_service import KyThuatMayError, KyThuatMayService
 from . import thuc_thi
 
-# Độ dài tối đa của `ky_thuat_yeu_cau_sua.bo_phan_hong` (String(150)) và của
-# `san_xuat_phien_chay.ly_do` (String(255)) — cắt ở service để chuỗi dài không nổ ở tầng DB.
-MAX_BO_PHAN_HONG = 150
+# Độ dài tối đa của `san_xuat_phien_chay.ly_do` (String(255)) — cắt ở service để chuỗi dài không
+# nổ ở tầng DB.
 MAX_LY_DO_PHIEN = 255
 
 
@@ -64,7 +63,6 @@ def bao_su_co(
     *,
     user,
     cong_viec_id: int,
-    bo_phan_hong: str,
     mo_ta: str | None,
     muc_do: str,
     dung_san_xuat: bool,
@@ -82,13 +80,8 @@ def bao_su_co(
 
     if cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
         raise ValueError("Chỉ báo sự cố trên công việc đang chạy hoặc tạm dừng.")
-    if not (bo_phan_hong or "").strip():
-        raise ValueError(
-            "Phải nêu chỗ hỏng — một yêu cầu chỉ có tên máy thì thợ sửa phải đi hỏi lại từ đầu. "
-            "Không chắc thì ghi cái nhìn thấy: “in ra bị sọc”."
-        )
-    if dung_san_xuat and not (mo_ta or "").strip():
-        raise ValueError("Dừng sản xuất bắt buộc có lý do — đây là mốc mất giờ máy của lệnh.")
+    # KHÔNG hỏi bộ phận hỏng, triệu chứng không bắt buộc kể cả khi máy dừng (11/10/2026): người
+    # đứng máy thường không biết hỏng chỗ nào — tổ sửa chữa ghi "Chỗ hỏng" lúc tiếp nhận.
     if muc_do not in MUC_DO:
         # Ném ValueError chứ KHÔNG để `KyThuatMayValidationError` lọt lên: router dùng `_chay`,
         # vốn chỉ dịch `ValueError`/`PermissionError` — lỗi khác thành 500 thay vì 400.
@@ -99,7 +92,7 @@ def bao_su_co(
     if cv.may_id is None:
         raise ValueError("Công việc này không chạy máy — không có máy để báo hỏng.")
 
-    cho_hong = bo_phan_hong.strip()[:MAX_BO_PHAN_HONG]
+    trieu_chung = (mo_ta or "").strip() or None
     svc = KyThuatMayService(db, KyThuatMayRepository(db), AuditLogRepository(db))
     try:
         # commit=False: yêu cầu + audit + tạm dừng phải cùng sống hoặc cùng chết. `flush()` trong
@@ -108,8 +101,8 @@ def bao_su_co(
         yc = svc.tao_yeu_cau(
             {
                 "may_id": cv.may_id,
-                "bo_phan_hong": cho_hong,
-                "mo_ta": (mo_ta or "").strip() or None,
+                "bo_phan_hong": "",
+                "mo_ta": trieu_chung,
                 "muc_do": muc_do,
                 # Người báo BIẾT CHẮC máy có dừng hay không — đây chính là câu hỏi xếp hàng chờ
                 # của tổ sửa chữa, và ở đây nó trùng khít với lựa chọn Dừng sản xuất / Vẫn chạy.
@@ -129,7 +122,8 @@ def bao_su_co(
             # phiên lần được sang hồ sơ sửa chữa.
             thuc_thi._tam_dung_lo(
                 db, user=user, cong_viec_id=cv.id,
-                ly_do=f"Sự cố {yc.ma}: {cho_hong}"[:MAX_LY_DO_PHIEN],
+                ly_do=(f"Sự cố {yc.ma}: {trieu_chung}" if trieu_chung
+                       else f"Sự cố {yc.ma}")[:MAX_LY_DO_PHIEN],
             )
         db.commit()
     except KyThuatMayError as exc:

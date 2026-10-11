@@ -69,11 +69,10 @@ export function ThsxTepLenh({
   const soAn = tong - nhomHien.reduce((s, n) => s + n.items.length, 0);
 
   return (
-    <div className="thsx-card thsx-teplenh">
-      <div className="thsx-psec__h">
-        <Icon name="paperclip" size={14} />
-        <span className="thsx-psec__title">Tệp của lệnh{nhom && tong > 0 ? ` (${tong})` : ""}</span>
-      </div>
+    <div className="thsx-teplenh">
+      <h3 className="thsx-b-blk__h">
+        Tệp của lệnh{nhom && tong > 0 && <> <span className="thsx-b-mo3">{tong}</span></>}
+      </h3>
       {loi ? (
         <div className="thsx-tep__loi" role="alert">
           <span><Icon name="alert" size={14} /> {loi}</span>
@@ -99,20 +98,26 @@ export function ThsxTepLenh({
               // Nhóm bị gấp hết thì thôi không vẽ nhãn; nhóm vốn trống (bài ghép) mới nói "chưa có tệp".
               n.an === 0 && nhieuLenh ? (
                 <p key={n.lsx_id} className="thsx-teplenh__lenh">
-                  {n.lsx_ma} <span className="thsx-teplenh__trong">· chưa có tệp</span>
+                  <span>{n.lsx_ma}</span><span className="thsx-teplenh__trong">chưa có tệp</span>
                 </p>
               ) : null
             ) : (
               <div key={n.lsx_id} className="thsx-teplenh__nhom">
                 {nhieuLenh && (
                   <p className="thsx-teplenh__lenh" title={n.lsx_ten ?? undefined}>
-                    {n.lsx_ma}{n.lsx_ten ? ` · ${n.lsx_ten}` : ""}
+                    <span>{n.lsx_ma}</span>{n.lsx_ten && <span>{n.lsx_ten}</span>}
                   </p>
                 )}
                 <ul className="thsx-tep__ds">
                   {n.items.map((t) => (
                     <DongTep key={t.id} t={t} onXem={setXem}
-                      meta={`${dungLuong(t.kich_thuoc)} · ${ngayGio(t.tai_luc)}${t.nguoi_tai_ten ? ` · ${t.nguoi_tai_ten}` : ""}`} />
+                      meta={(
+                        <span className="thsx-teplenh__meta">
+                          <span>{dungLuong(t.kich_thuoc)}</span>
+                          <span>{ngayGio(t.tai_luc)}</span>
+                          {t.nguoi_tai_ten && <span>{t.nguoi_tai_ten}</span>}
+                        </span>
+                      )} />
                   ))}
                 </ul>
               </div>

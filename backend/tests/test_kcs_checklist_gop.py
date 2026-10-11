@@ -13,7 +13,7 @@ import pytest
 
 from app.models.lsx import Lsx
 from app.models.san_xuat import SanXuatCongViec
-from app.models.san_xuat_kcs import SanXuatKcsBatch
+from app.models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi
 from app.services.san_xuat import kcs, kho
 from app.services.san_xuat.kcs_checklist import checklist_gop, chuoi_gop
 from tests.test_san_xuat_kcs import _anh, _chuoi_hai_to, _ghi_tot  # noqa: F401
@@ -104,6 +104,39 @@ def test_kiem_thieu_ket_qua_hoac_khong_dat_ma_khong_ghi_loi_bi_chan(
     ]
 
 
+def test_dong_loi_theo_tieu_chi_o_buoc_cuoi(db, orders, lsx_svc, admin, customer):
+    """11/10/2026: bước cuối tick tiêu chí không đạt như hộp Ghi lỗi — dòng mang `thu_tu` của công
+    đoạn chịu, mô tả = câu tiêu chí (+ ghi chú), số lỗi cất vào kết quả tiêu chí. Lỗi khác vẫn bắt
+    ghi chú; tiêu chí lạ hay tick hai lần thì chặn."""
+    truoc, sau, _to, _tt, nguoi = _canh(db, orders, lsx_svc, admin, customer, "GOP-TC")
+    lid = truoc.lsx_id
+    with pytest.raises(ValueError, match="tiêu chí không còn trong lệnh"):
+        kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=sau.id, lsx_id=lid,
+                           checklist_ket_qua=_du(truoc, sau, truoc_2_dat=False),
+                           cac_loi=[{**_loi(truoc, 4, ""), "thu_tu": 9}])
+    with pytest.raises(ValueError, match="bị ghi hai lần"):
+        kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=sau.id, lsx_id=lid,
+                           checklist_ket_qua=_du(truoc, sau, truoc_2_dat=False),
+                           cac_loi=[{**_loi(truoc, 1, ""), "thu_tu": 2}, {**_loi(truoc, 1, ""), "thu_tu": 2}])
+    with pytest.raises(ValueError, match="phải mô tả lỗi"):
+        kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=sau.id, lsx_id=lid,
+                           checklist_ket_qua=_du(truoc, sau, truoc_2_dat=False),
+                           cac_loi=[{**_loi(truoc, 4, ""), "thu_tu": 2}, _loi(sau, 1, "")])
+    assert db.query(SanXuatKcsBatch).count() == 0
+
+    res = kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=sau.id, lsx_id=lid,
+                             checklist_ket_qua=_du(truoc, sau, truoc_2_dat=False),
+                             cac_loi=[{**_loi(truoc, 4, "góc phải"), "thu_tu": 2}, _loi(sau, 1, "Rách thùng")])
+    assert res["so_dat"] == 95 and res["so_loi"] == 5
+    batch = db.get(SanXuatKcsBatch, res["kcs_batch_id"])
+    assert batch.checklist_json[1] == {
+        "cong_viec_id": truoc.id, "thu_tu": 2, "dat": False, "ghi_chu": "lem góc", "so_luong": 4.0,
+    }
+    assert "so_luong" not in batch.checklist_json[2]
+    loi = db.query(SanXuatKcsLoi).filter_by(kcs_batch_id=batch.id).all()
+    assert sorted(l.mo_ta for l in loi) == ["Không lem: góc phải", "Rách thùng"]
+
+
 def test_so_dat_va_so_gui_kho_khong_doi_cong_thuc(db, orders, lsx_svc, admin, customer):
     """100 tốt ở bước cuối; lỗi 30 quy về bước trước + 20 của chính bước cuối ⇒ đạt 50 = gửi kho."""
     truoc, sau, _to, _tt, nguoi = _canh(db, orders, lsx_svc, admin, customer, "GOP-SO")
@@ -168,7 +201,7 @@ def test_nhom_quy_loi_ve_lenh_phu_tu_buoc_cuoi(db, orders, lsx_svc, admin, custo
 def test_nhom_buoc_giua_khong_quy_loi_ve_lenh_phu(db, orders, lsx_svc, admin, customer):
     truoc, sau, cv_phu, _phu, nguoi = _canh_nhom(db, orders, lsx_svc, admin, customer, "GOP-NG")
     _ghi_tot(db, truoc, 50)
-    with pytest.raises(ValueError, match="đứng trước"):
+    with pytest.raises(ValueError, match="chỉ ghi lỗi của chính nó"):
         kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=truoc.id, lsx_id=truoc.lsx_id,
                            cac_loi=[_loi(cv_phu, 1)])
 

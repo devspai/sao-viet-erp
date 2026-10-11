@@ -54,6 +54,8 @@ class GiayIn(BaseModel):
     # Mã đơn vị trong `don_vi_do`. None/"" = chưa chọn — KHÔNG mặc định "kg" nữa: đơn vị gốc quyết
     # định cách cộng tồn kho, điền hộ một lần là sai vĩnh viễn mà không ai để ý.
     don_vi_gia: str | None = None
+    # Đơn vị khai thêm ngoài ĐVT chính (mg 0390). Vắng = không đụng; [] / None = chỉ ĐVT chính.
+    don_vi_them: list[str] | None = None
     don_gia: float = Field(default=0, ge=0)
     gia_thi_truong: float | None = None
     kho_tinh_gia: bool = True
@@ -73,6 +75,8 @@ class GiayRow(BaseModel):
     caliper_micron: int | None = None
     tho: str | None = None
     don_vi_gia: str | None = None
+    # Đơn vị khai thêm ngoài ĐVT chính (mg 0390) — mỗi đơn vị một nhóm quy đổi, không cùng nhóm.
+    don_vi_them: list[str] | None = None
     # Tên đơn vị để BẢNG đọc được ("bản kẽm" thay vì mã `kem`) — router gán, không có trong DB.
     don_vi_ten: str | None = None
     don_gia: float
@@ -105,6 +109,8 @@ class VatTuIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)
     ten: str = Field(min_length=1, max_length=150)
     don_vi_gia: str | None = None
+    # Đơn vị khai thêm ngoài ĐVT chính (mg 0390). Vắng = không đụng; [] / None = chỉ ĐVT chính.
+    don_vi_them: list[str] | None = None
     don_gia: float = Field(default=0, ge=0)
     ghi_chu: str | None = None
     cong_thuc_gia: str | None = None
@@ -123,6 +129,8 @@ class VatTuRow(BaseModel):
     ma: str
     ten: str
     don_vi_gia: str | None = None
+    # Đơn vị khai thêm ngoài ĐVT chính (mg 0390) — mỗi đơn vị một nhóm quy đổi, không cùng nhóm.
+    don_vi_them: list[str] | None = None
     # Tên đơn vị cho BẢNG đọc được — router gán, không có trong DB.
     don_vi_ten: str | None = None
     don_gia: float
@@ -222,6 +230,10 @@ class DonViDungDuocRow(BaseModel):
     he_so_ve_goc: float
     la_goc: bool
     dien_giai: str
+    # Giấy (dropdown gộp họ tờ + họ đơn vị giá): đơn vị gốc của HỌ dòng này ("to" / "kg"…) + tên.
+    # Hàng khác / giấy đã chọn một họ: None.
+    goc: str | None = None
+    goc_ten: str | None = None
 
 
 class DonViCuaMatHangOut(BaseModel):

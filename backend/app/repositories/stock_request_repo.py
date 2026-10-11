@@ -21,13 +21,13 @@ from ..models.stock_request import (
     StockRequestLine,
 )
 from ..models.stock_voucher import VOUCHER_POSTED, StockVoucher, StockVoucherLine
-from ..services.kho_giay import chuan_kho
+from ..services.kho_giay import chuan_kho, co_don_vi_goc
 from .loc_danh_sach import dk_khoang_ngay
 
 # Mốc gốc so "chưa xem" khi người tạo chưa từng mở yêu cầu (quyet_dinh_xem_luc NULL).
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
-_HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "uu_tien", "ghi_chu", "loai_kho",
+_HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "can_luc", "uu_tien", "ghi_chu", "loai_kho",
                   "purchase_delivery_id",
                   # NGUỒN GIAO HÀNG (mg 0201): chuyến giao sinh ra yêu cầu XUẤT này. Thiếu tên ở
                   # danh sách này thì giá trị bị NUỐT IM LẶNG — yêu cầu vẫn tạo, chỉ là không nối
@@ -50,11 +50,12 @@ def _build_line(ln: dict, loai: str) -> StockRequestLine:
     Không còn `ten_tu_do`/`don_vi_phu`/`he_so_quy_doi` (mg 0171): mặt hàng bắt buộc chọn từ danh
     mục gốc, còn quy đổi lấy từ đồ thị đơn vị dùng chung.
     """
-    # GIẤY mang dạng + khổ (spec 2026-10-01 §3.1); hàng khác luôn NULL · 0 · 0 dù người gọi gửi gì.
+    # GIẤY mang khổ + ĐƠN VỊ GỐC, VẬT TƯ mang ĐƠN VỊ GỐC (service đã suy từ ĐVT dòng ở
+    # `_validate_lines` — không ai gõ); khổ chỉ giấy, hàng khác luôn "" · 0 · 0 dù người gọi gửi gì.
     giay = ln["hang_loai"] == "giay"
     kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai")) if giay else (0, 0)
     return StockRequestLine(
-        dang_giay=(ln.get("dang_giay") or None) if giay else None,
+        don_vi_goc=((ln.get("don_vi_goc") or "").strip().lower()) if co_don_vi_goc(ln["hang_loai"]) else "",
         kho_rong=kr,
         kho_dai=kd,
         hang_loai=ln["hang_loai"],
@@ -73,8 +74,8 @@ def _dieu_kien_pham_vi(nguoi_tao_id: int | None, bo_phan_ids: list[int] | None):
     """Phạm vi xem của người dùng (router `_scoped_filters`): yêu cầu CHÍNH MÌNH tạo luôn lọt, cộng
     thêm yêu cầu có bộ phận nằm trong `bo_phan_ids` (phạm vi `department`). Cả hai None = không lọc.
 
-    Cần vế "của mình" vì bộ phận không phải lúc nào cũng là phòng người tạo: Bàn tổ gắn bộ phận là
-    TỔ của công đoạn, nên người ngồi phòng khác gửi hộ tổ từng không thấy yêu cầu của chính mình."""
+    Cần vế "của mình" vì bộ phận không phải lúc nào cũng là phòng HIỆN TẠI của người tạo: bộ phận chốt
+    lúc tạo (phòng người bấm, 11/10/2026), người đổi phòng sau đó vẫn phải thấy yêu cầu của chính mình."""
     if nguoi_tao_id is None and bo_phan_ids is None:
         return None
     ve = []

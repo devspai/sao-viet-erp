@@ -37,7 +37,7 @@ export function cotPhieuTc({ selectable, showEmployee }: { selectable: boolean; 
     { key: "so_gio", label: "Số giờ", n: true, w: 80 },
     { key: "tt", label: "Trạng thái", w: 136 },
     { key: "ly_do", label: "Lý do" }, // co giãn
-    { key: "duyet", label: "Người duyệt", w: 136 },
+    { key: "duyet", label: "NV duyệt", w: 136 },
     { key: "tao", label: "Ngày tạo", w: 104 },
     // Cột nút: người gửi có tới 2 nút (Sửa + Hủy), người duyệt cũng tối đa 2 (Duyệt + Từ chối).
     { key: "nut", label: "Thao tác", coDinh: true, w: 76 },

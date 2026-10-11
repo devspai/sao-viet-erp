@@ -75,7 +75,7 @@ ACTION_VIEW_DRIVERS = "view_drivers"  # giao_hang: tab Nhân viên giao hàng (l
 ACTION_RUN_ORDER = "run_order"            # Thực hiện lệnh
 ACTION_CONFIRM_OUTPUT = "confirm_output"  # Xác nhận sản lượng
 ACTION_WAREHOUSE = "warehouse"            # Kho
-ACTION_CLOSE_SHORT = "close_short"        # Đóng lệnh thiếu — chỉ dòng tổ KCS
+ACTION_CLOSE_SHORT = "close_short"        # kcs: Đóng lệnh thiếu (+ mở lại nhóm đã đóng)
 # Ghi chú: don_hang_ban tái dùng ACTION_APPROVE (= "Chốt đơn") và ACTION_CANCEL (= "Hủy đơn");
 # ACTION_APPROVE_EXCEPTION TÁCH RIÊNG (chỉ GĐ) — duyệt đơn đặc thù mới được chốt.
 

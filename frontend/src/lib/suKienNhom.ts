@@ -85,13 +85,10 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   bai_ghep_changed: ["san_xuat", "khvt"],
   xep_lich_changed: ["san_xuat", "khvt"],
   san_xuat_changed: ["san_xuat"],
-  san_xuat_vat_tu_nhan: ["san_xuat", "kho"],
   san_xuat_cong_viec_changed: ["san_xuat"],
   san_xuat_duoc_giao_viec: ["san_xuat"],
   san_xuat_ban_giao_changed: ["san_xuat"],
   san_xuat_ban_giao: ["san_xuat"],
-  san_xuat_ho_tro_changed: ["san_xuat"],
-  san_xuat_ho_tro: ["san_xuat"],
   san_xuat_kcs_changed: ["san_xuat"],
   san_xuat_kcs_ket_qua: ["san_xuat"],
   // KCS gửi thành phẩm nhập kho: màn KCS / hồ sơ lệnh + màn Kho.

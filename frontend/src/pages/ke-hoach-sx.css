@@ -76,6 +76,7 @@
 }
 /* Chip nhỏ đứng cạnh chữ trong ô lưới (Gấp, chip gia công). */
 .khsx-cach { margin-left: 6px; }
+.khsx-cach-sau { margin-right: 6px; }
 
 .khsx__head {
   border-bottom: 1px solid var(--rule);
@@ -570,6 +571,7 @@ td.khsx-num > .khsx-unit {
 .khsx-prev thead th.khsx-prev__namecol { min-width: 170px; }
 .khsx-prev__namecell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
 .khsx-prev__sub { font-size: 12px; color: var(--ash-2); }
+.khsx-prev__kho-co { display: block; font-size: 12px; color: var(--tt-la-fg); font-weight: 400; }
 .khsx-prev__dv { display: block; font-size: 11px; color: var(--ash-2); font-weight: 400; }
 .khsx-prev td.khsx-prev__trong { font-size: 12px; color: var(--ash-2); }
 
@@ -1903,6 +1905,18 @@ button.khsx-thieu__buoc:hover {
    Dùng lại nguyên khối `.khsx-luuy` (amber) — cùng loại tin: máy báo, người quyết. Chỉ thêm chỗ
    cho nút bên phải tiêu đề và bảng cũ → mới trong dialog. */
 .khsx-dmdoi { margin-bottom: var(--sp-3); }
+/* Băng "tiêu chí KCS đã đổi" (09/10/2026): cùng khối amber; mỗi câu một thẻ nhỏ, không nối dấu phẩy. */
+.khsx-tcdoi .khsx-luuy__title { font-weight: 500; }
+.khsx-tcdoi .khsx-luuy__list li { flex-wrap: wrap; gap: 6px 8px; }
+.khsx-tcdoi__ten { min-width: 160px; }
+.khsx-tcdoi__the { padding: 0 8px; border-radius: var(--r-2); background: var(--canvas); font-size: var(--fs-xs); line-height: 22px; }
+.khsx-tcdoi__the--bo { text-decoration: line-through; opacity: .8; }
+.khsx-tcdoi__the--chay { margin-left: 8px; background: var(--tt-cyan-bg); color: var(--tt-cyan-fg); font-weight: 400; }
+/* Bảng tiêu chí cũ → mới: cột cố định để các công đoạn thẳng hàng; vị trí câu không gạch, không đậm. */
+.khsx-tcdoi__tbl { table-layout: fixed; }
+.khsx-tcdoi__tbl th { font-weight: 500; }
+.khsx-tcdoi__tbl th:nth-child(2), .khsx-tcdoi__tbl th:nth-child(3) { width: 120px; }
+.khsx-tcdoi__trong { color: var(--ash); }
 .khsx-dmdoi__nut { margin-left: auto; display: inline-flex; align-items: center; gap: var(--sp-2); }
 .khsx-dmdoi__btn {
   display: inline-flex;

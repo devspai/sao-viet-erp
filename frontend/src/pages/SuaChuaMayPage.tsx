@@ -64,20 +64,20 @@ const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locSuaChuaLenUr
 
 interface Cot extends CotLuoi { w?: number; c?: boolean; title?: string }
 
-/** Cột lưới phiếu sửa chữa, xếp theo nhóm nghĩa: Mã, Ngày, Máy, Chỗ hỏng, Mức độ, Trạng thái, các mốc
- *  thời gian của đợt hỏng, Ảnh, Mô tả. Bề rộng đủ cho chữ thật (mã, tên máy dài) — tổng vượt khung thì
- *  lưới cuộn ngang như Báo giá, KHÔNG ép cột hẹp lại rồi cắt "IN-0…". Mô tả là cột co giãn cuối. */
+/** Cột lưới phiếu sửa chữa, xếp theo nhóm nghĩa: Mã, Ngày, Máy, Mức độ, Trạng thái, các mốc thời gian
+ *  của đợt hỏng, Ảnh, Triệu chứng. Bề rộng đủ cho chữ thật (mã, tên máy dài) — tổng vượt khung thì
+ *  lưới cuộn ngang như Báo giá, KHÔNG ép cột hẹp lại rồi cắt "IN-0…". Triệu chứng là cột co giãn cuối.
+ *  Cột Chỗ hỏng gỡ 11/10/2026: phiếu không còn ô đó, chỉ còn triệu chứng người báo ghi. */
 const COT_PHIEU: Cot[] = [
   { key: "ma", label: "Mã phiếu", coDinh: true, w: 100 },
   { key: "ngay", label: "Ngày tạo", w: 110 },
   { key: "may", label: "Máy", w: 270 },
-  { key: "cho", label: "Chỗ hỏng", w: 210 },
   { key: "muc", label: "Mức độ", w: 130 },
   { key: "tt", label: "Trạng thái", w: 130 },
   { key: "hong", label: "Hỏng lúc", w: 120 },
   { key: "keo", label: "Đã kéo dài", w: 120, title: "Từ lúc hỏng tới giờ, hoặc tới lúc sửa xong" },
   { key: "anh", label: "Ảnh", w: 60, c: true },
-  { key: "mota", label: "Mô tả" },
+  { key: "mota", label: "Triệu chứng" },
 ];
 
 /** Cột lưới yêu cầu báo hỏng. "Xử lý" (nút lập phiếu / từ chối, hoặc kết quả) đứng CUỐI, co giãn và
@@ -86,29 +86,23 @@ const COT_YC: Cot[] = [
   { key: "ma", label: "Mã yêu cầu", coDinh: true, w: 110 },
   { key: "ngay", label: "Ngày tạo", w: 120 },
   { key: "may", label: "Máy", w: 270 },
-  { key: "cho", label: "Chỗ hỏng", w: 200 },
   { key: "muc", label: "Mức độ", w: 180, title: "Mức độ người báo chọn; máy đang dừng thì ghi đỏ bên cạnh" },
   { key: "lsx", label: "Lệnh SX", w: 110, title: "Lệnh đang chạy lúc máy hỏng (báo từ màn Thực hiện sản xuất)" },
   { key: "tt", label: "Trạng thái", w: 140 },
   { key: "nguoi", label: "Người báo", w: 210 },
-  { key: "mota", label: "Mô tả", w: 240 },
+  { key: "mota", label: "Triệu chứng", w: 240 },
   { key: "xuly", label: "Xử lý", coDinh: true },
 ];
 
+/** Tổ sửa chữa chỉ ghi MỘT ô chữ trên phiếu: "Đã sửa gì" (cột `nguyen_nhan_phuong_an`), cộng mức độ
+ *  đánh giá lại. Triệu chứng là lời người báo — chỉ đọc. Chỗ hỏng / Ghi chú gỡ khỏi màn 11/10/2026
+ *  (cột DB còn, phiếu cũ giữ nguyên dữ liệu). */
 interface FormSua {
-  bo_phan_hong: string;
-  mo_ta: string;
-  muc_do: string;
   nguyen_nhan_phuong_an: string;
-  ghi_chu: string;
 }
 
 const formTuPhieu = (p: SuaChua): FormSua => ({
-  bo_phan_hong: p.bo_phan_hong ?? "",
-  mo_ta: p.mo_ta ?? "",
-  muc_do: p.muc_do ?? "trung_binh",
   nguyen_nhan_phuong_an: p.nguyen_nhan_phuong_an ?? "",
-  ghi_chu: p.ghi_chu ?? "",
 });
 
 /** Ba thẻ xám lúc đang nạp (bản điện thoại của hàng xương bảng). */
@@ -406,7 +400,6 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
     switch (key) {
       case "ma": return r.ma;
       case "may": return <OMay ma={r.may_ma} ten={r.may_ten} />;
-      case "cho": return r.bo_phan_hong;
       case "muc": return <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />;
       case "tt": return <ChipKtm tt={r.trang_thai}>{NHAN_TT_SUA_CHUA[r.trang_thai] ?? r.trang_thai}</ChipKtm>;
       case "hong": return <span title={ngayGioDayDu(r.thoi_diem)}>{fmtNgayGioNgan(r.thoi_diem)}</span>;
@@ -442,7 +435,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
           }))} />
         <div className="lds-loc__thanh tl-thanh" role="search">
           <OTim value={q} onChange={(v) => doiLoc(() => setQ(v))}
-            placeholder="Tìm mã phiếu, máy, chỗ hỏng" ariaLabel="Tìm phiếu sửa chữa" />
+            placeholder="Tìm mã phiếu, máy, triệu chứng" ariaLabel="Tìm phiếu sửa chữa" />
           <ThanhLoc
             ky={locMan.ky}
             moc={MOC_SUA_CHUA}
@@ -479,9 +472,8 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
                   </span>
                   <span className="ktm-the__than">
                     <span className="ktm-may-badge">{r.may_ma ?? "—"}</span>
-                    <span className="ktm-the__goi">{r.bo_phan_hong}</span>
+                    <span className="ktm-the__goi">{r.mo_ta || <span className="lds-mu">Không ghi triệu chứng</span>}</span>
                   </span>
-                  {r.mo_ta && <span className="ktm-the__mota">{r.mo_ta}</span>}
                   <span className="ktm-the__meta">
                     <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />
                     <span>Hỏng {fmtNgayGioNgan(r.thoi_diem)}</span>
@@ -536,27 +528,21 @@ function LapPhieuHop({ may, loiMay, onClose, onSaved }: {
 }) {
   const { token, user } = useAuth();
   const [mayId, setMayId] = useState("");
-  const [form, setForm] = useState<FormSua>({
-    bo_phan_hong: "", mo_ta: "", muc_do: "trung_binh", nguyen_nhan_phuong_an: "", ghi_chu: "",
-  });
+  const [moTa, setMoTa] = useState("");
+  const [mucDo, setMucDo] = useState("trung_binh");
   const [dang, setDang] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
-  const set = (k: keyof FormSua, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const gui = async () => {
     if (!token || dang) return;
     if (!mayId) { setLoi("Chưa chọn máy."); return; }
-    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
     setDang(true);
     setLoi(null);
     try {
       const p = await kyThuatMay.createSuaChua(token, {
         may_id: Number(mayId),
-        bo_phan_hong: form.bo_phan_hong.trim(),
-        mo_ta: form.mo_ta.trim() || null,
-        muc_do: form.muc_do,
-        nguyen_nhan_phuong_an: form.nguyen_nhan_phuong_an.trim() || null,
-        ghi_chu: null,
+        mo_ta: moTa.trim() || null,
+        muc_do: mucDo,
       });
       onSaved(p);
     } catch (e) {
@@ -567,33 +553,26 @@ function LapPhieuHop({ may, loiMay, onClose, onSaved }: {
 
   return (
     <HopThoai tieuDe="Lập phiếu sửa" rong={720} nutChinh="Lập phiếu" dangGui={dang} loi={loi}
-      coNoiDung={!!(mayId || form.bo_phan_hong || form.mo_ta || form.nguyen_nhan_phuong_an)}
+      coNoiDung={!!(mayId || moTa)}
       onGui={() => void gui()} onDong={onClose}
       chanTrai={<>
         <span>Người báo: {user?.name?.trim() || user?.username || "—"}</span>
         <span>Hỏng lúc: bây giờ</span>
       </>}>
-      <div className="ktm-luoi2">
-        <ChonMay giaTri={mayId} may={may} loiMay={loiMay} onChange={setMayId} />
-        <ONhap nhan="Chỗ hỏng" giaTri={form.bo_phan_hong} khoa={false}
-          placeholder="vd: trục cán, bạc đạn, băng tải" onChange={(v) => set("bo_phan_hong", v)} />
-      </div>
-      <ONhap nhan="Mô tả" nhieuDong giaTri={form.mo_ta} khoa={false}
-        placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao" onChange={(v) => set("mo_ta", v)} />
-      <ONhap nhan="Nguyên nhân và cách sửa" phu="ghi sau cũng được" nhieuDong
-        giaTri={form.nguyen_nhan_phuong_an} khoa={false}
-        placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"
-        onChange={(v) => set("nguyen_nhan_phuong_an", v)} />
+      <ChonMay giaTri={mayId} may={may} loiMay={loiMay} onChange={setMayId} />
+      <ONhap nhan="Triệu chứng" nhieuDong giaTri={moTa} khoa={false}
+        placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"
+        onChange={setMoTa} />
       <div className="ktm-hang">
         <span className="ktm-f__nhan">Mức độ</span>
-        <ChonMucDo giaTri={form.muc_do} nhan={NHAN_MUC_DO} onChange={(v) => set("muc_do", v)} />
+        <ChonMucDo giaTri={mucDo} nhan={NHAN_MUC_DO} onChange={setMucDo} />
       </div>
     </HopThoai>
   );
 }
 
-/** Ngăn chi tiết phiếu sửa chữa (phương án A1): trái là phần đọc/viết (chỗ hỏng, mô tả, nguyên
- *  nhân, ghi chú, ảnh), phải là cột thuộc tính đứng yên + nút đóng phiếu ở đáy cột. */
+/** Ngăn chi tiết phiếu sửa chữa (phương án A1): trái là triệu chứng (chỉ đọc), MỘT ô "Đã sửa gì" và
+ *  ảnh trước/sau; phải là cột thuộc tính đứng yên + nút đóng phiếu ở đáy cột. */
 function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
   phieu: SuaChua;
   suaDuoc: boolean;
@@ -612,8 +591,6 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
 
   const dong = hienTai.trang_thai === "da_sua_xong";
   const khoaSua = !suaDuoc || dong;
-  // Phiếu SINH TỪ lời báo của bộ phận khác — mô tả có lời nhắc riêng.
-  const tuNguon = !!hienTai.yeu_cau_ma;
   const goc = formTuPhieu(hienTai);
   const doi = (Object.keys(goc) as (keyof FormSua)[]).some((k) => form[k] !== goc[k]);
 
@@ -645,17 +622,12 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
 
   const luuPhieu = async () => {
     if (!token || luu) return;
-    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
     setLuu(true);
     setLoi(null);
     try {
       // Máy đã chốt lúc lập phiếu — không gửi lại.
       const p = await kyThuatMay.updateSuaChua(token, hienTai.id, {
-        bo_phan_hong: form.bo_phan_hong.trim(),
-        mo_ta: form.mo_ta.trim() || null,
-        muc_do: form.muc_do,
         nguyen_nhan_phuong_an: form.nguyen_nhan_phuong_an.trim() || null,
-        ghi_chu: form.ghi_chu.trim() || null,
       });
       setHienTai(p);
       onSaved(p);
@@ -701,15 +673,9 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
         <ChipKtm tt={hienTai.trang_thai}>{NHAN_TT_SUA_CHUA[hienTai.trang_thai] ?? hienTai.trang_thai}</ChipKtm>
       </DongTT>
       <DongTT nhan="Máy"><OMay ma={hienTai.may_ma} ten={hienTai.may_ten} /></DongTT>
+      {/* Mức độ là lời người báo — chỉ đọc, như triệu chứng (11/10/2026). */}
       <DongTT nhan="Mức độ">
-        {khoaSua ? (
-          <MucDo muc={hienTai.muc_do} nhan={NHAN_MUC_DO[hienTai.muc_do] ?? hienTai.muc_do} />
-        ) : (
-          <select className="ktm-chon" value={form.muc_do} aria-label="Mức độ"
-            onChange={(e) => set("muc_do", e.target.value)}>
-            {Object.keys(NHAN_MUC_DO).map((m) => <option key={m} value={m}>{NHAN_MUC_DO[m]}</option>)}
-          </select>
-        )}
+        <MucDo muc={hienTai.muc_do} nhan={NHAN_MUC_DO[hienTai.muc_do] ?? hienTai.muc_do} />
       </DongTT>
       <DongTT nhan="Người báo">{hienTai.nguoi_bao_ten || hienTai.yeu_cau_nguoi_bao || "—"}</DongTT>
       <DongTT nhan="Hỏng lúc">{fmtNgayGio(hienTai.thoi_diem)}</DongTT>
@@ -728,7 +694,7 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
 
   return (
     <NganPhai
-      tieuDe={<><span className="ktm-ngan-ma">{hienTai.ma}</span>{hienTai.bo_phan_hong}</>}
+      tieuDe={<span className="ktm-ngan-ma">{hienTai.ma}</span>}
       tabs={[{ id: "chi-tiet", nhan: "Chi tiết" }, { id: "lich-su", nhan: "Lịch sử thao tác" }]}
       tab={tab} onTab={setTab}
       onDong={onClose}
@@ -749,20 +715,10 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
       ) : (
         <div className="ktm-trai">
           {loi && <div className="banner banner--error" role="alert">{loi}</div>}
-          <ONhap nhan="Chỗ hỏng" giaTri={form.bo_phan_hong} khoa={khoaSua}
-            placeholder="vd: trục cán, bạc đạn, băng tải" onChange={(v) => set("bo_phan_hong", v)} />
-          <ONhap nhan="Mô tả" nhieuDong giaTri={form.mo_ta} khoa={khoaSua}
-            placeholder="Máy chạy phát tiếng ồn bất thường ở tốc độ cao"
-            goiY={tuNguon && !khoaSua
-              ? `Chép từ ${hienTai.yeu_cau_ma}. Soi ra thêm gì thì viết nối vào, đừng xoá lời người báo.`
-              : undefined}
-            onChange={(v) => set("mo_ta", v)} />
-          <ONhap nhan="Nguyên nhân và cách sửa" nhieuDong giaTri={form.nguyen_nhan_phuong_an} khoa={khoaSua}
-            placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"
+          <ONhap nhan="Triệu chứng" giaTri={hienTai.mo_ta ?? ""} khoa onChange={() => {}} />
+          <ONhap nhan="Đã sửa gì" nhieuDong giaTri={form.nguyen_nhan_phuong_an} khoa={khoaSua}
+            placeholder="vd: bạc đạn trục cán mòn, đã thay mới và căn lại trục; còn chờ dây curoa về"
             onChange={(v) => set("nguyen_nhan_phuong_an", v)} />
-          <ONhap nhan="Ghi chú" giaTri={form.ghi_chu} khoa={khoaSua}
-            placeholder="vd: chờ bạc đạn trục cán về, hãng báo thứ 5 tới"
-            onChange={(v) => set("ghi_chu", v)} />
           <div className="ktm-luoi2">
             <AnhBox loai="sua_chua" phieuId={hienTai.id} giaiDoan="truoc"
               tieuDe="Ảnh trước khi sửa" khoa={khoaSua} tatCaAnh={anh} onChanged={anhDoi} />
@@ -909,7 +865,7 @@ function KhungYeuCau({
         <span className={the ? "ktm-the__nut" : "ktm-nut-dong"} onClick={(e) => e.stopPropagation()}>
           {tiepNhanDuoc && (
             <Button variant={the ? "accent" : "ghost"} onClick={() => { setLoiLap(null); setHoiLap(r); }}>
-              Lập phiếu
+              Nhận sửa
             </Button>
           )}
           {tuChoiDuoc && <Button variant="ghost" onClick={() => setHoiTuChoi(r)}>Từ chối</Button>}
@@ -933,7 +889,6 @@ function KhungYeuCau({
     switch (key) {
       case "ma": return r.ma;
       case "may": return <OMay ma={r.may_ma} ten={r.may_ten} />;
-      case "cho": return r.bo_phan_hong;
       // "dừng máy" là dấu hiệu DUY NHẤT ăn màu đỏ ở bảng này — ít dòng có và là thứ đẩy yêu cầu
       // lên đầu hàng chờ.
       case "muc": return (
@@ -976,7 +931,7 @@ function KhungYeuCau({
           }))} />
         <div className="lds-loc__thanh tl-thanh" role="search">
           <OTim value={q} onChange={(v) => doiLoc(() => setQ(v))}
-            placeholder="Tìm mã yêu cầu, máy, chỗ hỏng" ariaLabel="Tìm yêu cầu báo hỏng" />
+            placeholder="Tìm mã yêu cầu, máy, triệu chứng" ariaLabel="Tìm yêu cầu báo hỏng" />
           <ThanhLoc
             ky={locMan.ky}
             moc={MOC_YEU_CAU}
@@ -1013,9 +968,8 @@ function KhungYeuCau({
                 </span>
                 <span className="ktm-the__than">
                   <span className="ktm-may-badge">{r.may_ma ?? "—"}</span>
-                  <span className="ktm-the__goi">{r.bo_phan_hong}</span>
+                  <span className="ktm-the__goi">{r.mo_ta || <span className="lds-mu">Không ghi triệu chứng</span>}</span>
                 </span>
-                {r.mo_ta && <span className="ktm-the__mota">{r.mo_ta}</span>}
                 <span className="ktm-the__meta">
                   {r.may_dung && <span className="lds-do">Máy đang dừng</span>}
                   <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />
@@ -1060,12 +1014,12 @@ function KhungYeuCau({
       ) : null}
 
       <ConfirmDialog open={!!hoiLap} busy={dangLap} error={loiLap}
-        title={`Lập phiếu sửa từ ${hoiLap?.ma ?? ""}`}
-        confirmLabel="Lập phiếu" cancelLabel="Quay lại"
+        title={`Nhận sửa ${hoiLap?.ma ?? ""}`}
+        confirmLabel="Nhận sửa" cancelLabel="Quay lại"
         onConfirm={() => void lapPhieu()} onCancel={() => setHoiLap(null)}>
         <p className="ktm-hoi">
-          Sinh phiếu sửa chữa mới cho {hoiLap?.may_ma} với chỗ hỏng và mức độ người báo đã ghi; ảnh
-          kèm theo chuyển sang phiếu. Muốn chỉnh trước khi lập thì mở yêu cầu ra.
+          Lập phiếu sửa cho {hoiLap?.may_ma} rồi mở luôn phiếu đó để ghi đã sửa gì và ảnh sau khi sửa.
+          Triệu chứng, mức độ và ảnh người báo chép sang phiếu.
         </p>
       </ConfirmDialog>
       <TuChoiDialog open={!!hoiTuChoi} ma={hoiTuChoi?.ma ?? ""}
@@ -1083,7 +1037,6 @@ function BaoHongHop({ may, loiMay, onClose, onSaved }: {
 }) {
   const { token, user } = useAuth();
   const [mayId, setMayId] = useState("");
-  const [boPhan, setBoPhan] = useState("");
   const [moTa, setMoTa] = useState("");
   const [mucDo, setMucDo] = useState("trung_binh");
   const [mayDung, setMayDung] = useState(false);
@@ -1093,13 +1046,11 @@ function BaoHongHop({ may, loiMay, onClose, onSaved }: {
   const gui = async () => {
     if (!token || dang) return;
     if (!mayId) { setLoi("Chưa chọn máy."); return; }
-    if (!boPhan.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
     setDang(true);
     setLoi(null);
     try {
       const y = await kyThuatMay.taoYeuCau(token, {
         may_id: Number(mayId),
-        bo_phan_hong: boPhan.trim(),
         mo_ta: moTa.trim() || null,
         muc_do: mucDo,
         may_dung: mayDung,
@@ -1113,15 +1064,11 @@ function BaoHongHop({ may, loiMay, onClose, onSaved }: {
 
   return (
     <HopThoai tieuDe="Báo máy hỏng" nutChinh="Gửi yêu cầu" dangGui={dang} loi={loi}
-      coNoiDung={!!(mayId || boPhan || moTa)}
+      coNoiDung={!!(mayId || moTa)}
       onGui={() => void gui()} onDong={onClose}
       chanTrai={<span>Người báo: {user?.name?.trim() || user?.username || "—"}</span>}>
-      <div className="ktm-luoi2">
-        <ChonMay giaTri={mayId} may={may} loiMay={loiMay} onChange={setMayId} />
-        <ONhap nhan="Chỗ hỏng" giaTri={boPhan} khoa={false}
-          placeholder="vd: trục cán, bạc đạn" onChange={setBoPhan} />
-      </div>
-      <ONhap nhan="Mô tả" nhieuDong giaTri={moTa} khoa={false}
+      <ChonMay giaTri={mayId} may={may} loiMay={loiMay} onChange={setMayId} />
+      <ONhap nhan="Triệu chứng" nhieuDong giaTri={moTa} khoa={false}
         placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"
         onChange={setMoTa} />
       <div className="ktm-hang">
@@ -1139,16 +1086,10 @@ function BaoHongHop({ may, loiMay, onClose, onSaved }: {
   );
 }
 
-interface FormYc { bo_phan_hong: string; mo_ta: string; muc_do: string; may_dung: boolean }
-const formTuYc = (y: YeuCau): FormYc => ({
-  bo_phan_hong: y.bo_phan_hong ?? "",
-  mo_ta: y.mo_ta ?? "",
-  muc_do: y.muc_do ?? "trung_binh",
-  may_dung: y.may_dung ?? false,
-});
-
-/** Ngăn chi tiết yêu cầu báo hỏng — cùng khuôn hai cột với phiếu sửa chữa. Tổ sửa chữa lập phiếu /
- *  từ chối bằng hai nút ở đáy cột phải; mức độ tổ đánh giá + nguyên nhân ghi ở khối "Khi lập phiếu". */
+/** Ngăn chi tiết yêu cầu báo hỏng — TỜ ĐỌC lời báo (11/10/2026), không ô nhập: người báo chỉ ghi
+ *  triệu chứng, tổ sửa chữa không phải điền gì ở đây. "Nhận sửa" sinh phiếu và chuyển thẳng sang phiếu
+ *  đó — chỗ hỏng, nguyên nhân, ảnh sau khi sửa đều ghi trên phiếu. Ảnh: người báo còn thêm được khi
+ *  yêu cầu chờ tiếp nhận; người khác chỉ thấy khối ảnh khi đã có ảnh. */
 function YeuCauDrawer({ yc, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhieu }: {
   yc: YeuCau;
   tiepNhanDuoc: boolean;
@@ -1159,34 +1100,20 @@ function YeuCauDrawer({ yc, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhie
 }) {
   const { token, user } = useAuth();
   const [hienTai, setHienTai] = useState<YeuCau>(yc);
-  const [form, setForm] = useState<FormYc>(() => formTuYc(yc));
-  const [luu, setLuu] = useState(false);
   const [loi, setLoi] = useState<string | null>(null);
   const [anh, setAnh] = useState<Anh[]>([]);
   const [tab, setTab] = useState("chi-tiet");
-  // Nguyên nhân tổ sửa chữa soi ra trước khi lập phiếu. Mức độ KHÔNG hỏi lại ở đây: phiếu lấy mức độ
-  // của yêu cầu, muốn khác thì sửa ô Mức độ ở cột phải rồi Lưu (một thông tin chỉ một chỗ nhập).
-  const [tn, setTn] = useState({ nguyen_nhan_phuong_an: "" });
-  const [dangLap, setDangLap] = useState(false);
+  const [dangNhan, setDangNhan] = useState(false);
   const [hoiTuChoi, setHoiTuChoi] = useState(false);
 
   const daXuLy = hienTai.trang_thai !== "cho_tiep_nhan";
   const cuaToi = !!user && hienTai.nguoi_bao_id === user.id;
-  // Sửa lời báo: chính người gửi, hoặc tổ sửa chữa (họ mới là bên phải làm việc với nội dung đó).
-  // Backend chốt lại y hệt ở `_kiem_chu_yeu_cau` — chỗ này chỉ để không bày ô sửa ra rồi 403.
-  const khoaSua = daXuLy || !(cuaToi || tuChoiDuoc);
-  const goc = formTuYc(hienTai);
-  const doi = (Object.keys(goc) as (keyof FormYc)[]).some((k) => form[k] !== goc[k]);
 
-  useEffect(() => {
-    setHienTai(yc);
-    setForm(formTuYc(yc));
-    setTn({ nguyen_nhan_phuong_an: "" });
-  }, [yc]);
+  useEffect(() => { setHienTai(yc); }, [yc]);
 
   const napAnh = useCallback(() => {
     if (!token) return;
-    // Ảnh ĐỔI CHỦ sang phiếu lúc lập phiếu ⇒ yêu cầu đã thành phiếu thì đọc theo cặp mới, đọc theo
+    // Ảnh ĐỔI CHỦ sang phiếu lúc nhận sửa ⇒ yêu cầu đã thành phiếu thì đọc theo cặp mới, đọc theo
     // `yeu_cau` sẽ ra rỗng và người báo tưởng ảnh của mình bay mất.
     const loai = hienTai.phieu_id ? "sua_chua" : "yeu_cau";
     kyThuatMay.listAnh(token, loai, hienTai.phieu_id ?? hienTai.id).then(setAnh)
@@ -1194,46 +1121,21 @@ function YeuCauDrawer({ yc, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhie
   }, [token, hienTai.id, hienTai.phieu_id]);
   useEffect(napAnh, [napAnh]);
 
-  const set = <K extends keyof FormYc>(k: K, v: FormYc[K]) => setForm((f) => ({ ...f, [k]: v }));
-
-  const luuYc = async () => {
-    if (!token || luu) return;
-    if (!form.bo_phan_hong.trim()) { setLoi("Chưa ghi chỗ hỏng."); return; }
-    setLuu(true);
+  const nhanSua = async () => {
+    if (!token || dangNhan) return;
     setLoi(null);
+    setDangNhan(true);
     try {
-      const y = await kyThuatMay.suaYeuCau(token, hienTai.id, {
-        may_id: hienTai.may_id,
-        bo_phan_hong: form.bo_phan_hong.trim(),
-        mo_ta: form.mo_ta.trim() || null,
-        muc_do: form.muc_do,
-        may_dung: form.may_dung,
-      });
-      setHienTai(y);
-      onSaved(y);
-    } catch (e) {
-      setLoi(e instanceof Error ? e.message : "Lưu không thành công.");
-    } finally {
-      setLuu(false);
-    }
-  };
-
-  const lapPhieu = async () => {
-    if (!token || dangLap) return;
-    setLoi(null);
-    setDangLap(true);
-    try {
-      const r = await kyThuatMay.taoPhieuTuYeuCau(token, hienTai.id, {
-        muc_do: hienTai.muc_do,
-        nguyen_nhan_phuong_an: tn.nguyen_nhan_phuong_an.trim() || undefined,
-      });
-      setHienTai(r.yeu_cau);
+      const r = await kyThuatMay.taoPhieuTuYeuCau(token, hienTai.id, {});
       onSaved(r.yeu_cau);
+      // Nhận là để SỬA: mở thẳng phiếu vừa sinh, khỏi sang tab Phiếu sửa chữa đi tìm mã SC.
+      if (onMoPhieu) onMoPhieu(r.phieu.id);
+      else setHienTai(r.yeu_cau);
     } catch (e) {
-      // 409 = người khác vừa tiếp nhận trước. Câu của backend đã nói rõ phiếu nào, cứ hiện nguyên.
-      setLoi(e instanceof Error ? e.message : "Không lập được phiếu.");
+      // 409 = người khác vừa nhận trước. Câu của backend đã nói rõ phiếu nào, cứ hiện nguyên.
+      setLoi(e instanceof Error ? e.message : "Không nhận sửa được.");
     } finally {
-      setDangLap(false);
+      setDangNhan(false);
     }
   };
 
@@ -1244,17 +1146,15 @@ function YeuCauDrawer({ yc, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhie
     setHoiTuChoi(false);
   };
 
-  const choLap = !daXuLy && tiepNhanDuoc;
   // KHÔNG có nút xoá yêu cầu — cũng không có endpoint. Bỏ một lời báo phải đi qua "Từ chối" kèm lý
   // do: xoá lặng là người báo không bao giờ biết vì sao.
   const cuoi = !daXuLy && (tiepNhanDuoc || tuChoiDuoc) ? (
     <>
       {tiepNhanDuoc && (
-        <Button variant="accent" disabled={doi || dangLap} onClick={() => void lapPhieu()}>
-          {dangLap ? "Đang lập phiếu…" : "Lập phiếu sửa"}
+        <Button variant="accent" disabled={dangNhan} onClick={() => void nhanSua()}>
+          {dangNhan ? "Đang nhận…" : "Nhận sửa"}
         </Button>
       )}
-      {doi && <span className="ktm-ly">Lưu thay đổi trước đã.</span>}
       {tuChoiDuoc && (
         <Button variant="ghost" className="ktm-nut-do" onClick={() => setHoiTuChoi(true)}>Từ chối</Button>
       )}
@@ -1283,79 +1183,41 @@ function YeuCauDrawer({ yc, tiepNhanDuoc, tuChoiDuoc, onClose, onSaved, onMoPhie
       {daXuLy && <DongTT nhan="Xử lý lúc">{fmtNgayGio(hienTai.xu_ly_at)}</DongTT>}
       <DongTT nhan="Máy"><OMay ma={hienTai.may_ma} ten={hienTai.may_ten} /></DongTT>
       <DongTT nhan="Mức độ">
-        {khoaSua ? (
-          <MucDo muc={hienTai.muc_do} nhan={NHAN_MUC_DO[hienTai.muc_do] ?? hienTai.muc_do} />
-        ) : (
-          <select className="ktm-chon" value={form.muc_do} aria-label="Mức độ"
-            onChange={(e) => set("muc_do", e.target.value)}>
-            {Object.keys(NHAN_MUC_DO).map((m) => <option key={m} value={m}>{NHAN_MUC_DO[m]}</option>)}
-          </select>
-        )}
+        <MucDo muc={hienTai.muc_do} nhan={NHAN_MUC_DO[hienTai.muc_do] ?? hienTai.muc_do} />
       </DongTT>
       <DongTT nhan="Máy dừng">
-        {khoaSua ? (
-          hienTai.may_dung ? <span className="lds-do">Máy đang dừng</span> : <span className="lds-mu">Vẫn chạy được</span>
-        ) : (
-          <label className="ktm-o-chon">
-            <input type="checkbox" checked={form.may_dung} onChange={(e) => set("may_dung", e.target.checked)} />
-            Đang dừng
-          </label>
-        )}
+        {hienTai.may_dung ? <span className="lds-do">Máy đang dừng</span> : <span className="lds-mu">Vẫn chạy được</span>}
       </DongTT>
       <DongTT nhan="Người báo">
         {hienTai.nguoi_bao_ten ?? "—"}{hienTai.bo_phan && <span className="lds-tag">{hienTai.bo_phan}</span>}
       </DongTT>
       <DongTT nhan="Hỏng lúc">{fmtNgayGio(hienTai.thoi_diem)}</DongTT>
       {hienTai.lsx_ma && <DongTT nhan="Lệnh SX">{hienTai.lsx_ma}</DongTT>}
-      <DongTT nhan="Ngày tạo"><span className="lds-mu">{fmtNgayGio(hienTai.created_at)}</span></DongTT>
     </CotPhieu>
   );
+
+  const themAnhDuoc = !daXuLy && cuaToi;
 
   return (
     <>
       <NganPhai
-        tieuDe={<><span className="ktm-ngan-ma">{hienTai.ma}</span>{hienTai.bo_phan_hong}</>}
+        tieuDe={<span className="ktm-ngan-ma">{hienTai.ma}</span>}
         tabs={[{ id: "chi-tiet", nhan: "Chi tiết" }, { id: "lich-su", nhan: "Lịch sử thao tác" }]}
         tab={tab} onTab={setTab}
         onDong={onClose}
-        chanDong={() => doi || (choLap && !!tn.nguyen_nhan_phuong_an.trim())}
         cot={cot}
-        chan={!khoaSua && tab === "chi-tiet" ? (
-          <>
-            <span className="kt-ngan__xt">{doi ? "Có thay đổi chưa lưu" : ""}</span>
-            <Button variant="ghost" disabled={!doi || luu} onClick={() => setForm(goc)}>Bỏ thay đổi</Button>
-            <Button variant="accent" disabled={!doi || luu} onClick={() => void luuYc()}>
-              {luu ? "Đang lưu…" : "Lưu"}
-            </Button>
-          </>
-        ) : undefined}
       >
         {tab === "lich-su" ? (
           <NhatKyPhieu loai="ky_thuat_yeu_cau" phieuId={hienTai.id} />
         ) : (
           <div className="ktm-trai">
             {loi && <div className="banner banner--error" role="alert">{loi}</div>}
-            <ONhap nhan="Chỗ hỏng" giaTri={form.bo_phan_hong} khoa={khoaSua}
-              placeholder="vd: trục cán, bạc đạn" onChange={(v) => set("bo_phan_hong", v)} />
-            <ONhap nhan="Mô tả" nhieuDong giaTri={form.mo_ta} khoa={khoaSua}
-              placeholder="Kể đúng cái mình thấy: máy kêu to ở tốc độ cao, tờ in ra bị nhăn mép"
-              onChange={(v) => set("mo_ta", v)} />
-            <AnhBox loai={hienTai.phieu_id ? "sua_chua" : "yeu_cau"}
-              phieuId={hienTai.phieu_id ?? hienTai.id} giaiDoan="truoc"
-              tieuDe={hienTai.phieu_id ? "Ảnh chỗ hỏng (đã chuyển sang phiếu)" : "Ảnh chỗ hỏng"}
-              khoa={khoaSua} tatCaAnh={anh} onChanged={napAnh} />
-
-            {/* Lập phiếu là quyết định MỘT CHIỀU (sinh mã SC, kéo ảnh sang phiếu) ⇒ khối riêng có
-                viền, không lẫn vào các ô của lời báo. */}
-            {choLap && (
-              <section className="ktm-khoi">
-                <h4 className="ktm-khoi__dau">Khi lập phiếu sửa</h4>
-                <ONhap nhan="Nguyên nhân và cách sửa" phu="ghi sau cũng được" nhieuDong
-                  giaTri={tn.nguyen_nhan_phuong_an} khoa={false}
-                  placeholder="vd: bạc đạn mòn, cần thay và căn chỉnh lại trục"
-                  onChange={(v) => setTn({ nguyen_nhan_phuong_an: v })} />
-                <span className="ktm-f__goiy">Chỗ hỏng, mô tả, mức độ và ảnh chép sang phiếu như trên.</span>
-              </section>
+            <ONhap nhan="Triệu chứng" giaTri={hienTai.mo_ta ?? ""} khoa onChange={() => {}} />
+            {(themAnhDuoc || anh.length > 0) && (
+              <AnhBox loai={hienTai.phieu_id ? "sua_chua" : "yeu_cau"}
+                phieuId={hienTai.phieu_id ?? hienTai.id} giaiDoan="truoc"
+                tieuDe={hienTai.phieu_id ? "Ảnh chỗ hỏng (đã chuyển sang phiếu)" : "Ảnh chỗ hỏng"}
+                khoa={!themAnhDuoc} tatCaAnh={anh} onChanged={napAnh} />
             )}
           </div>
         )}

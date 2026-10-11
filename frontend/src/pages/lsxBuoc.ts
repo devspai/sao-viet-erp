@@ -95,8 +95,9 @@ export interface EditRow {
     kho_rong?: number;
     kho_dai?: number;
     don_vi?: string;
-    /** Giấy: dạng suy từ ĐẦU VÀO của bước — `to` (tờ) / `cuon` (cuộn, đếm kg → đơn vị của mã). */
-    dang_giay?: "to" | "cuon" | null;
+    /** Giấy: đơn vị gốc suy từ ĐẦU VÀO của bước — `to` (tờ) hoặc đơn vị của mã (vd. `kg` khi bước
+     *  nhận giấy khổ rộng). */
+    don_vi_goc?: string;
   }[];
   /** Số tính lại theo danh mục HIỆN TẠI khi lệch số đã lưu — READ-ONLY, không gửi lên. */
   so_luong_vao_moi: number | null;
@@ -108,8 +109,9 @@ export interface EditRow {
              don_vi: string; so_luong: string; tu_dong: boolean;
              /** Vật tư khác giấy: người đã GÕ định mức ⇒ gửi kèm `so_luong`, máy không tính đè. */
              sua_tay?: boolean;
-             /** Dòng GIẤY: khổ (mm) + dạng do MÁY CHỦ dẫn xuất từ đầu vào của bước — chỉ đọc, không gửi. */
-             kho_rong: string; kho_dai: string; dang_giay?: "to" | "cuon" | null;
+             /** Dòng GIẤY: khổ (mm) + đơn vị gốc do MÁY CHỦ dẫn xuất từ đầu vào của bước — chỉ đọc,
+              *  không gửi. `don_vi_goc` rỗng = dòng vừa chọn, máy chủ chưa dẫn xuất. */
+             kho_rong: string; kho_dai: string; don_vi_goc?: string;
              /** Vật tư KHÁC giấy: chip đã chép từ phiếu (gửi lại để máy tính định mức) + nhãn chip. */
              gia_tri_chip?: Record<string, number>;
              chips?: { ma: string; ten: string; don_vi?: string | null }[] }[];
@@ -138,10 +140,10 @@ export function laMayTinh(v: Pick<DongVatTu, "hang_loai" | "sua_tay">): boolean 
   return v.hang_loai === "giay" || !v.sua_tay;
 }
 
-/** Dòng giấy vừa chọn, CHƯA lưu nên máy chủ chưa dẫn xuất dạng/số — đừng hiện "chưa có công thức
- *  lượng" hay đơn vị giá (kg) của mã. */
-export function giayChoLuu(v: Pick<DongVatTu, "hang_loai" | "dang_giay">): boolean {
-  return v.hang_loai === "giay" && !v.dang_giay;
+/** Dòng giấy vừa chọn, CHƯA lưu nên máy chủ chưa dẫn xuất khổ/đơn vị gốc/số — đừng hiện "chưa có
+ *  công thức lượng" hay đơn vị giá (kg) của mã. */
+export function giayChoLuu(v: Pick<DongVatTu, "hang_loai" | "don_vi_goc">): boolean {
+  return v.hang_loai === "giay" && !v.don_vi_goc;
 }
 
 export function newKey(): string {
@@ -398,7 +400,7 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       phat_sinh_phut: on(r.phat_sinh_phut),
       phu_thuoc_step_keys: r.phu_thuoc_step_keys,
       vat_tus: ngoai ? [] : r.vat_tus.map((v) => (v.hang_loai === "giay"
-        // Giấy: chỉ chọn MÃ — số + khổ + dạng + đơn vị máy chủ tự ghi theo đầu vào của bước.
+        // Giấy: chỉ chọn MÃ — số + khổ + đơn vị máy chủ tự ghi theo đầu vào của bước.
         ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: null,
             tu_dong: v.tu_dong, kho_rong: 0, kho_dai: 0 }
         // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong — trừ dòng
@@ -655,6 +657,12 @@ export function nhanChang(dv: string | null | undefined): string {
   return dv ? nhanTram(dv) ?? nhanDonVi(dv) : "";
 }
 
+/** Như `nhanChang`, nhưng chặng THÀNH PHẨM gọi bằng đơn vị tính của sản phẩm trên lệnh (`dvt`, vd
+ *  "cuốn") — bước cuối của lệnh chính luôn ra chặng này (11/10/2026). Không có `dvt` thì như cũ. */
+export function nhanChangLenh(dv: string | null | undefined, dvt: string | null | undefined): string {
+  return dvt && (dv ?? "").trim().toLowerCase() === "cai" ? dvt : nhanChang(dv);
+}
+
 export interface DonViChuoi {
   /** Chặng TỜ IN — thứ bước in đếm. */
   to: string;
@@ -719,11 +727,17 @@ export function heSoChu(
 
 /** Nhãn trong bộ chọn giấy của một bước — theo ĐẦU VÀO của bước (spec 2026-10-01
  *  dong-giay-theo-dau-vao §4): bước nhận tờ in ⇒ "tờ in", nhận tờ nguyên ⇒ "tờ nguyên", còn lại
- *  (nhận cuộn) ⇒ "cuộn · <đơn vị của mã>". `donViMa` đã là nhãn hiển thị (qua `nhanDonVi`). */
-export function nhanGiayTheoDauVao(donViVao: string | null | undefined, donViMa: string): string {
-  if (!donViVao) return ""; // chưa khai đơn vị vào ⇒ chưa biết tờ hay cuộn: chỉ hiện tên
+ *  (nhận giấy khổ rộng, đếm theo đơn vị của mã) ⇒ "khổ 1000 mm (kg)" (chưa biết khổ thì chỉ đơn
+ *  vị). `donViMa` đã là nhãn hiển thị (qua `nhanDonVi`). 10/10/2026 giấy bỏ dạng cuộn/tờ: không
+ *  còn chữ "cuộn". */
+export function nhanGiayTheoDauVao(
+  donViVao: string | null | undefined,
+  donViMa: string,
+  khoRong?: number | null,
+): string {
+  if (!donViVao) return ""; // chưa khai đơn vị vào ⇒ chưa biết đếm tờ hay theo đơn vị mã: chỉ hiện tên
   if (donViVao === "to") return "tờ in";
   if (donViVao === "to_nguyen") return "tờ nguyên";
   if (donViVao === "con" || donViVao === "cai" || donViVao === "tay") return ""; // đầu vào không phải giấy
-  return `cuộn · ${donViMa}`;
+  return khoRong ? `khổ ${khoRong} mm (${donViMa})` : donViMa;
 }

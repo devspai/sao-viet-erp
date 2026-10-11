@@ -8,12 +8,12 @@ Soi tầng service `services/san_xuat/kcs_bao_cao.py` theo KCS theo LỆNH (mg 0
     KPI tổng lỗi. Lỗi ghi mới luôn neo tổ của công đoạn;
   · §9 mục 10: JSON (`bao_cao_kcs`) và Excel (`xuat_excel_kcs`) đọc CHUNG `_hang_kcs_theo_scope`
     — cùng filter phải trả cùng tổng;
-  · PHẠM VI: người thuộc phòng ban `is_kcs` thấy MỌI tổ; người khác chỉ gom tổ được bật Xem TRỌN —
-    Xem mức "Của tôi" không mở số liệu KCS của cả tổ;
-  · RBAC: `GET /kcs/bao-cao` gác Xem ở ít nhất một tổ HOẶC là người thuộc tổ KCS
-    (`require_quyen_to("read", cho_kcs=True)`),
-    `GET /kcs/bao-cao/export.xlsx` gác RIÊNG: CHỈ người thuộc tổ KCS — ô `san_xuat:export` gỡ
-    05/10/2026 (đi qua HTTP thật vì đây là chỗ cổng router thật sự áp).
+  · PHẠM VI: vai có Xem ở dòng `kcs` (mg 0383) thấy MỌI tổ; người khác chỉ gom tổ được bật Xem
+    TRỌN — Xem mức "Của tôi" không mở số liệu KCS của cả tổ;
+  · RBAC: `GET /kcs/bao-cao` gác Xem ở ít nhất một tổ HOẶC Xem ở dòng `kcs`
+    (`require_quyen_to("read", ("kcs", "read"))`),
+    `GET /kcs/bao-cao/export.xlsx` gác RIÊNG: CHỈ Xem ở dòng `kcs` (đi qua HTTP thật vì đây là chỗ
+    cổng router thật sự áp).
 
 Tái dùng dàn cảnh + helper của test KCS (`_batch`, `_cv_kcs`, `_to_kiem`, `_anh`) và `_authz` của
 test board (tham số `authz` còn trong chữ ký service nhưng không quyết định phạm vi).
@@ -213,6 +213,51 @@ def test_filter_tu_den_cong_doan_id_tu_khoa_thu_hep_dung(db, orders, lsx_svc, ad
     assert out_kw["tong_luot"] == 1 and out_kw["lich_su"][0]["cong_viec_id"] == cv_b.id
 
 
+# --- Thanh lọc tab Báo cáo lỗi (09/10/2026): tìm tên khách, lọc khách/công đoạn, số cho menu Lọc ---
+def test_loc_khach_cong_doan_va_so_cho_menu_loc(db, orders, lsx_svc, admin, customer):
+    _to_a, cv_a, _r = _batch(db, orders, lsx_svc, admin, customer, ma="KCS-LK-A")
+    _to_b, cv_b, _r = _batch(db, orders, lsx_svc, admin, customer, ma="KCS-LK-B", cuoi=True)
+    cv_a.ten_cong_doan, cv_b.ten_cong_doan = "In-Test-LK", "Be-Test-LK"
+    db.commit()
+    authz = _authz(db)
+
+    tat_ca = kcs_bao_cao.bao_cao_kcs(db, admin, authz)
+    assert tat_ca["tong_luot"] == 2
+    assert {(r["ten"], r["so"]) for r in tat_ca["loc_cong_doan"]} == {("In-Test-LK", 1), ("Be-Test-LK", 1)}
+    assert [(r["id"], r["so"]) for r in tat_ca["loc_khach"]] == [(customer.id, 2)]
+
+    # Ô tìm khớp cả tên khách (cùng ô tìm với tab Lệnh).
+    assert kcs_bao_cao.bao_cao_kcs(db, admin, authz, tu_khoa=customer.name)["tong_luot"] == 2
+
+    # Lọc công đoạn: số của khách tính theo công đoạn đang chọn, danh sách công đoạn vẫn đủ để đổi.
+    chi_in = kcs_bao_cao.bao_cao_kcs(db, admin, authz, cong_doan="In-Test-LK")
+    assert chi_in["tong_luot"] == 1 and chi_in["lich_su"][0]["cong_viec_id"] == cv_a.id
+    assert [(r["id"], r["so"]) for r in chi_in["loc_khach"]] == [(customer.id, 1)]
+    assert len(chi_in["loc_cong_doan"]) == 2
+
+    assert kcs_bao_cao.bao_cao_kcs(db, admin, authz, khach_id=customer.id)["tong_luot"] == 2
+    khac = kcs_bao_cao.bao_cao_kcs(db, admin, authz, khach_id=customer.id + 999)
+    assert khac["tong_luot"] == 0 and khac["loc_cong_doan"] == []
+    # Khách đang chọn mà kỳ không còn lượt nào vẫn có tên (số 0) cho khối điều kiện đã áp.
+    ngoai_ky = kcs_bao_cao.bao_cao_kcs(db, admin, authz, khach_id=customer.id, tu=date(2000, 1, 1), den=date(2000, 1, 2))
+    assert [(r["id"], r["so"]) for r in ngoai_ky["loc_khach"]] == [(customer.id, 0)]
+    # Excel đi cùng nguồn dòng nên cùng bộ lọc.
+    content, _fn = kcs_bao_cao.xuat_excel_kcs(db, admin, authz, cong_doan="Be-Test-LK")
+    ws = load_workbook(BytesIO(content))["Kết quả KCS"]
+    assert [r[3] for r in ws.iter_rows(min_row=2, values_only=True)] == ["Be-Test-LK"]
+
+
+def test_bao_cao_http_nhan_ky_theo_quy_uoc_chung(client):
+    login = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    h = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    q = "tu_ngay=2026-10-01&den_ngay=2026-10-31&moc=kiem&khach_id=1&cong_doan=In&tu_khoa=LSX"
+    r = client.get(f"/api/san-xuat/kcs/bao-cao?{q}", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["loc_khach"] == [] and r.json()["loc_cong_doan"] == []
+    assert client.get(f"/api/san-xuat/kcs/bao-cao/export.xlsx?{q}", headers=h).status_code == 200
+    assert client.get("/api/san-xuat/kcs/bao-cao?moc=tao", headers=h).status_code == 422
+
+
 # --- Bảng "Kết quả đã ghi": lịch sử đọc từ DB, không phải state phiên của FE -------------------
 def test_lich_su_kem_nguoi_kiem_va_trang_thai_gui_kho(db, orders, lsx_svc, admin, customer):
     """`lich_su` trả MỌI lần kiểm trong phạm vi, kèm NGƯỜI KIỂM (tài khoản đăng nhập) — và chịu
@@ -287,11 +332,11 @@ def test_export_yeu_cau_quyen_export_rieng_voi_read(client):
     assert r_json_cu.status_code == 403, r_json_cu.text   # ô tĩnh `san_xuat:read` không còn mở Bàn tổ
 
     r_xlsx_doc = client.get("/api/san-xuat/kcs/bao-cao/export.xlsx", headers=headers_doc)
-    assert r_xlsx_doc.status_code == 403, r_xlsx_doc.text   # không thuộc tổ KCS → chặn
+    assert r_xlsx_doc.status_code == 403, r_xlsx_doc.text   # không có Xem ở dòng `kcs` → chặn
 
-    # Ô `san_xuat:export` cũ (admin còn giữ trong DB) KHÔNG còn mở cửa — chỉ tổ KCS mới xuất được.
+    # Admin (Giám đốc, toàn quyền mọi dòng kể cả `kcs`) xuất được.
     r_xlsx_admin = client.get("/api/san-xuat/kcs/bao-cao/export.xlsx", headers=headers_admin)
-    assert r_xlsx_admin.status_code == 403, r_xlsx_admin.text
+    assert r_xlsx_admin.status_code == 200, r_xlsx_admin.text
 
 
 def test_o_loc_cong_doan_doc_duoi_quyen_to_khong_can_quyen_danh_muc(client):
@@ -336,14 +381,16 @@ def test_o_loc_cong_doan_doc_duoi_quyen_to_khong_can_quyen_danh_muc(client):
 
 
 def test_nguoi_kcs_khong_giu_quyen_to_van_mo_duoc_bao_cao_va_chot_nhom(client):
-    """Người KCS chỉ là thành viên phòng ban "Tổ KCS", không giữ dòng quyền tổ nào — màn KCS vẫn
-    phải đọc được dashboard, ô lọc công đoạn, điều kiện chốt nhóm và xuất Excel (không 403)."""
+    """Người chỉ có Xem ở dòng `kcs`, không giữ dòng quyền tổ nào — màn KCS vẫn phải đọc được
+    dashboard, ô lọc công đoạn, điều kiện chốt nhóm và xuất Excel (không 403)."""
     db2 = SessionLocal()
     try:
-        phong = Department(name="Tổ KCS Thuần", code="KCS-THUAN", is_kcs=True)
+        phong = Department(name="Tổ KCS Thuần", code="KCS-THUAN")
         db2.add(phong)
         db2.flush()
         vai = RoleRepository(db2).create(name="KCS Thuan Khong Quyen", department_id=phong.id)
+        RoleRepository(db2).set_permission(role_id=vai.id, module_key="kcs", scope="all",
+                                           can_read=True)
         u = UserRepository(db2).create(
             username="kcs-thuan", name="KCS thuần", password_hash=hash_password("x"))
         UserRepository(db2).set_assignment(u, department_id=phong.id, role_id=vai.id, is_active=True)
@@ -380,7 +427,12 @@ def test_excel_ten_sheet_va_header_dung(db, orders, lsx_svc, admin, customer):
     content, _fn = kcs_bao_cao.xuat_excel_kcs(db, admin, _authz(db))
     wb = load_workbook(BytesIO(content))
 
-    assert wb.sheetnames == ["Kết quả KCS", "Chi tiết checklist"]
+    assert wb.sheetnames == ["Tổng hợp", "Theo công đoạn", "Các lần ghi lỗi", "Kết quả KCS", "Chi tiết checklist"]
+    assert [c.value for c in wb["Các lần ghi lỗi"][1]] == [
+        "Lúc", "Lệnh", "Sản phẩm", "Khách hàng", "Công đoạn gây lỗi", "Tiêu chí", "Ghi chú",
+        "Bắt ở", "Số lỗi", "Đơn vị", "Tổ chịu", "Người ghi", "URL ảnh",
+    ]
+    assert wb["Các lần ghi lỗi"].max_row == 2   # một lần ghi lỗi "Lem mực"
     header1 = [c.value for c in wb["Kết quả KCS"][1]]
     assert header1 == [
         "Mã kết quả", "Thời điểm", "Mã LSX", "Công đoạn", "Tổ", "Số kiểm", "Số đạt", "Số lỗi",
@@ -459,3 +511,91 @@ def test_checklist_thieu_snapshot_khong_vo_khong_ra_dong_rac(db, orders, lsx_svc
     ws2 = wb["Chi tiết checklist"]
 
     assert ws2.max_row == 1   # chỉ header — không văng lỗi, không dòng rác
+
+
+# --- Dạng Bảng | Biểu đồ (11/10/2026) -------------------------------------------------------------
+def test_tach_tieu_chi_theo_ten_dai_truoc():
+    """Dòng lỗi tick tiêu chí lưu "<tên>" hoặc "<tên>: <ghi chú>"; không khớp tên nào là Lỗi khác."""
+    from types import SimpleNamespace
+
+    g = SimpleNamespace(kcs_tieu_chi_json=[{"ten": "Không lệch"}, {"ten": "Không lệch màu"}])
+    assert kcs_bao_cao._tach_tieu_chi("Không lệch màu", g) == ("Không lệch màu", None)
+    assert kcs_bao_cao._tach_tieu_chi("Không lệch màu: mép phải", g) == ("Không lệch màu", "mép phải")
+    assert kcs_bao_cao._tach_tieu_chi("Không lệch: x", g) == ("Không lệch", "x")
+    assert kcs_bao_cao._tach_tieu_chi("Lem mực", g) == (None, "Lem mực")
+    assert kcs_bao_cao._tach_tieu_chi("Lem mực", None) == (None, "Lem mực")
+
+
+def test_lan_loi_phan_tich_va_bam_loc(db, orders, lsx_svc, admin, customer):
+    """Mỗi lần ghi lỗi một dòng; ba chiều đếm SỐ LẦN kèm số theo đơn vị; bấm chọn một mục chỉ thu
+    hẹp phần lỗi và KHÔNG thu hẹp chính chiều của nó; lần ghi lỗi / lệnh có lỗi bám bấm-lọc còn
+    lượt kiểm theo thanh lọc; danh sách cắt trang ở máy chủ."""
+    _ta, cv_a, _ra = _batch(db, orders, lsx_svc, admin, customer, dat=90, khong_dat=10, ma="KCS-PT-A")
+    _tb, cv_b, _rb = _batch(db, orders, lsx_svc, admin, customer, dat=95, khong_dat=5, ma="KCS-PT-B")
+    cv_a.ten_cong_doan, cv_b.ten_cong_doan = "In A", "Cán B"
+    db.commit()
+    authz = _authz(db)
+
+    out = kcs_bao_cao.bao_cao_kcs(db, admin, authz)
+    assert out["so_lan_ghi_loi"] == out["lan_loi_tong"] == 2
+    cd = {m["ten"]: m for m in out["phan_tich"]["cong_doan"]}
+    assert (cd["In A"]["lan"], cd["In A"]["so_theo_dv"], cd["In A"]["tai_cho"], cd["In A"]["lot"]) == (
+        1, {"cái": 10}, 1, 0)
+    assert [m["ten"] for m in out["phan_tich"]["tieu_chi"]] == ["Lỗi khác"]
+    assert sum(cd["In A"]["ngay"].values()) == 1
+    dong = next(r for r in out["lan_loi"] if r["cong_doan"] == "In A")
+    assert (dong["tieu_chi"], dong["ghi_chu"], dong["tai_cho"], dong["so_luong"]) == (None, "Lem mực", True, 10)
+    assert dong["anh"] and dong["nguoi_ghi"]
+    assert {r["lan"] for r in out["nhiet_cong_doan"]} == {1}
+
+    out2 = kcs_bao_cao.bao_cao_kcs(db, admin, authz, chon={"cong_doan": "In A"})
+    assert out2["lan_loi_tong"] == 1 and out2["lan_loi"][0]["cong_doan"] == "In A"
+    assert {m["ten"] for m in out2["phan_tich"]["cong_doan"]} == {"In A", "Cán B"}
+    assert sum(m["lan"] for m in out2["phan_tich"]["to"]) == 1
+    assert {r["ten"] for r in out2["nhiet_cong_doan"]} == {"In A", "Cán B"}
+    assert len(out2["nhiet_to"]) == 1
+    assert (out2["so_lan_ghi_loi"], out2["so_lenh_loi"], out2["tong_luot"]) == (1, 1, 2)
+
+    out3 = kcs_bao_cao.bao_cao_kcs(db, admin, authz, trang=2, co_trang=1)
+    assert out3["lan_loi_tong"] == 2 and len(out3["lan_loi"]) == 1
+
+
+def test_ky_truoc_cung_do_dai_va_truc_lien(db, orders, lsx_svc, admin, customer):
+    """Kỳ trước = liền trước, cùng độ dài tính tới hôm nay (kỳ chưa hết thì không so với cả kỳ);
+    trục ngày liền từ đầu kỳ tới hôm nay; "Mọi thời gian" không có kỳ trước."""
+    _batch(db, orders, lsx_svc, admin, customer, dat=90, khong_dat=10, ma="KCS-KT", cuoi=True)
+    authz = _authz(db)
+    hom_nay = kcs_bao_cao._hom_nay()
+
+    out = kcs_bao_cao.bao_cao_kcs(db, admin, authz, tu=hom_nay - timedelta(days=2),
+                                  den=hom_nay + timedelta(days=10))
+    kt = out["ky_truoc"]
+    assert (kt["tu"], kt["den"]) == (hom_nay - timedelta(days=5), hom_nay - timedelta(days=3))
+    assert (kt["tong_luot"], kt["so_lan_ghi_loi"], kt["ty_le_dat"]) == (0, 0, None)
+    assert [m["khoa"] for m in out["truc"]] == [
+        (hom_nay - timedelta(days=i)).isoformat() for i in (2, 1, 0)]
+    assert (out["truc"][-1]["nhan_cuoi"], out["truc"][-1]["dat_cuoi"]) == (100, 90)
+    assert out["so_lenh_loi"] == 1
+
+    assert kcs_bao_cao.bao_cao_kcs(db, admin, authz)["ky_truoc"] is None
+
+
+def test_excel_theo_dieu_kien_tab(db, orders, lsx_svc, admin, customer):
+    """Excel xuất đúng cái tab đang chọn: bấm-lọc thu hẹp sheet lần ghi lỗi + hai số lỗi ở Tổng
+    hợp, sheet 2 theo cách xem, sheet Kết quả KCS vẫn theo thanh lọc (11/10/2026)."""
+    _ta, cv_a, _ra = _batch(db, orders, lsx_svc, admin, customer, dat=90, khong_dat=10, ma="KCS-XL-TAB-A")
+    _tb, cv_b, _rb = _batch(db, orders, lsx_svc, admin, customer, dat=95, khong_dat=5, ma="KCS-XL-TAB-B")
+    cv_a.ten_cong_doan, cv_b.ten_cong_doan = "In A", "Cán B"
+    db.commit()
+
+    content, _fn = kcs_bao_cao.xuat_excel_kcs(db, admin, _authz(db), chon={"cong_doan": "In A"}, xem="to")
+    wb = load_workbook(BytesIO(content))
+    assert wb.sheetnames[:3] == ["Tổng hợp", "Theo tổ", "Các lần ghi lỗi"]
+    lan = list(wb["Các lần ghi lỗi"].iter_rows(min_row=2, values_only=True))
+    assert len(lan) == 1 and lan[0][4] == "In A"
+    tong = {r[0]: r[1] for r in wb["Tổng hợp"].iter_rows(values_only=True) if r and r[0]}
+    assert (tong["Công đoạn gây lỗi"], tong["Lần ghi lỗi"], tong["Lượt kiểm"], tong["Cách xem"]) == (
+        "In A", 1, 2, "Theo tổ")
+    assert wb["Theo tổ"].max_row == 2
+    assert wb["Kết quả KCS"].max_row - 1 == 2
+

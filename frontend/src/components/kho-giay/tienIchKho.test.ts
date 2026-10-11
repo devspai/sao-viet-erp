@@ -7,7 +7,7 @@ describe("tachKho", () => {
     expect(tachKho("1090 × 790")).toEqual({ rong: 790, dai: 1090 });
     expect(tachKho("1090X790")).toEqual({ rong: 790, dai: 1090 });
   });
-  it("một số là khổ cuộn", () => {
+  it("một số là khổ chỉ rộng", () => {
     expect(tachKho("1090")).toEqual({ rong: 1090, dai: 0 });
   });
   it("rác trả null", () => {
@@ -20,9 +20,8 @@ describe("tachKho", () => {
     expect(chuanKho(0, 1090)).toEqual([1090, 0]);
   });
   it("nhanKho", () => {
-    expect(nhanKho("to", 790, 1090)).toBe("790 × 1090");
-    expect(nhanKho("cuon", 1090, 0)).toBe("Khổ 1090");
-    expect(nhanKho("cuon", 0, 0)).toBe("Mọi khổ");
-    expect(nhanKho("to", 790, 0)).toBe("");
+    expect(nhanKho(790, 1090)).toBe("790 × 1090");
+    expect(nhanKho(1090, 0)).toBe("Khổ 1090");
+    expect(nhanKho(0, 0)).toBe("");
   });
 });

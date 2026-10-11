@@ -1,6 +1,6 @@
 /** Thanh lọc tab "Đơn mua hàng" của màn Mua hàng (06/10/2026) — thay `ToolbarChuan` + ô chọn NCC /
  *  Tiền cọc rời + hai cặp ô ngày rời. Kỳ theo Ngày tạo (mặc định), Ngày cần hoặc Ngày dự kiến nhận;
- *  điều kiện Nhà cung cấp, Tiền cọc, Tổng dự kiến. Lọc và đếm tab ở máy chủ.
+ *  điều kiện Nhà cung cấp, NV yêu cầu / mua hàng / duyệt, Mua cho, Tiền cọc, Tổng dự kiến. Lọc và đếm tab ở máy chủ.
  *  Khoá URL KHÔNG tiền tố (`ky`, `ncc`, `coc`, `tong_tu`…) dưới dấu `?man=mua-hang`; danh sách yêu cầu
  *  cùng màn mang tiền tố `yc_` (xem `dieu-kien-yeu-cau.ts`).
  */
@@ -12,6 +12,13 @@ import { kyLenUrl, kyTuUrl, soLenUrl, soTuUrl, type KyDS } from "../../thanh-loc
 import { chuThanhId, idThanhChu, useLuaChonLoc } from "../../thanh-loc/lua-chon";
 import type { DieuKien, GiaTriDK } from "../../thanh-loc/thanh-loc";
 import { GIA_TRI_MUA_CHO, muaChoTuUrl } from "./dieu-kien-yeu-cau";
+import {
+  nguoiDonLenUrl,
+  nguoiDonTuUrl,
+  thamSoNguoiDon,
+  useDieuKienNguoiDon,
+  type LocNguoiDon,
+} from "./dieu-kien-nguoi-don";
 
 export const MOC_DON_MUA_HANG: [string, string][] = [
   ["tao", "Ngày tạo"],
@@ -21,7 +28,7 @@ export const MOC_DON_MUA_HANG: [string, string][] = [
 
 type Coc = "none" | "unpaid" | "partial" | "enough";
 
-export type LocDonMuaHang = {
+export type LocDonMuaHang = LocNguoiDon & {
   ncc?: number;
   coc?: Coc;
   tong_tu?: number;
@@ -46,6 +53,7 @@ export function thamSoLocDonMuaHang(loc: LocDonMuaHang): ThamSoLoc {
   return {
     supplier_id: loc.ncc, deposit_status: loc.coc, tong_tu: loc.tong_tu, tong_den: loc.tong_den,
     loai_mua: loc.mua_cho?.length ? loc.mua_cho : undefined,
+    ...thamSoNguoiDon(loc),
   };
 }
 
@@ -59,6 +67,7 @@ export function locManDonMuaHangTuUrl(p: URLSearchParams): LocManDonMuaHang {
       tong_tu: soTuUrl(p.get("tong_tu")),
       tong_den: soTuUrl(p.get("tong_den")),
       mua_cho: muaChoTuUrl(p.get("mc")),
+      ...nguoiDonTuUrl(p),
     },
   };
 }
@@ -71,17 +80,20 @@ export function locManDonMuaHangLenUrl(t: LocManDonMuaHang): GiaTriUrl {
     tong_tu: soLenUrl(t.loc.tong_tu),
     tong_den: soLenUrl(t.loc.tong_den),
     mc: t.loc.mua_cho?.length ? t.loc.mua_cho.join(",") : undefined,
+    ...nguoiDonLenUrl(t.loc),
   };
 }
 
 export function useDieuKienDonMuaHang(): DieuKien<LocDonMuaHang>[] {
   const ncc = useLuaChonLoc(api.purchaseRequests.locNcc);
+  const nguoi = useDieuKienNguoiDon<LocDonMuaHang>(api.purchaseRequests.locNguoi);
   return [
     {
       khoa: "ncc", nhan: "Nhà cung cấp", icon: Building2, kieu: "mot", tim: true, giaTri: ncc,
       doc: (l) => idThanhChu(l.ncc),
       ghi: (l, v) => ({ ...l, ncc: chuThanhId(v) }),
     },
+    ...nguoi,
     {
       khoa: "mc", nhan: "Mua cho", icon: Target, kieu: "nhieu", giaTri: GIA_TRI_MUA_CHO,
       doc: (l) => l.mua_cho ?? [],

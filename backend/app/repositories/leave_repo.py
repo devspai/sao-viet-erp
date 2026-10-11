@@ -16,7 +16,7 @@ from ..models.leave import (
     LeaveType,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
-from .loc_don_nhan_su import LocDon, dem_theo_trang_thai, dk_ky, dk_nguoi, lua_chon_nhan_vien, lua_chon_phong
+from .loc_don_nhan_su import LocDon, dem_theo_trang_thai, dk_ky, dk_nguoi, lua_chon_nguoi_duyet, lua_chon_nhan_vien, lua_chon_phong
 from .org_scope import dept_subtree_ids
 
 COT_MOC = {"tao": (LeaveRequest.created_at, False)}
@@ -152,6 +152,8 @@ class LeaveRepository:
         dk = [] if cond is None else [cond]
         if truong == "phong":
             return lua_chon_phong(self.db, LeaveRequest, dk)
+        if truong == "nguoi_duyet":
+            return lua_chon_nguoi_duyet(self.db, LeaveRequest, dk)
         return lua_chon_nhan_vien(self.db, LeaveRequest, dk)
 
     def count_pending_scoped(self, *, scope: str, actor) -> int:

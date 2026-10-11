@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vòng đời đơn năm chặng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f7d4a; --moss-soft:#dcfce7; --moss-deep:#166534;
+  --amber-soft:#fef3c7; --amber-deep:#92400e;
+  --signal-soft:#fee2e2; --signal:#991b1b;
+  --sky-soft:#dbeafe; --sky:#1d4ed8;
+  --violet-soft:#ede9fe; --violet:#6d28d9;
+  --steel-soft:#e2e8f0; --steel:#334155;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:600;margin:0 0 6px}
+h2{font-size:19px;font-weight:600;margin:0}
+.lead{color:var(--ash);margin:0 0 18px;max-width:900px}
+.hop{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 18px;margin:0 0 40px;color:var(--ash);max-width:900px}
+.hop h3{margin:0 0 6px;font-size:14px;font-weight:600;color:var(--ink)}
+.hop ul{margin:4px 0 0;padding-left:20px}
+.gia-dinh{font-size:12px;color:var(--amber-deep);background:var(--amber-soft);border-radius:6px;padding:1px 8px;white-space:nowrap}
+.sec{margin-bottom:64px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.why{color:var(--ash);margin:0 0 14px;max-width:900px}
+.nhan-mau{font-size:12px;font-weight:600;color:var(--ash-2);margin:22px 0 8px;letter-spacing:.02em}
+.muted{color:var(--ash-2)}
+.nho{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.ngan{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;padding:22px 26px}
+.sec-tieu{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ash-2);margin:0 0 16px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--chinh:hover{background:#a8370a}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.lk{color:var(--rust);background:none;border:0;padding:0;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.lk:hover{text-decoration:underline}
+.the{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.tt{display:inline-flex;align-items:center;gap:6px;font-size:12px;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.tt::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tt--ok{background:var(--moss-soft);color:var(--moss-deep)}
+.tt--cho{background:var(--amber-soft);color:var(--amber-deep)}
+.tt--tre{background:var(--signal-soft);color:var(--signal)}
+.tt--chay{background:var(--sky-soft);color:var(--sky)}
+.tt--khac{background:var(--violet-soft);color:var(--violet)}
+.tt--xam{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+.tt--xam::before{display:none}
+.lenh{display:inline-flex;align-items:center;font-size:12.5px;color:var(--rust);background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:1px 8px;white-space:nowrap;cursor:pointer}
+.lenh:hover{border-color:var(--rust)}
+
+/* ---- trục chặng (phương án 2) ---- */
+.path{position:relative;display:grid;grid-template-columns:repeat(5,1fr);margin:6px 0 22px}
+.truc{position:absolute;left:10%;right:10%;top:9px;height:4px;border-radius:2px;background:var(--rule-soft)}
+.truc i{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
+.buoc{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;cursor:pointer;background:none;border:0;font:inherit;color:inherit;padding:0}
+.dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--canvas);border:2px solid var(--rule)}
+.buoc.xong .dot{background:var(--moss);border-color:var(--moss)}
+.buoc.dang .dot{border-color:var(--rust);box-shadow:0 0 0 5px rgba(197,64,10,.14)}
+.buoc.dang .dot::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--rust)}
+.buoc.huy .dot{border-color:var(--signal);background:var(--signal-soft)}
+.buoc .nhan{border:1px solid transparent;border-radius:8px;padding:2px 10px 4px}
+.buoc b{font-weight:500;font-size:14px}
+.buoc.dang b{color:var(--rust)}
+.buoc.chua b{color:var(--ash)}
+.buoc small{display:block;font-size:12px;color:var(--ash-2)}
+.buoc.chon .nhan{border-color:var(--ink)}
+.buoc:hover .nhan{background:var(--rule-hair)}
+
+/* ---- thẻ tóm tắt đơn ---- */
+.tom{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;border:1px solid var(--rule-soft);border-radius:14px;padding:16px 20px;margin-bottom:18px}
+.tom h4{margin:0 0 2px;font-size:16px;font-weight:500}
+.tom .dong{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.tom-phai{display:flex;align-items:center;gap:14px}
+.han{text-align:right}
+.han small{display:block;font-size:12px;color:var(--ash-2)}
+.han span{font-size:20px}
+.han em{display:block;font-style:normal;font-size:12px;color:var(--moss-deep)}
+
+/* ---- thân chặng ---- */
+.than{border:1px solid var(--rule-soft);border-radius:14px;padding:18px 20px}
+.than-dau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.than-dau h4{margin:0;font-size:16px;font-weight:500}
+.than-dau .phai{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.so4{display:flex;gap:12px;flex-wrap:wrap}
+.o{flex:1 1 160px;border-radius:12px;padding:14px 16px;background:var(--paper)}
+.o small{display:block;font-size:12px;color:var(--ash-2)}
+.o span{display:block;font-size:24px;line-height:1.25;margin-top:2px;font-variant-numeric:tabular-nums}
+.o span.vua{font-size:17px;line-height:1.5;margin-top:6px}
+.o em{font-style:normal;font-size:12px;color:var(--ash-2)}
+.o.chu{background:var(--canvas);border:1px solid var(--rust)}
+.o.chu span{color:var(--rust)}
+.o.ok{background:var(--canvas);border:1px solid var(--moss)}
+.o.ok span{color:var(--moss-deep)}
+.thanh{height:8px;border-radius:999px;background:var(--rule-hair);overflow:hidden;margin:14px 0 4px;display:flex;gap:2px}
+.thanh i{display:block;height:100%}
+.mon-dau{display:flex;align-items:baseline;gap:10px;margin:18px 0 12px;flex-wrap:wrap}
+.mon-dau .ten{font-size:15px}
+.ghi{margin:14px 0 0;color:var(--ash);font-size:13px}
+.chan{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.khung-bang{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden;margin-top:16px}
+.cuon{overflow-x:auto}
+table.b{width:100%;border-collapse:collapse}
+.b th{font-size:11px;font-weight:500;color:var(--ash);text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 12px;background:var(--paper);border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+.b td{padding:10px 12px;border-bottom:1px solid var(--rule-hair);font-size:13px;vertical-align:top}
+.b tr:last-child td{border-bottom:0}
+.b tbody tr:hover td{background:var(--rule-hair)}
+.b .r{text-align:right}
+.b tr.mo td{color:var(--ash-2)}
+.b td small{display:block;color:var(--ash-2);font-size:12px}
+.dk{display:grid;gap:8px;margin:2px 0 0}
+.dk div{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.dk svg{width:16px;height:16px;flex:none}
+.cot-o{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.thanh-nho{width:120px;height:6px;border-radius:999px;background:var(--rule-hair);overflow:hidden}
+.thanh-nho i{display:block;height:100%;background:var(--moss)}
+
+@media (max-width:760px){
+  .ngan{padding:16px}
+  .buoc small{display:none}
+  .buoc b{font-size:12px}
+  .buoc .nhan{padding:2px 4px}
+  .tom{grid-template-columns:1fr}
+  .han{text-align:left}
+  .o{flex:1 1 40%}
+  .than{padding:14px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Vòng đời đơn theo phương án 2: đủ năm chặng</h1>
+<p class="lead">Ngăn đơn DH002 (Công ty Cổ phần Bibica, Sách A5 64 trang, 1.000 cuốn). Phần trên giống nhau ở mọi chặng: trục năm chặng và thẻ tóm tắt đơn, gồm việc đang chờ bên trái, hạn giao bên phải. Bấm chặng nào thì khung bên dưới đổi theo chặng đó. Mỗi mục dưới đây là ngăn đơn khi đang chọn một chặng.</p>
+
+<div class="hop">
+  <h3>Giữ nguyên gì, đổi gì</h3>
+  <ul>
+    <li>Không đổi luật hay dữ liệu nào. Mọi con số đều lấy từ những gì màn đang có: chi tiết đơn, tiến độ đơn, sổ hóa đơn, cộng thêm tồn theo từng kho ở chặng Giao như bản A đã duyệt.</li>
+    <li>Mọi chặng cùng một khuôn: tên chặng kèm chip trạng thái, dải bốn ô số (ô cần để mắt tới thì có viền màu), rồi tới bảng và nút. Chữ in hoa trên chip (ĐÃ CHỐT, ĐỦ CỌC…) đổi thành chữ thường.</li>
+    <li>Hạn giao chỉ nói một lần, ở thẻ tóm tắt. Trong khung Giao không lặp lại dòng "Hạn giao cam kết" nữa.</li>
+    <li>Các con số chưa có trên ảnh chụp đều <span class="gia-dinh">giả định</span>: giá trị đơn, giờ chốt, hóa đơn, tồn kho, và đơn mẫu cần cọc ở chặng Cọc.</li>
+  </ul>
+</div>
+
+<!-- =========================================================== CHỐT -->
+<section class="sec">
+  <div class="sec-head"><h2>1. Chặng Chốt</h2></div>
+  <p class="why">Đơn đã chốt thì dải số trả lời "chốt lúc nào, theo báo giá nào, đơn bao nhiêu tiền, hẹn giao ngày nào". Đơn nháp thì thay bằng danh sách điều kiện chốt, mỗi dòng có dấu tích hoặc dấu chéo, nút Chốt đơn nằm ngay dưới.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="path">
+      <div class="truc"><i style="width:50%;background:var(--moss)"></i><i style="left:50%;width:0"></i></div>
+      <button class="buoc xong chon"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Chốt</b><small>6/10</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Cọc</b><small>không cần</small></span></button>
+      <button class="buoc dang"><span class="dot"></span><span class="nhan"><b>Sản xuất</b><small>chưa có hàng</small></span></button>
+      <button class="buoc chua"><span class="dot"></span><span class="nhan"><b>Giao</b><small>chưa giao</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Hóa đơn</b><small>đã ghi đủ</small></span></button>
+    </div>
+    <div class="tom">
+      <div><h4>Xưởng đang chạy 2 lệnh</h4><span class="muted">Giao hàng chưa bắt đầu</span><div class="dong"><span class="the">chưa ước được ngày xong</span></div></div>
+      <div class="tom-phai"><div class="han"><small>Hạn giao cam kết</small><span>6/11/2026</span><em>còn 27 ngày</em></div></div>
+    </div>
+
+    <div class="than">
+      <div class="than-dau"><h4>Chốt đơn hàng</h4><span class="tt tt--ok">Đã chốt</span></div>
+      <div class="so4">
+        <div class="o"><small>Chốt lúc</small><span class="vua">09:15 6/10/2026</span></div>
+        <div class="o"><small>Theo báo giá</small><span class="vua"><button class="lk" style="font-size:17px">BG26-0002 ↗</button></span><em>bản 1</em></div>
+        <div class="o"><small>Giá trị đơn</small><span class="vua">45.000.000 đ</span><em>gồm thuế</em></div>
+        <div class="o"><small>Hẹn giao</small><span class="vua">6/11/2026</span><em>31 ngày sau chốt</em></div>
+      </div>
+      <p class="ghi">Đơn không cần cọc nên đã tự xuống hàng chờ Kế hoạch sản xuất ngay lúc chốt.</p>
+    </div>
+  </div>
+
+  <div class="nhan-mau">CÙNG CHẶNG, KHI ĐƠN CÒN NHÁP</div>
+  <div class="ngan">
+    <div class="than">
+      <div class="than-dau"><h4>Chốt đơn hàng</h4><span class="tt tt--xam">Bản nháp</span></div>
+      <div class="dk">
+        <div><svg viewBox="0 0 16 16" fill="none" stroke="#2f7d4a" stroke-width="1.6"><circle cx="8" cy="8" r="7"/><path d="M5 8.2l2 2 4-4.2"/></svg>Đã có khách hàng và nơi giao</div>
+        <div><svg viewBox="0 0 16 16" fill="none" stroke="#2f7d4a" stroke-width="1.6"><circle cx="8" cy="8" r="7"/><path d="M5 8.2l2 2 4-4.2"/></svg>Đã có hạn giao cam kết</div>
+        <div><svg viewBox="0 0 16 16" fill="none" stroke="#991b1b" stroke-width="1.6"><circle cx="8" cy="8" r="7"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"/></svg>Báo giá nguồn đã hết hiệu lực <button class="lk">Gia hạn báo giá thêm 30 ngày</button></div>
+      </div>
+      <div class="chan"><button class="btn btn--chinh" disabled>Chốt đơn</button><span class="muted">Còn 1 điều kiện chưa đủ</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== CỌC -->
+<section class="sec">
+  <div class="sec-head"><h2>2. Chặng Cọc</h2></div>
+  <p class="why">Dải số Cần thu, Đã thu, Còn thiếu, kèm thanh tiến độ mảnh. Ô Còn thiếu có viền màu khi chưa đủ. Phiếu thu là bảng, mỗi phiếu một dòng, bấm mã phiếu thì mở bên Kế toán. DH002 không cần cọc nên khung chỉ có một câu.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="path">
+      <div class="truc"><i style="width:50%;background:var(--moss)"></i></div>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Chốt</b><small>6/10</small></span></button>
+      <button class="buoc xong chon"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Cọc</b><small>không cần</small></span></button>
+      <button class="buoc dang"><span class="dot"></span><span class="nhan"><b>Sản xuất</b><small>chưa có hàng</small></span></button>
+      <button class="buoc chua"><span class="dot"></span><span class="nhan"><b>Giao</b><small>chưa giao</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Hóa đơn</b><small>đã ghi đủ</small></span></button>
+    </div>
+    <div class="tom">
+      <div><h4>Xưởng đang chạy 2 lệnh</h4><span class="muted">Giao hàng chưa bắt đầu</span><div class="dong"><span class="the">chưa ước được ngày xong</span></div></div>
+      <div class="tom-phai"><div class="han"><small>Hạn giao cam kết</small><span>6/11/2026</span><em>còn 27 ngày</em></div></div>
+    </div>
+    <div class="than">
+      <div class="than-dau"><h4>Cọc và thu tiền</h4><span class="tt tt--ok">Không cần cọc</span></div>
+      <p class="ghi" style="margin:0">Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt.</p>
+    </div>
+  </div>
+
+  <div class="nhan-mau">CÙNG CHẶNG, ĐƠN MẪU CẦN CỌC 30% VÀ ĐÃ THU MỘT PHẦN</div>
+  <div class="ngan">
+    <div class="than">
+      <div class="than-dau"><h4>Cọc và thu tiền</h4><span class="tt tt--cho">Chờ cọc</span><span class="phai"><button class="btn">+ Lập phiếu thu cọc</button></span></div>
+      <div class="so4">
+        <div class="o"><small>Cần thu, 30% giá trị đơn</small><span>13.500.000</span><em>đồng</em></div>
+        <div class="o"><small>Đã thu</small><span>10.000.000</span><em>1 phiếu thu</em></div>
+        <div class="o chu"><small>Còn thiếu</small><span>3.500.000</span><em>thiếu là chưa xuống sản xuất</em></div>
+      </div>
+      <div class="thanh"><i style="width:74%;background:var(--moss)"></i></div>
+      <div class="khung-bang cuon"><table class="b">
+        <thead><tr><th>Phiếu thu</th><th>Ngày thu</th><th>Hình thức</th><th class="r">Số tiền</th><th>Trạng thái</th></tr></thead>
+        <tbody>
+          <tr><td><button class="lk">PT26-0141 ↗</button></td><td>7/10/2026</td><td>Chuyển khoản</td><td class="r num">10.000.000</td><td><span class="tt tt--ok">Đã thu</span></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== SẢN XUẤT -->
+<section class="sec">
+  <div class="sec-head"><h2>3. Chặng Sản xuất</h2></div>
+  <p class="why">Dải số Đã có hàng, Đang làm, Lệnh, Dự kiến xong. Bảng mặt hàng giữ đủ ý của bảng hiện tại nhưng gọn lại: cột "Đang ở" gộp chỗ, công đoạn và phần trăm. Vướng mắc là chip màu nằm ở cột riêng. Cột "Hàng về" ghi rõ tên kho, không để chữ "Kho" trống trơn.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="path">
+      <div class="truc"><i style="width:50%;background:linear-gradient(90deg,var(--moss) 0 50%,var(--rust) 50% 100%)"></i></div>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Chốt</b><small>6/10</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Cọc</b><small>không cần</small></span></button>
+      <button class="buoc dang chon"><span class="dot"></span><span class="nhan"><b>Sản xuất</b><small>chưa có hàng</small></span></button>
+      <button class="buoc chua"><span class="dot"></span><span class="nhan"><b>Giao</b><small>chưa giao</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Hóa đơn</b><small>đã ghi đủ</small></span></button>
+    </div>
+    <div class="tom">
+      <div><h4>Xưởng đang chạy 2 lệnh</h4><span class="muted">Giao hàng chưa bắt đầu</span><div class="dong"><span class="the">chưa ước được ngày xong</span></div></div>
+      <div class="tom-phai"><div class="han"><small>Hạn giao cam kết</small><span>6/11/2026</span><em>còn 27 ngày</em></div></div>
+    </div>
+    <div class="than">
+      <div class="than-dau"><h4>Sản xuất</h4><span class="tt tt--chay">Đang chạy</span><span class="phai"><span class="muted nho">xong khi mọi món đã đủ hàng ở kho</span><button class="lk">Mở bàn Kế hoạch sản xuất ↗</button></span></div>
+      <div class="so4">
+        <div class="o"><small>Đã có hàng</small><span>0 / 1.000</span><em>cuốn, kho đã nhận</em></div>
+        <div class="o"><small>Đang làm</small><span>1.000</span><em>cuốn ở xưởng</em></div>
+        <div class="o"><small>Lệnh sản xuất</small><span>2</span><em>đều đã xuống xưởng</em></div>
+        <div class="o chu"><small>Dự kiến xong</small><span class="vua">chưa ước được</span><em>3 vướng mắc đang mở</em></div>
+      </div>
+      <div class="khung-bang cuon"><table class="b">
+        <thead><tr><th>Sản phẩm</th><th>Lệnh</th><th>Kiểu làm</th><th>Đang ở</th><th>Vướng mắc</th><th>Đã có hàng</th><th>Hàng về</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Sách A5 64 trang</td>
+            <td><div class="cot-o"><span class="lenh">LSX26-0003 ↗</span><span class="lenh">LSX26-0004 ↗</span></div></td>
+            <td>Gia công một phần</td>
+            <td><div class="cot-o"><span class="tt tt--chay">Xưởng</span><span class="muted nho">Cắt tờ 3%</span></div></td>
+            <td><div class="cot-o"><span class="tt tt--tre">KCS không đạt</span><span class="tt tt--cho">thiếu vật tư</span><span class="tt tt--khac">máy sự cố</span></div></td>
+            <td><div class="cot-o"><span class="thanh-nho"><i style="width:0"></i></span><span class="nho num">0 / 1.000 cuốn</span></div></td>
+            <td>Kho thành phẩm</td>
+          </tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== GIAO -->
+<section class="sec">
+  <div class="sec-head"><h2>4. Chặng Giao</h2></div>
+  <p class="why">Đúng bản A đã chọn, khoác khuôn phương án 2: dải bốn ô số, ô Giao được ngay viền cam. Bảng tồn theo từng kho tách hàng của đơn này với hàng cùng tên của đơn khác. Danh sách yêu cầu giao nằm cuối.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="path">
+      <div class="truc"><i style="width:50%;background:linear-gradient(90deg,var(--moss) 0 50%,var(--rust) 50% 100%)"></i></div>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Chốt</b><small>6/10</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Cọc</b><small>không cần</small></span></button>
+      <button class="buoc dang"><span class="dot"></span><span class="nhan"><b>Sản xuất</b><small>chưa có hàng</small></span></button>
+      <button class="buoc chua chon"><span class="dot"></span><span class="nhan"><b>Giao</b><small>chưa giao</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Hóa đơn</b><small>đã ghi đủ</small></span></button>
+    </div>
+    <div class="tom">
+      <div><h4>Xưởng đang chạy 2 lệnh</h4><span class="muted">Giao hàng chưa bắt đầu</span><div class="dong"><span class="the">chưa ước được ngày xong</span></div></div>
+      <div class="tom-phai"><div class="han"><small>Hạn giao cam kết</small><span>6/11/2026</span><em>còn 27 ngày</em></div></div>
+    </div>
+    <div class="than">
+      <div class="than-dau"><h4>Giao hàng</h4><span class="tt tt--xam">Chưa giao</span></div>
+      <div class="mon-dau" style="margin-top:0"><span class="ten">Sách A5 64 trang</span><span class="muted">khách đặt 1.000 cuốn</span></div>
+      <div class="so4">
+        <div class="o"><small>Đã giao</small><span>0</span><em>cuốn</em></div>
+        <div class="o"><small>Còn phải giao</small><span>1.000</span><em>cuốn</em></div>
+        <div class="o chu"><small>Giao được ngay</small><span>0</span><em>chưa kho nào nhận hàng của đơn</em></div>
+        <div class="o"><small>Đang làm ở xưởng</small><span>1.000</span><em>Cắt tờ 3%</em></div>
+      </div>
+      <div class="khung-bang cuon"><table class="b">
+        <thead><tr><th>Kho</th><th class="r">Đang có</th><th class="r">Đã giữ cho yêu cầu giao</th><th class="r">Giao được</th><th>Của ai</th></tr></thead>
+        <tbody>
+          <tr class="mo"><td>Kho thành phẩm</td><td class="r num">300</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">hàng của DH001</span></td></tr>
+          <tr class="mo"><td>Kho Bình Dương</td><td class="r num">120</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">tồn chung, không thuộc đơn nào</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="chan"><button class="btn btn--chinh" disabled>Tạo yêu cầu giao hàng</button><span class="muted">Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ LSX26-0003 và LSX26-0004 xong là giao được.</span></div>
+      <p class="ghi">Chưa có yêu cầu giao hàng nào.</p>
+    </div>
+  </div>
+
+  <div class="nhan-mau">CÙNG CHẶNG, KHI ĐÃ GIAO 200, KHO CÒN 400 CỦA ĐƠN VÀ CÓ MỘT YÊU CẦU ĐANG CHẠY</div>
+  <div class="ngan">
+    <div class="than">
+      <div class="than-dau"><h4>Giao hàng</h4><span class="tt tt--chay">Giao 20%</span></div>
+      <div class="mon-dau" style="margin-top:0"><span class="ten">Sách A5 64 trang</span><span class="muted">khách đặt 1.000 cuốn</span></div>
+      <div class="so4">
+        <div class="o ok"><small>Đã giao</small><span>200</span><em>cuốn</em></div>
+        <div class="o"><small>Còn phải giao</small><span>500</span><em>sau khi trừ 300 đang giữ</em></div>
+        <div class="o chu"><small>Giao được ngay</small><span>100</span><em>ở 2 kho</em></div>
+        <div class="o"><small>Đang làm ở xưởng</small><span>400</span><em>Đóng sách 60%</em></div>
+      </div>
+      <div class="khung-bang cuon"><table class="b">
+        <thead><tr><th>Kho</th><th class="r">Đang có</th><th class="r">Đã giữ cho yêu cầu giao</th><th class="r">Giao được</th><th>Của ai</th></tr></thead>
+        <tbody>
+          <tr><td>Kho thành phẩm</td><td class="r num">250</td><td class="r num">200</td><td class="r num">50</td><td><span class="tt tt--ok">của đơn này</span></td></tr>
+          <tr><td>Kho Bình Dương</td><td class="r num">150</td><td class="r num">100</td><td class="r num">50</td><td><span class="tt tt--ok">của đơn này</span></td></tr>
+          <tr class="mo"><td>Kho thành phẩm</td><td class="r num">300</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">hàng của DH001</span></td></tr>
+        </tbody>
+      </table></div>
+      <div class="chan"><button class="btn btn--chinh">Tạo yêu cầu giao hàng</button><span class="muted">Giao được tối đa 100 cuốn</span></div>
+      <div class="khung-bang cuon"><table class="b">
+        <thead><tr><th>Yêu cầu</th><th>Trạng thái</th><th>Cần giao</th><th class="r">Số lượng</th><th>Chuyến</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>YCG26-0031<small>Kho thành phẩm, Kho Bình Dương</small></td><td><span class="tt tt--chay">Đang giao</span></td><td>20/10/2026</td><td class="r num">300</td><td>Chuyến 2<small>tài xế Trần Văn Bình, lấy hàng 08:00 20/10</small></td><td class="r"><button class="lk">In phiếu giao</button></td></tr>
+          <tr><td>YCG26-0027<small>Kho thành phẩm</small></td><td><span class="tt tt--ok">Đã giao</span></td><td>15/10/2026</td><td class="r num">200</td><td>Chuyến 1<small>người nhận Nguyễn Thị Lan</small></td><td class="r"><button class="lk">In phiếu giao</button></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- =========================================================== HÓA ĐƠN -->
+<section class="sec">
+  <div class="sec-head"><h2>5. Chặng Hóa đơn</h2></div>
+  <p class="why">Dải số Tổng đơn, Đã ghi hóa đơn, Chưa ghi, Còn phải thu. Ô Chưa ghi có viền cam khi còn phần chưa ghi, có viền xanh khi đã ghi đủ. Sổ hóa đơn giữ đủ cột như hiện tại, nhưng ngày và hạn thu tách thành chữ nhỏ dưới số hóa đơn cho bảng đỡ rộng.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="path">
+      <div class="truc"><i style="width:50%;background:linear-gradient(90deg,var(--moss) 0 50%,var(--rust) 50% 100%)"></i></div>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Chốt</b><small>6/10</small></span></button>
+      <button class="buoc xong"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Cọc</b><small>không cần</small></span></button>
+      <button class="buoc dang"><span class="dot"></span><span class="nhan"><b>Sản xuất</b><small>chưa có hàng</small></span></button>
+      <button class="buoc chua"><span class="dot"></span><span class="nhan"><b>Giao</b><small>chưa giao</small></span></button>
+      <button class="buoc xong chon"><span class="dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="nhan"><b>Hóa đơn</b><small>đã ghi đủ</small></span></button>
+    </div>
+    <div class="tom">
+      <div><h4>Xưởng đang chạy 2 lệnh</h4><span class="muted">Giao hàng chưa bắt đầu</span><div class="dong"><span class="the">chưa ước được ngày xong</span></div></div>
+      <div class="tom-phai"><div class="han"><small>Hạn giao cam kết</small><span>6/11/2026</span><em>còn 27 ngày</em></div></div>
+    </div>
+    <div class="than">
+      <div class="than-dau"><h4>Hóa đơn và công nợ</h4><span class="tt tt--ok">Đã ghi đủ</span></div>
+      <div class="so4">
+        <div class="o"><small>Tổng đơn</small><span>45.000.000</span><em>đồng</em></div>
+        <div class="o"><small>Đã ghi hóa đơn</small><span>45.000.000</span><em>1 hóa đơn</em></div>
+        <div class="o ok"><small>Chưa ghi hóa đơn</small><span>0</span><em>đã ghi đủ</em></div>
+        <div class="o chu"><small>Còn phải thu</small><span>45.000.000</span><em>hạn 5/12/2026</em></div>
+      </div>
+      <p class="ghi">Chỉ hóa đơn đã ghi nhận mới tính vào công nợ phải thu.</p>
+      <div class="khung-bang cuon"><table class="b">
+        <thead><tr><th>Số hóa đơn</th><th class="r">Giá trị</th><th class="r">Cọc cấn trừ</th><th class="r">Đã thu</th><th class="r">Còn nợ</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td>1C26TSV 00000123<small>ngày 6/10/2026, hạn thu 5/12/2026</small><small>Lê Thu Hà ghi</small></td>
+            <td class="r num">45.000.000</td><td class="r num">0</td><td class="r num">0</td><td class="r num">45.000.000</td>
+            <td><span class="tt tt--ok">Đã ghi</span></td>
+            <td class="r"><button class="lk">Hủy</button></td>
+          </tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="nhan-mau">CÙNG CHẶNG, KHI CÒN PHẦN CHƯA GHI</div>
+  <div class="ngan">
+    <div class="than">
+      <div class="than-dau"><h4>Hóa đơn và công nợ</h4><span class="tt tt--cho">Đã ghi một phần</span><span class="phai"><button class="btn btn--chinh">Ghi nhận hóa đơn</button></span></div>
+      <div class="so4">
+        <div class="o"><small>Tổng đơn</small><span>45.000.000</span><em>đồng</em></div>
+        <div class="o"><small>Đã ghi hóa đơn</small><span>20.000.000</span><em>1 hóa đơn</em></div>
+        <div class="o chu"><small>Chưa ghi hóa đơn</small><span>25.000.000</span><em>ghi khi giao đợt sau</em></div>
+        <div class="o"><small>Còn phải thu</small><span>20.000.000</span><em>hạn 5/12/2026</em></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

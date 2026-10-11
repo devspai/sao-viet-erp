@@ -97,6 +97,10 @@ MODULES: list[tuple[str, str]] = [
     # án chốt 18/09/2026 bỏ đánh số, nên khoá quay về đúng `xep_lich`; mg `0314` chép quyền của
     # `xep_lich_3` sang rồi xoá cả hai khoá cũ. Ở đây là đường của DB TRẮNG.
     ("xep_lich", "Xếp lịch"),
+    # KCS (09/10/2026, mg 0383) — thay cờ phòng ban "Tổ KCS đích danh". Xem = màn + báo cáo mọi tổ;
+    # Thao tác (`can_create`) = ghi lần kiểm, gửi nhập kho, đóng lệnh đủ; ô chi tiết "Đóng lệnh
+    # thiếu" (`can_close_short`).
+    ("kcs", "KCS"),
     # HAI MÀN CHỈ ĐỌC (31/08/2026). Phạm vi của chúng bám `orders.sale_user_id` — phạm vi của
     # người BÁN — khác hẳn `san_xuat` vốn bám `lsx.nguoi_phu_trach_id` (người LÀM). Đó là lý do
     # phải là hai khoá riêng chứ không tick thêm bit vào `san_xuat`: sửa nghĩa scope của
@@ -281,6 +285,8 @@ def _full(scope: str, *, can_approve_exception: bool = False) -> dict:
         # giao_hang (mg 0199) — hai tab đặc quyền của màn Giao hàng.
         can_plan=True,
         can_view_drivers=True,
+        # kcs (mg 0383): đóng nhóm thành phẩm khi còn việc chưa xong + mở lại.
+        can_close_short=True,
     )
 
 
@@ -626,7 +632,8 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
          "nghi_phep": _leave_self(), "tang_ca": _ot_self(), "di_muon": _el_self(),
          "cham_cong": _cham_cong_self()},
     ),
-    # QC: xem mọi tổ (scope all) để soi công đoạn bất kỳ (ghi lỗi = Lát 3, thêm can_report_defect sau).
+    # QC: xem mọi tổ (scope all) để soi công đoạn bất kỳ; làm KCS (Xem + Thao tác, không Đóng lệnh
+    # thiếu — ô đó để trưởng KCS / quản lý bật riêng).
     (
         "Sản xuất",
         "QC",
@@ -635,6 +642,8 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
          "lenh_san_xuat": _read(SCOPE_ALL), "theo_doi_san_xuat": _read(SCOPE_ALL),
          "ke_hoach_vat_tu": _read(SCOPE_ALL), "bai_ghep_2": _read(SCOPE_ALL),
          "xep_lich": _read(SCOPE_ALL),
+         "kcs": dict(can_read=True, can_create=True, can_update=False, can_delete=False,
+                     scope=SCOPE_ALL),
          # soi ra máy chạy sai thì báo ngay tại chỗ
          "ky_thuat_may": {**_read(SCOPE_ALL), "can_request": True},
          "nghi_phep": _leave_self(), "tang_ca": _ot_self(), "di_muon": _el_self(),

@@ -7,7 +7,9 @@
 // Màu lấy bộ `--tt-*` (tokens.css); trong MỘT bộ trạng thái không có hai trạng thái trùng màu.
 import type {
   DepartmentPurchaseWorkflowStatus,
+  NacKho,
   NhomTien,
+  PurchaseRequestRow,
   PurchaseRequestStatus,
   TinhTrangMon,
 } from "../../api/client";
@@ -29,6 +31,35 @@ export const TT_DON: Record<PurchaseRequestStatus, Nhan> = {
   received: { label: "Đã về đủ", mau: "la" },
   cancelled: { label: "Đã huỷ", mau: "xam" },
 };
+
+/** Ba nấc KHO thay cho "Đã về đủ" (11/10/2026): nhìn từ danh sách biết việc còn ở mua hàng (chưa
+ *  bấm Gửi kho), ở kho (yêu cầu nhập chưa Hoàn tất) hay đã xong (hàng vào tồn). */
+export const TT_KHO: Record<NacKho, Nhan> = {
+  cho_gui_kho: { label: "Chờ gửi kho", mau: "ngoc" },
+  kho_chua_nhap: { label: "Kho chưa nhập", mau: "tim" },
+  da_nhap_kho: { label: "Đã nhập kho", mau: "la" },
+};
+
+/** Chip nhóm lọc Hàng: như `TT_DON` nhưng "Đã về đủ" tách thành ba nấc kho (máy chủ lọc + đếm). */
+export const TT_HANG_LOC: Record<string, Nhan> = Object.fromEntries(
+  Object.entries(TT_DON).flatMap(([k, v]) =>
+    k === "received" ? Object.entries(TT_KHO) : [[k, v]],
+  ),
+);
+
+/** Nấc kho của ĐƠN đã về đủ = nấc chậm nhất trong các đợt. Đơn chưa về đủ (hoặc không có đợt) ⇒ null. */
+export function nacKhoDon(row: Pick<PurchaseRequestRow, "status" | "deliveries">): NacKho | null {
+  if (row.status !== "received" || row.deliveries.length === 0) return null;
+  if (row.deliveries.some((d) => d.kho === "cho_gui_kho")) return "cho_gui_kho";
+  if (row.deliveries.some((d) => d.kho === "kho_chua_nhap")) return "kho_chua_nhap";
+  return "da_nhap_kho";
+}
+
+/** Nhãn HÀNG của đơn — đã về đủ thì nói nấc kho, còn lại theo `TT_DON`. */
+export function nhanHangDon(row: Pick<PurchaseRequestRow, "status" | "deliveries">): Nhan {
+  const nac = nacKhoDon(row);
+  return nac ? TT_KHO[nac] : TT_DON[row.status];
+}
 
 /** Nhóm TIỀN của đơn — máy chủ xếp (`nhom_tien`), tách khỏi trạng thái hàng. */
 export const TT_TIEN: Record<NhomTien, Nhan> = {

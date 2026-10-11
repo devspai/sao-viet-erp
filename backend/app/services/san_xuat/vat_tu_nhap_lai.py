@@ -1,7 +1,7 @@
 """Tổ yêu cầu NHẬP LẠI vật tư thừa vào kho (spec 2026-10-01 §3.5).
 
-Logic CHUNG mọi vật tư, mọi tổ (giấy chỉ thêm dạng + khổ). Đây là yêu cầu NHẬP bình thường của kho:
-thủ kho lập phiếu nhập → ghi sổ → lô mới (mang dạng/khổ của dòng). Bảng đối chiếu của công đoạn đọc
+Logic CHUNG mọi vật tư, mọi tổ (giấy chỉ thêm khổ; đơn vị gốc máy chủ suy từ ĐVT). Đây là yêu cầu
+NHẬP bình thường của kho: thủ kho lập phiếu nhập → ghi sổ → lô mới (mang khổ + đơn vị gốc của dòng). Bảng đối chiếu của công đoạn đọc
 phiếu nhập đã ghi sổ qua `stock_requests.vat_tu_tra_cong_viec_id` để ra "thực dùng = thực xuất −
 nhập lại".
 
@@ -9,6 +9,8 @@ KHÔNG dùng cột `san_xuat_cong_viec_id` — cột đó là nhập THÀNH PH�
 đếm mọi NHẬP mang nó; gán nhầm là số thành phẩm "đã gửi kho" phình lên.
 """
 from __future__ import annotations
+
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -18,13 +20,13 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
-from ..kho_giay import DANG_CUON, DANG_GIAY, DANG_TO, chuan_kho, khoa_dong
+from ..kho_giay import DON_VI_TO_KHO, chuan_kho, co_don_vi_goc, khoa_dong
 from ..ke_hoach_vat_tu_service import KeHoachVatTuError
 from ..quyen_to import VIEC_KHO
 from ..stock_request_service import StockRequestError
 from .thuc_thi import _gate
 from .vat_tu_de_nghi import (
-    _bao_de_nghi_doi, _hang_service, _kh_service, _req_service,
+    _bao_de_nghi_doi, _can_luc_luu, _hang_service, _kh_service, _ngay_vn, _req_service,
 )
 
 
@@ -33,7 +35,7 @@ class VatTuNhapLaiError(ValueError):
 
 
 def _gia_theo_dien_tich(k: tuple, nguon: dict) -> float:
-    """Giá / tờ của khổ `k` suy từ phần đã xuất cùng (mã, dạng tờ) theo DIỆN TÍCH: tổng tiền ÷ tổng
+    """Giá / tờ của khổ `k` suy từ phần đã xuất cùng (mã, đơn vị gốc tờ) theo DIỆN TÍCH: tổng tiền ÷ tổng
     (tờ × mm²) × mm² của khổ trả. Bước "nhận từ" (In nhận tờ in 545×790 từ Cắt tờ) trả thừa tờ in,
     còn kho chỉ xuất tờ nguyên 790×1090 cho Cắt tờ — lấy thẳng giá / tờ nguyên là gấp đôi."""
     dt = (k[3] or 0) * (k[4] or 0)
@@ -46,7 +48,7 @@ def _gia_theo_dien_tich(k: tuple, nguon: dict) -> float:
 
 
 def _gia_binh_quan(k: tuple, nguon: dict) -> float:
-    """Bình quân gia quyền `sl_goc` phần đã xuất cùng (mã, dạng)."""
+    """Bình quân gia quyền `sl_goc` phần đã xuất cùng (mã, đơn vị gốc)."""
     cung = [v for kk, v in nguon.items() if kk[:3] == k[:3]]
     tong = sum(sl for sl, _ in cung)
     return sum(sl * g for sl, g in cung) / tong if tong > 0 else 0.0
@@ -72,28 +74,28 @@ def _chuan_dong(kh_svc, hang, ln: dict, don_gia_goc: dict,
     if not dvt:
         raise VatTuNhapLaiError(f"«{ten}» chưa chọn đơn vị.")
 
-    dang = kr = kd = None
+    goc = kr = kd = None
+    if co_don_vi_goc(loai):
+        # Giấy bỏ dạng cuộn/tờ (10/10/2026), vật tư khai nhiều đơn vị (mg 0390): đơn vị gốc SUY từ
+        # ĐVT người gõ — nhóm đơn vị đã khai chứa nó (tờ/ram ⇒ "tờ"; kg/tấn ⇒ kg; thùng ⇒ thùng).
+        goc = kh_svc.goc_cua_dvt(loai, int(hid), dvt)
     if loai == "giay":
-        dang = ln.get("dang_giay")
-        if dang not in DANG_GIAY:
-            raise VatTuNhapLaiError(f"«{ten}» là giấy — chọn dạng tờ hay cuộn.")
+        # Đếm tờ cần đủ hai cạnh khổ; đơn vị khác khổ tuỳ chọn.
         kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
-        if dang == DANG_TO and not (kr and kd):
-            raise VatTuNhapLaiError(f"«{ten}» là giấy tờ — khai đủ hai cạnh khổ (mm).")
-        if dang == DANG_CUON:
-            kd = 0
+        if goc == DON_VI_TO_KHO and not (kr and kd):
+            raise VatTuNhapLaiError(f"«{ten}» đếm theo tờ — khai đủ hai cạnh khổ (mm).")
     try:
-        sl_goc, _ = kh_svc.ve_don_vi_goc(loai, int(hid), dvt, so, dang=dang)
+        sl_goc, _ = kh_svc.ve_don_vi_goc(loai, int(hid), dvt, so, goc=goc)
     except KeHoachVatTuError as e:
         raise VatTuNhapLaiError(f"«{ten}»: {e}") from None
     if sl_goc <= 0:
         raise VatTuNhapLaiError(f"«{ten}» quy ra số lượng không hợp lệ.")
 
-    k = khoa_dong(loai, int(hid), dang, kr or 0, kd or 0)
-    # Giá vốn: đúng khoá (mã+dạng+khổ) trước; trả khác khổ thì bình quân gia quyền phần đã xuất
-    # cùng (mã, dạng) cho công việc này. Công việc không có phiếu xuất nào của (mã, dạng) — bước
+    k = khoa_dong(loai, int(hid), goc, kr or 0, kd or 0)
+    # Giá vốn: đúng khoá (mã+gốc+khổ) trước; trả khác khổ thì bình quân gia quyền phần đã xuất
+    # cùng (mã, gốc) cho công việc này. Công việc không có phiếu xuất nào của (mã, gốc) — bước
     # "nhận từ bước trước" (In nhận giấy qua bàn giao) — thì lấy phần đã xuất cho cả LỆNH (bước lấy
-    # giấy): đúng khoá, hoặc giấy tờ quy theo diện tích, hoặc bình quân (mã, dạng). Không có ⇒ 0.
+    # giấy): đúng khoá, hoặc giấy tờ quy theo diện tích, hoặc bình quân (mã, gốc). Không có ⇒ 0.
     if k in don_gia_goc:
         gia_goc = don_gia_goc[k][1]
     else:
@@ -101,25 +103,27 @@ def _chuan_dong(kh_svc, hang, ln: dict, don_gia_goc: dict,
     if gia_goc <= 0 and don_gia_lenh:
         if k in don_gia_lenh:
             gia_goc = don_gia_lenh[k][1]
-        elif dang == DANG_TO:
+        elif goc == DON_VI_TO_KHO:
             gia_goc = _gia_theo_dien_tich(k, don_gia_lenh)
         else:
             gia_goc = _gia_binh_quan(k, don_gia_lenh)
     # Giá khai theo ĐƠN VỊ NGƯỜI GÕ (đ/ram nếu gõ ram): quy từ giá đ/đơn vị gốc theo đúng tỉ lệ của dòng.
     don_gia = int(round(gia_goc * sl_goc / so)) if gia_goc > 0 else 0
     return {
+        # Đơn vị gốc dòng kho máy chủ kho tự suy lại từ `dvt` — không gửi.
         "hang_loai": loai, "hang_id": int(hid), "dvt": dvt, "sl_de_nghi": so,
-        "dang_giay": dang, "kho_rong": kr or 0, "kho_dai": kd or 0,
+        "kho_rong": kr or 0, "kho_dai": kd or 0,
         "don_gia": don_gia,
     }
 
 
 def tao(db: Session, *, user, cong_viec_id: int, lines: list[dict],
-        ghi_chu: str | None = None, req_svc=None, kh_svc=None) -> dict:
+        ghi_chu: str | None = None, can_luc: datetime | None = None,
+        req_svc=None, kh_svc=None) -> dict:
     """Tạo yêu cầu NHẬP LẠI vật tư thừa của một công việc. Commit bên trong; báo kho SAU commit.
 
-    Trả `{id, ma, trang_thai}`. Server lấy người tạo từ `user` (token), `bo_phan_id` = tổ của công
-    việc; `don_gia` = giá vốn bình quân của phần đã xuất cho chính công việc này (không có = 0).
+    Trả `{id, ma, trang_thai}`. Server lấy người tạo từ `user` (token), `bo_phan_id` = phòng của người
+    tạo (11/10/2026 — trước là tổ của công việc); `don_gia` = giá vốn bình quân của phần đã xuất cho chính công việc này (không có = 0).
     """
     repo = SanXuatRepository(db)
     cv = repo.cong_viec(cong_viec_id)
@@ -151,10 +155,18 @@ def tao(db: Session, *, user, cong_viec_id: int, lines: list[dict],
         ghi = f"{ghi} — {ghi_chu.strip()}"
 
     req_svc = req_svc or _req_service(db, hang)
+    # Giờ trả hàng (mg 0384): tổ nhập thì ngày cần là ngày của giờ đó; không nhập thì để trống như cũ.
+    gio = {"ngay_can": _ngay_vn(can_luc), "can_luc": _can_luc_luu(can_luc)} if can_luc else {}
+    # Nhập về đúng kho đã xuất hàng cho việc (xuất nhiều kho thì kho nhiều nhất; bước "nhận từ" thì
+    # kho đã xuất cho cả lệnh) — 11/10/2026: không gắn thì phiếu nhập lấy kho đang lọc ở màn Kho,
+    # màng cán trả về rơi vào Kho thành phẩm. Thủ kho vẫn đổi tay được trên phiếu.
+    kho_id = sl_repo.kho_xuat_nhieu_nhat(req_xuat) or sl_repo.kho_xuat_nhieu_nhat(req_lenh)
+    if kho_id:
+        gio["kho_id"] = kho_id
     try:
         req = req_svc.create(
             user=user, loai=REQ_NHAP, lines=kho_lines, commit=False,
-            bo_phan_id=cv.department_id,
+            bo_phan_id=user.department_id, **gio,
             vat_tu_tra_cong_viec_id=cv.id,      # KHÔNG phải san_xuat_cong_viec_id (nhập thành phẩm)
             ghi_chu=ghi[:1000],
         )

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.phieu_tinh_gia import (
-    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuBuocVatTu, SanPhamTaiBan,
+    PhieuChiPhiKhac, PhieuThanhPham, PhieuThanhPhan, PhieuTinhGia, PhieuBuocVatTu,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
@@ -52,6 +52,7 @@ from ..schemas.phieu_tinh_gia import (
     PhieuTinhGiaUpdate,
     PtgActivityItem,
     PtgActivityOut,
+    SanPhamTaiBanChiTiet,
     SanPhamTaiBanGoiY,
     ThanhPhanIn,
 )
@@ -578,25 +579,28 @@ def san_pham_tai_ban_goi_y(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     _ruot: RuotGia,
+    customer_id: int = Query(...),
     q: str = Query(default=""),
     size: int = Query(default=20, ge=1, le=50),
-) -> list[SanPhamTaiBan]:
-    """Gợi ý SẢN PHẨM TÁI BẢN theo tên — dùng chung toàn hệ thống, KHÔNG lọc theo khách hàng
-    (docs/spec-san-pham-tai-ban.md). Đặt TRƯỚC route `/{p_id}` (int) — lý do như `/stats`."""
-    return san_pham_tai_ban_service.tim_kiem(db, q, size)
+) -> list[dict]:
+    """Thành phẩm CỦA KHÁCH đầu phiếu để chọn tái bản (11/10/2026 — trước đó chung mọi khách, khoá
+    theo tên). Đặt TRƯỚC route `/{p_id}` (int) — lý do như `/stats`."""
+    return san_pham_tai_ban_service.tim_kiem(db, customer_id, q, size)
 
 
-@router.get("/san-pham-tai-ban/{id}", response_model=ThanhPhanIn)
+@router.get("/san-pham-tai-ban/{id}", response_model=SanPhamTaiBanChiTiet)
 def san_pham_tai_ban_chi_tiet(
     id: int,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     _ruot: RuotGia,
+    customer_id: int = Query(...),
 ) -> dict:
-    row = san_pham_tai_ban_service.lay_chi_tiet(db, id)
+    row = san_pham_tai_ban_service.lay_chi_tiet(db, customer_id, id)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy sản phẩm tái bản")
-    return row.cau_hinh_json
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Không tìm thấy sản phẩm tái bản của khách này")
+    return row
 
 
 @router.get("/{p_id}", response_model=None)

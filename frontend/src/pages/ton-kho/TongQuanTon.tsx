@@ -9,8 +9,9 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { Camera, Gauge, Info, ShoppingCart } from "lucide-react";
 
-import { ApiError, api, anhNho, assetUrl, type DuBaoTonRow, type HangLoai, type SoGiaOut, type StockLot,
-  type StockThreshold } from "../../api/client";
+import { ApiError, api, anhNho, assetUrl, type DuBaoTonRow, type HangLoai, type SoGiaOut, type SoGiaRow,
+  type StockLot, type StockThreshold } from "../../api/client";
+import { coDonViGoc, tenGoc } from "../../lib/khoGiay";
 import { fmtDateISO, money } from "../../utils/format";
 import { fmtQty } from "../khoShared";
 import { homNayIso, type DuBao, type SuKien } from "./duBao";
@@ -24,6 +25,11 @@ export interface MatHangTongQuan {
   ton: number;
   /** Σ còn lại × đơn giá của các lô (chỉ dùng khi xem được giá). */
   giaTri: number;
+  /** Giấy: đơn vị gốc (`to`, `kg`…) + khổ của dòng tồn — so giá NCC đúng khổ, chỉ xếp hạng dòng cùng
+   *  họ đơn vị. Hàng khác bỏ trống. */
+  goc?: string;
+  khoRong?: number;
+  khoDai?: number;
 }
 
 const ngayNgan = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "chưa hạn");
@@ -337,13 +343,16 @@ export function TongQuanTon({
   useEffect(() => {
     if (!canViewCost) return;
     let song = true;
-    api.matHang.soGia(token, mh.hang_loai, mh.hang_id)
+    // Giấy: chỉ dòng giá đúng khổ; giấy + vật tư khác: `don_vi` = đơn vị gốc của dòng tồn để máy chủ
+    // đánh dấu dòng cùng nhóm (giá tờ và giá kg, giá kg và giá thùng không so ngang được).
+    api.matHang.soGia(token, mh.hang_loai, mh.hang_id,
+      coDonViGoc(mh.hang_loai) ? { don_vi: mh.goc || null, kho_rong: mh.khoRong, kho_dai: mh.khoDai } : undefined)
       .then((d) => song && setSoGia(d))
       .catch(() => song && setSoGia(null));
     return () => {
       song = false;
     };
-  }, [token, mh.hang_loai, mh.hang_id, canViewCost]);
+  }, [token, mh.hang_loai, mh.hang_id, mh.goc, mh.khoRong, mh.khoDai, canViewCost]);
 
   const tonToanXuong = duRow?.ton_toan_xuong;
   const homNay = homNayIso();
@@ -388,9 +397,12 @@ export function TongQuanTon({
     : th ? <span className="tkh-mo">trong mức</span> : null;
 
   // ---- Giá ----
-  const nccRe = soGia?.items.find((s) => s.gia_quy_doi != null);
+  // "Rẻ nhất" chỉ xét dòng CÙNG họ đơn vị với dòng tồn: đ/tờ và đ/kg không so ngang được.
+  const nccRe = soGia?.items.find((s) => s.gia_quy_doi != null && s.cung_ho !== false);
   const binhQuan = mh.giaTri > 0 && mh.ton > 0 ? mh.giaTri / mh.ton : null;
   const dvGoc = soGia?.don_vi_goc_ten ?? soGia?.don_vi_goc ?? "";
+  // Mỗi dòng giá đọc theo đơn vị gốc của CHÍNH nó (giấy có thể tờ hoặc kg, vật tư kg hoặc thùng).
+  const dvGocDong = (s: SoGiaRow) => (s.don_vi_goc ? tenGoc(s.don_vi_goc) : dvGoc);
 
   return (
     <div className="tkh-tq2">
@@ -552,12 +564,12 @@ export function TongQuanTon({
                         {s.supplier_name}
                         {s === nccRe && soGia.items.length > 1 && <span className="tkh-the" style={{ marginLeft: 8 }}>rẻ nhất</span>}
                       </td>
-                      <td className="n">{s.gia_quy_doi != null ? `${money(s.gia_quy_doi)}/${dvGoc}` : <span className="tkh-mo">chưa quy đổi được</span>}</td>
+                      <td className="n">{s.gia_quy_doi != null ? `${money(s.gia_quy_doi)}/${dvGocDong(s)}` : <span className="tkh-mo">chưa quy đổi được</span>}</td>
                     </tr>
                   ))}
                 </tbody>
               </table></div>
-              {soGia && soGia.items.length > 0 && dvGoc && dvGoc !== dvt && (
+              {soGia && soGia.items.length > 0 && !coDonViGoc(mh.hang_loai) && dvGoc && dvGoc !== dvt && (
                 <p className="tkh-goi tkh-chu-thich">Nhà cung cấp báo giá theo {dvGoc}, đơn vị gốc của mặt hàng; tồn ở đây đếm theo {dvt}.</p>
               )}
             </section>

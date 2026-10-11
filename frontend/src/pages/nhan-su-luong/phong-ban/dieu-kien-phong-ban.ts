@@ -7,7 +7,7 @@ import type { GiaTriUrl } from "../../ke-toan/shared/urlMan";
 import type { DieuKien, GiaTriDK } from "../../thanh-loc/thanh-loc";
 
 export type LocPhongBan = {
-  /** Tập con `san_xuat` / `ngoai_sx` / `kinh_doanh` / `giao_hang` / `kcs` — khớp một là đủ. */
+  /** Tập con `san_xuat` / `ngoai_sx` / `kinh_doanh` / `giao_hang` — khớp một là đủ. */
   khoi: string[];
   /** Tập con `co_truong` / `thieu_truong` / `chua_co_nguoi`. */
   tinh_trang: string[];
@@ -25,7 +25,6 @@ const KHOI: [string, string][] = [
   ["ngoai_sx", "Ngoài sản xuất"],
   ["kinh_doanh", "Kinh doanh"],
   ["giao_hang", "Giao hàng"],
-  ["kcs", "Kiểm tra chất lượng"],
 ];
 const TINH_TRANG: [string, string][] = [
   ["co_truong", "Có trưởng phòng"],

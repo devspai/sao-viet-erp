@@ -211,3 +211,142 @@ def test_ty_le_bao_gia_thanh_cong_moi_don(client):
     ws = load_workbook(BytesIO(x.content)).active
     assert ws["O4"].value == "Tỷ lệ báo giá"
     assert [ws[f"O{h}"].value for h in range(6, ws.max_row) if ws[f"A{h}"].value] == ["20%", "100%", None]
+
+
+def test_nut_loc_tim_coc_va_khoang_tien(client):
+    """Nút Lọc (11/10/2026): ô tìm (không dấu, đủ từ — cả tên mặt hàng), tình trạng cọc chọn nhiều,
+    khoảng tổng đơn có VAT. Số đếm của "Cọc" tính trên mọi điều kiện KHÁC; KPI theo đơn còn lại."""
+    kh = _khach("Công ty BCKD Lọc", "KH-BCKD-L")
+    d_thieu = _don(kh, "DH-BCKD-L1", chot_luc=_luc(2026, 8, 3), dong=(("Hộp quà Tết", 100, 10000),))
+    _coc(d_thieu, 1000)                                                   # 30% × 1.080.000 chưa đủ
+    d_du = _don(kh, "DH-BCKD-L2", chot_luc=_luc(2026, 8, 4), dong=(("Tem nhãn", 10, 1000),))
+    _coc(d_du, 3240)                                                      # 30% × 10.800 đủ
+    _don(kh, "DH-BCKD-L3", chot_luc=_luc(2026, 8, 5), coc_pct=None, dong=(("Túi giấy", 10, 1000),))
+    ky = {"tu_ngay": "2026-08-01", "den_ngay": "2026-08-31"}
+
+    def don(**p):
+        r = client.get(URL, params={**ky, **p}, headers=_h(client))
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    j = don(q="hop qua")
+    assert [d["order_no"] for k in j["khach"] for d in k["don"]] == ["DH-BCKD-L1"]
+    j = don(coc=["thieu", "khong"])
+    assert [d["order_no"] for k in j["khach"] for d in k["don"]] == ["DH-BCKD-L1", "DH-BCKD-L3"]
+    assert {c["value"]: c["so"] for c in j["lua_chon"]["coc"]} == {"khong": 1, "thieu": 1, "du": 1}
+    assert j["tong"]["so_don"] == 2
+    j = don(gt_den=20000)
+    assert [d["order_no"] for k in j["khach"] for d in k["don"]] == ["DH-BCKD-L2", "DH-BCKD-L3"]
+    j = don(q="khong-co-don-nao")
+    assert j["khach"] == [] and j["tong"]["so_don"] == 0
+    assert client.get(URL, params={**ky, "coc": "sai"}, headers=_h(client)).status_code == 422
+    x = client.get(f"{URL}/export.xlsx", params={**ky, "coc": "du"}, headers=_h(client))
+    assert x.status_code == 200
+
+
+def _phieu_thu(order_id: int, tien: int, ngay: date, *, hoa_don_id: int | None = None) -> None:
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").one()
+        db.add(PaymentReceipt(
+            code=f"PT-BCKD-{order_id}-{tien}-{ngay:%m%d}", source_type=RECEIPT_SOURCE_ORDER,
+            order_id=order_id, sales_invoice_id=hoa_don_id, payer_name="Khách",
+            receipt_method="cash", status=PAYMENT_RECEIPT_RECEIVED, receipt_date=ngay, amount=tien,
+            amount_vnd=tien, currency="VND", exchange_rate=1, content="Thu tiền đơn",
+            created_by_user_id=admin.id, received_by_user_id=admin.id,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _hoa_don(order_id: int, khach_id: int, tien: int, ngay: date) -> int:
+    from app.models.accounting import SalesInvoice
+
+    db = SessionLocal()
+    try:
+        hd = SalesInvoice(order_id=order_id, customer_id=khach_id, invoice_symbol="1C26T",
+                          invoice_number=f"BCKD-{order_id}-{ngay:%m%d}", invoice_date=ngay,
+                          amount_vnd=tien, customer_name_snapshot="Khách")
+        db.add(hd)
+        db.commit()
+        return hd.id
+    finally:
+        db.close()
+
+
+def _giao(order_id: int, sl: int, xong_luc: datetime) -> None:
+    from app.models.delivery import LG_THANH_CONG, DeliveryRequest, DeliveryTrip, DeliveryTripLine
+    from tests.gia_cong_fixtures import nhan_vien_cua
+
+    db = SessionLocal()
+    try:
+        admin = db.query(User).filter(User.username == "admin").one()
+        ln = db.query(OrderLine).filter(OrderLine.order_id == order_id).first()
+        req = DeliveryRequest(code=f"YC-BCKD-{order_id}-{xong_luc:%m%d}", order_id=order_id,
+                              trang_thai="cho_len_ke_hoach", ngay_can_giao=xong_luc.date())
+        db.add(req)
+        db.flush()
+        trip = DeliveryTrip(request_id=req.id, lan_thu=1, trang_thai=LG_THANH_CONG,
+                            employee_id=nhan_vien_cua(db, admin).id, gio_lay_hang=xong_luc,
+                            gio_du_kien_giao=xong_luc, thoi_gian_ket_thuc=xong_luc)
+        db.add(trip)
+        db.flush()
+        db.add(DeliveryTripLine(trip_id=trip.id, order_line_id=ln.id, qty_giao=sl))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_thuc_hien_don_luy_ke_toi_cuoi_ky_va_loc_giao_thu(client):
+    """Phương án C (11/10/2026): đã giao / đã xuất HĐ / đã thu của đơn LŨY KẾ TỚI HẾT `den_ngay` —
+    chuyến, hoá đơn, phiếu thu sau cuối kỳ không tính. Phiếu thu hoá đơn có cả `order_id` không bị
+    cộng hai lần. Lọc tình trạng giao / thu, số đếm của mỗi điều kiện tính trên điều kiện KHÁC."""
+    kh = _khach("Công ty BCKD Thực hiện", "KH-BCKD-T")
+    g1 = _don(kh, "DH-BCKD-G1", chot_luc=_luc(2026, 8, 3), dong=(("Hộp cứng", 100, 10000),))
+    _don(kh, "DH-BCKD-G2", chot_luc=_luc(2026, 8, 4), coc_pct=None, dong=(("Tem", 10, 1000),))
+    _giao(g1, 40, _luc(2026, 8, 20))
+    _giao(g1, 60, _luc(2026, 9, 5))
+    hd1 = _hoa_don(g1, kh, 500_000, date(2026, 8, 25))
+    _hoa_don(g1, kh, 580_000, date(2026, 9, 6))
+    _phieu_thu(g1, 324_000, date(2026, 8, 10))                           # cọc 30%
+    _phieu_thu(g1, 200_000, date(2026, 8, 28), hoa_don_id=hd1)           # thu hoá đơn, có cả order_id
+    _phieu_thu(g1, 300_000, date(2026, 9, 10), hoa_don_id=hd1)           # sau cuối kỳ tháng 8
+
+    def bc(**p):
+        r = client.get(URL, params=p, headers=_h(client))
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    j = bc(tu_ngay="2026-08-01", den_ngay="2026-08-31")
+    assert j["tinh_toi"] == "2026-08-31"
+    d = {x["order_no"]: x for k in j["khach"] for x in k["don"]}
+    g = d["DH-BCKD-G1"]
+    assert (g["dong"][0]["da_giao"], g["dong"][0]["con_giao"]) == (40, 60)
+    assert g["tong_vat"] == 1_080_000 and g["gia_tri_giao"] == 432_000
+    assert (g["da_xuat_hd"], g["da_thu"], g["con_phai_thu"]) == (500_000, 524_000, 556_000)
+    assert (g["giao"], g["thu"]) == ("mot_phan", "mot_phan")
+    assert (d["DH-BCKD-G2"]["giao"], d["DH-BCKD-G2"]["thu"]) == ("chua", "chua")
+    assert j["tong"]["da_thu"] == 524_000 and j["tong"]["con_phai_thu"] == 556_000 + 10_800
+
+    j = bc(tu_ngay="2026-08-01", den_ngay="2026-09-30")
+    g = {x["order_no"]: x for k in j["khach"] for x in k["don"]}["DH-BCKD-G1"]
+    assert (g["dong"][0]["con_giao"], g["gia_tri_giao"], g["giao"]) == (0, 1_080_000, "du")
+    assert (g["da_xuat_hd"], g["da_thu"]) == (1_080_000, 824_000)
+
+    j = bc(tu_ngay="2026-08-01", den_ngay="2026-08-31", giao=["chua"])
+    assert [x["order_no"] for k in j["khach"] for x in k["don"]] == ["DH-BCKD-G2"]
+    assert {c["value"]: c["so"] for c in j["lua_chon"]["giao"]} == {"chua": 1, "mot_phan": 1, "du": 0}
+    assert {c["value"]: c["so"] for c in j["lua_chon"]["thu"]} == {"chua": 1, "mot_phan": 0, "du": 0}
+    j = bc(tu_ngay="2026-08-01", den_ngay="2026-08-31", thu=["mot_phan"])
+    assert [x["order_no"] for k in j["khach"] for x in k["don"]] == ["DH-BCKD-G1"]
+    assert client.get(URL, params={"giao": "sai"}, headers=_h(client)).status_code == 422
+
+    x = client.get(f"{URL}/export.xlsx", params={"tu_ngay": "2026-08-01", "den_ngay": "2026-08-31"},
+                   headers=_h(client))
+    ws = load_workbook(BytesIO(x.content)).active
+    assert ws["O4"].value == "Tỷ lệ báo giá" and ws["P4"].value == "Đã giao (SL)"
+    assert ws["V4"].value == "Hẹn giao"
+    don_g1 = next(r for r in range(5, ws.max_row + 1) if ws[f"A{r}"].value == "DH-BCKD-G1")
+    assert (ws[f"R{don_g1}"].value, ws[f"T{don_g1}"].value, ws[f"U{don_g1}"].value) == (432_000, 524_000, 556_000)
+    assert (ws[f"P{don_g1 + 1}"].value, ws[f"Q{don_g1 + 1}"].value) == (40, 60)

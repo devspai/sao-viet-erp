@@ -1,6 +1,6 @@
-// Hàm thuần của form KCS cuối "xét theo công đoạn" (`docs/design-tieu-chi-kcs-lam-lai.md` §3a, cách
-// 3): gom tiêu chí gộp thành thẻ công đoạn, tự điền mô tả từ mục hỏng, lý do khoá nút Lưu, kết quả
-// từng tiêu chí gửi máy chủ. Tách khỏi component để test không cần DOM.
+// Hàm thuần của form Kiểm hàng bước cuối (`KcsKiemForm`). Từ 11/10/2026 form đi theo khuôn hộp Ghi
+// lỗi: tiêu chí gộp cả chuỗi (kể cả lệnh phụ cùng nhóm) chia nhóm theo lệnh → công đoạn; tiêu chí
+// không đạt thì tick, không tick là đạt. Tách khỏi component để test không cần DOM.
 import type { SxKcsChecklistKetQuaIn, SxKcsChiTietTieuChi } from "../../api/client";
 import { num } from "../keHoachSxShared";
 
@@ -15,19 +15,16 @@ export interface AnhCho {
   goc: number;
 }
 
-/** Một thẻ công đoạn — các tiêu chí gộp của MỘT công việc nguồn, theo thứ tự chuỗi. */
+/** Tiêu chí gộp của MỘT công việc nguồn, theo thứ tự chuỗi. */
 export interface TheCd {
   cvId: number;
   ten: string;
-  /** Chữ phụ dưới tên khi tiêu chí thuộc lệnh phụ cùng nhóm. */
-  phu: string | null;
+  /** Lệnh của công đoạn — `laPhu` khi là lệnh phụ cùng nhóm. */
+  lsxMa: string | null;
+  tenLenh: string | null;
+  laPhu: boolean;
   tieuChi: SxKcsChiTietTieuChi[];
 }
-
-export type TrangThaiThe =
-  | { loai: "chua" }
-  | { loai: "dat" }
-  | { loai: "loi"; hong: Set<number>; so: string; moTa: string; suaTay: boolean; anh: AnhCho[] };
 
 export const tenTieuChi = (tc: SxKcsChiTietTieuChi): string => tc.ten ?? tc.ma ?? `Tiêu chí #${tc.thu_tu}`;
 
@@ -35,8 +32,8 @@ export const tenTieuChi = (tc: SxKcsChiTietTieuChi): string => tc.ten ?? tc.ma ?
 export const nhanLenhPhu = (tc: SxKcsChiTietTieuChi): string | null =>
   tc.la_lenh_phu ? `Lệnh phụ ${[tc.ten_lenh, tc.lsx_ma].filter(Boolean).join(" ")}`.trim() : null;
 
-/** Gom danh sách gộp thành thẻ theo công việc nguồn, giữ thứ tự máy chủ trả. Mục cũ thiếu
- *  `cong_viec_id` là của chính công việc đang kiểm (`cvMacDinh`). */
+/** Gom danh sách gộp theo công việc nguồn, giữ thứ tự máy chủ trả. Mục cũ thiếu `cong_viec_id` là
+ *  của chính công việc đang kiểm (`cvMacDinh`). */
 export function gomThe(checklist: SxKcsChiTietTieuChi[], cvMacDinh: number, tenMacDinh = "Công đoạn"): TheCd[] {
   const theo = new Map<number, TheCd>();
   for (const tc of checklist) {
@@ -46,7 +43,9 @@ export function gomThe(checklist: SxKcsChiTietTieuChi[], cvMacDinh: number, tenM
       the = {
         cvId,
         ten: tc.ten_cong_doan || tenMacDinh,
-        phu: nhanLenhPhu(tc),
+        lsxMa: tc.lsx_ma ?? null,
+        tenLenh: tc.ten_lenh ?? null,
+        laPhu: Boolean(tc.la_lenh_phu),
         tieuChi: [],
       };
       theo.set(cvId, the);
@@ -56,60 +55,58 @@ export function gomThe(checklist: SxKcsChiTietTieuChi[], cvMacDinh: number, tenM
   return [...theo.values()];
 }
 
-/** "Đạt hết N công đoạn còn lại": chỉ thẻ CHƯA xét chuyển sang Đạt, thẻ đã chọn Có lỗi giữ nguyên. */
-export function datHetConLai(the: TheCd[], tt: Map<number, TrangThaiThe>): Map<number, TrangThaiThe> {
-  const moi = new Map(tt);
-  for (const t of the) if ((tt.get(t.cvId)?.loai ?? "chua") === "chua") moi.set(t.cvId, { loai: "dat" });
-  return moi;
-}
-
-/** Mô tả tự điền: tên các mục hỏng, mỗi mục một dòng, theo thứ tự tiêu chí. */
-export function moTaTuDien(the: TheCd, hong: Set<number>): string {
-  return the.tieuChi.filter((tc) => hong.has(tc.thu_tu)).map(tenTieuChi).join("\n");
-}
-
-/** Mô tả đang bày ở thẻ: đã sửa tay thì giữ chữ người gõ, chưa thì tự điền theo mục hỏng. */
-export function moTaThe(the: TheCd, tt: Extract<TrangThaiThe, { loai: "loi" }>): string {
-  return tt.suaTay ? tt.moTa : moTaTuDien(the, tt.hong);
-}
-
-const thuong = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
-
-/** MỘT lý do khoá nút Lưu, theo thứ tự §3a — null là lưu được. Hai trần cuối (tổng lỗi, số ảnh) là
- *  của cả lần kiểm, tính trên mọi thẻ cộng dòng lỗi thủ công. */
-export function lyDoKhoa(
-  the: TheCd[],
-  tt: Map<number, TrangThaiThe>,
-  { chuaKiem, tongLoi, soAnh }: { chuaKiem: number; tongLoi: number; soAnh: number },
-): string | null {
-  const cua = (t: TheCd): TrangThaiThe => tt.get(t.cvId) ?? { loai: "chua" };
-  const con = the.filter((t) => cua(t).loai === "chua").length;
-  if (con > 0) return `Còn ${con} công đoạn chưa xét`;
-  const loi = the.flatMap((t) => {
-    const s = cua(t);
-    return s.loai === "loi" ? [{ t, s }] : [];
-  });
-  const chuaTick = loi.find(({ s }) => s.hong.size === 0);
-  if (chuaTick) return `Tick mục hỏng của ${thuong(chuaTick.t.ten)}`;
-  for (const { t, s } of loi) {
-    if (!(Number(s.so) > 0)) return `Gõ số lỗi cho ${thuong(t.ten)}`;
-    if (s.anh.length === 0) return `Chụp ít nhất một ảnh lỗi ${thuong(t.ten)}`;
+/** Nhóm theo LỆNH (lệnh phụ trước, theo thứ tự chuỗi) — tên lệnh phụ chỉ nói một lần ở đầu nhóm. */
+export function nhomTheoLenh(the: TheCd[]): { khoa: string; lsxMa: string | null; tenLenh: string | null; laPhu: boolean; cd: TheCd[] }[] {
+  const out: { khoa: string; lsxMa: string | null; tenLenh: string | null; laPhu: boolean; cd: TheCd[] }[] = [];
+  for (const t of the) {
+    const khoa = t.laPhu ? `phu:${t.lsxMa ?? ""}` : "chinh";
+    let n = out.find((x) => x.khoa === khoa);
+    if (!n) {
+      n = { khoa, lsxMa: t.lsxMa, tenLenh: t.tenLenh, laPhu: t.laPhu, cd: [] };
+      out.push(n);
+    }
+    n.cd.push(t);
   }
-  if (tongLoi > chuaKiem) return `Tổng lỗi vượt phần chưa kiểm (${num(chuaKiem)})`;
-  if (soAnh > TOI_DA_ANH_MOI_LAN) return `Tối đa ${TOI_DA_ANH_MOI_LAN} ảnh mỗi lần kiểm`;
-  return null;
+  return out;
 }
 
-/** Kết quả từng tiêu chí: thẻ Đạt ⇒ mọi mục đạt; thẻ Có lỗi ⇒ mục tick hỏng `dat=false`, còn lại đạt.
- *  Ghi chú từng tiêu chí đã bỏ (ghi chú chung của lần kiểm thay). */
-export function ketQuaChecklist(the: TheCd[], tt: Map<number, TrangThaiThe>): SxKcsChecklistKetQuaIn[] {
-  return the.flatMap((t) => {
-    const s = tt.get(t.cvId);
-    return t.tieuChi.map((tc) => ({
-      cong_viec_id: t.cvId,
-      thu_tu: tc.thu_tu,
-      dat: !(s?.loai === "loi" && s.hong.has(tc.thu_tu)),
-      ghi_chu: null,
-    }));
-  });
+/** Khoá một dòng tick: tiêu chí `cv:thu_tu`, "Lỗi khác" là `KHAC`. */
+export const KHAC = "khac";
+export const khoaTc = (cvId: number, thuTu: number) => `${cvId}:${thuTu}`;
+
+/** Một dòng đang tick. `cvId` = công đoạn chịu lỗi (tiêu chí: cố định; Lỗi khác: KCS chọn). */
+export interface DongKiem {
+  cvId: number;
+  so: string;
+  ghi: string;
+  anh: AnhCho[];
+}
+
+/** Kết quả mọi tiêu chí gửi máy chủ: tiêu chí đang tick là không đạt, còn lại đạt. */
+export function ketQuaChecklist(the: TheCd[], dangTick: Set<string>): SxKcsChecklistKetQuaIn[] {
+  return the.flatMap((t) => t.tieuChi.map((tc) => ({
+    cong_viec_id: t.cvId,
+    thu_tu: tc.thu_tu,
+    dat: !dangTick.has(khoaTc(t.cvId, tc.thu_tu)),
+    ghi_chu: null,
+  })));
+}
+
+/** MỘT lý do chưa lưu được, theo thứ tự người kiểm gặp phải — null là lưu được. `dong` theo thứ tự
+ *  trên màn, mỗi dòng kèm tên để nói. */
+export function lyDoKiem(
+  dong: { khoa: string; ten: string; d: DongKiem }[],
+  { chuaKiem, dv }: { chuaKiem: number; dv: string },
+): string | null {
+  if (chuaKiem <= 0) return "Tổ chưa ghi thêm sản lượng từ lần kiểm trước";
+  for (const { khoa, ten, d } of dong) {
+    if (!(Number(d.so) > 0)) return `Nhập số lỗi cho ${ten}`;
+    if (khoa === KHAC && !d.ghi.trim()) return "Ghi chú Lỗi khác là lỗi gì";
+    if (d.anh.length === 0) return `Chụp ít nhất một ảnh cho ${ten}`;
+  }
+  const tong = dong.reduce((s, { d }) => s + (Number(d.so) > 0 ? Number(d.so) : 0), 0);
+  if (tong > chuaKiem) return `Tổng lỗi vượt số chưa kiểm (${num(chuaKiem)} ${dv})`.replace(/ \)$/, ")");
+  const soAnh = dong.reduce((n, { d }) => n + d.anh.length, 0);
+  if (soAnh > TOI_DA_ANH_MOI_LAN) return `Tối đa ${TOI_DA_ANH_MOI_LAN} ảnh mỗi lần kiểm, bỏ bớt ${soAnh - TOI_DA_ANH_MOI_LAN} ảnh`;
+  return null;
 }

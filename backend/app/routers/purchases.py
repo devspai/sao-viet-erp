@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -440,6 +440,7 @@ def _dong_ncc(row, danh_gia: DanhGiaNcc, quy_doi: dict | None = None) -> Supplie
             if qd:
                 it.he_so_ve_goc = qd["he_so_ve_goc"]
                 it.gia_quy_doi = qd["gia_quy_doi"]
+                it.don_vi_goc = qd.get("don_vi_goc") or ""
     return ra
 
 
@@ -542,8 +543,9 @@ def so_gia_ncc(
         viec="view_cost"))],
     hang_loai: str = Query(..., pattern="^(giay|vat_tu)$"),
     hang_id: int = Query(..., gt=0),
-    # Giấy: dạng của dòng đang mua (07/10/2026) — chỉ so NCC bán cùng dạng; tờ phải cùng khổ.
-    dang: Literal["to", "cuon"] | None = Query(default=None),
+    # ĐVT của dòng đang mua (10/10/2026, thay `dang`) — dòng giá cùng HỌ đơn vị xếp trước
+    # (`cung_ho`). Giấy có khổ ⇒ chỉ so dòng giá ĐÚNG khổ đó.
+    don_vi: str | None = Query(default=None, max_length=32),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
 ) -> SoGiaOut:
@@ -553,7 +555,8 @@ def so_gia_ncc(
     rẻ. Dòng không quy đổi được vẫn hiện (NCC đó có bán thật) nhưng xếp cuối kèm lý do.
     """
     try:
-        return SoGiaOut(**svc.so_gia_ncc(hang_loai, hang_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai))
+        return SoGiaOut(**svc.so_gia_ncc(hang_loai, hang_id, don_vi=don_vi,
+                                         kho_rong=kho_rong, kho_dai=kho_dai))
     except VatLieuKhoError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
 
@@ -674,6 +677,10 @@ def list_purchase_requests(
     tong_tu: int | None = Query(default=None, ge=0),
     tong_den: int | None = Query(default=None, ge=0),
     loai_mua: list[str] | None = Query(default=None),
+    # Ba vai người trên đơn (10/10/2026): NV yêu cầu / NV mua hàng (người lập) / NV duyệt.
+    nv_yc_id: int | None = Query(default=None),
+    nv_mua_id: int | None = Query(default=None),
+    nv_duyet_id: int | None = Query(default=None),
     sort: str = Query(default="-created_at"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
@@ -694,6 +701,9 @@ def list_purchase_requests(
         tong_tu=tong_tu,
         tong_den=tong_den,
         loai_mua=_loai_mua(loai_mua),
+        nv_yc_id=nv_yc_id,
+        nv_mua_id=nv_mua_id,
+        nv_duyet_id=nv_duyet_id,
     )
     try:
         rows, total, dem, dem_tien = svc.danh_sach_don(
@@ -714,6 +724,17 @@ def purchase_requests_loc_ncc(
     """Ô "Nhà cung cấp" của thanh lọc Đơn mua hàng: NCC đang có đơn trong tầm nhìn, kèm số đơn.
     ⚠️ Khai TRƯỚC `/{request_id}`."""
     return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.dem_theo_ncc(actor=user)]
+
+
+@router.get("/api/purchase-requests/loc-nguoi", response_model=list[LuaChonLoc])
+def purchase_requests_loc_nguoi(
+    svc: Annotated[PurchaseService, Depends(get_purchase_service)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    vai: str = Query(pattern="^(yc|mua|duyet)$"),
+) -> list[LuaChonLoc]:
+    """Ô NV yêu cầu / NV mua hàng / NV duyệt của thanh lọc Đơn mua hàng: người có đơn trong tầm
+    nhìn ở vai đó, kèm số đơn. ⚠️ Khai TRƯỚC `/{request_id}`."""
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in svc.dem_theo_nguoi(vai, actor=user)]
 
 
 @router.get("/api/purchase-requests/notify-summary", response_model=PurchaseNotifySummaryOut)

@@ -24,7 +24,7 @@ from ..models.stock_request import StockRequest, StockRequestLine
 from ..models.stock_voucher import (
     VOUCHER_DRAFT, VOUCHER_NHAP, VOUCHER_XUAT, StockVoucher, StockVoucherLine,
 )
-from ..services.kho_giay import DANG_CUON, DANG_TO, chuan_kho
+from ..services.kho_giay import chuan_kho, co_don_vi_goc
 
 # (hang_loai, hang_id) — một mặt hàng gốc.
 Hang = tuple[str, int]
@@ -90,10 +90,10 @@ class StockLotRepository:
         self.db.refresh(lot)
         return lot
 
-    def ghi_dang_kho(self, lot: StockLot, *, dang: str, kho_rong: int, kho_dai: int,
-                     sl_ban_dau, sl_con_lai, don_gia_nhap: int | None = None) -> StockLot:
-        """Ghi dạng/khổ + số lượng đã đổi cho MỘT lô; KHÔNG commit (người gọi gộp với nhật ký)."""
-        lot.dang_giay = dang
+    def ghi_kho_goc(self, lot: StockLot, *, goc: str, kho_rong: int, kho_dai: int,
+                    sl_ban_dau, sl_con_lai, don_gia_nhap: int | None = None) -> StockLot:
+        """Ghi khổ + đơn vị gốc + số lượng đã đổi cho MỘT lô; KHÔNG commit (người gọi gộp với nhật ký)."""
+        lot.don_vi_goc = goc
         lot.kho_rong = kho_rong
         lot.kho_dai = kho_dai
         lot.sl_ban_dau = sl_ban_dau
@@ -176,25 +176,26 @@ class StockLotRepository:
         return lot
 
     @staticmethod
-    def _loc_dang_kho(stmt, dang: str | None, kho_rong: int, kho_dai: int):
-        """Lọc lô giấy theo DẠNG và (lô TỜ) đúng KHỔ — so bằng nhau tuyệt đối trên hai số đã chuẩn hoá
-        (spec §3.1). Cuộn gom theo mã nên khổ rộng không lọc. `dang=None` ⇒ không lọc gì."""
-        if dang is None:
+    def _loc_kho(stmt, goc: str | None, kho_rong: int, kho_dai: int):
+        """Lọc lô giấy theo ĐƠN VỊ GỐC và (khi dòng có khổ) đúng KHỔ — so bằng nhau tuyệt đối trên hai
+        số đã chuẩn hoá (khổ chỉ-rộng `(r, 0)` không khớp khổ hai cạnh). Dòng chưa có khổ ⇒ không lọc
+        khổ. `goc=None` ⇒ không lọc gì."""
+        if goc is None:
             return stmt
-        stmt = stmt.where(StockLot.dang_giay == dang)
+        stmt = stmt.where(StockLot.don_vi_goc == (goc or "").strip().lower())
         kr, kd = chuan_kho(kho_rong, kho_dai)
-        if dang == DANG_TO and kr and kd:
+        if kr:
             stmt = stmt.where(StockLot.kho_rong == kr, StockLot.kho_dai == kd)
         return stmt
 
-    def issuable_lots(self, hang: Hang, kho_id: int, *, dang: str | None = None,
+    def issuable_lots(self, hang: Hang, kho_id: int, *, goc: str | None = None,
                       kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
         """Các lô còn hàng và được phép xuất, xếp theo gợi ý **FEFO rồi FIFO**: lô có hạn
         dùng gần nhất đi trước (tránh để quá date), hết hạn dùng thì tới lô nhập trước.
 
         Đây chỉ là GỢI Ý — thủ kho vẫn đổi được lô, vì BRD §3.19 chốt giá xuất là đích danh.
 
-        Giấy: `dang` (+ khổ với tờ) lọc đúng dạng/khổ dòng xin — lô khác dạng hoặc khác khổ không bao
+        Giấy: `goc` (+ khổ) lọc đúng đơn vị gốc/khổ dòng xin — lô khác đơn vị hoặc khác khổ không bao
         giờ được gợi ý.
         """
         stmt = (
@@ -214,7 +215,7 @@ class StockLotRepository:
                 StockLot.id.asc(),
             )
         )
-        return list(self.db.execute(self._loc_dang_kho(stmt, dang, kho_rong, kho_dai)).scalars())
+        return list(self.db.execute(self._loc_kho(stmt, goc, kho_rong, kho_dai)).scalars())
 
     def consume(self, lot: StockLot, qty: float) -> None:
         """Trừ `qty` khỏi lô. Lô hết hàng thì đánh dấu `empty` để khỏi lọt vào gợi ý xuất.
@@ -247,7 +248,7 @@ class StockLotRepository:
         Cố tình KHÔNG trả tồn thực tế: hàng chờ KCS / hàng lỗi nằm trong kho nhưng không
         dùng được, cộng vào là hứa suông với người yêu cầu (BRD §1.5).
 
-        `hang` là cặp `(loai, id)` hoặc khoá tồn 4 phần tử — cùng luật `on_hand_map`.
+        `hang` là cặp `(loai, id)` hoặc khoá tồn 5 phần tử — cùng luật `on_hand_map`.
         """
         return self.on_hand_map([hang], kho_id).get(tuple(hang), 0.0)
 
@@ -255,13 +256,14 @@ class StockLotRepository:
                         theo_kho: bool) -> dict[tuple, dict]:
         """Σ tồn khả dụng của từng khoá, chia theo kho (`theo_kho`) hoặc gom một ô `None`.
 
-        Luật khoá (spec §3.2): cặp 2 phần tử hoặc hàng khác giấy ⇒ gom mọi lô của mã; giấy có đủ khổ
-        ⇒ chỉ lô TỜ đúng khổ; giấy `(…, 0, 0)` ⇒ chỉ lô CUỘN. Lô giấy chưa có dạng (dữ liệu kg cũ)
-        không vào khoá 4 phần tử nào. Tối đa ba câu (theo mã / tờ / cuộn) cho cả tập."""
-        theo_ma = {(k[0], int(k[1])) for k in keys if len(k) == 2 or k[0] != "giay"}
-        to = {(int(k[1]), int(k[2]), int(k[3])) for k in keys
-              if len(k) == 4 and k[0] == "giay" and k[2] and k[3]}
-        cuon = {int(k[1]) for k in keys if len(k) == 4 and k[0] == "giay" and not (k[2] and k[3])}
+        Luật khoá: cặp 2 phần tử hoặc hàng không mang đơn vị gốc ⇒ gom mọi lô của mã; giấy / vật tư
+        5 phần tử `(loai, id, rộng, dài, đơn vị gốc)` ⇒ chỉ lô đúng khổ + đúng đơn vị gốc (tờ và kg,
+        thùng và kg không cộng lẫn; vật tư khổ 0 · 0). Tối đa hai câu (theo mã / theo khoá 5 phần)."""
+        def la5(k) -> bool:
+            return len(k) == 5 and co_don_vi_goc(k[0])
+
+        theo_ma = {(k[0], int(k[1])) for k in keys if not la5(k)}
+        giay = {(k[0], int(k[1]), int(k[2]), int(k[3]), str(k[4] or "")) for k in keys if la5(k)}
         base = [StockLot.trang_thai.in_(LOT_ISSUABLE)]
         if kho_id is not None:
             base.append(StockLot.kho_id == kho_id)
@@ -284,25 +286,21 @@ class StockLotRepository:
         f_ma = gom([StockLot.hang_loai, StockLot.hang_id],
                    # `tuple_(...).in_(...)` lọc đúng CẶP: lọc rời hai cột quét nhầm tổ hợp không ai hỏi.
                    tuple_(StockLot.hang_loai, StockLot.hang_id).in_(sorted(theo_ma))) if theo_ma else {}
-        f_to = gom([StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai],
-                   StockLot.hang_loai == "giay", StockLot.dang_giay == DANG_TO,
-                   tuple_(StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai).in_(sorted(to))) if to else {}
-        f_cuon = gom([StockLot.hang_id], StockLot.hang_loai == "giay", StockLot.dang_giay == DANG_CUON,
-                     StockLot.hang_id.in_(sorted(cuon))) if cuon else {}
+        cot_giay = [StockLot.hang_loai, StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai,
+                    StockLot.don_vi_goc]
+        f_giay = gom(cot_giay, tuple_(*cot_giay).in_(sorted(giay))) if giay else {}
         out: dict[tuple, dict] = {}
         for k in keys:
-            if len(k) == 2 or k[0] != "giay":
+            if not la5(k):
                 out[k] = f_ma.get((k[0], int(k[1])), {})
-            elif k[2] and k[3]:
-                out[k] = f_to.get((int(k[1]), int(k[2]), int(k[3])), {})
             else:
-                out[k] = f_cuon.get((int(k[1]),), {})
+                out[k] = f_giay.get((k[0], int(k[1]), int(k[2]), int(k[3]), str(k[4] or "")), {})
         return out
 
     def on_hand_map(self, hangs: list[tuple], kho_id: int | None = None) -> dict[tuple, float]:
         """Tồn khả dụng của NHIỀU mặt hàng trong ít query — dùng khi vẽ đèn tín hiệu cho cả
         danh sách đề nghị (tránh N+1). Khoá là cặp `(hang_loai, hang_id)` (gom mọi lô của mã, hành vi
-        cũ) hoặc khoá tồn 4 phần tử `kho_giay.Khoa`; dict trả về khoá ĐÚNG như đầu vào."""
+        cũ) hoặc khoá tồn 5 phần tử `kho_giay.Khoa`; dict trả về khoá ĐÚNG như đầu vào."""
         if not hangs:
             return {}
         keys = [tuple(h) for h in hangs]
@@ -314,7 +312,7 @@ class StockLotRepository:
         rows = self.db.execute(
             select(StockLot.kho_rong, StockLot.kho_dai, func.sum(StockLot.sl_con_lai))
             .where(StockLot.hang_loai == "giay", StockLot.hang_id == int(giay_id),
-                   StockLot.dang_giay == DANG_TO, StockLot.kho_rong > 0, StockLot.kho_dai > 0,
+                   StockLot.don_vi_goc == "to", StockLot.kho_rong > 0, StockLot.kho_dai > 0,
                    StockLot.sl_con_lai > 0, StockLot.trang_thai.in_(LOT_ISSUABLE))
             .group_by(StockLot.kho_rong, StockLot.kho_dai))
         return [(int(r), int(d), float(s or 0)) for r, d, s in rows]
@@ -329,9 +327,9 @@ class StockLotRepository:
         return {k: dict(v) for k, v in self._tong_theo_khoa(keys, None, True).items()}
 
     def list_lots(self, *, hang: Hang | None = None, kho_id: int | None = None,
-                  con_hang: bool = True, dang: str | None = None,
+                  con_hang: bool = True, goc: str | None = None,
                   kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
-        stmt = self._loc_dang_kho(select(StockLot), dang, kho_rong, kho_dai)
+        stmt = self._loc_kho(select(StockLot), goc, kho_rong, kho_dai)
         if hang is not None:
             stmt = stmt.where(StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1])
         if kho_id is not None:
@@ -340,26 +338,26 @@ class StockLotRepository:
             stmt = stmt.where(StockLot.sl_con_lai > 0)
         return list(self.db.execute(stmt.order_by(StockLot.ngay_nhap.asc(), StockLot.id.asc())).scalars())
 
-    def ton_theo_khoa(self, hang: Hang) -> list[tuple[str | None, int, int, float]]:
-        """Tồn TOÀN XƯỞNG của MỘT mặt hàng tách theo khoá dạng + khổ: `[(dang, rộng, dài, sl)]`,
+    def ton_theo_khoa(self, hang: Hang) -> list[tuple[str, int, int, float]]:
+        """Tồn TOÀN XƯỞNG của MỘT mặt hàng tách theo khoá đơn vị gốc + khổ: `[(goc, rộng, dài, sl)]`,
         chỉ khoá còn hàng. Nguồn cột Tồn và gợi ý khổ ở form yêu cầu mua / yêu cầu nhập xuất."""
         stmt = (
-            select(StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai,
+            select(StockLot.don_vi_goc, StockLot.kho_rong, StockLot.kho_dai,
                    func.sum(StockLot.sl_con_lai))
             .where(StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1],
                    StockLot.sl_con_lai > 0)
-            .group_by(StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai)
-            .order_by(StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai)
+            .group_by(StockLot.don_vi_goc, StockLot.kho_rong, StockLot.kho_dai)
+            .order_by(StockLot.don_vi_goc, StockLot.kho_rong, StockLot.kho_dai)
         )
-        return [(d, int(r or 0), int(k or 0), float(sl or 0))
+        return [(d or "", int(r or 0), int(k or 0), float(sl or 0))
                 for d, r, k, sl in self.db.execute(stmt).all()]
 
-    def _stmt_lo_mat_hang(self, cols, hang: Hang, kho_id: int, *, tab: str, dang: str | None,
+    def _stmt_lo_mat_hang(self, cols, hang: Hang, kho_id: int, *, tab: str, goc: str | None,
                           kho_rong: int, kho_dai: int):
         """Lô của MỘT dòng tồn tại MỘT kho, lọc theo tab ngăn mặt hàng:
         `lo_ton` = còn hàng · `nhap` = lô nhập thường (không sinh từ phiếu điều chuyển, kể cả lô đã
         hết) · `nhan_ve` = lô sinh từ phiếu điều chuyển."""
-        stmt = self._loc_dang_kho(select(*cols), dang, kho_rong, kho_dai).where(
+        stmt = self._loc_kho(select(*cols), goc, kho_rong, kho_dai).where(
             StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1], StockLot.kho_id == kho_id)
         dc = select(StockVoucher.id).where(StockVoucher.dieu_chuyen.is_(True))
         if tab == "lo_ton":
@@ -368,32 +366,32 @@ class StockLotRepository:
             return stmt.where(or_(StockLot.voucher_id.is_(None), StockLot.voucher_id.not_in(dc)))
         return stmt.where(StockLot.voucher_id.in_(dc))
 
-    def dem_lo_theo_tab(self, hang: Hang, kho_id: int, *, dang: str | None = None,
+    def dem_lo_theo_tab(self, hang: Hang, kho_id: int, *, goc: str | None = None,
                         kho_rong: int = 0, kho_dai: int = 0) -> dict[str, int]:
         """Số lô của ba tab (`lo_ton`, `nhap`, `nhan_ve`) trong MỘT câu."""
         dc = select(StockVoucher.id).where(StockVoucher.dieu_chuyen.is_(True))
         la_dc = and_(StockLot.voucher_id.is_not(None), StockLot.voucher_id.in_(dc))
-        stmt = self._loc_dang_kho(select(
+        stmt = self._loc_kho(select(
             func.coalesce(func.sum(case((StockLot.sl_con_lai > 0, 1), else_=0)), 0),
             func.coalesce(func.sum(case((la_dc, 0), else_=1)), 0),
             func.coalesce(func.sum(case((la_dc, 1), else_=0)), 0),
-        ), dang, kho_rong, kho_dai).where(
+        ), goc, kho_rong, kho_dai).where(
             StockLot.hang_loai == hang[0], StockLot.hang_id == hang[1], StockLot.kho_id == kho_id)
         ton, nhap, nhan_ve = self.db.execute(stmt).one()
         return {"lo_ton": int(ton), "nhap": int(nhap), "nhan_ve": int(nhan_ve)}
 
     def trang_lo_mat_hang(self, hang: Hang, kho_id: int, *, tab: str, offset: int, limit: int,
-                          dang: str | None = None, kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
+                          goc: str | None = None, kho_rong: int = 0, kho_dai: int = 0) -> list[StockLot]:
         """Một trang lô theo tab — Lô tồn nhập trước đứng trước (FIFO, thứ tự lĩnh), lịch sử thì mới
         nhất trước để trang đầu là việc gần đây."""
-        stmt = self._stmt_lo_mat_hang((StockLot,), hang, kho_id, tab=tab, dang=dang,
+        stmt = self._stmt_lo_mat_hang((StockLot,), hang, kho_id, tab=tab, goc=goc,
                                       kho_rong=kho_rong, kho_dai=kho_dai)
         thu_tu = ((StockLot.ngay_nhap.asc(), StockLot.id.asc()) if tab == "lo_ton"
                   else (StockLot.ngay_nhap.desc(), StockLot.id.desc()))
         return list(self.db.execute(stmt.order_by(*thu_tu).offset(offset).limit(limit)).scalars())
 
-    #: Cột khoá tồn của một lô — giấy tờ tách theo khổ, mọi hàng khác các cột khổ/dạng bằng nhau.
-    _COT_KHOA = (StockLot.hang_loai, StockLot.hang_id, StockLot.dang_giay, StockLot.kho_rong, StockLot.kho_dai)
+    #: Cột khoá tồn của một lô — giấy tách theo khổ + đơn vị gốc, mọi hàng khác các cột này bằng nhau.
+    _COT_KHOA = (StockLot.hang_loai, StockLot.hang_id, StockLot.don_vi_goc, StockLot.kho_rong, StockLot.kho_dai)
 
     def list_lots_gon(self, *, kho_id: int, hangs: list[Hang] | None = None) -> list[StockLot]:
         """Lô CÒN HÀNG của kho + MỘT lô gần nhất cho mỗi khoá đã xuất hết.
@@ -418,12 +416,12 @@ class StockLotRepository:
         return list(self.db.execute(stmt.order_by(StockLot.ngay_nhap.asc(), StockLot.id.asc())).scalars())
 
     def tong_hop_ton_theo_khoa(self, kho_id: int) -> list:
-        """Mỗi khoá tồn thô (hàng, dạng, khổ rộng, khổ dài) từng có lô trong kho MỘT dòng cộng sẵn:
+        """Mỗi khoá tồn thô (hàng, đơn vị gốc, khổ rộng, khổ dài) từng có lô trong kho MỘT dòng cộng sẵn:
         `tong` = Σ sl_con_lai lô khả dụng · `gia_tri` = Σ sl_con_lai × đơn giá nhập (lô khả dụng) ·
         `hsd_som` = hạn sớm nhất của lô CÒN hàng · `co_hsd` = có lô còn hàng khai hạn.
 
         Màn Tồn kho lọc/đếm/cắt trang trên các dòng này (vài nghìn mã) rồi mới nạp lô của đúng trang —
-        không kéo mọi lô về. Cuộn khác khổ vẫn là một khoá thô mỗi khổ; người gọi gộp theo `khoa_ton_cua`."""
+        không kéo mọi lô về. Người gọi gộp theo `khoa_ton_cua`."""
         kha_dung = StockLot.trang_thai == LOT_AVAILABLE
         con = StockLot.sl_con_lai > 0
         stmt = (
@@ -459,38 +457,43 @@ class StockThresholdRepository:
         self.db = db
 
     @staticmethod
-    def _khoa4(hang: tuple) -> tuple[str, int, int, int]:
-        """Cặp `(loai, id)` = khoá `(loai, id, 0, 0)` — ngưỡng của mã gom (vật tư, giấy cuộn)."""
+    def _khoa5(hang: tuple) -> tuple[str, int, int, int, str]:
+        """Cặp `(loai, id)` = khoá `(loai, id, 0, 0, "")` — ngưỡng của mã gom (vật tư)."""
         h = tuple(hang)
-        return (h[0], int(h[1]), int(h[2]), int(h[3])) if len(h) == 4 else (h[0], int(h[1]), 0, 0)
+        if len(h) == 5:
+            return (h[0], int(h[1]), int(h[2]), int(h[3]), str(h[4] or ""))
+        return (h[0], int(h[1]), 0, 0, "")
 
     def get_for(self, hang: tuple, kho_id: int) -> StockThreshold | None:
-        loai, hid, kr, kd = self._khoa4(hang)
+        loai, hid, kr, kd, goc = self._khoa5(hang)
         return self.db.execute(
             select(StockThreshold).where(
                 StockThreshold.hang_loai == loai,
                 StockThreshold.hang_id == hid,
                 StockThreshold.kho_rong == kr,
                 StockThreshold.kho_dai == kd,
+                StockThreshold.don_vi_goc == goc,
                 StockThreshold.kho_id == kho_id,
             )
         ).scalars().first()
 
     def map_for(self, hangs: list[tuple], kho_id: int) -> dict[tuple, StockThreshold]:
-        """`{khoá như đầu vào: ngưỡng}` — khoá 2 phần tử đọc ngưỡng `(…, 0, 0)`."""
+        """`{khoá như đầu vào: ngưỡng}` — khoá 2 phần tử đọc ngưỡng `(…, 0, 0, "")`."""
         if not hangs:
             return {}
-        theo4 = {self._khoa4(h): tuple(h) for h in hangs}
+        theo5 = {self._khoa5(h): tuple(h) for h in hangs}
         rows = self.db.execute(
             select(StockThreshold).where(
                 tuple_(StockThreshold.hang_loai, StockThreshold.hang_id,
-                       StockThreshold.kho_rong, StockThreshold.kho_dai).in_(sorted(theo4)),
+                       StockThreshold.kho_rong, StockThreshold.kho_dai,
+                       StockThreshold.don_vi_goc).in_(sorted(theo5)),
                 StockThreshold.kho_id == kho_id,
             )
         ).scalars()
         out = {}
         for r in rows:
-            k = theo4.get((r.hang_loai, r.hang_id, int(r.kho_rong or 0), int(r.kho_dai or 0)))
+            k = theo5.get((r.hang_loai, r.hang_id, int(r.kho_rong or 0), int(r.kho_dai or 0),
+                           r.don_vi_goc or ""))
             if k is not None:
                 out[k] = r
         return out
@@ -506,9 +509,9 @@ class StockThresholdRepository:
     def upsert(self, *, hang: tuple, kho_id: int, **data) -> StockThreshold:
         obj = self.get_for(hang, kho_id)
         if obj is None:
-            loai, hid, kr, kd = self._khoa4(hang)
+            loai, hid, kr, kd, goc = self._khoa5(hang)
             obj = StockThreshold(hang_loai=loai, hang_id=hid, kho_rong=kr, kho_dai=kd,
-                                 kho_id=kho_id, nguong_ton=0)
+                                 don_vi_goc=goc, kho_id=kho_id, nguong_ton=0)
             self.db.add(obj)
         for k, v in data.items():
             setattr(obj, k, v)

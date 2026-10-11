@@ -20,12 +20,16 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { type SxKcsChiTietTieuChi, type SxKcsLanKiem } from "../../api/client";
 import { XemTruoc } from "../../components/DinhKemTep";
+import { ChipTT } from "../../components/LuoiDs";
 import { Icon } from "../../components/Icons";
 import type { TepXem } from "../../components/tepDinhKem";
 import { ngayGio, num } from "../keHoachSxShared";
 import { nhanDonVi } from "../lsxBuoc";
 import { DongTep } from "../ThsxDongTep";
 import { KCS_KET_LUAN } from "./kcsNhan";
+
+/** Kết luận lần kiểm → sắc chip: đạt lá, có lỗi cam, không đạt đỏ. */
+const MAU_KET_LUAN: Record<string, "la" | "cam" | "do"> = { dat: "la", dat_mot_phan: "cam", khong_dat: "do" };
 import { nhanLenhPhu, tenTieuChi } from "./theCongDoan";
 import "../thuc-hien-sx.css";
 
@@ -81,18 +85,19 @@ export function KcsLanKiemList({
           const nhomKq = ketQuaTheoCongDoan(lk, checklist);
           const soCdLoi = nhomKq.filter((g) => g.hong.length > 0).length;
           return (
-            // Hàng phẳng: vạch trái mang màu kết luận, không badge/chip/viên thuốc (19/09/2026).
-            <li key={lk.id} className={`kcs-lk__it kcs-lk__it--${chiLoi ? "dat_mot_phan" : lk.ket_luan}`}>
+            // Hàng phẳng, ngăn bằng gạch mảnh dưới; kết luận là chip `--tt-*` mỗi kết luận một sắc
+            // (10/10/2026 thay vạch màu bên trái — luật không viền một cạnh).
+            <li key={lk.id} className="kcs-lk__it">
               <div className="kcs-lk__dau">
                 <span className="kcs-lk__kq">
                   {chiLoi ? (
-                    <span className="kcs-lk__so">lỗi <b className="is-loi">{num(lk.so_loi)}</b> {dv}</span>
+                    <span className="kcs-lk__so">lỗi <span className="kcs-lk__n is-loi">{num(lk.so_loi)}</span> {dv}</span>
                   ) : (
                     <>
-                      <span className="kcs-lk__kl">{kl.nhan}</span>
+                      <ChipTT mau={MAU_KET_LUAN[lk.ket_luan] ?? "xam"}>{kl.nhan}</ChipTT>
+                      <span className="kcs-lk__so">đạt <span className="kcs-lk__n">{num(lk.so_dat)}</span></span>
                       <span className="kcs-lk__so">
-                        đạt <b>{num(lk.so_dat)}</b>{" · "}lỗi{" "}
-                        <b className={lk.so_loi > 0 ? "is-loi" : undefined}>{num(lk.so_loi)}</b> {dv}
+                        lỗi <span className={`kcs-lk__n${lk.so_loi > 0 ? " is-loi" : ""}`}>{num(lk.so_loi)}</span> {dv}
                       </span>
                     </>
                   )}
@@ -135,22 +140,28 @@ export function KcsLanKiemList({
                     <p className="kcs-lk__loi-phu">
                       {khac && (
                         <span className="kcs-lk__chiu" title="KCS quy lỗi này về công đoạn đứng trước — tổ đó chịu trách nhiệm">
-                          Tính cho <b>{l.cong_doan_ten ?? "công đoạn trước"}</b>
-                          {l.to_chiu_ten ? ` (${l.to_chiu_ten})` : ""}{" · "}
+                          Tính cho {l.cong_doan_ten ?? "công đoạn trước"}
+                          {l.to_chiu_ten ? ` (${l.to_chiu_ten})` : ""}
                         </span>
                       )}
-                      <span className={l.da_xem_luc ? "kcs-lk__xem is-da" : "kcs-lk__xem"}>
-                        {l.da_xem_luc
-                          ? `Tổ đã xem${l.nguoi_xem ? ` (${l.nguoi_xem})` : ""} · ${ngayGio(l.da_xem_luc)}`
-                          : "Tổ chưa xem"}
-                      </span>
+                      {l.da_xem_luc ? (
+                        <>
+                          <ChipTT mau="la">tổ đã xem {ngayGio(l.da_xem_luc)}</ChipTT>
+                          {l.nguoi_xem && <span>{l.nguoi_xem}</span>}
+                        </>
+                      ) : <ChipTT mau="vang">tổ chưa xem</ChipTT>}
                     </p>
                     {l.anh.length > 0 && (
                       <ul className="thsx-tep__ds kcs-lk__anh">
                         {l.anh.map((a) => (
                           <DongTep key={a.id} onXem={setXem}
                             t={{ ten_tep: a.file_name, file_url: a.file_url, content_type: a.file_type ?? null }}
-                            meta={`${ngayGio(lk.luc)}${lk.nguoi_kiem ? ` · ${lk.nguoi_kiem}` : ""}`} />
+                            meta={(
+                              <span className="kcs-lk__tep-meta">
+                                <span>{ngayGio(lk.luc)}</span>
+                                {lk.nguoi_kiem && <span>{lk.nguoi_kiem}</span>}
+                              </span>
+                            )} />
                         ))}
                       </ul>
                     )}
@@ -169,8 +180,8 @@ export function KcsLanKiemList({
 
 /** Lỗi KCS TỔ CHỊU của một công đoạn — danh sách PHẲNG, mới nhất trước: lỗi KCS bắt ngay ở công đoạn
  *  này (trừ lỗi KCS đã quy sang công đoạn khác) + lỗi bắt ở bước sau quy về đây (`lan_kiem_buoc_sau`,
- *  máy chủ đã chỉ giữ lỗi quy về công đoạn này). Mỗi lỗi: mô tả + số, dòng phụ "bắt ở … · ai · lúc
- *  nào · đã xem", ảnh bên dưới. Không bày lần kiểm đạt/số đạt — tổ chỉ cần biết lỗi (19/09/2026). */
+ *  máy chủ đã chỉ giữ lỗi quy về công đoạn này). Mỗi lỗi: mô tả + số, dòng phụ là các mẩu tách rời
+ *  (bắt ở đâu, ai lúc nào, chip đã xem), ảnh bên dưới. Không bày lần kiểm đạt/số đạt — tổ chỉ cần biết lỗi (19/09/2026). */
 export function loiCuaTo(congViecId: number, lanKiem: SxKcsLanKiem[], buocSau: SxKcsLanKiem[] = []) {
   const tai = lanKiem.flatMap((lk) => lk.loi
     .filter((l) => l.cong_doan_id == null || l.cong_doan_id === congViecId)
@@ -193,16 +204,15 @@ export function KcsLoiCuaTo({ congViecId, dong }: {
               <span className="kcs-bs__mota">{l.mo_ta || "Lỗi"}</span>
               <span className="kcs-bs__so">{num(l.so_luong)} {nhanDonVi(l.don_vi ?? lk.don_vi)}</span>
             </div>
-            <p className="kcs-bs__phu">
+            <div className="kcs-bs__phu">
               {lk.cong_viec_id != null && lk.cong_viec_id !== congViecId && (
-                <>Bắt ở <b>{lk.cong_doan_ten ?? "công đoạn sau"}</b>{" · "}</>
+                <span>Bắt ở {lk.cong_doan_ten ?? "công đoạn sau"}</span>
               )}
-              {lk.nguoi_kiem ?? "—"} · {ngayGio(lk.luc)}
-              {" · "}
-              <span className={l.da_xem_luc ? "kcs-bs__xem is-da" : "kcs-bs__xem"}>
-                {l.da_xem_luc ? `đã xem ${ngayGio(l.da_xem_luc)}` : "chưa xem"}
-              </span>
-            </p>
+              <span>{lk.nguoi_kiem ?? "—"} lúc {ngayGio(lk.luc)}</span>
+              {l.da_xem_luc
+                ? <ChipTT mau="la">đã xem {ngayGio(l.da_xem_luc)}</ChipTT>
+                : <ChipTT mau="vang">chưa xem</ChipTT>}
+            </div>
             {l.anh.length > 0 && (
               <ul className="thsx-tep__ds kcs-bs__anh">
                 {l.anh.map((a) => (

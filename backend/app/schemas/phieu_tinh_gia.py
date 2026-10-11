@@ -78,12 +78,31 @@ class ThanhPhamOut(BaseModel):
 
 # ============================ SẢN PHẨM TÁI BẢN (docs/spec-san-pham-tai-ban.md) ============================
 class SanPhamTaiBanGoiY(BaseModel):
-    """1 dòng gợi ý tìm sản phẩm tái bản — nhẹ, chỉ đủ hiển thị danh sách chọn."""
+    """1 thành phẩm CỦA KHÁCH để chọn tái bản (11/10/2026). `so_thanh_phan = 0` = mã chưa từng chốt
+    qua phiếu tính giá — chọn được, chỉ gắn mã, không có cấu hình để nạp."""
+    id: int
+    ma: str
+    ten: str
+    don_vi: str | None = None
+    so_thanh_phan: int = 0
+    tai_ban_luc: datetime | None = None
+
+
+class SanPhamTaiBanChiTiet(BaseModel):
+    """Mã tái bản + cấu hình từng thành phần (ruột + bìa…) để nạp vào phiếu. Rỗng = chỉ gắn mã."""
+    id: int
+    ma: str
+    ten: str
+    thanh_phans: list["ThanhPhanIn"] = Field(default_factory=list)
+
+
+class TaiBanNhan(BaseModel):
+    """Nhãn mã tái bản đang gắn trên thẻ phiếu — đủ để hiện "Tái bản TP-00002 Sách A5 64 trang"."""
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    ma: str
     ten: str
-    updated_at: datetime
 
 
 # ============================ CHI PHÍ KHÁC (khoản lẻ một lần) ============================
@@ -161,6 +180,8 @@ class ThanhPhanIn(BaseModel):
     # ⑥ Chi phí khác: các khoản lẻ MỘT LẦN (làm kẽm ngoài, phí thiết kế…) — mỗi dòng một cặp
     # (tên tự gõ, số tiền), cộng thẳng vào giá vốn như `phi_giao_hang`.
     chi_phi_khacs: list[ChiPhiKhacIn] | None = None
+    # Sản phẩm tái bản đang gắn (mã thành phẩm của khách, mg 0394). NULL = sản phẩm mới.
+    tai_ban_thanh_pham_id: int | None = None
 
 
 class ThanhPhanOut(BaseModel):
@@ -213,6 +234,8 @@ class ThanhPhanOut(BaseModel):
     gia_von_tp: float
     thanh_phams: list[ThanhPhamOut] = Field(default_factory=list)
     chi_phi_khacs: list[ChiPhiKhacOut] = Field(default_factory=list)
+    tai_ban_thanh_pham_id: int | None = None
+    tai_ban_thanh_pham: TaiBanNhan | None = None
 
 
 # ============================ PHIẾU (header) ============================
@@ -431,3 +454,6 @@ class PtgActivityItem(BaseModel):
 
 class PtgActivityOut(BaseModel):
     items: list[PtgActivityItem]
+
+
+SanPhamTaiBanChiTiet.model_rebuild()

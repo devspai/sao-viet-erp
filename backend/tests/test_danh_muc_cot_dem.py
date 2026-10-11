@@ -37,8 +37,8 @@ def test_don_vi_dem_mat_hang_dung(client, seed_credentials):
     db = SessionLocal()
     try:
         db.add_all([
-            GiayNguyen(ma="GY-DEM-1", ten="Giấy đếm 1", gsm=100, don_vi_gia="cuonx"),
-            GiayNguyen(ma="GY-DEM-2", ten="Giấy đếm 2", gsm=120, don_vi_gia="cuonx", active=False),
+            GiayNguyen(don_vi_them=["to"], ma="GY-DEM-1", ten="Giấy đếm 1", gsm=100, don_vi_gia="cuonx"),
+            GiayNguyen(don_vi_them=["to"], ma="GY-DEM-2", ten="Giấy đếm 2", gsm=120, don_vi_gia="cuonx", active=False),
             VatTuInAn(ma="VT-DEM-1", ten="Màng đếm", don_vi_gia="cuonx"),
             VatTuInAn(ma="VT-DEM-2", ten="Keo đếm", don_vi_gia="cuonx"),
             VatTuInAn(ma="TP-DEM-1", ten="Hộp đếm", don_vi_gia="cuonx", la_thanh_pham=True),

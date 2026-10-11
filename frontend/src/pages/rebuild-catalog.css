@@ -4123,3 +4123,65 @@ button.rc-formula__nhan--nut.is-chon {
   flex: none;
   margin-left: 0;
 }
+
+/* Ô "Đơn vị thêm" của Giấy / Vật tư khác (`danh-muc/ODonViNhieu`, 10/10/2026): mỗi đơn vị một thẻ
+   viền đủ cạnh, dưới tên là dòng mờ nhóm nó kéo theo ("gồm g, tấn"); nút thêm thả danh sách dùng lại
+   khung menu của `RefSearchField`. */
+.rc-dvn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2, 8px);
+}
+.rc-dvn__ds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2, 8px);
+}
+.rc-dvn__the {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 6px 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.rc-dvn__the--loi { border-color: var(--tt-do-fg); }
+.rc-dvn__dong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.rc-dvn__gom {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ash);
+  padding-right: 4px;
+}
+.rc-dvn__gom--loi { color: var(--tt-do-fg); }
+.rc-dvn__gom-dv { margin-left: 8px; }
+.rc-dvn__them {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2, 8px);
+  min-width: 260px;
+}
+.rc-dvn__nut {
+  border: 1px solid var(--rule);
+  background: var(--canvas);
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.rc-dvn__nut:hover:not(:disabled) { border-color: var(--ink); }
+.rc-dvn__nut:disabled { color: var(--ash); cursor: not-allowed; }
+.rc-dvn__menu { right: auto; min-width: 260px; }
+.rc-dvn__trong { padding: 10px 12px; color: var(--ash); font-size: 12.5px; }

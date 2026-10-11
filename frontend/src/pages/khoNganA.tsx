@@ -155,7 +155,7 @@ export function NguonA({ r }: { r: StockRequest }) {
 }
 
 /** Thẻ "Nguồn hàng" ở cột bên — chỉ yêu cầu NHẬP sinh từ đơn mua hoặc từ KCS mới có. */
-export function TheNguonHang({ r }: { r: StockRequest }) {
+export function TheNguonHang({ r, khach }: { r: StockRequest; khach?: string | null }) {
   if (r.loai !== "NHAP") return null;
   if (r.don_mua_ma) {
     return (
@@ -180,6 +180,7 @@ export function TheNguonHang({ r }: { r: StockRequest }) {
           r.san_xuat_cong_doan_ten ? ["Công đoạn", r.san_xuat_cong_doan_ten] : null,
           lenh.length > 0 && ["Lệnh sản xuất", <span className="kna-nguon" style={{ justifyContent: "flex-end" }}>{lenh.map((m) => <span key={m} className="kna-tag kna-tag--ma">{m}</span>)}</span>],
           don.length > 0 && ["Đơn bán", <span className="kna-nguon" style={{ justifyContent: "flex-end" }}>{don.map((m) => <span key={m} className="kna-tag kna-tag--ma">{m}</span>)}</span>],
+          khach ? ["Khách hàng", khach] : null,
         ]} />
       </div>
     </TheA>

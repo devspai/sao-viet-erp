@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngăn tổ: tổ chức lại</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f5; --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a; --link:#1d4ed8;
+  --chay:#16a34a; --chay-bg:#dcfce7; --chay-fg:#15803d;
+  --cho:#3b82f6; --cho-bg:#dbeafe; --cho-fg:#1d4ed8;
+  --dung:#f59e0b; --dung-bg:#fef3c7; --dung-fg:#b45309;
+  --ngoai:#7c3aed; --do:#dc2626;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrapx{max-width:1320px;margin:0 auto;padding:28px 16px 120px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.intro{color:var(--ash);font-size:13.5px;max-width:1000px}
+.intro ul{margin:8px 0 0;padding-left:18px;display:grid;gap:4px}
+.opt-h{display:grid;grid-template-columns:1fr 280px;gap:28px;margin:52px 0 14px;align-items:start}
+.opt-h h2{font-size:18px;font-weight:500;margin:0 0 6px}
+.opt-h p{margin:0;color:var(--ash);font-size:13.5px}
+.opt-h ul{margin:8px 0 0;padding-left:18px;color:var(--ash);font-size:13px;display:grid;gap:3px}
+.ref{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:8px}
+.ref img{width:100%;border-radius:6px;display:block;max-height:180px;object-fit:contain;background:#fff}
+.ref span{display:block;font-size:12px;color:var(--ash-2);margin-top:6px}
+.lbl{font-size:12.5px;color:var(--ash-2);margin:18px 0 8px}
+
+.num{font-variant-numeric:tabular-nums}
+.mut{color:var(--ash-2)} .mut3{color:var(--ash-3)} .ok{color:var(--chay-fg)} .warn{color:var(--dung-fg)}
+.d{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:999px;font-size:12.5px;white-space:nowrap;height:24px;background:var(--chay-bg);color:var(--chay-fg)}
+.chip .d{background:var(--chay)}
+.lab{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+.lab.ok{background:var(--chay-bg);color:var(--chay-fg)}
+.btn{height:34px;border:1px solid var(--rule-soft);border-radius:9px;background:var(--canvas);padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:13px;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.sm{height:30px;font-size:12.5px;padding:0 11px}
+.btn.ic{width:34px;padding:0}
+.btn.lg{height:44px;font-size:14px;border-radius:11px}
+.lk{color:var(--link);font-size:12.5px;cursor:pointer;white-space:nowrap}
+.av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:10.5px;color:#fff;background:#0e7490;flex:none}
+.cham{width:7px;height:7px;border-radius:50%;background:var(--do);display:inline-block}
+.crumb{font-size:12.5px;color:var(--ash-2);display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
+.crumb i{font-style:normal;color:var(--ash-3)}
+.ttl{margin:2px 0 0;font-size:22px;font-weight:500;display:flex;align-items:center;gap:10px;letter-spacing:-.015em}
+.ttl .loai{font-size:12.5px;color:var(--ash-2);font-weight:400;letter-spacing:0}
+
+/* khung máy tính */
+.desk{background:rgba(15,23,42,.28);border-radius:16px;padding:0 0 0 70px;height:780px;display:flex;overflow:hidden}
+.dr{background:var(--canvas);width:1180px;max-width:100%;display:flex;flex-direction:column;box-shadow:-16px 0 40px -20px rgba(15,23,42,.35);overflow:hidden;position:relative}
+.hd{padding:16px 24px 0;display:flex;gap:14px;align-items:flex-start}
+.hd .acts{margin-left:auto;display:flex;gap:8px}
+.tabs{display:flex;gap:24px;padding:0 24px;border-bottom:1px solid var(--rule-soft);background:var(--canvas)}
+.tabs span{font-size:13.5px;color:var(--ash);padding:11px 0;border-bottom:2px solid transparent;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.tabs span.on{color:var(--ink);border-color:var(--ink)}
+.tabs .c{color:var(--ash-3);font-size:12px}
+.body{padding:18px 24px;overflow:auto;flex:1}
+.vung{position:absolute;right:14px;top:50%;transform:translateY(-50%);writing-mode:vertical-rl;font-size:11.5px;color:var(--ash-3)}
+.fold{position:absolute;left:0;right:0;border-top:1.5px dashed #f59e0b;pointer-events:none}
+.fold em{position:absolute;right:10px;top:-18px;font-style:normal;font-size:11px;color:var(--dung-fg);background:#fffbeb;padding:0 6px;border-radius:4px}
+
+/* nội dung tab Sản lượng (chung) */
+.sec-h{display:flex;align-items:center;gap:10px;min-height:30px;margin-bottom:8px}
+.sec-h h4{margin:0;font-size:14px;font-weight:500}
+.sec-h .c{font-size:12.5px;color:var(--ash-3)}
+.sec-h .r{margin-left:auto;display:flex;gap:8px}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{font-weight:400;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);font-size:12px;white-space:nowrap}
+.t td{padding:10px;border-bottom:1px solid var(--rule-hair)}
+.t .r{text-align:right}
+.sec{margin-bottom:22px}
+.me-card{border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 10px;font-size:13px;margin-bottom:8px}
+.me-card .tt{color:var(--ink)}
+.me-card .pp{font-size:12px;color:var(--ash-2);display:flex;gap:12px;flex-wrap:wrap}
+.me-card .so{grid-row:1/3;grid-column:2;align-self:center;font-size:18px;color:var(--chay-fg)}
+
+/* tóm tắt, dải số, ray */
+.sumline{display:flex;align-items:center;gap:22px;padding:12px 24px;font-size:13px;flex-wrap:nowrap;border-bottom:1px solid var(--rule-hair);background:var(--paper)}
+.sumline .it{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
+.sumline .it small{font-size:11.5px;color:var(--ash-3)}
+.sumline .sep{width:1px;align-self:stretch;background:var(--rule-soft)}
+.mini{position:relative;height:12px;width:170px}
+.mini .ln{position:absolute;left:0;right:0;top:5px;height:2px;background:var(--rule-soft)}
+.mini .dt{position:absolute;top:6px;width:8px;height:8px;border-radius:50%;border:2px solid var(--rule);background:#fff;transform:translate(-50%,-50%)}
+.mini .dt.x{background:#94a3b8;border-color:#94a3b8} .mini .dt.g{background:var(--chay);border-color:var(--chay)}
+.mini .dt.me{width:14px;height:14px;border:2.5px solid var(--chay-fg)}
+.mini .dt.ng{border-color:var(--ngoai)}
+.bar{height:5px;border-radius:999px;background:var(--rule-hair);overflow:hidden;width:120px;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--chay)}
+.cau{display:inline-flex;align-items:center;gap:7px;color:var(--ink)}
+.cau i{width:8px;height:8px;border-radius:50%;background:var(--chay)}
+
+/* B: cột phải */
+.split{display:grid;grid-template-columns:1fr 330px;flex:1;min-height:0}
+.split .left{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--rule-soft)}
+.side{padding:16px 20px;overflow:auto;background:var(--paper)}
+.side h5{margin:0 0 8px;font-size:12px;font-weight:400;color:var(--ash-2)}
+.side .blk{margin-bottom:18px}
+.vlist{display:flex;flex-direction:column}
+.vs{display:grid;grid-template-columns:18px 1fr;gap:10px;position:relative;padding-bottom:10px;font-size:13px}
+.vs::before{content:"";position:absolute;left:8px;top:16px;bottom:-2px;width:2px;background:var(--rule-soft)}
+.vs:last-child::before{display:none}
+.vs .o{width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);background:#fff;margin:3px 0 0 3px;position:relative;z-index:1}
+.vs.x .o{background:#94a3b8;border-color:#94a3b8} .vs.g .o{background:var(--chay);border-color:var(--chay)}
+.vs.me .o{width:16px;height:16px;margin:1px 0 0 1px;border:3px solid var(--chay-fg)}
+.vs.ng .o{border-color:var(--ngoai)}
+.vs .to{font-size:12px;color:var(--ash-3)}
+.vs.me .nm{color:var(--ink)} .vs.me .to{color:var(--chay-fg)}
+.vs.gap{color:var(--ash-3);font-size:12px}
+.kv{display:grid;grid-template-columns:70px 1fr;row-gap:8px;font-size:13px}
+.kv dt{color:var(--ash-2)} .kv dd{margin:0}
+.kv dd small{display:block;font-size:12px;color:var(--ash-2)}
+.pg{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px}
+.pg .big{font-size:26px;font-weight:500;color:var(--chay-fg);line-height:1.1}
+.pg dl{display:grid;grid-template-columns:1fr auto;row-gap:4px;margin:8px 0 0;font-size:12.5px}
+.pg dt{color:var(--ash-2)} .pg dd{margin:0;text-align:right}
+
+/* C: thanh bên trái + chân hành động */
+.railwrap{display:grid;grid-template-columns:200px 1fr;flex:1;min-height:0}
+.rail{border-right:1px solid var(--rule-soft);padding:12px 10px;display:flex;flex-direction:column;gap:2px;background:var(--paper)}
+.rail span{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;font-size:13.5px;color:var(--ash)}
+.rail span .ic{width:20px;text-align:center;color:var(--ash-3)}
+.rail span.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.rail span .r{margin-left:auto;font-size:12px;color:var(--ash-3)}
+.foot{border-top:1px solid var(--rule-soft);padding:10px 24px;display:flex;gap:8px;align-items:center;background:var(--canvas)}
+.foot .ghi{font-size:12.5px;color:var(--ash-2)}
+
+/* khung điện thoại */
+.phones{display:flex;gap:28px;flex-wrap:wrap;margin-top:6px}
+.ph{width:390px;height:800px;border-radius:44px;background:#0f172a;padding:12px;flex:none}
+.scr{width:100%;height:100%;border-radius:34px;background:var(--canvas);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:13px;flex:none}
+.pc{caption-side:bottom;font-size:12.5px;color:var(--ash-2);margin-top:8px;width:390px}
+.ab{display:flex;align-items:center;gap:10px;padding:4px 14px 8px;flex:none}
+.ab .bk{font-size:22px;color:var(--ash);width:28px}
+.ab .tt{flex:1;min-width:0}
+.ab .tt .s{font-size:12px;color:var(--ash-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab .tt .t{font-size:18px;font-weight:500;display:flex;gap:8px;align-items:center}
+.ptabs{display:flex;gap:18px;padding:0 16px;border-bottom:1px solid var(--rule-soft);overflow:hidden;flex:none}
+.ptabs span{font-size:13.5px;color:var(--ash);padding:10px 0;border-bottom:2px solid transparent;white-space:nowrap;display:inline-flex;gap:5px;align-items:center}
+.ptabs span.on{color:var(--ink);border-color:var(--ink)}
+.pbody{flex:1;overflow:hidden;padding:14px 16px}
+.pfoot{flex:none;display:flex;gap:8px;padding:10px 14px 22px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.pfoot .btn{flex:1}
+.psum{padding:10px 16px 12px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--rule-hair);background:var(--paper);flex:none}
+.psum .row{display:flex;gap:16px;align-items:center;font-size:12.5px;flex-wrap:wrap}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--canvas);border-radius:22px 22px 0 0;box-shadow:0 -20px 40px -10px rgba(15,23,42,.35);padding:10px 18px 26px;max-height:78%;overflow:hidden}
+.sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--rule);margin:0 auto 12px}
+.dim{position:absolute;inset:0;background:rgba(15,23,42,.35)}
+.btab{flex:none;display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--rule-soft);padding:6px 4px 20px;background:var(--canvas)}
+.btab span{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--ash-2);position:relative}
+.btab span .ic{font-size:18px;line-height:22px}
+.btab span.on{color:var(--ink)}
+.btab span .cham{position:absolute;top:0;right:22px}
+.fab{position:absolute;right:16px;bottom:96px;height:48px;padding:0 18px;border-radius:14px;background:var(--rust);color:#fff;display:flex;align-items:center;gap:8px;font-size:14px;box-shadow:0 10px 24px -8px rgba(197,64,10,.6)}
+.so3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.so3 div{border:1px solid var(--rule-soft);border-radius:10px;padding:8px 10px}
+.so3 small{display:block;font-size:11.5px;color:var(--ash-2)}
+.so3 b{font-weight:500;font-size:18px}
+.cmp{width:100%;border-collapse:collapse;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden;font-size:13px;margin-top:40px}
+.cmp th,.cmp td{padding:10px 14px;border-bottom:1px solid var(--rule-hair);text-align:left;vertical-align:top}
+.cmp th{font-weight:400;color:var(--ash-2);background:var(--paper)}
+</style>
+</head>
+<body>
+<div class="wrapx">
+<h1>Ngăn công việc ở Bàn tổ: tổ chức lại cho người dùng làm việc trong tab, và chạy được trên điện thoại</h1>
+<div class="intro">Ngăn hiện tại (ảnh bạn gửi) dồn tuyến công đoạn, Máy, Thợ, Khuôn, Tài liệu và thẻ Tiến độ lên trên, hàng tab nằm ở 380px. Trên laptop cao 768px, nội dung tab chỉ còn khoảng 300px; lên điện thoại thì phải cuộn qua gần hết một màn mới tới tab. Ba phương án dưới đều giữ đủ mọi thông tin và nút như bản đã duyệt, chỉ đổi chỗ đặt. Mỗi phương án có khung máy tính (cao 780px, đường gạch vàng là mép màn laptop 768px) và hai khung điện thoại. Nội dung tab trong ví dụ là Sản lượng, tab tổ dùng nhiều nhất.
+</div>
+
+<!-- ================= A ================= -->
+<div class="opt-h">
+  <div>
+    <h2>Phương án A: tóm tắt thu thành một dải, bấm mới mở chi tiết</h2>
+    <p>Đầu ngăn chỉ còn tên việc và một dải tóm tắt cao 56px: hàng đang tới đâu (ray nhỏ), tốt trên cần, chờ giao, máy, thợ, khuôn. Bấm "Chi tiết" thì dải mở ra đủ tuyến, đủ dòng Máy, Thợ, Khuôn, Tài liệu và thẻ Tiến độ như bản cũ. Hàng tab lên ngay dưới, dính khi cuộn.</p>
+    <ul>
+      <li>Máy tính: hàng tab ở khoảng 150px thay vì 380px.</li>
+      <li>Điện thoại: dải tóm tắt xuống hai dòng; Chi tiết mở thành tấm trượt từ dưới; Tạm dừng, Kết thúc dính ở chân màn.</li>
+      <li>Ít thay đổi nhất so với bản đã duyệt.</li>
+    </ul>
+  </div>
+  <div class="ref"><img src="tham-khao-kcs/ref-material-tam-truot.png" alt=""><span>Material: tấm trượt từ dưới, nội dung phụ mở khi cần.</span></div>
+</div>
+<div class="lbl">Máy tính</div>
+<div class="desk"><div class="dr">
+  <div class="hd">
+    <div><div class="crumb">LSX26-0004 Bìa sách A5<i>›</i>Công ty Cổ phần Bibica</div><div class="ttl">Cắt tờ <span class="loai">việc máy</span><span class="chip"><i class="d"></i>Đang chạy từ 11:41</span></div></div>
+    <div class="acts"><span class="btn">Tạm dừng</span><span class="btn pri">Kết thúc</span><span class="btn ic">⋯</span><span class="btn ic">✕</span></div>
+  </div>
+  <div class="sumline" style="margin-top:14px;border-top:1px solid var(--rule-hair)">
+    <div class="it"><span class="cau"><i></i>Hàng đã tới tổ mình</span><span class="mini" data-mini="1,0,0,0n"></span></div>
+    <span class="sep"></span>
+    <div class="it"><span class="num"><span class="ok">200</span> trên 350 tờ in</span><span class="bar"><i style="width:57%"></i></span></div>
+    <div class="it"><small>Chờ giao</small><span class="num warn">200 tờ in</span></div>
+    <span class="sep"></span>
+    <div class="it"><small>Máy</small>Máy cắt tờ ITO 100</div>
+    <div class="it"><small>Thợ</small><span style="display:flex;gap:6px;align-items:center"><span class="av">Đ</span>Đào Văn Hoan</span></div>
+    <div class="it"><small>Khuôn</small><span>K-012 <span class="lab ok">đã nhận</span></span></div>
+    <span class="lk" style="margin-left:auto">Chi tiết ▾</span>
+  </div>
+  <div class="tabs"><span>Quy cách</span><span class="on">Sản lượng <span class="c">1 mẻ</span></span><span>Giao và nhận <i class="cham"></i></span><span>Vật tư</span><span>KCS</span><span>Lịch sử</span></div>
+  <div class="body" data-sl="desk"></div>
+  <div class="fold" style="top:768px"><em>mép màn laptop 768px</em></div>
+</div></div>
+<div class="lbl">Điện thoại</div>
+<div class="phones">
+  <div>
+    <div class="ph"><div class="scr">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span class="chip"><i class="d"></i>Đang chạy</span></div></div><span class="btn ic">⋯</span></div>
+      <div class="psum">
+        <div class="row"><span class="cau"><i></i>Hàng đã tới tổ mình</span><span class="mini" style="width:120px" data-mini="1,0,0,0n"></span></div>
+        <div class="row"><span class="num"><span class="ok">200</span> / 350 tờ in</span><span class="num warn">chờ giao 200</span><span class="lk" style="margin-left:auto">Chi tiết ▾</span></div>
+      </div>
+      <div class="ptabs"><span>Quy cách</span><span class="on">Sản lượng</span><span>Giao nhận <i class="cham"></i></span><span>Vật tư</span><span>KCS</span></div>
+      <div class="pbody" data-sl="phone"></div>
+      <div class="pfoot"><span class="btn lg">Tạm dừng</span><span class="btn lg pri">Kết thúc</span></div>
+    </div></div>
+    <div class="pc">Mở ngăn: thấy ngay việc và tab. Tab vuốt ngang để thấy Lịch sử.</div>
+  </div>
+  <div>
+    <div class="ph"><div class="scr">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span class="chip"><i class="d"></i>Đang chạy</span></div></div><span class="btn ic">⋯</span></div>
+      <div class="pbody"></div>
+      <div class="dim"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="sec-h"><h4>Chi tiết việc</h4><span class="r lk">Đóng</span></div>
+        <div class="vlist" data-vlist="ngan"></div>
+        <dl class="kv" style="margin-top:6px"><dt>Máy</dt><dd>Máy cắt tờ ITO 100<small>Dự kiến 6/10 18:45 đến 19:06</small></dd><dt>Thợ</dt><dd>Đào Văn Hoan <span class="lk">+ Giao người</span></dd><dt>Khuôn</dt><dd>K-012 kệ B3 <span class="lab ok">đã nhận 11:38</span><small class="lk">Trả khuôn về kệ</small></dd><dt>Tài liệu</dt><dd class="mut3">Chưa có tệp lệnh hay dặn dò</dd></dl>
+        <div class="so3" style="margin-top:12px"><div><small>Nhận vào</small><b class="num">175</b></div><div><small>Lỗi</small><b class="num">0</b></div><div><small>Còn phải làm</small><b class="num">150</b></div></div>
+      </div>
+    </div></div>
+    <div class="pc">Bấm "Chi tiết": tấm trượt lên, có tuyến dạng dọc (đọc được cả 14 bước), Máy, Thợ, Khuôn, các số còn lại.</div>
+  </div>
+</div>
+
+<!-- ================= B ================= -->
+<div class="opt-h">
+  <div>
+    <h2>Phương án B: tab chiếm cột lớn bên trái, thông tin việc ghim ở cột phải</h2>
+    <p>Khuôn trang chi tiết của Linear: nội dung làm việc ở giữa, thuộc tính dồn sang cột phải. Đầu ngăn chỉ còn tên việc; hàng tab bắt đầu ngay ở khoảng 80px. Cột phải 330px luôn hiện: hàng đang tới đâu (tuyến dạng dọc, dài bao nhiêu bước cũng đọc được), thẻ Tiến độ, Máy, Thợ, Khuôn, Tài liệu.</p>
+    <ul>
+      <li>Máy tính: không phải chọn giữa xem tóm tắt và làm việc, cả hai cùng lúc.</li>
+      <li>Điện thoại: cột phải biến thành tab đầu tiên "Tổng quan"; các tab khác giữ nguyên.</li>
+      <li>Nội dung tab hẹp lại còn khoảng 820px, bảng mẻ và bảng vật tư vẫn đủ cột.</li>
+    </ul>
+  </div>
+  <div class="ref"><img src="tham-khao-ngan-xep-lich/ref-linear-project.png" alt="" style="object-fit:cover;object-position:left top"><span>Linear: thuộc tính gom thành hàng, tách khỏi nội dung chính.</span></div>
+</div>
+<div class="lbl">Máy tính</div>
+<div class="desk"><div class="dr">
+  <div class="hd" style="padding-bottom:12px;border-bottom:1px solid var(--rule-hair)">
+    <div><div class="crumb">LSX26-0004 Bìa sách A5<i>›</i>Công ty Cổ phần Bibica</div><div class="ttl">Cắt tờ <span class="loai">việc máy</span><span class="chip"><i class="d"></i>Đang chạy từ 11:41</span></div></div>
+    <div class="acts"><span class="btn">Tạm dừng</span><span class="btn pri">Kết thúc</span><span class="btn ic">⋯</span><span class="btn ic">✕</span></div>
+  </div>
+  <div class="split">
+    <div class="left">
+      <div class="tabs"><span>Quy cách</span><span class="on">Sản lượng <span class="c">1 mẻ</span></span><span>Giao và nhận <i class="cham"></i></span><span>Vật tư</span><span>KCS</span><span>Lịch sử</span></div>
+      <div class="body" data-sl="desk"></div>
+    </div>
+    <div class="side">
+      <div class="blk"><h5>Hàng đang tới đâu</h5><div style="margin-bottom:8px"><span class="cau"><i></i>Hàng đã tới tổ mình</span></div><div class="vlist" data-vlist="du"></div></div>
+      <div class="blk"><h5>Tiến độ</h5><div class="pg"><div><span class="big num">200</span> <span class="mut" style="font-size:12.5px">trên 350 tờ in tốt</span></div><div class="bar" style="width:100%;height:6px;margin-top:8px"><i style="width:57%"></i></div><dl><dt>Nhận vào</dt><dd class="num">175 tờ nguyên</dd><dt>Lỗi</dt><dd>0</dd><dt>Đã giao đi</dt><dd>0</dd><dt>Chờ giao</dt><dd class="warn num">200 tờ in</dd><dt>Còn phải làm</dt><dd class="num">150 tờ in</dd></dl></div></div>
+      <div class="blk"><h5>Việc</h5><dl class="kv"><dt>Máy</dt><dd>Máy cắt tờ ITO 100<small>Dự kiến 6/10 18:45 đến 19:06</small><small>Chạy máy 2 phút, có thể 2 đến 4</small></dd><dt>Thợ</dt><dd><span class="av">Đ</span> Đào Văn Hoan<small class="lk">+ Giao người</small></dd><dt>Khuôn</dt><dd>K-012 Khuôn bế hộp 300×210<small>Lấy ở kệ B3</small><small><span class="lab ok">Đã nhận 11:38</span> <span class="lk">Trả khuôn về kệ</span></small></dd><dt>Tài liệu</dt><dd class="mut3">Chưa có tệp lệnh hay dặn dò riêng</dd></dl></div>
+    </div>
+  </div>
+  <div class="fold" style="top:768px"><em>mép màn laptop 768px</em></div>
+</div></div>
+<div class="lbl">Điện thoại</div>
+<div class="phones">
+  <div>
+    <div class="ph"><div class="scr">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span class="chip"><i class="d"></i>Đang chạy</span></div></div><span class="btn ic">⋯</span></div>
+      <div class="ptabs"><span class="on">Tổng quan</span><span>Sản lượng</span><span>Giao nhận <i class="cham"></i></span><span>Vật tư</span><span>KCS</span></div>
+      <div class="pbody">
+        <div style="margin-bottom:6px"><span class="cau"><i></i>Hàng đã tới tổ mình</span></div>
+        <div class="vlist" data-vlist="du"></div>
+        <div class="pg" style="margin-top:6px"><span class="big num">200</span> <span class="mut" style="font-size:12.5px">trên 350 tờ in tốt</span><div class="bar" style="width:100%;height:6px;margin-top:8px"><i style="width:57%"></i></div><dl><dt>Chờ giao</dt><dd class="warn num">200 tờ in</dd><dt>Còn phải làm</dt><dd class="num">150 tờ in</dd></dl></div>
+        <dl class="kv" style="margin-top:14px"><dt>Máy</dt><dd>Máy cắt tờ ITO 100</dd><dt>Thợ</dt><dd>Đào Văn Hoan <span class="lk">+ Giao</span></dd></dl>
+      </div>
+      <div class="pfoot"><span class="btn lg">Tạm dừng</span><span class="btn lg pri">Kết thúc</span></div>
+    </div></div>
+    <div class="pc">Tab Tổng quan chứa đúng nội dung cột phải của máy tính.</div>
+  </div>
+  <div>
+    <div class="ph"><div class="scr">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span class="chip"><i class="d"></i>Đang chạy</span></div></div><span class="btn ic">⋯</span></div>
+      <div class="ptabs"><span>Tổng quan</span><span class="on">Sản lượng</span><span>Giao nhận <i class="cham"></i></span><span>Vật tư</span><span>KCS</span></div>
+      <div class="pbody" data-sl="phone"></div>
+      <div class="pfoot"><span class="btn lg">Tạm dừng</span><span class="btn lg pri">Kết thúc</span></div>
+    </div></div>
+    <div class="pc">Sang tab Sản lượng: toàn màn cho mẻ, bảng thành thẻ.</div>
+  </div>
+</div>
+
+<!-- ================= C ================= -->
+<div class="opt-h">
+  <div>
+    <h2>Phương án C: tab thành thanh bên (máy tính) và thanh đáy (điện thoại), nút chính đổi theo tab</h2>
+    <p>Khuôn ứng dụng xưởng của Odoo: mỗi việc một dòng kèm nút ngay. Các tab thành thanh dọc bên trái có biểu tượng và chấm đỏ, mục đầu là Tổng quan (tuyến, tiến độ, máy, thợ, khuôn). Chân ngăn có một nút chính đổi theo mục đang mở: ở Sản lượng là "+ Ghi mẻ", ở Giao và nhận là "Đề xuất giao", ở Vật tư là "Yêu cầu cấp vật tư"; Tạm dừng và Kết thúc luôn ở đó.</p>
+    <ul>
+      <li>Máy tính: nội dung bắt đầu ở 80px, thanh bên cho thấy cả 7 mục một lúc, không cần dải tab.</li>
+      <li>Điện thoại: thanh đáy 5 mục (Tổng quan, Sản lượng, Giao nhận, Vật tư, Thêm gồm Quy cách, KCS, Lịch sử) và một nút nổi cho việc chính.</li>
+      <li>Đổi nhiều nhất so với hiện tại; hợp khi lên điện thoại là đường chính.</li>
+    </ul>
+  </div>
+  <div class="ref"><img src="tham-khao-ngan-ban-to/ref-odoo-the-cong-viec.png" alt=""><span>Odoo Shop Floor: việc chính kèm nút ngay trong thẻ.</span></div>
+</div>
+<div class="lbl">Máy tính</div>
+<div class="desk"><div class="dr">
+  <div class="hd" style="padding-bottom:12px;border-bottom:1px solid var(--rule-hair)">
+    <div><div class="crumb">LSX26-0004 Bìa sách A5<i>›</i>Công ty Cổ phần Bibica</div><div class="ttl">Cắt tờ <span class="loai">việc máy</span><span class="chip"><i class="d"></i>Đang chạy từ 11:41</span></div></div>
+    <div class="acts" style="align-items:center"><span class="cau" style="font-size:13px"><i></i>Hàng đã tới tổ mình</span><span class="mini" data-mini="1,0,0,0n" style="margin:0 10px"></span><span class="btn ic">⋯</span><span class="btn ic">✕</span></div>
+  </div>
+  <div class="railwrap">
+    <div class="rail">
+      <span><i class="ic">◎</i>Tổng quan</span>
+      <span class="on"><i class="ic">▤</i>Sản lượng<span class="r">1 mẻ</span></span>
+      <span><i class="ic">⇄</i>Giao và nhận<span class="r"><i class="cham"></i></span></span>
+      <span><i class="ic">⇩</i>Vật tư</span>
+      <span><i class="ic">✓</i>KCS</span>
+      <span><i class="ic">≡</i>Quy cách</span>
+      <span><i class="ic">◷</i>Lịch sử</span>
+      <div style="margin-top:auto;padding:10px;font-size:12.5px;color:var(--ash-2)"><div class="num"><span class="ok">200</span> trên 350 tờ in</div><div class="bar" style="width:100%"><i style="width:57%"></i></div><div class="warn" style="margin-top:6px">chờ giao 200</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;min-height:0">
+      <div class="body" data-sl="desk-nonut"></div>
+      <div class="foot"><span class="btn pri">+ Ghi mẻ</span><span class="ghi">Nút chính đổi theo mục đang mở</span><span style="margin-left:auto;display:flex;gap:8px"><span class="btn">Tạm dừng</span><span class="btn">Kết thúc</span></span></div>
+    </div>
+  </div>
+  <div class="fold" style="top:768px"><em>mép màn laptop 768px</em></div>
+</div></div>
+<div class="lbl">Điện thoại</div>
+<div class="phones">
+  <div>
+    <div class="ph"><div class="scr">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span class="chip"><i class="d"></i>Đang chạy</span></div></div><span class="btn ic">⋯</span></div>
+      <div class="pbody" data-sl="phone-nonut"></div>
+      <div class="fab">+ Ghi mẻ</div>
+      <div class="btab"><span><i class="ic">◎</i>Tổng quan</span><span class="on"><i class="ic">▤</i>Sản lượng</span><span><i class="ic">⇄</i>Giao nhận<i class="cham"></i></span><span><i class="ic">⇩</i>Vật tư</span><span><i class="ic">⋯</i>Thêm</span></div>
+    </div></div>
+    <div class="pc">Thanh đáy như ứng dụng; nút nổi đổi theo mục. Tạm dừng, Kết thúc ở mục Tổng quan và nút ⋯.</div>
+  </div>
+  <div>
+    <div class="ph"><div class="scr">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span class="chip"><i class="d"></i>Đang chạy</span></div></div><span class="btn ic">⋯</span></div>
+      <div class="pbody">
+        <div style="margin-bottom:6px"><span class="cau"><i></i>Hàng đã tới tổ mình</span></div>
+        <div class="vlist" data-vlist="du"></div>
+        <div class="so3"><div><small>Tốt</small><b class="num ok">200</b></div><div><small>Chờ giao</small><b class="num warn">200</b></div><div><small>Còn làm</small><b class="num">150</b></div></div>
+        <dl class="kv" style="margin-top:12px"><dt>Máy</dt><dd>Máy cắt tờ ITO 100</dd><dt>Thợ</dt><dd>Đào Văn Hoan</dd><dt>Khuôn</dt><dd>K-012 <span class="lab ok">đã nhận</span></dd></dl>
+        <div style="display:flex;gap:8px;margin-top:14px"><span class="btn lg" style="flex:1">Tạm dừng</span><span class="btn lg pri" style="flex:1">Kết thúc</span></div>
+      </div>
+      <div class="btab"><span class="on"><i class="ic">◎</i>Tổng quan</span><span><i class="ic">▤</i>Sản lượng</span><span><i class="ic">⇄</i>Giao nhận<i class="cham"></i></span><span><i class="ic">⇩</i>Vật tư</span><span><i class="ic">⋯</i>Thêm</span></div>
+    </div></div>
+    <div class="pc">Mục Tổng quan: tuyến dọc, số, máy, thợ, khuôn và hai nút chạy máy.</div>
+  </div>
+</div>
+
+<table class="cmp">
+  <tr><th></th><th>A: dải tóm tắt</th><th>B: cột phải</th><th>C: thanh bên và thanh đáy</th></tr>
+  <tr><td class="mut">Hàng tab bắt đầu ở (máy tính)</td><td>khoảng 150px</td><td>khoảng 80px</td><td>80px, tab nằm dọc</td></tr>
+  <tr><td class="mut">Vừa làm vừa thấy tóm tắt</td><td>một dải; chi tiết phải bấm</td><td>luôn thấy đủ</td><td>chỉ số chính ở chân thanh bên</td></tr>
+  <tr><td class="mut">Lệnh 14 bước</td><td>ray nhỏ, đủ bước nằm trong Chi tiết</td><td>tuyến dọc, đọc hết</td><td>ray nhỏ trên đầu, tuyến dọc ở Tổng quan</td></tr>
+  <tr><td class="mut">Điện thoại</td><td>tab trên, nút ở chân</td><td>thêm tab Tổng quan</td><td>thanh đáy kiểu ứng dụng, nút nổi</td></tr>
+  <tr><td class="mut">Đổi so với bản đã duyệt</td><td>ít</td><td>vừa</td><td>nhiều</td></tr>
+</table>
+</div>
+
+<script>
+// ray nhỏ: "1,0,0,0n" = trạng thái từng bước (1 = tổ mình đang làm, x = xong, g = đang làm, 0 = chưa tới, n = thuê ngoài)
+document.querySelectorAll('[data-mini]').forEach(el=>{
+  const ds=el.dataset.mini.split(','),N=ds.length;
+  el.innerHTML='<span class="ln"></span>'+ds.map((s,i)=>{const c=s.startsWith('1')?'me g':s.startsWith('x')?'x':s.startsWith('g')?'g':'';return `<i class="dt ${c}${s.endsWith('n')?' ng':''}" style="left:${i/(N-1)*100}%"></i>`;}).join('');
+});
+const TUYEN=[['Cắt tờ','Cắt 2, tổ mình','me'],['Bài in 3 màu 4 màu (CMYK)','Nhóm thợ in máy 4 màu',''],['Cán màng','Tổ Cán màng',''],['Cắt thành phẩm','Thuê ngoài Thành Công','ng']];
+document.querySelectorAll('[data-vlist]').forEach(el=>{
+  el.innerHTML=TUYEN.map(([n,t,c])=>`<div class="vs ${c}"><i class="o"></i><div><div class="nm">${n}</div><div class="to">${t}</div></div></div>`).join('');
+});
+const SL_DESK=(nut)=>`<div class="sec"><div class="sec-h"><h4>Các mẻ đã ghi</h4><span class="c">1 mẻ</span>${nut?'<span class="r"><span class="btn pri sm">+ Ghi mẻ</span></span>':''}</div>
+<table class="t"><thead><tr><th>Lúc</th><th>Việc khoán</th><th>Người</th><th>Máy</th><th class="r">Tốt</th><th class="r">Hỏng</th></tr></thead><tbody>
+<tr><td class="num">09/10 11:41 → 11:58</td><td class="mut">chưa khai việc khoán</td><td>Đào Văn Hoan</td><td>Máy cắt tờ ITO 100</td><td class="r num ok">200</td><td class="r">0</td></tr></tbody></table></div>
+<div class="sec"><div class="sec-h"><h4>Phiên chạy</h4><span class="c">1</span></div><table class="t"><thead><tr><th>Phiên</th><th>Từ</th><th>Đến</th><th>Máy</th><th>Người tham gia</th></tr></thead><tbody><tr><td>1</td><td class="num">09/10 11:41</td><td><span class="chip"><i class="d"></i>Đang chạy</span></td><td>Máy cắt tờ ITO 100</td><td>Đào Văn Hoan</td></tr></tbody></table></div>`;
+const SL_PHONE=(nut)=>`<div class="sec-h"><h4>Các mẻ đã ghi</h4><span class="c">1 mẻ</span>${nut?'<span class="r"><span class="btn pri sm">+ Ghi mẻ</span></span>':''}</div>
+<div class="me-card"><span class="tt num">09/10 11:41 → 11:58</span><span class="so num">200</span><span class="pp"><span>Đào Văn Hoan</span><span>chưa khai việc khoán</span></span></div>
+<div class="sec-h" style="margin-top:16px"><h4>Phiên chạy</h4></div>
+<div class="me-card"><span class="tt">Phiên 1 từ 11:41</span><span class="so" style="font-size:13px"><span class="chip"><i class="d"></i>Đang chạy</span></span><span class="pp"><span>Máy cắt tờ ITO 100</span></span></div>`;
+document.querySelectorAll('[data-sl]').forEach(el=>{const k=el.dataset.sl;el.innerHTML=k.startsWith('desk')?SL_DESK(!k.includes('nonut')):SL_PHONE(!k.includes('nonut'));});
+</script>
+</body>
+</html>

@@ -49,8 +49,9 @@ class SanXuatPhanCong(Base):
     """Roster của một công việc: một dòng cho mỗi người được giao (§7.1).
 
     Người có thể KHÔNG có tài khoản (`employee_id` trỏ nhân viên, không bắt `user_id`) vẫn được
-    giao và tính lương (§6). `la_luong_khoan` là ẢNH CHỤP tại lúc giao — dùng để soi luật "ít nhất
-    một thợ lương khoán mới được bắt đầu" mà không phụ thuộc danh mục đổi về sau. Rút người =
+    giao và tính lương (§6). `la_luong_khoan` là ẢNH CHỤP tại lúc giao — chỉ còn là dữ liệu ghi nhận
+    (bàn tổ thôi gắn thẻ "công nhật" từ 09/10/2026); không còn chặn gì (09/10/2026 gỡ luật "≥1 thợ khoán mới bắt đầu" và "bước nội bộ
+    chỉ nhận thợ khoán"). Rút người =
     `trang_thai=removed` (giữ lịch sử, không xoá dòng)."""
 
     __tablename__ = "san_xuat_phan_cong"
@@ -73,7 +74,7 @@ class SanXuatPhanCong(Base):
     employee_id: Mapped[int] = mapped_column(
         ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    # Ảnh chụp: người này thuộc chế độ lương khoán tại lúc giao (§6 — chỉ thợ khoán vào bước nội bộ).
+    # Ảnh chụp: người này thuộc chế độ lương khoán tại lúc giao — chỉ ghi nhận, không chặn gì.
     la_luong_khoan: Mapped[bool] = mapped_column(
         nullable=False, server_default=sa_false(), default=False
     )

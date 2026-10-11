@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta, timezone
 from math import ceil, floor
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
@@ -35,6 +35,7 @@ from ..models.lsx import (
     LB_TO,
     LOAI_BUOC,
     LOAI_MOI,
+    NHAN_TRANG_THAI,
     TT_CHO_BO_SUNG,
     TT_DA_DONG,
     TT_DA_LAP_KE_HOACH,
@@ -64,9 +65,7 @@ from ..services.dong_giay import (
     ban_do_tram, dich_chuoi, don_vi_chuoi, ma_cua_tram, tram_cua, tren_dong_giay,
 )
 from ..models.don_vi_do import DonViDo
-from ..services.kho_giay import (
-    DANG_CUON, dong_giay_theo_dau_vao,
-)
+from ..services.kho_giay import DON_VI_TO_KHO, dong_giay_theo_dau_vao
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
 from ..services.lsx_danh_muc_doi import vat_tu_lech
@@ -88,6 +87,10 @@ _QC_BO_QUA = frozenset({
     "cong_thuc_gia", "gia_von_tp", "so_luong",
 })
 
+
+# Chặng vào có cầu tới Thành phẩm trong `_he_so_cau` — chỉ bước cuối vào từ những chặng này mới
+# ép ra Thành phẩm được (xem LƯỢT 3 của `_ap_chuoi_nguoc`).
+_CO_CAU_TOI_THANH_PHAM = frozenset({TRAM_TO, TRAM_CON, TRAM_TAY, TRAM_CAI})
 
 # Dụng cụ mà bước ở LỆNH phải chốt MỘT CON cụ thể trong kho (`khuon_be_id`). `kem` KHÔNG có mặt
 # (bản kẽm là vật tư tiêu hao, mỗi bài phơi một bản mới nên không có gì để "đi lấy ở kệ").
@@ -742,20 +745,20 @@ class LsxService:
             if getattr(v, "hang_loai", HANG_VAT_TU) == HANG_VAT_TU
         }
         ra: list[dict] = []
-        # Giấy không có công thức (spec 2026-10-01 dong-giay-theo-dau-vao §4): số + khổ + dạng suy từ
-        # ĐẦU VÀO của chính bước, đổi sang đơn vị của từng mã.
+        # Giấy không có công thức (spec 2026-10-01 dong-giay-theo-dau-vao §4): số + khổ + đơn vị gốc
+        # suy từ ĐẦU VÀO của chính bước, đổi sang đơn vị của từng mã.
         qc_giay = quy_cach or {}
         for (hang_loai, mon_id), mat in self._mon_active().items():
             if hang_loai == HANG_GIAY:
                 d = self._dong_giay_cho_ma(buoc, qc_giay, mon_id)
                 dien_giai = None
                 if d["so_luong"] is not None:
-                    # Chỉ nói NGUỒN của số — dạng + khổ đã in ngay dưới tên giấy ở ngăn bước, nhắc lại
-                    # trong bong bóng là lặp; không nối mẩu bằng dấu chấm giữa.
-                    dien_giai = ("Số kg và khổ cuộn" if d["dang"] == DANG_CUON
-                                 else "Số tờ và khổ") + " lấy theo đầu vào của bước"
+                    # Chỉ nói NGUỒN của số — khổ đã in ngay dưới tên giấy ở ngăn bước, nhắc lại trong
+                    # bong bóng là lặp; không nối mẩu bằng dấu chấm giữa.
+                    dien_giai = ("Số tờ và khổ" if d["don_vi_goc"] == DON_VI_TO_KHO
+                                 else "Số lượng và khổ rộng") + " lấy theo đầu vào của bước"
                 ra.append({
-                    "hang_loai": HANG_GIAY, "vat_tu_id": mon_id, "dang_giay": d["dang"],
+                    "hang_loai": HANG_GIAY, "vat_tu_id": mon_id, "don_vi_goc": d["don_vi_goc"],
                     "so_luong": (round(d["so_luong"], 3) if d["so_luong"] is not None else None),
                     "kho_rong": d["kho_rong"], "kho_dai": d["kho_dai"], "don_vi": d["don_vi"],
                     "dien_giai": dien_giai, "ly_do": d["ly_do"],
@@ -1379,6 +1382,7 @@ class LsxService:
             raise LsxConflict("Đơn chưa được chuyển xuống sản xuất")
 
         da_co = self.repo.by_order_lines([ln.id for ln in order.lines])
+        ton_dong = self._ton_san_theo_dong(order)
         lines: list[dict] = []
         for line in order.lines:
             tp = self._thanh_phan(line.phieu_thanh_phan_id)
@@ -1423,6 +1427,7 @@ class LsxService:
                 "sl_ptg": calc["sl_ptg"] if calc["sl_ptg"] and calc["sl_ptg"] != int(line.qty or 0) else None,
                 "lsx_id": existing.id if existing else None,
                 "lsx_ma": existing.ma if existing else None,
+                **ton_dong.get(line.id, {}),
             })
         return {
             "order_id": order.id,
@@ -1434,6 +1439,26 @@ class LsxService:
             "production_note": order.production_note,
             "lines": lines,
         }
+
+    def _ton_san_theo_dong(self, order) -> dict[int, dict]:
+        """`{order_line_id: {ton_san, ton_dvt}}` — kho đang có bao nhiêu sản phẩm bán của khách để
+        KHSX quyết làm đủ hay làm bù (đơn trước làm dư thì đơn này chỉ cần làm phần thiếu)."""
+        from ..repositories.delivery_repo import DeliveryRepository
+        from ..repositories.order_repo import OrderRepository
+        from .delivery_service import DeliveryService
+        from .thanh_pham_khai_bao import cum_ban, thanh_pham_cua_cum
+
+        cums = [(c, thanh_pham_cua_cum(self.db, order, c)) for c in cum_ban(order)]
+        kd = DeliveryService(DeliveryRepository(self.db), OrderRepository(self.db), None, None, None)             .kha_dung_theo_ma({tp.id for _c, tp in cums if tp is not None})
+        ra: dict[int, dict] = {}
+        for c, tp in cums:
+            if tp is None:
+                continue
+            v = kd.get(tp.id)
+            con = max(0.0, v["ton"] - sum(v["giu"].values())) if v else 0.0
+            for ln in c.dong:
+                ra[ln.id] = {"ton_san": round(con, 3), "ton_dvt": c.dvt}
+        return ra
 
     # ================= TẠO LỆNH =================
 
@@ -2091,6 +2116,28 @@ class LsxService:
         ).scalars())
         return keys or None
 
+    def _la_lenh_di_kem(self, lsx: Lsx) -> bool:
+        """Lệnh có bước nào nhả hàng sang bước của LỆNH KHÁC (bìa nhập vào bước vào keo của ruột)."""
+        if lsx.id is None:
+            return False
+        Truoc, Sau = aliased(LsxCongDoan), aliased(LsxCongDoan)
+        return self.db.execute(
+            select(LsxCongDoanPhuThuoc.id)
+            .join(Truoc, LsxCongDoanPhuThuoc.buoc_truoc_id == Truoc.id)
+            .join(Sau, LsxCongDoanPhuThuoc.buoc_sau_id == Sau.id)
+            .where(Truoc.lsx_id == lsx.id, Sau.lsx_id != lsx.id).limit(1)
+        ).first() is not None
+
+    def _lenh_nguon_cheo(self, lsx_id: int) -> set[int]:
+        """Lệnh khác có bước nhả hàng vào bước của lệnh `lsx_id` — tức các lệnh đi kèm của nó."""
+        Truoc, Sau = aliased(LsxCongDoan), aliased(LsxCongDoan)
+        return set(self.db.scalars(
+            select(Truoc.lsx_id).select_from(LsxCongDoanPhuThuoc)
+            .join(Truoc, LsxCongDoanPhuThuoc.buoc_truoc_id == Truoc.id)
+            .join(Sau, LsxCongDoanPhuThuoc.buoc_sau_id == Sau.id)
+            .where(Sau.lsx_id == lsx_id, Truoc.lsx_id != lsx_id)
+        ))
+
     def _ap_chuoi_nguoc(self, lsx: Lsx) -> None:
         """GHI kết quả chuỗi ngược vào từng bước + hai mốc số tờ của lệnh. KHÔNG commit.
 
@@ -2138,6 +2185,17 @@ class LsxService:
             if not tu_danh_muc[i]:
                 cd.don_vi_vao = cd.don_vi_ra = truoc_ra or dv_to_lenh
             truoc_ra = cd.don_vi_ra or truoc_ra
+        # LƯỢT 3 (11/10/2026) — bước cuối của LỆNH CHÍNH ra chặng Thành phẩm = đơn vị tính của sản
+        # phẩm trên lệnh, danh mục khai gì cũng vậy. Danh mục sách khai "Xén 3 mặt" tay → tay thì
+        # KCS cuối đếm tay, kho nhận cuốn, mà tay ↔ cuốn không có quy đổi chung (số tay mỗi cuốn
+        # đi theo từng sách) ⇒ gửi kho gãy. Cầu đổi dạng do `_he_so_cau` cấp từ chính sản phẩm.
+        # Lệnh ĐI KÈM (bìa…) nhả bán thành phẩm sang lệnh khác nên giữ đơn vị danh mục. Chặng vào
+        # không có cầu tới Thành phẩm (tờ nguyên) thì để yên — ép vào là chia hệ số 1, sai số giấy.
+        # Luật: docs/superpowers/specs/2026-10-11-buoc-cuoi-theo-don-vi-san-pham-design.md.
+        tren = [cd for cd in buoc if tren_dong_giay(cd.don_vi_vao, cd.don_vi_ra, tram)]
+        if (tren and tram_cua(tren[-1].don_vi_vao, tram) in _CO_CAU_TOI_THANH_PHAM
+                and not self._la_lenh_di_kem(lsx)):
+            tren[-1].don_vi_ra = ma_cua_tram(TRAM_CAI, tram) or DV_CAI
         rows = {r["idx"]: r for r in self.tinh_nguoc_routing(
             lsx, bo_hao_step_keys=self._bo_hao_do_ghep(lsx),
         )}
@@ -2183,31 +2241,39 @@ class LsxService:
     def _dong_giay_cho_ma(self, cd, qc: dict, giay_id: int) -> dict:
         """Dòng giấy của MỘT bước ứng với mã giấy `giay_id`, ĐÃ đổi sang đơn vị của mã (spec
         2026-10-01 dong-giay-theo-dau-vao §4). Trả `dong_giay_theo_dau_vao` + `so_luong`/`don_vi`
-        theo mã; không đổi được (thiếu cặp quy đổi kg → đơn vị của mã) thì `so_luong=None` + `ly_do`."""
+        theo mã + `don_vi_goc` (máy chủ suy, không ai gõ): bước nhận tờ ⇒ `to`; bước nhận giấy khổ
+        rộng (nhánh kg) ⇒ đơn vị giá của mã, số kg quy qua `quy_ve_goc`. Không đổi được (thiếu cặp
+        quy đổi kg → đơn vị giá) thì `so_luong=None` + `ly_do`."""
         giay = self.db.get(GiayNguyen, giay_id)
         d = dong_giay_theo_dau_vao(
             don_vi_vao=getattr(cd, "don_vi_vao", None), so_luong_vao=_f(cd.so_luong_vao),
             so_luong_ra=_f(cd.so_luong_ra), quy_cach=qc, gsm=_f(getattr(giay, "gsm", None)) or None)
-        if d["dang"] == DANG_CUON and d["so_luong"] is not None:
+        # `dong_giay_theo_dau_vao` chỉ trả "kg" ở nhánh giấy khổ rộng; mọi nhánh khác đếm tờ.
+        kg = d["don_vi"] == "kg"
+        gia = (getattr(giay, "don_vi_gia", None) or "").strip().lower() or None
+        d["don_vi_goc"] = (gia or "kg") if kg else DON_VI_TO_KHO
+        if kg and d["so_luong"] is not None:
             from ..repositories.don_vi_do_repo import DonViDoRepository
             from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
             from .vat_lieu_kho_service import VatLieuKhoError, VatLieuKhoService
 
             try:
+                # Ép gốc = đơn vị giá của mã: thiếu cặp kg → đơn vị giá thì báo, không lặng lẽ để kg.
                 r = VatLieuKhoService(
                     VatLieuKhoRepository(self.db), DonViDoRepository(self.db)
-                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", d["so_luong"], dang=DANG_CUON)
+                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", d["so_luong"], goc=gia)
                 d["so_luong"], d["don_vi"] = float(r["sl_goc"]), r["don_vi_goc"]
+                d["don_vi_goc"] = r["don_vi_goc"]
             except VatLieuKhoError as e:
                 d["so_luong"], d["ly_do"] = None, str(e)
-        if d["dang"] == DANG_CUON and d["so_luong"] is None:
-            d["don_vi"] = (getattr(giay, "don_vi_gia", None) or "kg")
+        if kg and d["so_luong"] is None:
+            d["don_vi"] = gia or "kg"
         return d
 
     def _dong_bo_dong_giay(self, lsx: Lsx) -> None:
         """Ghi lại MỌI dòng giấy của lệnh theo ĐẦU VÀO của bước chứa nó. KHÔNG commit.
 
-        Số/khổ/dạng/đơn vị của dòng giấy là dẫn xuất — không ai gõ. Cửa duy nhất là cuối
+        Số/khổ/đơn vị/đơn vị gốc của dòng giấy là dẫn xuất — không ai gõ. Cửa duy nhất là cuối
         `_ap_chuoi_nguoc`, nên chèn thêm bước rồi gọi chuỗi ngược là dòng giấy của bước ấy đúng ngay."""
         self._chep_giay_sang_buoc_cat(lsx)
         qc = quy_cach_bien(lsx)
@@ -2220,7 +2286,7 @@ class LsxService:
                     # Chưa tính được (thiếu khổ/gsm/cặp quy đổi/đơn vị vào) ⇒ GIỮ nguyên giá trị đã
                     # lưu; lý do hiện qua `vat_tu_goi_y`. Ghi 0 là xoá im lặng dòng đang đúng.
                     continue
-                v.dang_giay = d["dang"]
+                v.don_vi_goc = d["don_vi_goc"]
                 v.so_luong = d["so_luong"]
                 v.kho_rong, v.kho_dai = d["kho_rong"], d["kho_dai"]
                 if d["don_vi"]:
@@ -2384,7 +2450,16 @@ class LsxService:
             # Danh mục Công đoạn đã đổi sau lúc lệnh chụp ảnh — None khi còn khớp hết. Cùng tinh
             # thần `so_luong_*_moi` ngay trên: MÁY ĐỀ XUẤT, NGƯỜI QUYẾT. Không tự đè, chỉ phơi ra.
             "danh_muc_doi": self.danh_muc_doi(lsx),
+            # Tiêu chí KCS khai/sửa SAU lúc phát hành: thẻ việc còn giữ bộ cũ cho tới khi bấm "Cập
+            # nhật tiêu chí" ở băng này. Băng riêng — cửa cập nhật khác băng trên.
+            "tieu_chi_kcs_doi": self._tieu_chi_kcs_doi(lsx),
         }
+
+    def _tieu_chi_kcs_doi(self, lsx: Lsx) -> dict | None:
+        from .san_xuat.release_update import tieu_chi_kcs_lech   # lười: tránh vòng import
+
+        ds = tieu_chi_kcs_lech(self.db, lsx.id)
+        return {"so_cong_doan": len(ds), "cong_doans": ds} if ds else None
 
     def _bai_ghep_dict(self, lsx: Lsx) -> dict | None:
         """Khối bài ghép của lệnh (None nếu in riêng) — DẪN XUẤT, đọc sống từ bài."""
@@ -2507,7 +2582,7 @@ class LsxService:
                  "vat_tu_ma": v.vat_tu_ma_snapshot, "vat_tu_ten": v.vat_tu_ten_snapshot,
                  "don_vi": v.don_vi_snapshot, "so_luong": _f(v.so_luong),
                  "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
-                 "dang_giay": v.dang_giay,
+                 "don_vi_goc": v.don_vi_goc or "",
                  "tu_dong": bool(v.tu_dong), "sua_tay": bool(v.sua_tay),
                  "gia_tri_chip": dict(v.gia_tri_chip or {}),
                  "chips": [{"ma": c.ma, "ten": c.ten, "don_vi": c.don_vi}
@@ -3037,6 +3112,7 @@ class LsxService:
             raise LsxConflict("Đơn đã hủy — không thể sửa routing")
         self._chan_dang_giu_cho(lsx)
         truoc = len(lsx.cong_doans)
+        di_kem_cu = self._lenh_nguon_cheo(lsx.id)
         old_by_key = {r.step_key: r for r in lsx.cong_doans}
         self._nap_cd([getattr(r, "cong_doan_id", None) for r in rows_in]
                      + [c.cong_doan_id for c in lsx.cong_doans])
@@ -3308,6 +3384,13 @@ class LsxService:
         self.db.flush()
         self._kiem_chu_trinh_phu_thuoc(lsx.order_id)
         self._ap_chuoi_nguoc(lsx)     # đơn vị + số lượng của MỌI bước là dẫn xuất, server ghi
+        # Nối/gỡ cạnh chéo đổi một lệnh khác thành (hoặc thôi là) lệnh ĐI KÈM ⇒ bước cuối của nó
+        # đổi luật đơn vị (LƯỢT 3 của `_ap_chuoi_nguoc`), phải tính lại ngay. Lệnh đã lập kế hoạch
+        # trở đi giữ nguyên số đã chụp.
+        for khac_id in sorted(di_kem_cu ^ self._lenh_nguon_cheo(lsx.id)):
+            khac = self.db.get(Lsx, khac_id)
+            if khac is not None and khac.trang_thai in (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG):
+                self._ap_chuoi_nguoc(khac)
         # SAU chuỗi ngược: lượng vật tư tính trên số vào–ra của chính bước, số ấy vừa mới chốt.
         self._bung_lai_vat_tu(lsx, doi_cd)
         if not commit:
@@ -3407,7 +3490,7 @@ class LsxService:
         lsx.trang_thai = trang_thai
         self.audit.create(
             actor_user_id=actor.id, action="lsx_trang_thai", target=f"lsx:{lsx.id}",
-            detail=f"Lệnh {lsx.ma} → {trang_thai}",
+            detail=f"Lệnh {lsx.ma} → {NHAN_TRANG_THAI.get(trang_thai, trang_thai)}",
         )
         self.repo.commit()
         return self.get(lsx_id)

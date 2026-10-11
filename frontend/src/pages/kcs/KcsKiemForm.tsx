@@ -1,102 +1,60 @@
-// KCS theo LỆNH (mg 0306, docs/design-kcs-theo-lenh.md) — ngăn kéo "Kiểm công đoạn".
-//
-// MỘT thao tác duy nhất: KCS đã mở lệnh, bấm một công đoạn trong chuỗi → tick checklist, ghi Số lỗi.
-// Có lỗi thì bắt mô tả + ít nhất một ảnh. Mỗi dòng lỗi chọn được công đoạn GÂY lỗi (bước đứng trước,
-// bước cuối thì cả lệnh phụ cùng nhóm) — tổ chịu là tổ của công đoạn đó; người kiểm = tài khoản đang
-// đăng nhập, máy chủ chốt. Ghi xong không trừ số, không đổi trạng thái công việc; kiểm lại bao nhiêu
-// lần cũng được. Lần kiểm đã ghi KHÔNG sửa được (điều chỉnh gỡ 08/10/2026) — ghi sai thì ghi lần mới.
-//
-// Chỉ gõ SỐ LỖI (18/09/2026): mỗi lần kiểm bao trọn phần tổ đã làm mà chưa kiểm, số đạt = phần đó −
-// số lỗi — máy chủ tự tính, form chỉ bày ra cho KCS thấy trước.
-//
-// Bối cảnh đầy đủ (19/09/2026): KCS đứng ở chồng hàng cần biết đang kiểm CÁI GÌ mà không phải mở màn
-// khác — đầu lệnh + tổ/máy, dải số kế hoạch → tổ làm → đã kiểm → chưa kiểm, các MẺ tổ đã ghi (mẻ nào
-// chưa kiểm), thẻ quy cách chạy máy (cùng thẻ với ngăn bàn tổ) để đối chiếu, và các lần kiểm trước.
-// Mẻ "chưa kiểm" suy ra ở đây: mỗi lần kiểm bao trọn phần chưa kiểm lúc đó, nên phần chưa kiểm luôn
-// là các mẻ MỚI NHẤT — đi từ mẻ mới nhất trừ dần `chuaKiem`.
-//
-// Lỗi theo DÒNG (19/09/2026): mỗi dòng số lượng + mô tả + ảnh + "Lỗi do công đoạn" — mặc định chính
-// công đoạn đang kiểm, chọn được công đoạn đứng TRƯỚC trong chuỗi của lệnh (lem mực bắt lúc đóng gói
-// là lỗi của In). Số lượng vẫn đếm bằng đơn vị công đoạn đang kiểm (hàng hỏng ở đây); lỗi báo về tổ
-// của công đoạn chịu để họ xem và tính trách nhiệm, số của công đoạn đó không đổi. Một lần kiểm chia
-// được lỗi cho nhiều công đoạn — tách thành hai lần kiểm thì lần sau không còn hàng, vì lần đầu đã bao
-// trọn phần chưa kiểm.
-//
-// Công đoạn GIỮA chỉ GHI LỖI (19/09/2026 — chỉ KCS cuối mới kiểm đạt để nhập kho): không tiêu chí,
-// không "chờ kiểm"/số đạt, không dải tiến độ; trần Σ lỗi ≤ số tốt tổ đã ghi, ghi lúc nào thấy lỗi.
-// Công đoạn cuối (`la_kcs_cuoi`) giữ nguyên lần kiểm đầy đủ ở trên.
-//
-// Bước cuối xét THEO CÔNG ĐOẠN (08/10/2026, `docs/design-tieu-chi-kcs-lam-lai.md` §3a): tiêu chí
-// gộp cả chuỗi (kể cả lệnh phụ cùng nhóm) bày thành thẻ từng công đoạn — "Đạt" hoặc "Có lỗi" (tick
-// mục hỏng + số lỗi + mô tả + ảnh). Mỗi thẻ có lỗi là MỘT dòng lỗi quy về công đoạn của thẻ; lỗi ở
-// công đoạn không có tiêu chí đi lối "+ Lỗi ở công đoạn khác" (danh sách `nguon_loi` của máy chủ).
-// Nút Lưu khoá kèm MỘT dòng lý do ở thanh đáy.
-//
-// Ảnh lỗi là DANH SÁCH cộng dồn: KCS đứng ở chồng hàng chụp từng tấm một (nút "Chụp ảnh" mở thẳng
-// camera điện thoại) hoặc chọn nhiều tấm có sẵn; mỗi lần thêm là nối vào, không đè. Ảnh nằm chờ trong
-// form (URL `blob:`), bấm Lưu mới gửi cùng lần kiểm — lần kiểm chưa có thì chưa có chỗ gắn ảnh.
+// Ngăn "Kiểm hàng" ở công đoạn CUỐI của lệnh (KCS theo lệnh, mg 0306). Từ 11/10/2026 dựng theo khuôn
+// hộp Ghi lỗi công đoạn giữa (`KcsGhiLoiGiua`) và đi cùng logic của nó:
+//   1. Tiêu chí gộp cả chuỗi (kể cả lệnh phụ cùng nhóm), chia nhóm theo lệnh → công đoạn. Tên lệnh
+//      phụ nói một lần ở đầu nhóm. Cuối danh sách là "Lỗi khác, không có trong danh sách".
+//   2. Tiêu chí không đạt thì tick → ô Số lỗi tự đặt con trỏ, ghi chú (không bắt buộc) và ảnh mở ra.
+//      KHÔNG tick = đạt — bỏ hẳn bước bấm "Đạt / Có lỗi" từng công đoạn (chủ chốt 11/10/2026).
+//      Lỗi khác: ghi chú bắt buộc, chọn được công đoạn gây lỗi.
+//   3. Ảnh vẫn bắt buộc ở mọi dòng lỗi bước cuối (09/10/2026).
+//   4. Đối chiếu (chỉ xem) bên phải: Quy cách | Tổ đã ghi | Tệp của lệnh; ngăn hẹp đổi thành tab.
+//   5. Thanh đáy: lần này kiểm bao nhiêu, đạt, lỗi, MỘT lý do chưa lưu được, nút Lưu.
+// Mỗi lần kiểm bao TRỌN phần tổ đã làm mà chưa kiểm: đạt = phần đó − tổng lỗi (máy chủ tính lại cùng
+// công thức). Mỗi dòng tick là một dòng lỗi gửi kèm `thu_tu` + công đoạn chịu; máy chủ ghép mô tả
+// "Tên tiêu chí: ghi chú", cất số theo tiêu chí và báo về tổ của công đoạn chịu. Lần kiểm đã ghi KHÔNG
+// sửa được — ghi sai thì ghi lần mới.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ApiError, api,
-  type SxKcsChecklistKetQuaIn, type SxKcsCongDoan, type SxKcsKiemKetQua, type SxKcsLenhDau,
-  type SxKcsMe,
+  type SxKcsCongDoan, type SxKcsKiemKetQua, type SxKcsLenhDau, type SxKcsMe,
 } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import { XemTruoc } from "../../components/DinhKemTep";
 import { Icon } from "../../components/Icons";
+import { ChipTT } from "../../components/LuoiDs";
 import type { TepXem } from "../../components/tepDinhKem";
-import { coChu, nenAnh } from "../../lib/anhNen";
-
-/** Chặn số ảnh ngay khi chọn — để người kiểm biết trước, không phải chụp xong 12 tấm rồi Lưu mới bị
- *  máy chủ từ chối. */
-const LOI_QUA_SO_ANH = `Tối đa ${TOI_DA_ANH_MOI_LAN} ảnh mỗi lần kiểm.`;
-import { Drawer } from "../danh-muc/components/Drawer";
+import { nenAnh } from "../../lib/anhNen";
+import { NganPhai, useDongNgan } from "../ke-toan/shared/NganPhai";
 import { gioNgan, ngay, num } from "../keHoachSxShared";
-import { nhanChang } from "../lsxBuoc";
+import { nhanChangLenh } from "../lsxBuoc";
 import { useNapTenDonVi } from "../tenDonVi";
-import { DongTep } from "../ThsxDongTep";
-import { ThsxQuyCachThe } from "../ThsxQuyCach";
+import { KcsQuyCach, KcsTepLenh, demTep, useTepNhomKcs } from "./KcsDoiChieu";
 import { KcsLanKiemList } from "./KcsLanKiemList";
-import { KcsTheCongDoan } from "./KcsTheCongDoan";
+import { CHIP_CONG_DOAN } from "./kcsSoDo";
 import {
-  type AnhCho, TOI_DA_ANH_MOI_LAN, type TrangThaiThe, datHetConLai, gomThe, ketQuaChecklist, lyDoKhoa,
-  moTaThe,
+  type AnhCho, type DongKiem, KHAC, TOI_DA_ANH_MOI_LAN, gomThe, ketQuaChecklist, khoaTc, lyDoKiem,
+  nhomTheoLenh, tenTieuChi,
 } from "./theCongDoan";
-import { KCS_CD_TRANG_THAI } from "./kcsNhan";
+import "../ke-toan/ke-toan.css";
 import "../thuc-hien-sx.css";
+import "./kcs-ghi-loi.css";
 import "./kcs-kiem-form.css";
 
-/** Một dòng lỗi đang soạn. `cvId` = công đoạn chịu lỗi. */
-interface DongLoi {
-  key: number;
-  cvId: number;
-  so: string;
-  moTa: string;
-  anh: AnhCho[];
-}
+const LOI_QUA_SO_ANH = `Tối đa ${TOI_DA_ANH_MOI_LAN} ảnh mỗi lần kiểm.`;
+const ME_HIEN = 5;
+const LAN_KIEM_HIEN = 3;
+const EPS = 1e-9;
 
-/** Công đoạn nhận được lỗi ở ô "Lỗi do công đoạn". */
-interface NguonLoi {
-  cong_viec_id: number;
-  nhan: string;
-  to_ten: string;
-}
+/** Tab của khung Đối chiếu bên phải. */
+type TabDoiChieu = "qc" | "me" | "tep";
 
-/** Ảnh đang thêm vào đâu — hai ô chọn tệp ẩn dùng chung cho mọi dòng lỗi và mọi thẻ. */
-type DichAnh = { loai: "dong"; key: number } | { loai: "the"; cvId: number };
-
-/** Mẻ kèm phần CHƯA KIỂM của nó (xem đầu tệp). */
+/** Lần ghi sản lượng kèm phần CHƯA KIỂM của nó. Mỗi lần kiểm bao trọn phần chưa kiểm lúc đó, nên
+ *  phần chưa kiểm luôn là các lần ghi MỚI NHẤT — đi từ lần mới nhất trừ dần. */
 interface MeKiem extends SxKcsMe {
   chua: number;
   tt: "chua" | "mot_phan" | "da";
 }
 
-const ME_HIEN = 5;
-const LAN_KIEM_HIEN = 3;
-const EPS = 1e-9;
-
-/** Gắn phần chưa kiểm cho từng mẻ — `me` đã xếp mới nhất trước. */
 function meChuaKiem(me: SxKcsMe[], chuaKiem: number): MeKiem[] {
   let con = chuaKiem;
   return me.map((m) => {
@@ -112,257 +70,185 @@ function khoangGio(m: SxKcsMe): string {
   return m.bat_dau ? `${gioNgan(m.bat_dau)}–${kt}` : kt;
 }
 
-function chuaKiemCua(c: SxKcsCongDoan): number {
-  return Math.max(0, c.tot - c.tong_dat - c.tong_loi);
-}
-
 function tenCongDoan(c: SxKcsCongDoan): string {
   return c.phan_doan_tong > 1 ? `${c.ten} (${c.phan_doan_so}/${c.phan_doan_tong})` : c.ten;
 }
 
+/** Ô số lỗi: chỉ chữ số và một dấu thập phân (phẩy gõ theo thói quen Việt đổi thành chấm). */
+function chuanSo(v: string): string {
+  const s = v.replace(",", ".").replace(/[^\d.]/g, "");
+  const i = s.indexOf(".");
+  return i < 0 ? s : s.slice(0, i + 1) + s.slice(i + 1).replace(/\./g, "");
+}
+
+/** Huỷ ở thanh đáy đi cùng đường với Esc / nút ×: đang tick dở thì hỏi trước khi bỏ. */
+function NutHuy({ disabled }: { disabled: boolean }) {
+  const dong = useDongNgan();
+  return <button type="button" className="btn btn--ghost" onClick={dong} disabled={disabled}>Huỷ</button>;
+}
+
 export function KcsKiemForm({
-  lenh, cd, chuoi = [], onClose, onSaved,
+  lenh, cd, dinhKemDem, onClose, onSaved,
 }: {
   lenh: SxKcsLenhDau;
   cd: SxKcsCongDoan;
-  /** Cả chuỗi công đoạn của lệnh theo thứ tự routing — nguồn ô "Lỗi do công đoạn". */
-  chuoi?: SxKcsCongDoan[];
+  /** Bộ đếm sự kiện tệp lệnh đổi (AppShell) — đổi là nạp lại tab Tệp của lệnh. */
+  dinhKemDem?: Record<number, number>;
   onClose: () => void;
   onSaved: (r: SxKcsKiemKetQua) => void;
 }) {
   const { token } = useAuth();
-  // `don_vi` của công đoạn/mẻ là mã CHẶNG dòng giấy (`to` = tờ in) — màn KCS không tự nạp bảng nhãn.
+  // `don_vi` của công đoạn/lần ghi là mã CHẶNG dòng giấy (`to` = tờ in) — màn KCS không tự nạp nhãn.
   useNapTenDonVi();
-  const cuoi = cd.la_kcs_cuoi;
-  // Thẻ công đoạn (chỉ bước cuối có tiêu chí) — mỗi lần kiểm bắt đầu với mọi thẻ "chưa xét".
-  const the = useMemo(
-    () => (cuoi ? gomThe(cd.checklist, cd.cong_viec_id, tenCongDoan(cd)) : []), [cuoi, cd]);
-  const cheDoThe = the.length > 0;
-  const [ttThe, setTtThe] = useState<Map<number, TrangThaiThe>>(new Map());
-  // Chế độ thẻ: dòng lỗi thủ công chỉ dành cho "+ Lỗi ở công đoạn khác", mặc định không có dòng nào.
-  const [dongLoi, setDongLoi] = useState<DongLoi[]>(() => (cheDoThe ? [] : [
-    { key: 1, cvId: cd.cong_viec_id, so: "", moTa: "", anh: [] },
-  ]));
-  const [dangNen, setDangNen] = useState(0);
-  const [xem, setXem] = useState<TepXem | null>(null);
+  const dv = nhanChangLenh(cd.don_vi, lenh.don_vi_tinh);
+  const tenCd = tenCongDoan(cd);
+  const the = useMemo(() => gomThe(cd.checklist, cd.cong_viec_id, tenCd), [cd.checklist, cd.cong_viec_id, tenCd]);
+  const nhom = useMemo(() => nhomTheoLenh(the), [the]);
+  const tep = useTepNhomKcs(lenh.id, dinhKemDem);
+  const tepLenh = tep.nhom?.filter((g) => g.lsx_id === lenh.id) ?? null;
+  const soTep = demTep(tepLenh);
+
+  // Công đoạn nhận được lỗi ở dòng Lỗi khác — danh sách máy chủ trả (chuỗi gộp, kể cả lệnh phụ).
+  const nguonLoi = (cd.nguon_loi?.length ? cd.nguon_loi : [{ cong_viec_id: cd.cong_viec_id, ten: tenCd, to_ten: cd.to_ten, lsx_ma: lenh.ma }])
+    .map((n) => ({
+      cong_viec_id: n.cong_viec_id,
+      nhan: n.lsx_ma && n.lsx_ma !== lenh.ma ? `${n.ten} (lệnh ${n.lsx_ma})` : n.ten,
+      to_ten: n.to_ten,
+    }));
+
+  const [dong, setDong] = useState<Map<string, DongKiem>>(new Map());
+  const [mo, setMo] = useState<string | null>(null);
+  const [tab, setTab] = useState<"ghi" | "doi">("ghi");
+  const [dc, setDc] = useState<TabDoiChieu>("qc");
   const [ghiChu, setGhiChu] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [moHetMe, setMoHetMe] = useState(false);
   const [moHetLk, setMoHetLk] = useState(false);
-  // Thông báo chặn nằm cuối thân ngăn — cuộn tới nó, không thì người bấm "Lưu" không thấy gì xảy ra.
-  const errorRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (error) errorRef.current?.scrollIntoView({ block: "nearest" }); }, [error]);
+  const [dangNen, setDangNen] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [xem, setXem] = useState<TepXem | null>(null);
+
+  // Tick xong thì con trỏ nhảy vào ô Số lỗi của dòng đó — đặt SAU khi dòng mở ra (ô mới có trong DOM).
+  const [datConTro, setDatConTro] = useState<string | null>(null);
+  const oSo = useRef(new Map<string, HTMLInputElement>());
+  useEffect(() => {
+    if (datConTro == null) return;
+    oSo.current.get(datConTro)?.focus();
+    setDatConTro(null);
+  }, [datConTro]);
 
   const chupRef = useRef<HTMLInputElement>(null);
   const chonRef = useRef<HTMLInputElement>(null);
+  const dichAnh = useRef<string>(KHAC);
   const idAnh = useRef(0);
-  const idDong = useRef(1);
-  const dichAnh = useRef<DichAnh>({ loai: "dong", key: 1 });
-  const anhThe = [...ttThe.values()].flatMap((t) => (t.loai === "loi" ? t.anh : []));
-  const soAnh = dongLoi.reduce((n, d) => n + d.anh.length, 0) + anhThe.length;
   // URL `blob:` không tự mất khi ngăn đóng — dọn tay; ref để bản dọn lúc unmount thấy danh sách mới nhất.
   const anhRef = useRef<AnhCho[]>([]);
-  useEffect(() => {
-    anhRef.current = [
-      ...dongLoi.flatMap((d) => d.anh),
-      ...[...ttThe.values()].flatMap((t) => (t.loai === "loi" ? t.anh : [])),
-    ];
-  }, [dongLoi, ttThe]);
+  useEffect(() => { anhRef.current = [...dong.values()].flatMap((d) => d.anh); }, [dong]);
   useEffect(() => () => { for (const a of anhRef.current) URL.revokeObjectURL(a.url); }, []);
 
-  function suaDong(key: number, sua: (d: DongLoi) => DongLoi) {
-    setDongLoi((ds) => ds.map((d) => (d.key === key ? sua(d) : d)));
-    setError(null);
-  }
-
-  function moChonAnh(dich: DichAnh, o: HTMLInputElement | null) {
-    dichAnh.current = dich;
-    o?.click();
-  }
-
-  /** Sửa thẻ đang "Có lỗi" — thẻ ở trạng thái khác thì thôi. */
-  function suaThe(cvId: number, sua: (t: Extract<TrangThaiThe, { loai: "loi" }>) => TrangThaiThe) {
-    setTtThe((m) => {
-      const t = m.get(cvId);
-      if (t?.loai !== "loi") return m;
-      const moi = new Map(m);
-      moi.set(cvId, sua(t));
-      return moi;
+  function sua(k: string, f: (d: DongKiem) => DongKiem) {
+    setDong((m) => {
+      const d = m.get(k);
+      return d ? new Map(m).set(k, f(d)) : m;
     });
     setError(null);
   }
-
-  /** "Đạt" / "Thôi, đạt" bỏ dòng lỗi của thẻ (dọn ảnh); "Có lỗi" lần nữa không đổi gì. */
-  function datTrangThai(cvId: number, loai: "dat" | "loi") {
-    const cu = ttThe.get(cvId);
-    if (loai === "loi" && cu?.loai === "loi") return;
-    if (loai === "dat" && cu?.loai === "loi") for (const a of cu.anh) URL.revokeObjectURL(a.url);
-    setTtThe((m) => new Map(m).set(cvId, loai === "dat"
-      ? { loai: "dat" }
-      : { loai: "loi", hong: new Set(), so: "", moTa: "", suaTay: false, anh: [] }));
+  function tick(k: string, cvId: number, bat: boolean) {
+    if (bat) {
+      setDong((m) => new Map(m).set(k, { cvId, so: "", ghi: "", anh: [] }));
+      setMo(k);
+      setDatConTro(k);
+    } else {
+      for (const a of dong.get(k)?.anh ?? []) URL.revokeObjectURL(a.url);
+      setDong((m) => { const n = new Map(m); n.delete(k); return n; });
+      if (mo === k) setMo(null);
+    }
     setError(null);
   }
+  function bamTen(k: string, cvId: number) {
+    if (!dong.has(k)) tick(k, cvId, true);
+    else setMo((x) => (x === k ? null : k));
+  }
+
+  // Tên + thứ tự của mọi dòng tick được, đúng thứ tự trên màn.
+  const thuTuDong = useMemo(() => [
+    ...the.flatMap((t) => t.tieuChi.map((tc) => ({ khoa: khoaTc(t.cvId, tc.thu_tu), ten: tenTieuChi(tc), thuTu: tc.thu_tu as number | null }))),
+    { khoa: KHAC, ten: "Lỗi khác", thuTu: null as number | null },
+  ], [the]);
+  const dangTick = thuTuDong.flatMap((x) => {
+    const d = dong.get(x.khoa);
+    return d ? [{ ...x, d }] : [];
+  });
+  const soAnh = dangTick.reduce((n, { d }) => n + d.anh.length, 0);
+  const duSoAnh = soAnh >= TOI_DA_ANH_MOI_LAN;
+  const tongLoi = dangTick.reduce((s, { d }) => s + (Number(d.so) > 0 ? Number(d.so) : 0), 0);
+  const chuaKiem = Math.max(0, cd.tot - cd.tong_dat - cd.tong_loi);
+  const datLanNay = Math.max(0, chuaKiem - tongLoi);
+  const keHoach = cd.so_luong_ra ?? null;
+  const lyDo = lyDoKiem(dangTick, { chuaKiem, dv });
+
+  // Số đã ghi theo tiêu chí ở các lần kiểm trước (dữ liệu trước 11/10 không có số theo tiêu chí).
+  const daGhi = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const lk of cd.lan_kiem ?? []) for (const k of lk.checklist) {
+      if (k.dat || !(Number(k.so_luong) > 0)) continue;
+      const kh = khoaTc(k.cong_viec_id ?? cd.cong_viec_id, k.thu_tu);
+      m.set(kh, (m.get(kh) ?? 0) + Number(k.so_luong));
+    }
+    return m;
+  }, [cd.lan_kiem, cd.cong_viec_id]);
 
   async function themAnh(input: HTMLInputElement) {
-    const dich = dichAnh.current;
+    const k = dichAnh.current;
     const ds = Array.from(input.files ?? []);
     // Xoá giá trị ô chọn: không thì chọn lại đúng tấm vừa bỏ, trình duyệt không bắn `change`.
     input.value = "";
     setError(null);
     let conDuoc = TOI_DA_ANH_MOI_LAN - soAnh;
     for (const f of ds) {
-      if (conDuoc <= 0) {
-        setError(LOI_QUA_SO_ANH);
-        break;
-      }
-      if (!f.type.startsWith("image/")) {
-        setError(`"${f.name}" không phải ảnh.`);
-        continue;
-      }
+      if (conDuoc <= 0) { setError(LOI_QUA_SO_ANH); break; }
+      if (!f.type.startsWith("image/")) { setError(`"${f.name}" không phải ảnh.`); continue; }
       // Ảnh điện thoại 4–8 MB/tấm: nén ngay khi thêm để lúc Lưu không phải đẩy vài chục MB qua wifi xưởng.
       setDangNen((n) => n + 1);
       const kq = await nenAnh(f);
       setDangNen((n) => n - 1);
       conDuoc -= 1;
       const moi = { id: ++idAnh.current, file: kq.file, url: URL.createObjectURL(kq.file), goc: kq.goc };
-      if (dich.loai === "the") suaThe(dich.cvId, (t) => ({ ...t, anh: [...t.anh, moi] }));
-      else setDongLoi((ds) => ds.map((d) => (d.key === dich.key ? { ...d, anh: [...d.anh, moi] } : d)));
+      // Nén xong mà dòng đã bỏ tick thì vứt ảnh, không gắn vào dòng đã xoá.
+      setDong((m) => {
+        const d = m.get(k);
+        if (!d) { URL.revokeObjectURL(moi.url); return m; }
+        return new Map(m).set(k, { ...d, anh: [...d.anh, moi] });
+      });
     }
   }
-
-  function boAnh(key: number, id: number) {
-    const bo = dongLoi.find((d) => d.key === key)?.anh.find((a) => a.id === id);
-    if (bo) URL.revokeObjectURL(bo.url);
-    suaDong(key, (d) => ({ ...d, anh: d.anh.filter((a) => a.id !== id) }));
+  function moChonAnh(k: string, o: HTMLInputElement | null) {
+    dichAnh.current = k;
+    o?.click();
   }
-
-  function boAnhThe(cvId: number, id: number) {
-    const t = ttThe.get(cvId);
-    const bo = t?.loai === "loi" ? t.anh.find((a) => a.id === id) : undefined;
-    if (bo) URL.revokeObjectURL(bo.url);
-    suaThe(cvId, (x) => ({ ...x, anh: x.anh.filter((a) => a.id !== id) }));
+  function boAnh(k: string, id: number) {
+    const a = dong.get(k)?.anh.find((x) => x.id === id);
+    if (a) URL.revokeObjectURL(a.url);
+    sua(k, (d) => ({ ...d, anh: d.anh.filter((x) => x.id !== id) }));
   }
-
-  function themDong() {
-    // Dòng thêm thường là lỗi của công đoạn KHÁC. Chế độ thẻ: gợi sẵn công đoạn chưa có thẻ, gần bước
-    // cuối nhất; không thì công đoạn ngay trước công đoạn đang kiểm.
-    const coThe = new Set(the.map((t) => t.cvId));
-    const khongThe = [...nguonLoi].reverse().find((c) => !coThe.has(c.cong_viec_id));
-    const goiY = cheDoThe
-      ? (khongThe ?? nguonLoi[nguonLoi.length - 1] ?? banThan).cong_viec_id
-      : nguonLoi.length > 1 ? nguonLoi[nguonLoi.length - 2].cong_viec_id : cd.cong_viec_id;
-    setDongLoi((ds) => [...ds, { key: ++idDong.current, cvId: goiY, so: "", moTa: "", anh: [] }]);
-    setError(null);
-  }
-
-  function boDong(key: number) {
-    for (const a of dongLoi.find((d) => d.key === key)?.anh ?? []) URL.revokeObjectURL(a.url);
-    setDongLoi((ds) => ds.filter((d) => d.key !== key));
-    setError(null);
-  }
-
-  const soDuong = (x: string) => (Number(x) > 0 ? Number(x) : 0);
-  const nSoLoi = dongLoi.reduce((s, d) => s + soDuong(d.so), 0)
-    + [...ttThe.values()].reduce((s, t) => s + (t.loai === "loi" ? soDuong(t.so) : 0), 0);
-  const dv = nhanChang(cd.don_vi);
-  // Công đoạn giữa: còn ghi được bao nhiêu lỗi nữa (máy chủ chặn cùng trần).
-  const conGhiLoi = Math.max(0, cd.tot - cd.tong_loi);
-  const moGhi = cuoi ? chuaKiemCua(cd) > 0 : conGhiLoi > 0;
-  // Công đoạn nhận được lỗi. Bước cuối: danh sách máy chủ trả (chuỗi gộp, kể cả lệnh phụ cùng nhóm).
-  // Công đoạn giữa: từ đầu chuỗi của lệnh tới chính nó (máy chủ kiểm lại y hệt).
-  const viTri = chuoi.findIndex((c) => c.cong_viec_id === cd.cong_viec_id);
-  const nguonLoi: NguonLoi[] = cuoi && cd.nguon_loi?.length
-    ? cd.nguon_loi.map((n) => ({
-      cong_viec_id: n.cong_viec_id,
-      to_ten: n.to_ten,
-      nhan: n.lsx_ma && n.lsx_ma !== lenh.ma ? `${n.ten} (lệnh ${n.lsx_ma})` : n.ten,
-    }))
-    : (viTri >= 0 ? chuoi.slice(0, viTri + 1) : [cd]).map((c) => ({
-      cong_viec_id: c.cong_viec_id, nhan: tenCongDoan(c), to_ten: c.to_ten,
-    }));
-  const banThan: NguonLoi = { cong_viec_id: cd.cong_viec_id, nhan: tenCongDoan(cd), to_ten: cd.to_ten };
-  const congDoanCua = (id: number) => nguonLoi.find((c) => c.cong_viec_id === id) ?? banThan;
-  // Phần tổ đã làm mà chưa kiểm — lần kiểm này bao trọn phần đó (máy chủ tính lại cùng công thức).
-  const chuaKiem = chuaKiemCua(cd);
-  const datLanNay = Math.max(0, chuaKiem - nSoLoi);
-  const keHoach = cd.so_luong_ra ?? null;
-  const me = useMemo(() => meChuaKiem(cd.me ?? [], chuaKiem), [cd.me, chuaKiem]);
-  const soMeChua = me.filter((m) => m.tt !== "da").length;
-  // Công đoạn giữa chỉ bày lần có lỗi — lọc TRƯỚC khi cắt trang, không thì lần có lỗi bị gấp mất.
-  const lanKiem = (cd.lan_kiem ?? []).filter((lk) => cd.la_kcs_cuoi || lk.loi.length > 0);
-  const soLanHien = lanKiem.length;
-
-  // Dải tiến độ: đạt · lỗi · chưa kiểm · chưa làm (so kế hoạch). Chia theo TỔNG các đoạn chứ không
-  // theo kế hoạch — dữ liệu cũ kiểm lố (đạt + lỗi > tổ làm) hay tổ làm vượt kế hoạch vẫn vẽ đủ.
-  const chuaLam = keHoach != null ? Math.max(0, keHoach - cd.tot) : 0;
-  const doan = [
-    { k: "dat", nhan: "Đạt", so: cd.tong_dat },
-    { k: "loi", nhan: "Lỗi", so: cd.tong_loi },
-    { k: "chua", nhan: "Chưa kiểm", so: chuaKiem },
-    { k: "chualam", nhan: "Chưa làm", so: chuaLam },
-  ];
-  const tongDoan = doan.reduce((s, d) => s + d.so, 0);
-  const pctLam = keHoach && keHoach > 0 ? Math.round((cd.tot / keHoach) * 100) : null;
-
-  function kiemTraDong(): string | null {
-    // Một dòng thì nói như cũ; nhiều dòng (hay dòng thêm cạnh thẻ) thì chỉ rõ dòng nào.
-    const truoc = (i: number, cau: string) =>
-      dongLoi.length > 1 || cheDoThe ? `Dòng lỗi ${i + 1}: ${cau.charAt(0).toLowerCase()}${cau.slice(1)}` : cau;
-    for (const [i, d] of dongLoi.entries()) {
-      if (d.so.trim() !== "" && (!Number.isFinite(Number(d.so)) || Number(d.so) < 0)) return truoc(i, "Số lỗi không hợp lệ.");
-    }
-    if (!cuoi) {
-      if (cd.tot <= 0) return "Tổ chưa ghi sản lượng nào — chưa có hàng để ghi lỗi.";
-      if (nSoLoi <= 0) return "Nhập số lỗi.";
-      if (nSoLoi > conGhiLoi) return `Tổng lỗi vượt số tốt tổ đã ghi (còn ghi được ${num(conGhiLoi)} ${dv}).`;
-    }
-    if (cuoi && chuaKiem <= 0) return "Tổ chưa ghi thêm sản lượng nào từ lần kiểm trước — chưa có gì để kiểm.";
-    if (cuoi && !cheDoThe && nSoLoi > chuaKiem) return `Số lỗi vượt phần tổ đã làm mà chưa kiểm (${num(chuaKiem)} ${dv}).`;
-    for (const [i, d] of dongLoi.entries()) {
-      if (!(Number(d.so) > 0)) continue;
-      if (!d.moTa.trim()) return truoc(i, "Có lỗi thì phải mô tả lỗi.");
-      if (d.anh.length === 0) return truoc(i, "Có lỗi thì phải kèm ít nhất một ảnh.");
-    }
-    if (cheDoThe) return null;
-    const soAnhGui = dongLoi.filter((d) => Number(d.so) > 0).reduce((n, d) => n + d.anh.length, 0);
-    if (soAnhGui > TOI_DA_ANH_MOI_LAN) return `${LOI_QUA_SO_ANH} Bỏ bớt ${soAnhGui - TOI_DA_ANH_MOI_LAN} ảnh.`;
-    return null;
-  }
-
-  // Chế độ thẻ: lý do khoá tính sẵn, bày ở thanh đáy (§3a); dòng lỗi thủ công kiểm sau các thẻ.
-  const lyDo = !cheDoThe ? null
-    : chuaKiem <= 0 ? "Chưa có gì để kiểm"
-      : lyDoKhoa(the, ttThe, { chuaKiem, tongLoi: nSoLoi, soAnh }) ?? kiemTraDong();
 
   async function luu() {
-    if (!token || saving || dangNen > 0) return;
-    const loi = cheDoThe ? lyDo : kiemTraDong();
-    if (loi) { setError(loi); return; }
+    if (!token || saving || dangNen > 0 || lyDo) return;
     setSaving(true);
     setError(null);
-    const checklist: SxKcsChecklistKetQuaIn[] = cheDoThe ? ketQuaChecklist(the, ttThe) : [];
-    const dongThe = the.flatMap((t) => {
-      const s = ttThe.get(t.cvId);
-      return s?.loai === "loi" ? [{
-        cong_viec_id: t.cvId === cd.cong_viec_id ? null : t.cvId,
-        so_luong: Number(s.so),
-        mo_ta: moTaThe(t, s).trim() || "Lỗi",
-        files: s.anh.map((a) => a.file),
-      }] : [];
-    });
     try {
       const r = await api.sanXuat.kiemCongDoan(token, cd.cong_viec_id, {
-        so_loi: nSoLoi,
-        checklist,
+        so_loi: tongLoi,
+        checklist: ketQuaChecklist(the, new Set(dangTick.map((x) => x.khoa))),
         ghi_chu: ghiChu.trim() || null,
         lsx_id: lenh.id,
-        loi: [...dongThe, ...dongLoi.filter((d) => Number(d.so) > 0).map((d) => ({
+        loi: dangTick.map(({ thuTu, d }) => ({
           cong_viec_id: d.cvId === cd.cong_viec_id ? null : d.cvId,
+          thu_tu: thuTu,
           so_luong: Number(d.so),
-          mo_ta: d.moTa.trim(),
+          mo_ta: d.ghi.trim(),
           files: d.anh.map((a) => a.file),
-        }))],
+        })),
       });
       onSaved(r);
     } catch (e) {
@@ -371,389 +257,274 @@ export function KcsKiemForm({
     }
   }
 
-  const tenCd = tenCongDoan(cd);
-  const duSoAnh = soAnh >= TOI_DA_ANH_MOI_LAN;
+  /** Một dòng tick: tiêu chí (cvId cố định) hoặc Lỗi khác (chọn công đoạn gây lỗi). */
+  function dongTick(k: string, ten: string, cvMacDinh: number) {
+    const d = dong.get(k);
+    const khac = k === KHAC;
+    const dangMo = d != null && mo === k;
+    const truoc = daGhi.get(k) ?? 0;
+    return (
+      <div key={k} className={`kgl-dong${khac ? " kgl-dong--khac" : ""}`}>
+        <div className="kgl-dong__h">
+          <input type="checkbox" checked={d != null} aria-label={ten}
+            onChange={(e) => tick(k, cvMacDinh, e.currentTarget.checked)} />
+          <button type="button" className="kgl-dong__ten" onClick={() => bamTen(k, cvMacDinh)}>
+            {khac ? "Lỗi khác, không có trong danh sách" : ten}
+            {truoc > 0 && <span className="kgl-dong__ls">lần trước đã ghi {num(truoc)} {dv}</span>}
+          </button>
+        </div>
+        {d && dangMo ? (
+          <div className="kgl-dong__than">
+            <label>
+              <span className="kgl-nhan">Số lỗi</span>
+              <span className="kgl-o-so">
+                <input ref={(el) => { if (el) oSo.current.set(k, el); else oSo.current.delete(k); }}
+                  inputMode="decimal" value={d.so} aria-label={`Số lỗi ${ten}`}
+                  onChange={(e) => { const v = chuanSo(e.currentTarget.value); sua(k, (x) => ({ ...x, so: v })); }} />
+                <span>{dv}</span>
+              </span>
+            </label>
+            <label>
+              <span className="kgl-nhan">Ghi chú <i>{khac ? "bắt buộc, ghi lỗi gì" : "không bắt buộc"}</i></span>
+              <input className="kgl-o" value={d.ghi} aria-label={`Ghi chú ${ten}`}
+                placeholder={khac ? "Ví dụ: rách gáy khi vào keo" : "Ví dụ: góc phải"}
+                onChange={(e) => { const v = e.currentTarget.value; sua(k, (x) => ({ ...x, ghi: v })); }} />
+            </label>
+            {khac && nguonLoi.length > 1 && (
+              <label className="kkf2-nguon">
+                <span className="kgl-nhan">Lỗi do công đoạn nào</span>
+                <select className="kgl-o" value={d.cvId} aria-label="Lỗi do công đoạn nào"
+                  onChange={(e) => { const v = Number(e.currentTarget.value); sua(k, (x) => ({ ...x, cvId: v })); }}>
+                  {nguonLoi.map((c) => (
+                    <option key={c.cong_viec_id} value={c.cong_viec_id}>
+                      {c.nhan}{c.to_ten ? ` — ${c.to_ten}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <div className="kgl-dong__anh">
+              <span className="kgl-nhan">Ảnh <i>ít nhất 1</i></span>
+              {d.anh.map((a) => (
+                <span key={a.id} className="kgl-anh">
+                  <button type="button" className="kgl-anh__xem" title={`Xem ${a.file.name}`}
+                    onClick={() => setXem({ ten_tep: a.file.name, file_url: a.url, content_type: a.file.type })}>
+                    <img src={a.url} alt={a.file.name} />
+                  </button>
+                  <button type="button" className="kgl-anh__bo" aria-label={`Bỏ ảnh ${a.file.name}`} title="Bỏ ảnh"
+                    onClick={() => boAnh(k, a.id)}>×</button>
+                </span>
+              ))}
+              <button type="button" className="btn btn--ghost btn--sm" disabled={duSoAnh}
+                title={duSoAnh ? LOI_QUA_SO_ANH : undefined} onClick={() => moChonAnh(k, chupRef.current)}>
+                <Icon name="camera" size={13} /> Chụp ảnh
+              </button>
+              <button type="button" className="btn btn--ghost btn--sm kgl-chon-anh" disabled={duSoAnh}
+                title={duSoAnh ? LOI_QUA_SO_ANH : undefined} onClick={() => moChonAnh(k, chonRef.current)}>
+                <Icon name="upload" size={13} /> Chọn ảnh
+              </button>
+              {dangNen > 0 && dichAnh.current === k && <span className="kgl-mu">đang xử lý ảnh…</span>}
+              <span className="kgl-gian" />
+              <button type="button" className="btn btn--ghost btn--sm" onClick={() => setMo(null)}>Xong</button>
+            </div>
+          </div>
+        ) : d && (
+          <div className="kgl-dong__tom">
+            {Number(d.so) > 0
+              ? <span className="kt-tag">{num(Number(d.so))} {dv}</span>
+              : <span className="kt-tag kt-tag--do">chưa nhập số</span>}
+            {d.anh.length > 0
+              ? <span className="kt-tag">{d.anh.length} ảnh</span>
+              : <span className="kt-tag kt-tag--do">chưa có ảnh</span>}
+            {khac && d.cvId !== cd.cong_viec_id && (
+              <span className="kt-tag">{nguonLoi.find((c) => c.cong_viec_id === d.cvId)?.nhan}</span>
+            )}
+            {d.ghi.trim() && <span className="kt-tag kgl-tag-ghi" title={d.ghi.trim()}>{d.ghi.trim()}</span>}
+            <button type="button" className="kgl-lk" onClick={() => { setMo(k); setDatConTro(k); }}>Sửa</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Lần ghi sản lượng của tổ (Đối chiếu) — mới nhất trước.
+  const me = useMemo(() => meChuaKiem(cd.me ?? [], chuaKiem), [cd.me, chuaKiem]);
   const meHien = moHetMe ? me : me.slice(0, ME_HIEN);
+  const bangMe = me.length === 0 ? <p className="kdc-trong">Tổ chưa ghi sản lượng lần nào.</p> : (
+    <>
+      <ul className="kkf-me">
+        {meHien.map((m, i) => (
+          <li key={m.id} className={`kkf-me__it kkf-me__it--${m.tt}`}>
+            <div className="kkf-me__gio">
+              <b>{khoangGio(m)}</b>
+              <span>{ngay(m.ket_thuc ?? m.bat_dau)}</span>
+            </div>
+            <div className="kkf-me__giua">
+              <span className="kkf-me__viec">Sản lượng lần {me.length - i}</span>
+              <span className="kkf-me__nguoi">
+                {m.nguoi.length > 0 ? m.nguoi.join(", ") : "Chưa ghi người làm"}
+                {m.nguoi_ghi && <span className="kkf-me__ghi"> ghi: {m.nguoi_ghi}</span>}
+              </span>
+            </div>
+            <div className="kkf-me__phai">
+              <span className="kkf-me__sl">{num(m.so_luong)}<small>{nhanChangLenh(m.don_vi ?? cd.don_vi, lenh.don_vi_tinh)}</small></span>
+              <span className={`kkf-me__tt kkf-me__tt--${m.tt}`}>
+                {m.tt === "da" ? "Đã kiểm" : m.tt === "chua" ? "Chưa kiểm" : `Còn ${num(m.chua)} chưa kiểm`}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {me.length > ME_HIEN && (
+        <button type="button" className="kgl-lk kgl-them" onClick={() => setMoHetMe((v) => !v)}>
+          {moHetMe ? "Thu gọn" : `Xem thêm ${me.length - ME_HIEN} lần ghi cũ hơn`}
+        </button>
+      )}
+    </>
+  );
+  const tabDc: { id: TabDoiChieu; nhan: string; dem?: number }[] = [
+    { id: "qc", nhan: "Quy cách" },
+    { id: "me", nhan: "Tổ đã ghi", dem: me.length },
+    { id: "tep", nhan: "Tệp của lệnh", dem: tep.nhom ? soTep : undefined },
+  ];
+  const khoiDc = dc === "qc" ? <KcsQuyCach qc={cd.quy_cach} danDo={cd.ghi_chu_ky_thuat} />
+    : dc === "me" ? bangMe
+      : <KcsTepLenh nhom={tepLenh} loi={tep.loi} onXem={setXem} />;
+
+  const lanKiem = cd.lan_kiem ?? [];
   const lkHien = moHetLk ? lanKiem : lanKiem.slice(0, LAN_KIEM_HIEN);
-  const conChuaXet = the.filter((t) => (ttThe.get(t.cvId)?.loai ?? "chua") === "chua").length;
+  const chip = CHIP_CONG_DOAN[cd.trang_thai];
+  const coNhieuLenh = nhom.length > 1;
+  const moGhi = chuaKiem > 0;
 
   return (
-    <Drawer
-      kicker={cuoi ? "Kiểm công đoạn" : "Ghi lỗi công đoạn"}
-      title={tenCd}
-      onClose={onClose}
-      foot={cheDoThe ? (
-        <div className="kkf-day">
-          {lyDo && moGhi && <p className="kkf-day__ly" role="status">{lyDo}</p>}
-          <div className="kkf-day__hang">
-            <span className="kkf-day__so"><b>{num(datLanNay)}</b> đạt</span>
-            <span className={`kkf-day__so${nSoLoi > 0 ? " is-loi" : ""}`}><b>{num(nSoLoi)}</b> lỗi</span>
-            <span className="kkf-day__tren">trên {num(chuaKiem)} {dv} chưa kiểm</span>
-            <span className="kkf-day__nut">
-              <button type="button" className="btn btn--ghost" onClick={onClose} disabled={saving}>Huỷ</button>
-              <button type="button" className="btn btn--accent" onClick={luu}
-                disabled={saving || dangNen > 0 || !moGhi || lyDo != null}>
-                {saving ? "Đang lưu…" : dangNen > 0 ? "Đang xử lý ảnh…" : "Lưu kết quả kiểm"}
-              </button>
-            </span>
-          </div>
-        </div>
-      ) : (
+    <NganPhai
+      tieuDe={`Kiểm hàng ${tenCd}`}
+      phuDe={(
         <>
-          <button type="button" className="btn btn--ghost" onClick={onClose} disabled={saving}>Huỷ</button>
-          <button type="button" className="btn btn--accent" onClick={luu}
-            disabled={saving || dangNen > 0 || !moGhi}>
-            {saving ? "Đang lưu…" : dangNen > 0 ? "Đang xử lý ảnh…" : cuoi ? "Lưu kết quả kiểm" : "Lưu lỗi"}
-          </button>
+          <span className="kt-tag">{lenh.ma}</span>
+          {lenh.ten && <span className="kgl-to">{lenh.ten}</span>}
+          {cd.to_ten && <span className="kgl-to">{cd.to_ten}</span>}
+          {cd.may && <span className="kgl-to">{cd.may}</span>}
+          {chip && <ChipTT mau={chip.mau}>{chip.nhan}</ChipTT>}
         </>
       )}
+      canhBao={(
+        <div className="kgl-so">
+          <span>{cd.gia_cong_ngoai ? "Nhà gia công trả về" : "Tổ đã làm"}<b>{num(cd.tot)}{keHoach != null ? ` / ${num(keHoach)}` : ""} {dv}</b></span>
+          <span>Chưa kiểm<b>{num(chuaKiem)} {dv}</b></span>
+        </div>
+      )}
+      onDong={onClose}
+      chanDong={() => !saving && (dong.size > 0 || ghiChu.trim() !== "")}
+      cauHoiBo="Bỏ kết quả đang kiểm?"
+      chan={(
+        <div className="kgl-day">
+          <span className="kgl-day__tong">Lần này kiểm<b>{num(chuaKiem)} {dv}</b></span>
+          <span className="kt-tag">Đạt <b>{num(datLanNay)}</b></span>
+          <span className={`kt-tag${tongLoi > 0 ? " kt-tag--do" : ""}`}>Lỗi <b>{num(tongLoi)}</b></span>
+          <span className={`kgl-day__ly${lyDo || error ? "" : " is-ok"}`} role="status">
+            {error ?? lyDo ?? (tongLoi > 0
+              ? "Lưu được. Lỗi báo ngay về tổ làm công đoạn"
+              : "Lưu được. Không tick tiêu chí nào là tất cả đạt")}
+          </span>
+          <NutHuy disabled={saving} />
+          <button type="button" className="btn btn--accent kgl-day__luu" onClick={luu}
+            disabled={saving || dangNen > 0 || lyDo != null}>
+            {saving ? "Đang lưu…" : dangNen > 0 ? "Đang xử lý ảnh…" : "Lưu kết quả kiểm"}
+          </button>
+        </div>
+      )}
     >
-      <div className="rc-drawer__body kkf">
-        {/* 1 · ĐẦU LỆNH — lệnh nào, của ai, tổ nào làm trên máy nào. */}
-        <section className="kkf-dau">
-          <div className="kkf-dau__lenh">
-            <span className="kkf-dau__ma">{lenh.ma}</span>
-            {lenh.ten && <span className="kkf-dau__ten">{lenh.ten}</span>}
-          </div>
-          {lenh.khach && <div className="kkf-dau__khach">Khách hàng: <b>{lenh.khach}</b></div>}
-          <div className="kkf-chips">
-            <span className="kkf-chip" title="Tổ làm công đoạn — lỗi báo về tổ này">
-              <Icon name="users" size={12} /> {cd.to_ten || "Chưa có tổ"}
-            </span>
-            <span className={`kkf-chip kkf-chip--tt kkf-chip--${cd.trang_thai}`}>
-              {KCS_CD_TRANG_THAI[cd.trang_thai] ?? cd.trang_thai}
-            </span>
-            {cd.may && (
-              <span className="kkf-chip" title="Máy chạy công đoạn">
-                <Icon name="cpu" size={12} /> {cd.may}
-              </span>
-            )}
-            {cd.la_kcs_cuoi && (
-              <span className="kkf-chip kkf-chip--cuoi" title="Số đạt ở công đoạn này được đề nghị nhập kho">
-                <Icon name="packageCheck" size={12} /> Công đoạn cuối · đạt thì nhập kho
-              </span>
-            )}
-          </div>
-        </section>
-
-        {/* 2 · DẢI SỐ — kế hoạch → tổ làm → KCS đã kiểm → còn chờ kiểm. */}
-        <section className="thsx-card kkf-the">
-          <div className="thsx-psec__h">
-            <Icon name="activity" size={14} />
-            <span className="thsx-psec__title">{cuoi ? <>Sản lượng &amp; kiểm</> : "Sản lượng"}</span>
-            {pctLam != null && <span className="kkf-h__phu">Tổ làm {pctLam}% kế hoạch</span>}
-          </div>
-          <div className="kkf-so">
-            <div className="kkf-so__o">
-              <span className="kkf-so__nhan">Kế hoạch</span>
-              <span className="kkf-so__so">{num(keHoach)}<small>{keHoach != null ? dv : ""}</small></span>
-            </div>
-            <div className="kkf-so__o">
-              <span className="kkf-so__nhan">Tổ đã làm</span>
-              <span className="kkf-so__so">{num(cd.tot)}<small>{dv}</small></span>
-              <span className="kkf-so__phu">{me.length} mẻ</span>
-            </div>
-            {!cuoi && (
-              <div className="kkf-so__o">
-                <span className="kkf-so__nhan">Lỗi đã ghi</span>
-                <span className="kkf-so__so">{num(cd.tong_loi)}<small>{dv}</small></span>
-                <span className="kkf-so__phu">{cd.so_lan_kiem > 0 ? `${cd.so_lan_kiem} lần ghi` : "chưa ghi lỗi"}</span>
-              </div>
-            )}
-            {cuoi && <div className="kkf-so__o">
-              <span className="kkf-so__nhan">KCS đã kiểm</span>
-              <span className="kkf-so__so">{num(cd.tong_dat + cd.tong_loi)}<small>{dv}</small></span>
-              <span className="kkf-so__phu">
-                {cd.so_lan_kiem > 0
-                  ? <>đạt <b className="is-dat">{num(cd.tong_dat)}</b> · lỗi <b className="is-loi">{num(cd.tong_loi)}</b></>
-                  : "chưa kiểm lần nào"}
-              </span>
-            </div>}
-            {cuoi && <div className={`kkf-so__o kkf-so__o--chua${chuaKiem > 0 ? " is-co" : ""}`}>
-              <span className="kkf-so__nhan">Chờ kiểm</span>
-              <span className="kkf-so__so">{num(chuaKiem)}<small>{dv}</small></span>
-              <span className="kkf-so__phu">{chuaKiem > 0 ? `${soMeChua} mẻ mới nhất` : "đã kiểm hết"}</span>
-            </div>}
-          </div>
-          {cuoi && tongDoan > 0 && (
-            <>
-              <div className="kkf-bar" role="img"
-                aria-label={doan.filter((d) => d.so > 0).map((d) => `${d.nhan} ${num(d.so)}`).join(", ")}>
-                {doan.filter((d) => d.so > 0).map((d) => (
-                  <span key={d.k} className={`kkf-bar__doan kkf-bar__doan--${d.k}`}
-                    style={{ flexGrow: d.so }} title={`${d.nhan}: ${num(d.so)} ${dv}`} />
-                ))}
-              </div>
-              <div className="kkf-chu-giai">
-                {doan.filter((d) => d.so > 0).map((d) => (
-                  <span key={d.k} className="kkf-chu-giai__it">
-                    <i className={`kkf-bar__cham kkf-bar__doan--${d.k}`} />{d.nhan} <b>{num(d.so)}</b>
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-
-        {/* 3 · MẺ TỔ ĐÃ GHI — mới nhất trước; mẻ nào còn chờ kiểm thì tô nổi. */}
-        <section className="thsx-card kkf-the">
-          <div className="thsx-psec__h">
-            <Icon name="history" size={14} />
-            <span className="thsx-psec__title">Mẻ tổ đã ghi</span>
-            {me.length > 0 && <span className="kkf-h__phu">{me.length} mẻ · mới nhất trước</span>}
-          </div>
-          {me.length === 0 ? (
-            <p className="kkf-trong">Tổ chưa ghi mẻ nào.</p>
-          ) : (
-            <ul className="kkf-me">
-              {meHien.map((m) => {
-                const dvMe = nhanChang(m.don_vi ?? cd.don_vi);
-                return (
-                  <li key={m.id} className={`kkf-me__it${cuoi ? ` kkf-me__it--${m.tt}` : ""}`}>
-                    <div className="kkf-me__gio">
-                      <b>{khoangGio(m)}</b>
-                      <span>{ngay(m.ket_thuc ?? m.bat_dau)}</span>
-                    </div>
-                    <div className="kkf-me__giua">
-                      <span className="kkf-me__viec">{m.viec || `Mẻ #${m.id}`}</span>
-                      <span className="kkf-me__nguoi">
-                        {m.nguoi.length > 0 ? m.nguoi.join(", ") : "Chưa ghi người làm"}
-                        {m.nguoi_ghi && <span className="kkf-me__ghi"> · ghi: {m.nguoi_ghi}</span>}
-                      </span>
-                    </div>
-                    <div className="kkf-me__phai">
-                      <span className="kkf-me__sl">{num(m.so_luong)}<small>{dvMe}</small></span>
-                      {cuoi && (
-                        <span className={`kkf-me__tt kkf-me__tt--${m.tt}`}>
-                          {m.tt === "da" ? "Đã kiểm" : m.tt === "chua" ? "Chờ kiểm" : `Còn ${num(m.chua)} chờ kiểm`}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {me.length > ME_HIEN && (
-            <button type="button" className="kkf-them" onClick={() => setMoHetMe((v) => !v)}>
-              {moHetMe ? "Thu gọn" : `Xem thêm ${me.length - ME_HIEN} mẻ cũ hơn`}
+      <div className="kgl" data-tab={tab}>
+        {/* Chỉ hiện khi ngăn hẹp (điện thoại) — máy tính thấy cả hai cột, không cần tab. */}
+        <div className="kgl-tabdt" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "ghi"} className={tab === "ghi" ? "on" : undefined}
+            onClick={() => setTab("ghi")}>Kiểm</button>
+          {tabDc.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={tab === "doi" && dc === t.id}
+              className={tab === "doi" && dc === t.id ? "on" : undefined}
+              onClick={() => { setTab("doi"); setDc(t.id); }}>
+              {t.nhan}{t.dem != null && <span className="kgl-dem">{t.dem}</span>}
             </button>
-          )}
-        </section>
+          ))}
+        </div>
 
-        {/* 4 · ĐỐI CHIẾU — dặn dò của kế hoạch + quy cách chạy máy (cùng thẻ với ngăn bàn tổ). */}
-        {cd.ghi_chu_ky_thuat?.trim() && (
-          <section className="thsx-card kkf-the kkf-dando">
-            <div className="thsx-psec__h">
-              <Icon name="alert" size={14} />
-              <span className="thsx-psec__title">Dặn dò kỹ thuật</span>
-            </div>
-            <p className="thsx-dando">{cd.ghi_chu_ky_thuat}</p>
-          </section>
-        )}
-        {cd.quy_cach && <ThsxQuyCachThe qc={cd.quy_cach} />}
-
-        {/* 5 · KẾT QUẢ LẦN KIỂM NÀY — phần duy nhất KCS gõ. */}
-        <section className="kkf-ghi">
-          <div className="kkf-ghi__h">
-            <Icon name="shield" size={15} />
-            <span>{cuoi ? "Kết quả lần kiểm này" : "Ghi lỗi"}</span>
-          </div>
-          {!cuoi && (
-            <p className="kcs-drawer__anh-hint">
-              Công đoạn giữa: chỉ ghi khi thấy lỗi, không cần kiểm đạt — đạt chỉ kiểm ở công đoạn cuối để nhập kho.
-            </p>
-          )}
-
-          {cheDoThe && moGhi && (
-            <div className="kkf-ghi__khoi">
-              <div className="kkf-ghi__nhan">
-                Đã xét {the.length - conChuaXet}/{the.length} công đoạn
-                {conChuaXet > 0 && (
-                  <button type="button" className="kkf-them kkf-them--phai"
-                    onClick={() => { setTtThe((m) => datHetConLai(the, m)); setError(null); }}>
-                    Đạt hết {conChuaXet} công đoạn còn lại
-                  </button>
-                )}
-              </div>
-              {the.map((t) => (
-                <KcsTheCongDoan key={t.cvId} the={t} tt={ttThe.get(t.cvId) ?? { loai: "chua" }} dv={dv}
-                  duSoAnh={duSoAnh}
-                  dangNen={dangNen > 0 && dichAnh.current.loai === "the" && dichAnh.current.cvId === t.cvId}
-                  onDat={() => datTrangThai(t.cvId, "dat")}
-                  onCoLoi={() => datTrangThai(t.cvId, "loi")}
-                  onDoiHong={(thuTu) => suaThe(t.cvId, (x) => {
-                    const hong = new Set(x.hong);
-                    if (hong.has(thuTu)) hong.delete(thuTu); else hong.add(thuTu);
-                    return { ...x, hong };
-                  })}
-                  onSo={(v) => suaThe(t.cvId, (x) => ({ ...x, so: v }))}
-                  onMoTa={(v) => suaThe(t.cvId, (x) => ({ ...x, moTa: v, suaTay: true }))}
-                  onChup={() => moChonAnh({ loai: "the", cvId: t.cvId }, chupRef.current)}
-                  onChon={() => moChonAnh({ loai: "the", cvId: t.cvId }, chonRef.current)}
-                  onBoAnh={(id) => boAnhThe(t.cvId, id)}
-                  onXem={setXem} />
-              ))}
-            </div>
-          )}
-
-          <div className="kkf-ghi__khoi">
-            {(!cheDoThe || dongLoi.length > 0) && (
-              <div className="kkf-ghi__nhan">
-                {cheDoThe ? `Lỗi ở công đoạn khác (${dv || "đơn vị công đoạn"})` : `Số lỗi (${dv || "đơn vị công đoạn"})`}
-              </div>
-            )}
-            {moGhi ? (
-              <>
-                {dongLoi.map((d, i) => {
-                  const chiu = congDoanCua(d.cvId);
-                  const khac = chiu.cong_viec_id !== cd.cong_viec_id;
-                  const nhanSo = i === 0 && !cheDoThe ? "Số lỗi" : `Số lỗi dòng ${i + 1}`;
-                  return (
-                    <div key={d.key} className={`kkf-dl${dongLoi.length > 1 || cheDoThe ? " kkf-dl--nhieu" : ""}`}>
-                      <div className="kkf-loi">
-                        <input type="number" min={0} inputMode="decimal" value={d.so} placeholder="0"
-                          className="kkf-loi__o" aria-label={nhanSo}
-                          onChange={(e) => suaDong(d.key, (x) => ({ ...x, so: e.target.value }))} />
-                        {nguonLoi.length > 1 && (
-                          <label className="kkf-dl__nguon">
-                            <span>Lỗi do công đoạn</span>
-                            <select value={d.cvId} aria-label={i === 0 && !cheDoThe ? "Lỗi do công đoạn" : `Lỗi do công đoạn dòng ${i + 1}`}
-                              onChange={(e) => suaDong(d.key, (x) => ({ ...x, cvId: Number(e.target.value) }))}>
-                              {nguonLoi.map((c) => (
-                                <option key={c.cong_viec_id} value={c.cong_viec_id}>
-                                  {c.nhan}{c.to_ten ? ` · ${c.to_ten}` : ""}
-                                  {c.cong_viec_id === cd.cong_viec_id ? " (đang kiểm)" : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        )}
-                        {(dongLoi.length > 1 || cheDoThe) && (
-                          <button type="button" className="kkf-dl__bo" aria-label={`Bỏ dòng lỗi ${i + 1}`}
-                            title="Bỏ dòng lỗi" onClick={() => boDong(d.key)}>
-                            <Icon name="x" size={14} />
-                          </button>
-                        )}
-                      </div>
-                      {Number(d.so) > 0 && (
-                        <div className="kcs-drawer__loi">
-                          <p className="kcs-drawer__anh-hint">
-                            {khac
-                              ? <>Lỗi tính cho công đoạn <b>{chiu.nhan}</b> — báo về <b>{chiu.to_ten || "tổ làm công đoạn đó"}</b>. Số của công đoạn đó không đổi.</>
-                              : <>Lỗi sẽ báo về <b>{cd.to_ten || "tổ làm công đoạn này"}</b>.</>}
-                          </p>
-                          <div className="kcs-drawer__field">
-                            <label htmlFor={`kcs-mo-ta-loi-${d.key}`}>
-                              {dongLoi.length > 1 || cheDoThe ? `Mô tả lỗi dòng ${i + 1}` : "Mô tả lỗi"}
-                            </label>
-                            <textarea id={`kcs-mo-ta-loi-${d.key}`} value={d.moTa}
-                              onChange={(e) => suaDong(d.key, (x) => ({ ...x, moTa: e.target.value }))}
-                              placeholder="VD: lem mực góc phải, lệch màu" />
-                          </div>
-                          <div className="kcs-drawer__field" role="group" aria-labelledby={`kcs-anh-loi-nhan-${d.key}`}>
-                            <div className="kcs-drawer__anh-dau">
-                              <span id={`kcs-anh-loi-nhan-${d.key}`} className="kcs-drawer__anh-nhan">Ảnh lỗi (ít nhất 1)</span>
-                              <span className="kcs-drawer__anh-dem">
-                                {d.anh.length > 0 ? `${d.anh.length} ảnh` : "Chưa có ảnh"}
-                                {dangNen > 0 && dichAnh.current.loai === "dong" && dichAnh.current.key === d.key && " · đang xử lý…"}
-                              </span>
-                            </div>
-                            <div className="kcs-drawer__anh-nut">
-                              <button type="button" className="btn btn--ghost" disabled={duSoAnh}
-                                title={duSoAnh ? LOI_QUA_SO_ANH : undefined}
-                                onClick={() => moChonAnh({ loai: "dong", key: d.key }, chupRef.current)}>
-                                <Icon name="camera" size={14} /> Chụp ảnh
-                              </button>
-                              <button type="button" className="btn btn--ghost" disabled={duSoAnh}
-                                title={duSoAnh ? LOI_QUA_SO_ANH : undefined}
-                                onClick={() => moChonAnh({ loai: "dong", key: d.key }, chonRef.current)}>
-                                <Icon name="upload" size={14} /> Chọn ảnh có sẵn
-                              </button>
-                            </div>
-                            {duSoAnh && <p className="kcs-drawer__anh-hint">{LOI_QUA_SO_ANH}</p>}
-                            {d.anh.length > 0 && (
-                              <ul className="thsx-tep__ds">
-                                {d.anh.map((a) => (
-                                  <DongTep key={a.id} onXem={setXem} onBo={() => boAnh(d.key, a.id)}
-                                    t={{ ten_tep: a.file.name, file_url: a.url, content_type: a.file.type }}
-                                    meta={a.goc > a.file.size ? `${coChu(a.file.size)} (đã nén từ ${coChu(a.goc)})` : coChu(a.file.size)} />
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {/* `capture`: điện thoại mở thẳng camera sau; máy tính bỏ qua cờ này và mở hộp chọn tệp. */}
-                <input ref={chupRef} type="file" accept="image/*" capture="environment" hidden
-                  aria-label="Chụp ảnh lỗi" onChange={(e) => void themAnh(e.currentTarget)} />
-                <input ref={chonRef} type="file" accept="image/*" multiple hidden
-                  aria-label="Chọn ảnh lỗi" onChange={(e) => void themAnh(e.currentTarget)} />
-                {cheDoThe ? (
-                  <button type="button" className="kkf-them" onClick={themDong}>
-                    + Lỗi ở công đoạn khác
-                  </button>
-                ) : nguonLoi.length > 1 && nSoLoi > 0 && (
-                  <button type="button" className="kkf-them" onClick={themDong}>
-                    + Thêm dòng lỗi do công đoạn khác
-                  </button>
-                )}
-                {cuoi && !cheDoThe && (
-                  <>
-                    <div className="kkf-loi__kq">
-                      <span>Kiểm <b>{num(chuaKiem)}</b></span>
-                      <span className="is-dat">Đạt <b>{num(datLanNay)}</b></span>
-                      <span className={nSoLoi > 0 ? "is-loi" : ""}>Lỗi <b>{num(nSoLoi)}</b></span>
-                    </div>
-                    <p className="kcs-drawer__anh-hint">
-                      Lần này kiểm <b>{num(chuaKiem)}</b> {dv} tổ đã làm mà chưa kiểm → đạt <b>{num(datLanNay)}</b> {dv}.
-                    </p>
-                  </>
-                )}
-              </>
+        <div className="kgl-trai">
+          <section className="kgl-khoi" aria-label="Tiêu chí không đạt">
+            <div className="kgl-khoi__h">Tick tiêu chí không đạt<span className="kgl-mu">Tiêu chí đạt thì để trống.</span></div>
+            {!moGhi ? (
+              <p className="kgl-trong">Tổ chưa ghi thêm sản lượng từ lần kiểm trước, chưa có gì để kiểm.</p>
             ) : (
-              <p className="kcs-drawer__anh-hint">
-                {cuoi
-                  ? "Tổ chưa ghi thêm sản lượng nào từ lần kiểm trước — chưa có gì để kiểm."
-                  : cd.tot > 0
-                    ? "Lỗi đã ghi bằng số tốt tổ đã làm — không ghi thêm được."
-                    : "Tổ chưa ghi sản lượng nào — chưa có hàng để ghi lỗi."}
-              </p>
+              <>
+                {the.length === 0 && (
+                  <p className="kgl-trong">
+                    Lệnh không giữ tiêu chí nào. Không có lỗi thì lưu là tất cả đạt; có lỗi thì ghi ở dòng Lỗi khác.
+                  </p>
+                )}
+                {nhom.map((n) => (
+                  <div key={n.khoa} className="kkf2-lenh">
+                    {coNhieuLenh && (
+                      <div className="kkf2-lenh__h">
+                        {n.laPhu ? (n.tenLenh ?? "Lệnh phụ") : (lenh.ten ?? "Lệnh này")}
+                        <span className="kgl-mu">{n.laPhu ? n.lsxMa : lenh.ma}</span>
+                      </div>
+                    )}
+                    {n.cd.map((t) => (
+                      <div key={t.cvId} className="kkf2-cd">
+                        <div className="kkf2-cd__h">{t.ten}</div>
+                        {t.tieuChi.map((tc) => dongTick(khoaTc(t.cvId, tc.thu_tu), tenTieuChi(tc), t.cvId))}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                <div className="kgl-khac-tach" />
+                {dongTick(KHAC, "Lỗi khác", cd.cong_viec_id)}
+                <label className="kkf2-ghi-chu">
+                  <span className="kgl-nhan">Ghi chú cho lần kiểm <i>không bắt buộc</i></span>
+                  <input className="kgl-o" value={ghiChu} aria-label="Ghi chú cho lần kiểm"
+                    onChange={(e) => setGhiChu(e.currentTarget.value)} />
+                </label>
+              </>
             )}
-          </div>
+          </section>
 
-          <div className="kcs-drawer__field">
-            <label htmlFor="kcs-ghi-chu">{cheDoThe ? "Ghi chú chung (nếu có)" : "Ghi chú (nếu có)"}</label>
-            <input id="kcs-ghi-chu" type="text" className="kcs-check-row__note" value={ghiChu}
-              onChange={(e) => setGhiChu(e.target.value)} />
-          </div>
-
-          {error && (
-            <div ref={errorRef} className="banner banner--error" role="alert">
-              <span>{error}</span>
+          <section className="kgl-khoi" aria-label="Các lần kiểm trước">
+            <div className="kgl-khoi__h">
+              Các lần kiểm trước{lanKiem.length > 0 && <span className="kgl-mu">{lanKiem.length} lần</span>}
             </div>
-          )}
-        </section>
+            <div className="kkf2-lk">
+              <KcsLanKiemList lanKiem={lkHien} checklist={cd.checklist} />
+            </div>
+            {lanKiem.length > LAN_KIEM_HIEN && (
+              <button type="button" className="kgl-lk kgl-them" onClick={() => setMoHetLk((v) => !v)}>
+                {moHetLk ? "Thu gọn" : `Xem thêm ${lanKiem.length - LAN_KIEM_HIEN} lần cũ hơn`}
+              </button>
+            )}
+          </section>
+        </div>
 
-        {/* 6 · CÁC LẦN KIỂM TRƯỚC — mới nhất trước, dài thì gấp bớt. */}
-        <section className="thsx-card kkf-the">
-          <div className="thsx-psec__h">
-            <Icon name="clipboard" size={14} />
-            <span className="thsx-psec__title">{cuoi ? "Các lần kiểm trước" : "Lỗi đã ghi trước"}</span>
-            {soLanHien > 0 && <span className="kkf-h__phu">{soLanHien} lần</span>}
+        <section className="kgl-khoi kgl-phai" aria-label="Đối chiếu">
+          <div className="kgl-khoi__h kgl-phai__h">Đối chiếu<span className="kgl-mu">chỉ xem</span></div>
+          <div className="kgl-tab" role="tablist">
+            {tabDc.map((t) => (
+              <button key={t.id} type="button" role="tab" aria-selected={dc === t.id}
+                className={dc === t.id ? "on" : undefined} onClick={() => setDc(t.id)}>
+                {t.id === "tep" && <Icon name="paperclip" size={13} />}
+                {t.nhan}{t.dem != null && <span className="kgl-dem">{t.dem}</span>}
+              </button>
+            ))}
           </div>
-          <KcsLanKiemList lanKiem={lkHien} checklist={cd.checklist} chiLoi={!cuoi} />
-          {lanKiem.length > LAN_KIEM_HIEN && (
-            <button type="button" className="kkf-them" onClick={() => setMoHetLk((v) => !v)}>
-              {moHetLk ? "Thu gọn" : `Xem thêm ${lanKiem.length - LAN_KIEM_HIEN} lần cũ hơn`}
-            </button>
-          )}
+          {khoiDc}
         </section>
       </div>
+
+      {/* `capture`: điện thoại mở thẳng camera sau; máy tính bỏ qua cờ này và mở hộp chọn tệp. */}
+      <input ref={chupRef} type="file" accept="image/*" capture="environment" hidden
+        aria-label="Chụp ảnh lỗi" onChange={(e) => void themAnh(e.currentTarget)} />
+      <input ref={chonRef} type="file" accept="image/*" multiple hidden
+        aria-label="Chọn ảnh lỗi" onChange={(e) => void themAnh(e.currentTarget)} />
       {xem && createPortal(<XemTruoc tep={xem} onDong={() => setXem(null)} />, document.body)}
-    </Drawer>
+    </NganPhai>
   );
 }

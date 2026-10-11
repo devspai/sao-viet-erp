@@ -10,7 +10,10 @@ Lệnh có routing: công đoạn sau làm trên đầu ra của công đoạn t
      thì nhân hệ số (*"1 tờ → 2 con thì chặn 2 × số tờ nhận"*). Hệ số là `he_so_quy_doi` ảnh chụp
      lúc phát hành — engine tính ra từ bình bài (Bế 2 con/tờ), cùng việc giữ trên bảng Kế hoạch.
      Hệ số 0/trống (bước gõ tay số vào/ra, vd Cắt tờ cuộn → tờ in) ⇒ máy không suy được ⇒ không trần.
-  3. CHIỀU NGƯỢC — điều chỉnh GIẢM một bàn giao mà kéo trần xuống dưới số đã ghi mẻ ⇒ chặn.
+     10/10/2026: trần TRỪ lỗi KCS bắt tại công đoạn (nhận 1000, KCS lỗi 200 ⇒ mẻ tối đa 800), và
+     công đoạn ĐẦU chuỗi lấy số vào kế hoạch làm số nhận.
+  3. CHIỀU NGƯỢC — sửa GIẢM số một mẻ (10/10/2026, thay "điều chỉnh bàn giao") mà kéo trần của bước
+     sau xuống dưới số bước đó đã ghi mẻ ⇒ chặn.
 
 Chỉ bàn giao ĐÚNG đơn vị đầu vào của công đoạn mới tính vào trần (cùng luật `board._thuc_nhan`):
 Ghi kẽm CTP đứng trước In theo thứ tự bảng thì In nhận "bản kẽm" — đem số bản kẽm làm trần số tờ in
@@ -18,15 +21,18 @@ là vô nghĩa. Nhiều công đoạn trước (bước ghép) ⇒ trần theo n
 """
 from __future__ import annotations
 
+import math
+
 from sqlalchemy.orm import Session
 
-from ...models.san_xuat_san_luong import BG_DE_XUAT, BG_DIEU_CHINH, BG_XAC_NHAN
+from ...models.san_xuat_san_luong import BG_DE_XUAT, BG_XAC_NHAN
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 
 _EPS = 0.0005
-_DA_CHOT = (BG_XAC_NHAN, BG_DIEU_CHINH)
+_DA_CHOT = (BG_XAC_NHAN,)
 
 
 def _so(x: float) -> str:
@@ -84,28 +90,55 @@ def nhom_truoc(repo: SanXuatSanLuongRepository, cv) -> list[list]:
     return list(nhom.values())
 
 
-def _so_bg(b, thay_so: dict[int, float] | None) -> float:
-    return float((thay_so or {}).get(b.id, b.so_luong) or 0)
+def quy_ra(cv, nhan: float | None) -> float | None:
+    """Quy số nhận (đơn vị vào) về đơn vị RA để so thẳng với số tốt: hệ số của bước nếu có (Bế 2
+    con/tờ), cùng đơn vị thì giữ, còn lại theo tỉ lệ kế hoạch ra/vào. Làm tròn XUỐNG."""
+    if nhan is None:
+        return None
+    he_so = float(cv.he_so_quy_doi or 0)
+    if he_so > 0:
+        ra = nhan * he_so
+    elif (cv.don_vi_vao or "").strip() == (cv.don_vi_ra or "").strip():
+        ra = nhan
+    elif cv.so_luong_vao and cv.so_luong_ra is not None:
+        ra = float(cv.so_luong_ra) * nhan / float(cv.so_luong_vao)
+    else:
+        return None
+    return float(math.floor(ra + 1e-6))
 
 
-def tran_ghi(
+def _tran_dau_chuoi(cv) -> dict | None:
+    """Công đoạn ĐẦU chuỗi (10/10/2026): không ai giao sang, vật tư kho cấp theo kế hoạch ⇒ số nhận
+    là số VÀO kế hoạch quy ra đơn vị ra — đúng số "Nhận vào" khối Tiến độ đang bày (175 tờ nguyên
+    → 350 tờ in). Kế hoạch không khai số vào ⇒ không trần."""
+    vao = float(cv.so_luong_vao or 0)
+    if vao <= _EPS:
+        return None
+    toi_da = quy_ra(cv, vao)
+    if toi_da is None:
+        return None
+    return {
+        "toi_da": toi_da, "da_nhan": vao, "he_so": round(toi_da / vao, 4),
+        "don_vi_nhan": (cv.don_vi_vao or "").strip() or None, "nguon_ten": None,
+        "cung_to": False, "dau_chuoi": True,
+    }
+
+
+def tran_nhan(
     db: Session, cv, *, repo: SanXuatSanLuongRepository | None = None,
-    thay_so: dict[int, float] | None = None,
 ) -> dict | None:
-    """Trần Σ số làm được của công đoạn (đơn vị đầu RA). None = không trần: công đoạn đầu lệnh,
-    hệ số 0/trống, chưa khai đơn vị vào, hoặc không nguồn nào giao đúng đơn vị vào.
+    """Trần theo SỐ NHẬN (đơn vị đầu RA), chưa trừ lỗi KCS. None = không trần: hệ số 0/trống, chưa
+    khai đơn vị vào, không nguồn nào giao đúng đơn vị vào, hoặc bước đầu chuỗi không có số vào.
 
     Nguồn CÙNG TỔ + CÙNG LỆNH không có bàn giao để đếm (cổng đã bỏ) nên trần bám thẳng SẢN LƯỢNG
-    bước trước — vẫn là "làm ra bao nhiêu mới ghi được bấy nhiêu", chỉ đổi chỗ đọc số.
-
-    `thay_so` = {ban_giao_id: số mới} — tính thử trần SAU một lần điều chỉnh, chưa ghi DB."""
+    bước trước — vẫn là "làm ra bao nhiêu mới ghi được bấy nhiêu", chỉ đổi chỗ đọc số."""
     repo = repo or SanXuatSanLuongRepository(db)
+    nhom = nhom_truoc(repo, cv)
+    if not nhom:
+        return _tran_dau_chuoi(cv)
     he_so = float(cv.he_so_quy_doi or 0)
     dv_vao = (cv.don_vi_vao or "").strip()
     if he_so <= 0 or not dv_vao:
-        return None
-    nhom = nhom_truoc(repo, cv)
-    if not nhom:
         return None
     bgs = [b for b in repo.ban_giao_toi_dich(cv.id) if b.trang_thai in _DA_CHOT]
     noi_bo = [g for g in nhom if cung_to_cung_lsx(g[0], cv)]
@@ -121,7 +154,7 @@ def tran_ghi(
             if dung_dv:
                 muc.append((sum(tot.get(i, 0.0) for i in ids), g, True))
             continue
-        nhan = sum(_so_bg(b, thay_so) for b in bgs
+        nhan = sum(float(b.so_luong or 0) for b in bgs
                    if b.nguon_cong_viec_id in ids and (b.don_vi or "").strip() == dv_vao)
         if nhan > _EPS or dung_dv:
             muc.append((nhan, g, False))
@@ -136,56 +169,106 @@ def tran_ghi(
         "nguon_ten": g[0].ten_cong_doan,
         # Lái CÂU BÁO: cùng tổ thì "đã nhận" là sai chữ, hàng có đi đâu đâu mà nhận.
         "cung_to": cung_to,
+        "dau_chuoi": False,
     }
+
+
+def tran_ghi(
+    db: Session, cv, *, repo: SanXuatSanLuongRepository | None = None,
+) -> dict | None:
+    """Trần Σ số làm được của công đoạn = số nhận (`tran_nhan`) − lỗi KCS bắt tại công đoạn
+    (10/10/2026: *"tổng nhận 1000 tờ in, KCS ghi lỗi 200 thì tổng các mẻ tối đa 800"*). `toi_da` là
+    trần đã trừ; `toi_da_nhan` + `loi_kcs` để hộp Ghi mẻ nói rõ số đó từ đâu ra."""
+    t = tran_nhan(db, cv, repo=repo)
+    if t is None:
+        return None
+    loi = SanXuatKcsRepository(db).tong_loi(cv.id)
+    return {**t, "toi_da_nhan": t["toi_da"], "loi_kcs": loi,
+            "toi_da": round(max(0.0, t["toi_da"] - loi), 3)}
 
 
 def _cau_tran(dv_ten: dict[str, str], cv, t: dict) -> str:
     dv_ra = nhan_don_vi(dv_ten, cv.don_vi_ra) if cv.don_vi_ra else ""
-    dau = "đã làm được ở" if t.get("cung_to") else "đã nhận từ"
-    nhan = f"{dau} {t['nguon_ten']} {_so(t['da_nhan'])} {nhan_don_vi(dv_ten, t['don_vi_nhan'])}"
+    dv_nhan = nhan_don_vi(dv_ten, t["don_vi_nhan"]) if t.get("don_vi_nhan") else ""
+    if t.get("dau_chuoi"):
+        dau = "kế hoạch nhận"
+    else:
+        dau = f"{'đã làm được ở' if t.get('cung_to') else 'đã nhận từ'} {t['nguon_ten']}"
+    nhan = f"{dau} {_so(t['da_nhan'])} {dv_nhan}".rstrip()
+    toi_da_nhan = t.get("toi_da_nhan", t["toi_da"])
+    co_loi = t.get("loi_kcs", 0) > _EPS
     if abs(t["he_so"] - 1) > _EPS:
-        nhan += f" × {_so(t['he_so'])} = tối đa {_so(t['toi_da'])} {dv_ra}"
+        nhan += f" × {_so(t['he_so'])} = {'' if co_loi else 'tối đa '}{_so(toi_da_nhan)} {dv_ra}"
+    if co_loi:
+        nhan += f", KCS bắt lỗi {_so(t['loi_kcs'])} {dv_ra}, còn tối đa {_so(t['toi_da'])} {dv_ra}"
     return nhan
 
 
-def kiem_tran_ghi(db: Session, repo: SanXuatSanLuongRepository, cv, them: float) -> None:
-    """Chặn mẻ làm Σ số làm được vượt trần (luật 2)."""
+def kiem_tran_ghi(db: Session, repo: SanXuatSanLuongRepository, cv, them: float, *,
+                  bo_qua: float = 0.0) -> None:
+    """Chặn mẻ làm Σ số làm được vượt trần (luật 2). `bo_qua` = số cũ của mẻ đang SỬA — trừ khỏi
+    số đã ghi để "tối đa" là số mẻ đó được sửa lên."""
     t = tran_ghi(db, cv, repo=repo)
     if t is None:
         return
-    da_ghi = repo.tong_tot(cv.id)
+    da_ghi = repo.tong_tot(cv.id) - bo_qua
     if da_ghi + them <= t["toi_da"] + _EPS:
         return
     dv_ten = DonViDoRepository(db).ten_theo_ma()
     dv_ra = nhan_don_vi(dv_ten, cv.don_vi_ra) if cv.don_vi_ra else ""
     con = max(0.0, t["toi_da"] - da_ghi)
-    them = "làm thêm" if t.get("cung_to") else "giao thêm"
-    duoi = (f"mẻ này ghi tối đa {_so(con)} {dv_ra}." if con > _EPS
-            else f"chờ công đoạn trước {them} rồi mới ghi tiếp được.")
-    dau = "Vượt sản lượng công đoạn trước" if t.get("cung_to") else "Vượt số nhận từ công đoạn trước"
+    if con > _EPS:
+        duoi = f"lần này ghi tối đa {_so(con)} {dv_ra}."
+    elif t.get("dau_chuoi"):
+        duoi = "đã ghi đủ số kế hoạch, không ghi thêm được."
+    else:
+        duoi = f"chờ công đoạn trước {'làm thêm' if t.get('cung_to') else 'giao thêm'} rồi mới ghi tiếp được."
+    if t.get("dau_chuoi"):
+        dau = "Vượt số nhận theo kế hoạch"
+    elif t.get("cung_to"):
+        dau = "Vượt sản lượng công đoạn trước"
+    else:
+        dau = "Vượt số nhận từ công đoạn trước"
     raise ValueError(
         f"{dau}: {_cau_tran(dv_ten, cv, t)}, "
-        f"đã ghi {_so(da_ghi)} {dv_ra} — {duoi}"
+        f"{'các lần khác đã ghi' if bo_qua > _EPS else 'đã ghi'} {_so(da_ghi)} {dv_ra} — {duoi}"
     )
 
 
-def kiem_giam_ban_giao(db: Session, repo: SanXuatSanLuongRepository, bg, dich_cv,
-                       sl_sau: float) -> None:
-    """Chặn điều chỉnh GIẢM kéo trần của công đoạn nhận xuống dưới số nó đã ghi mẻ (luật 3)."""
-    if dich_cv is None or sl_sau >= float(bg.so_luong) - _EPS:
-        return
-    t = tran_ghi(db, dich_cv, repo=repo, thay_so={bg.id: sl_sau})
-    if t is None:
-        return
-    da_ghi = repo.tong_tot(dich_cv.id)
-    if t["toi_da"] + _EPS >= da_ghi:
-        return
-    dv_ten = DonViDoRepository(db).ten_theo_ma()
-    dv_ra = nhan_don_vi(dv_ten, dich_cv.don_vi_ra) if dich_cv.don_vi_ra else ""
-    raise ValueError(
-        f"Không giảm xuống {_so(sl_sau)} được: {dich_cv.ten_cong_doan} đã ghi mẻ {_so(da_ghi)} {dv_ra}, "
-        f"giảm thế thì số nhận chỉ đủ cho {_so(t['toi_da'])} {dv_ra}."
-    )
+def buoc_sau(repo: SanXuatSanLuongRepository, cv) -> list:
+    """Các công đoạn nhận hàng từ `cv`: chặng sau theo routing + cạnh phụ thuộc chéo đi ra."""
+    cac = {c.id: c for c in repo.cong_viec_chang_sau(cv)}
+    them = [c.dich_cong_viec_id for c in repo.canh_toa_di_tu(cv.id)
+            if c.dich_cong_viec_id and c.dich_cong_viec_id not in cac]
+    if them:
+        cac.update({i: c for i, c in repo.cong_viec_nhieu(them).items() if i != cv.id})
+    return list(cac.values())
+
+
+def tran_buoc_sau(db: Session, repo: SanXuatSanLuongRepository, cv) -> dict[int, float | None]:
+    """Trần ghi mẻ HIỆN TẠI của các bước sau — chụp TRƯỚC khi giảm số, đưa cho `kiem_giam_buoc_sau`."""
+    return {d.id: (tran_ghi(db, d, repo=repo) or {}).get("toi_da") for d in buoc_sau(repo, cv)}
+
+
+def kiem_giam_buoc_sau(db: Session, repo: SanXuatSanLuongRepository, cv,
+                       truoc: dict[int, float | None]) -> None:
+    """Sau khi giảm số mẻ (đã flush, chưa commit): chặn nếu trần của bước sau tụt xuống dưới số nó
+    đã ghi mẻ (luật 3). Trần vốn đã thấp hơn số ghi từ trước (KCS bắt lỗi sau khi ghi) mà lần này
+    không kéo thấp thêm thì cho qua — lỗi đó không phải do lần sửa này."""
+    for d in buoc_sau(repo, cv):
+        t = tran_ghi(db, d, repo=repo)
+        if t is None:
+            continue
+        da_ghi = repo.tong_tot(d.id)
+        cu = truoc.get(d.id)
+        if t["toi_da"] + _EPS >= da_ghi or (cu is not None and t["toi_da"] >= cu - _EPS):
+            continue
+        dv_ten = DonViDoRepository(db).ten_theo_ma()
+        dv_ra = nhan_don_vi(dv_ten, d.don_vi_ra) if d.don_vi_ra else ""
+        raise ValueError(
+            f"Không giảm được: {d.ten_cong_doan} đã ghi {_so(da_ghi)} {dv_ra}, "
+            f"giảm thế thì số nhận chỉ đủ cho {_so(t['toi_da'])} {dv_ra}."
+        )
 
 
 def thieu_dau_vao(repo: SanXuatSanLuongRepository, cv) -> list[str]:

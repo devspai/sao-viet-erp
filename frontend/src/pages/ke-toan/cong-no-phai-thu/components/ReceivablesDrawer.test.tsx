@@ -86,7 +86,7 @@ function soCai(p: Partial<SoChiTietCongNo> = {}): SoChiTietCongNo {
       { ngay: "2026-10-03", luc: null, loai: "phieu_thu", so_ct: "PT-300", dien_giai: "Thu tiền hoá đơn 0001234",
         no: 0, co: 32_000_000, luy_ke_no: 110_000_000, luy_ke_co: 0 },
     ],
-    ps_no: 106_000_000, ps_co: 32_000_000, cuoi_no: 110_000_000, cuoi_co: 0,
+    ps_no: 106_000_000, ps_co: 32_000_000, cuoi_no: 110_000_000, cuoi_co: 0, so_dong: 2,
     ...p,
   };
 }

@@ -1,21 +1,24 @@
 // LỊCH NGÀY của bàn THỰC HIỆN SẢN XUẤT — lưới CỘT NGÀY cùng khuôn với bàn Xếp lịch (15/09/2026),
 // thay cho Gantt trục giờ cũ (`ThsxTimeline`, zoom Giờ/Ca/Ngày/Tuần — đã gỡ).
 //
-// Mỗi VIỆC một dòng: ô nhãn dính bên trái (mã · trạng thái / công đoạn / nguồn · máy / số lượng),
-// bên phải là thanh KẾ HOẠCH `du_kien_bat_dau → du_kien_ket_thuc`.
+// Mỗi VIỆC một dòng: ô nhãn dính bên trái (mã, trạng thái / công đoạn, máy / sản phẩm, khách /
+// số lượng), bên phải HAI LÀN (10/10/2026):
+//   - làn trên: thanh KẾ HOẠCH `du_kien_bat_dau → du_kien_ket_thuc`, viền nét đứt, chữ "KH …";
+//   - làn dưới: thanh THỰC TẾ trên đúng những ngày có phiên chạy thật, tô màu theo trạng thái, chữ
+//     "Chạy từ …" / "Tạm dừng" / "Xong …". Chờ làm ⇒ chưa có làn dưới.
+// Trước đây thanh tô màu trạng thái nằm ở chỗ KẾ HOẠCH mà lại ghi giờ chạy THẬT ("Chạy từ 10/10"
+// trên ô 6/10), còn chạy thật chỉ là vạch xám mảnh — đọc ngược nhau.
 //
 // Thanh DÍNH THEO NGUYÊN NGÀY, không theo tỉ lệ giờ (15/09/2026, lượt 2): một bước của tổ dài vài
-// phút tới vài giờ, vẽ theo giờ trên ô ngày 96px thì bước 4 phút ra vạch 6px — chữ phải đặt lơ lửng
-// ngoài thanh và vạch "bây giờ" đè lên nó. Bàn tổ đọc "ngày nào làm việc gì, xong chưa", nên thanh
-// chiếm trọn các ô ngày nó chạm và giờ cụ thể viết NGAY TRONG thanh (dòng 2). Phiên chạy thật
-// (`thuc_te`) cũng dính theo ngày thành ruy-băng dưới thanh: nằm lệch sang ô khác = làm lệch ngày.
+// phút tới vài giờ, vẽ theo giờ trên ô ngày 96px thì bước 4 phút ra vạch 6px. Bàn tổ đọc "ngày nào
+// làm việc gì, xong chưa", nên thanh chiếm trọn các ô ngày nó chạm và giờ cụ thể viết trong thanh.
 //
 // CHỈ ĐỌC: tổ trưởng không dời lịch (§5.2/§10.1) — không kéo–thả, bấm dòng/thanh chỉ phát `onChon(w)`.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as SuKienChuot } from "react";
 import type { SxThucTeKhoang, SxWorkItem } from "../api/client";
 import { Icon } from "../components/Icons";
 import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
-import { khungLuoi, nhanNgay, ngayGio, soNgayGiua, themNgay } from "./xlShared";
+import { khungLuoi, moc, mocNgay, nhanNgay, ngayGio, soNgayGiua, themNgay } from "./xlShared";
 import { slThucTe, sxSerial, ttMeta } from "./thsxShared";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 
@@ -126,36 +129,67 @@ export function coThanh(rong: number): CoThanh {
   return rong >= 120 ? "du" : rong >= 84 ? "gon" : "mini";
 }
 
-/** Dòng 2 trong thanh — thứ tổ cần biết ngay theo trạng thái. */
-export function dongHaiThanh(w: SxWorkItem, co: CoThanh): string {
+/** Chữ trong thanh KẾ HOẠCH (làn trên): giờ dự kiến, khác ngày thì ngày đầu → ngày cuối. */
+export function chuKeHoach(w: SxWorkItem, co: CoThanh): string {
+  const a = w.du_kien_bat_dau;
+  const b = w.du_kien_ket_thuc;
+  const motNgay = ngayCua(a) === ngayCua(b, true);
+  if (co === "mini") return motNgay ? hm(a) : `→ ${dm(b)}`;
+  const truoc = co === "gon" ? "" : "KH ";
+  if (!motNgay) return `${truoc}${dm(a)} → ${dm(b)}`;
+  // Kế hoạch 0 phút (bắt đầu = kết thúc) ra "08:21–08:21" chỉ là nhiễu.
+  return hm(a) === hm(b) ? `${truoc}${hm(a)}` : `${truoc}${hm(a)}–${hm(b)}`;
+}
+
+/** Chữ trong thanh THỰC TẾ (làn dưới) — thanh đã đứng đúng ngày chạy thật, nên chỉ kèm ngày khi
+ *  thanh trải nhiều ngày (một mình giờ không biết rơi vào ngày nào của thanh). Chờ làm ⇒ "" (không
+ *  có thanh thực tế). */
+export function chuThucTe(w: SxWorkItem, co: CoThanh, nhieuNgay: boolean): string {
   switch (w.trang_thai) {
     case "running": {
       const mo = (w.thuc_te ?? []).filter((p) => !p.ket_thuc).map((p) => p.bat_dau).sort().pop();
       if (!mo) return co === "mini" ? "Chạy" : "Đang chạy";
       if (co === "mini") return hm(mo);
-      const khacNgay = ngayCua(mo) !== ngayCua(w.du_kien_bat_dau);
-      return `${co === "gon" ? "Từ" : "Chạy từ"} ${khacNgay ? `${dm(mo)} ` : ""}${hm(mo)}`;
+      return `${co === "gon" ? "Từ" : "Chạy từ"} ${nhieuNgay ? `${dm(mo)} ` : ""}${hm(mo)}`;
     }
     case "paused":
       return co === "mini" ? "Dừng" : "Tạm dừng";
     case "completed": {
       const kt = ketThucThucTe(w);
       if (!kt) return co === "mini" ? "Xong" : "Đã xong";
-      const khacNgay = ngayCua(kt, true) !== ngayCua(w.du_kien_ket_thuc, true);
-      if (co === "mini") return khacNgay ? dm(kt) : hm(kt);
-      return `Xong ${khacNgay ? `${dm(kt)} ` : ""}${hm(kt)}`;
+      if (co === "mini") return nhieuNgay ? dm(kt) : hm(kt);
+      return `Xong ${nhieuNgay ? `${dm(kt)} ` : ""}${hm(kt)}`;
     }
-    default: {
-      const a = w.du_kien_bat_dau;
-      const b = w.du_kien_ket_thuc;
-      const motNgay = ngayCua(a) === ngayCua(b, true);
-      if (co === "mini") return motNgay ? hm(a) : `→ ${dm(b)}`;
-      const truoc = co === "gon" ? "" : "KH ";
-      if (!motNgay) return `${truoc}${dm(a)} → ${dm(b)}`;
-      // Kế hoạch 0 phút (bắt đầu = kết thúc) ra "08:21–08:21" chỉ là nhiễu.
-      return hm(a) === hm(b) ? `${truoc}${hm(a)}` : `${truoc}${hm(a)}–${hm(b)}`;
+    default:
+      return "";
+  }
+}
+
+/** Tổng phút trong cửa sổ `[tu, tu + soNgay)` cho dòng tóm tắt "Trong khoảng này tổ đã chạy …"
+ *  (10/10/2026): `thucTe` = phiên chạy thật cắt theo cửa sổ; `keHoach` = phút chạy dự kiến
+ *  (`chay_phut`) chia theo phần quãng kế hoạch nằm trong cửa sổ — quãng kế hoạch có thể vắt qua
+ *  đêm, cộng thẳng độ dài quãng là đếm cả giờ nghỉ. */
+export function phutTrongCuaSo(viec: SxWorkItem[], tu: string, soNgay: number, nowMs: number): { keHoach: number; thucTe: number } {
+  const a = mocNgay(tu);
+  const b = a + soNgay * 86_400_000;
+  const giao = (t0: number, t1: number) => Math.max(0, Math.min(t1, b) - Math.max(t0, a));
+  let keHoach = 0;
+  let thucTe = 0;
+  for (const w of viec) {
+    const s = moc(w.du_kien_bat_dau);
+    const e = moc(w.du_kien_ket_thuc);
+    if (s !== null && e !== null && e >= s) {
+      const g = giao(s, e);
+      if (w.chay_phut != null && w.chay_phut > 0) keHoach += e > s ? w.chay_phut * (g / (e - s)) : (s >= a && s < b ? w.chay_phut : 0);
+      else keHoach += g / 60_000;
+    }
+    for (const p of w.thuc_te ?? []) {
+      const t0 = moc(p.bat_dau);
+      const t1 = p.ket_thuc ? moc(p.ket_thuc) : nowMs;
+      if (t0 !== null && t1 !== null) thucTe += giao(t0, t1) / 60_000;
     }
   }
+  return { keHoach, thucTe };
 }
 
 export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = false, cho }: Props) {
@@ -244,7 +278,7 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
       {/* Đầu cột ngày — dính đỉnh */}
       <div className="thsx-ln__head" style={{ width: tongW }}>
         <div className="thsx-ln__head-nhan" style={{ width: nhanW }}>
-          <strong className="thsx-num">{viec.length}</strong> việc trong khoảng
+          <span className="thsx-num">{viec.length}</span> việc trong khoảng
         </div>
         {ngays.map((d, i) => {
           const n = nhanNgay(d);
@@ -252,7 +286,7 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
           const cls = `thsx-ln__ngay${oHep ? " thsx-ln__ngay--hep" : ""}${i === iNay ? " thsx-ln__ngay--nay" : ""}${n.thu === "CN" ? " thsx-ln__ngay--cn" : ""}`;
           return (
             <div key={d} className={cls} style={{ width: ngayW }}
-              title={`${i === iNay ? "Hôm nay · " : ""}${n.thu} ${n.so}${dem ? ` · ${dem} việc` : ""}`}>
+              title={`${i === iNay ? "Hôm nay " : ""}${n.thu} ${n.so}${dem ? `\n${dem} việc` : ""}`}>
               {oHep ? (
                 <>
                   <span className="thsx-ln__so thsx-num">{d.slice(8, 10)}</span>
@@ -265,7 +299,7 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
                     <span className="thsx-ln__thu">{n.thu}</span>
                     <span className="thsx-ln__so thsx-num">{n.so}</span>
                   </span>
-                  <span className="thsx-ln__dem thsx-num">{dem > 0 ? `${dem} việc` : " "}</span>
+                  <span className="thsx-ln__dem thsx-num">{dem > 0 ? `${dem} việc` : " "}</span>
                 </>
               )}
             </div>
@@ -314,50 +348,63 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
           const ma = w.nguon_ma || sxSerial(w.nguon_ma);
           const cd = w.ten_cong_doan || "";
           const o = oCuaViec.get(w.id) ?? null;
-          const phu = [w.nguon_ten, w.khach_hang, w.may].filter(Boolean).join(" · ");
-          const sl = w.so_luong_ra != null || w.so_luong_vao != null ? slThucTe(w) : "";
+          const sl = w.so_luong_ra != null || w.so_luong_vao != null ? slThucTe(w) : [];
           const acts = dayThucTe(w.thuc_te, tu, soNgay, bayGio);
           const thucTeTitle = (w.thuc_te ?? [])
             .map((p) => `${ngayGio(p.bat_dau)} → ${p.ket_thuc ? ngayGio(p.ket_thuc) : "đang chạy"}`)
-            .join("; ");
+            .join("\n");
+          const keHoachTitle = `Kế hoạch: ${ngayGio(w.du_kien_bat_dau)} → ${ngayGio(w.du_kien_ket_thuc)}`;
+          const chon = (e: SuKienChuot) => { e.stopPropagation(); onChon(w); };
 
+          // Làn trên — KẾ HOẠCH.
           let thanh = null;
           if (o) {
             const trai = o.dau * ngayW + (o.tranTrai ? 0 : le);
             const rong = (o.cuoi + 1) * ngayW - (o.tranPhai ? 0 : le) - trai;
-            // Dưới 56px không chứa nổi hai dòng: chỉ còn icon trạng thái (+ serial nếu ≥40px); chi tiết
-            // ở tooltip, ô nhãn bên trái đã có mã.
-            const ratHep = rong < 56;
-            const coSerial = rong >= 40;
-            const co = coThanh(rong);
-            // Tên công đoạn chỉ vào thanh khi còn chỗ cho vài chữ — dưới 150px nó chỉ ra "· …", mà ô
-            // nhãn bên trái đã ghi đủ tên.
-            const coCd = !!cd && rong >= 150;
-            const d2 = dongHaiThanh(w, co);
-            const d2Du = dongHaiThanh(w, "du");
+            const chu = chuKeHoach(w, coThanh(rong));
             thanh = (
               <button
                 type="button"
-                className={`thsx-ln__thanh thsx-ln__thanh--${w.trang_thai} thsx-ln__thanh--${ratHep ? "hep" : co}${sel ? " thsx-ln__thanh--chon" : ""}${o.tranTrai ? " thsx-ln__thanh--tran-trai" : ""}${o.tranPhai ? " thsx-ln__thanh--tran-phai" : ""}`}
+                className={`thsx-ln__kh${sel ? " is-chon" : ""}${o.tranTrai ? " is-tran-trai" : ""}${o.tranPhai ? " is-tran-phai" : ""}`}
                 style={{ left: trai, width: rong }}
-                title={`${ma}${cd ? ` · ${cd}` : ""}${w.nguon_ten ? ` · ${w.nguon_ten}` : ""}${w.khach_hang ? ` · KH: ${w.khach_hang}` : ""} · ${meta.label} · ${d2Du}\nKế hoạch: ${ngayGio(w.du_kien_bat_dau)} → ${ngayGio(w.du_kien_ket_thuc)}${thucTeTitle ? `\nThực tế: ${thucTeTitle}` : ""}`}
-                aria-label={`${ma}${cd ? `, ${cd}` : ""}, ${meta.label}, ${d2Du}`}
+                title={keHoachTitle}
+                aria-label={`${ma}${cd ? ` ${cd}` : ""}, ${meta.label}, ${chuKeHoach(w, "du")}`}
                 aria-pressed={sel}
-                onClick={(e) => { e.stopPropagation(); onChon(w); }}
+                onClick={chon}
               >
-                {o.tranTrai && !ratHep && <Icon name="chevron" size={12} className="thsx-ln__mui thsx-rot90" />}
-                <span className="thsx-ln__thanh-chu">
-                  <span className="thsx-ln__thanh-d1">
-                    <Icon name={meta.icon} size={12} />
-                    {coSerial && <strong className="thsx-num">{sxSerial(w.nguon_ma)}</strong>}
-                    {coCd && <span className="thsx-ln__thanh-cd">· {cd}</span>}
-                  </span>
-                  {!ratHep && <span className="thsx-ln__thanh-d2 thsx-num">{d2}</span>}
-                </span>
-                {o.tranPhai && !ratHep && <Icon name="chevron" size={12} className="thsx-ln__mui thsx-rot270" />}
+                {o.tranTrai && <Icon name="chevron" size={11} className="thsx-ln__mui thsx-rot90" />}
+                {rong >= 40 && <span className="thsx-ln__chu thsx-num">{chu}</span>}
+                {o.tranPhai && <Icon name="chevron" size={11} className="thsx-ln__mui thsx-rot270" />}
               </button>
             );
           }
+
+          // Làn dưới — THỰC TẾ, đúng các ngày có phiên chạy. Chữ trạng thái đặt ở dải cuối (mới nhất).
+          const thuc = acts.map((p, i) => {
+            const trai = p.dau * ngayW + le;
+            const rong = (p.cuoi + 1) * ngayW - le - trai;
+            const cuoi = i === acts.length - 1;
+            const chu = cuoi ? chuThucTe(w, coThanh(rong), p.cuoi > p.dau) : "";
+            return (
+              <button
+                key={`a${p.dau}`}
+                type="button"
+                tabIndex={-1}
+                className={`thsx-ln__tt-thanh thsx-ln__tt-thanh--${w.trang_thai}${p.mo ? " is-mo" : ""}${sel ? " is-chon" : ""}`}
+                style={{ left: trai, width: rong }}
+                title={`Thực tế:\n${thucTeTitle}`}
+                aria-hidden="true"
+                onClick={chon}
+              >
+                {cuoi && rong >= 40 && (
+                  <>
+                    <Icon name={meta.icon} size={12} />
+                    <span className="thsx-ln__chu thsx-num">{chu}</span>
+                  </>
+                )}
+              </button>
+            );
+          });
 
           return (
             <div
@@ -366,7 +413,8 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
               style={{ height: dongH }}
               onClick={() => onChon(w)}
             >
-              <div className={`thsx-ln__nhan thsx-ln__nhan--${w.trang_thai}`} style={{ width: nhanW }}>
+              {/* Ô nhãn: mỗi mẩu một ô riêng, tách bằng khoảng trống — không nối bằng dấu. */}
+              <div className="thsx-ln__nhan" style={{ width: nhanW }}>
                 <div className="thsx-ln__ma">
                   <span className="thsx-ln__ma-text thsx-num">{ma}</span>
                   <span className={`thsx-ln__tt thsx-ln__tt--${w.trang_thai}`} role="img" aria-label={meta.label} title={meta.label}>
@@ -375,10 +423,18 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
                   <ChipKcs so_lan={w.kcs_so_lan} loi={w.kcs_loi} />
                   <ChamCho c={cho?.get(w.id)} />
                 </div>
-                <div className="thsx-ln__cd" title={cd}>{cd || "—"}</div>
-                {phu && <div className="thsx-ln__phu" title={phu}>{phu}</div>}
-                <div className="thsx-ln__sl">
-                  {sl && <span className="thsx-ln__sl-so thsx-num" title={sl}>{sl}</span>}
+                <div className="thsx-ln__dong">
+                  <span className="thsx-ln__cd" title={cd}>{cd || "—"}</span>
+                  {w.may && <span className="thsx-ln__mo" title={w.may}>{w.may}</span>}
+                </div>
+                {(w.nguon_ten || w.khach_hang) && (
+                  <div className="thsx-ln__dong thsx-ln__phu">
+                    {w.nguon_ten && <span title={w.nguon_ten}>{w.nguon_ten}</span>}
+                    {w.khach_hang && <span className="thsx-ln__mo" title={w.khach_hang}>{w.khach_hang}</span>}
+                  </div>
+                )}
+                <div className="thsx-ln__dong thsx-ln__sl">
+                  {sl.map((m) => <span key={m} className="thsx-num">{m}</span>)}
                   <ChipLoaiBuoc loai_buoc={w.loai_buoc === "may" ? null : w.loai_buoc} nha_cung_cap={w.nha_cung_cap} />
                   <ChipKhuon can_khuon={!!w.khuon} khuon={{ ...(w.khuon ?? {}), da_nhan: w.khuon_da_nhan }} />
                 </div>
@@ -386,17 +442,7 @@ export function ThsxLichNgay({ tu, soNgay, viec, selectedId, onChon, dangTim = f
 
               <div className="thsx-ln__luoi" style={{ width: rongLuoi }}>
                 {thanh}
-                {acts.map((p) => {
-                  const trai = p.dau * ngayW + le;
-                  return (
-                    <span
-                      key={`a${p.dau}`}
-                      className={`thsx-ln__that${p.mo ? " thsx-ln__that--mo" : ""}`}
-                      style={{ left: trai, width: (p.cuoi + 1) * ngayW - le - trai }}
-                      title={`Thực tế: ${thucTeTitle}`}
-                    />
-                  );
-                })}
+                {thuc}
               </div>
             </div>
           );

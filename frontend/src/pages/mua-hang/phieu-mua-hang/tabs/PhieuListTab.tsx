@@ -11,11 +11,12 @@ import { BangDonMua, COT_DON } from "../../don-mua-chung/BangDonMua";
 import { ChonCotBang, useCotBang } from "../../luoi-mua-hang";
 import { ThanhCongCuMuaHang, tabCoSo, type TabDem } from "../../loc-mua-hang/ThanhCongCuMuaHang";
 import { MOC_DON_MUA_HANG, type LocDonMuaHang } from "../../loc-mua-hang/dieu-kien-don-mua";
-import { TT_DON, TT_TIEN } from "../../trang-thai-mua";
+import { TT_HANG_LOC, TT_TIEN } from "../../trang-thai-mua";
 import type { PurchaseTab, StatusFilter } from "../shared/types";
 
 /** Chip Hàng luôn hiện; Bị trả lại / Đã huỷ chỉ hiện khi có đơn (hoặc đang chọn). */
-const TAB_CHINH = ["draft", "pending_approval", "approved", "purchased", "partially_received", "received"];
+// "Đã về đủ" tách ba nấc kho (11/10/2026): Chờ gửi kho, Kho chưa nhập, Đã nhập kho.
+const TAB_CHINH = ["draft", "pending_approval", "approved", "purchased", "partially_received", "cho_gui_kho", "kho_chua_nhap", "da_nhap_kho"];
 
 /** Bốn chip nhóm Tiền — luôn hiện đủ, kể cả số 0, để Kế toán và Thu mua nhìn cùng một hàng chip. */
 export function tabTien(dem: Record<string, number> | null | undefined): TabDem[] {
@@ -122,7 +123,7 @@ export function PhieuListTab({
       )}
 
       <ThanhCongCuMuaHang
-        tabs={tabCoSo(TAB_CHINH, TT_DON, demTheoTab, status)}
+        tabs={tabCoSo(TAB_CHINH, TT_HANG_LOC, demTheoTab, status)}
         tab={status}
         ariaTabs="Lọc trạng thái hàng của đơn"
         nhanNhom="Hàng"

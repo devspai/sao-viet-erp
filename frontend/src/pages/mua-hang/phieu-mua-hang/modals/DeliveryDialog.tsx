@@ -16,6 +16,7 @@ import { Button } from "../../../../components/Button";
 import { ChonNgay } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
+import { chuanKho } from "../../../../lib/khoGiay";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 import "../../../ke-toan/ke-toan.css";
 import "../../../kho-ngan-a.css";
@@ -25,7 +26,7 @@ import "../components/don-form-a.css";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
 import { ATTACHMENT_IMAGE_TYPES } from "../shared/constants";
-import { daGiaoKhac, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
+import { daGiaoKhac, nhanKhoMua, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
 import type { AnhCho } from "../shared/types";
 
 /**
@@ -39,9 +40,14 @@ import type { AnhCho } from "../shared/types";
  */
 const so = (n: number) => Math.round(n).toLocaleString("vi-VN");
 
-/** Dòng giấy TỜ (đặt đủ hai cạnh khổ) — chỉ dòng này có khổ nhận sửa được. Cuộn đếm kg theo khổ rộng. */
-const laGiayTo = (line: PurchaseRequestRow["lines"][number]) =>
-  line.hang_loai === "giay" && line.kho_rong > 0 && line.kho_dai > 0;
+/** Dòng giấy — có khổ nhận sửa được (hai cạnh hoặc chỉ rộng; 10/10/2026 bỏ dạng cuộn/tờ). */
+const laGiay = (line: PurchaseRequestRow["lines"][number]) => line.hang_loai === "giay";
+/** Hai khổ giống nhau sau khi xếp cạnh ngắn trước. Khổ chỉ-rộng KHÔNG bằng khổ hai cạnh. */
+const cungKho = (a: { rong: number; dai: number }, b: { rong: number; dai: number }) => {
+  const [ar, ad] = chuanKho(a.rong, a.dai);
+  const [br, bd] = chuanKho(b.rong, b.dai);
+  return ar === br && ad === bd;
+};
 
 export function DeliveryDialog({
   row,
@@ -108,14 +114,14 @@ export function DeliveryDialog({
     }
     return out;
   });
-  // KHỔ THỰC NHẬN của dòng giấy tờ (07/10/2026). Mặc định = khổ đặt (sửa đợt cũ thì khổ đã ghi);
+  // KHỔ THỰC NHẬN của dòng giấy (07/10/2026). Mặc định = khổ đặt (sửa đợt cũ thì khổ đã ghi);
   // NCC giao khác khổ thì sửa — hàng vào tồn theo khổ nhận vì kho so khổ bằng nhau tuyệt đối.
   const [khoNhan, setKhoNhan] = useState<Record<number, { rong: number; dai: number }>>(() => {
     const out: Record<number, { rong: number; dai: number }> = {};
     for (const line of row.lines) {
-      if (!laGiayTo(line)) continue;
+      if (!laGiay(line)) continue;
       const cu = delivery?.lines.find((dl) => dl.purchase_request_line_id === line.id);
-      out[line.id] = cu && cu.kho_rong && cu.kho_dai
+      out[line.id] = cu && cu.kho_rong
         ? { rong: cu.kho_rong, dai: cu.kho_dai }
         : { rong: line.kho_rong, dai: line.kho_dai };
     }
@@ -424,9 +430,10 @@ export function DeliveryDialog({
                       const daNhan = daGiaoKhac(row, line.id, delivery?.id ?? null);
                       const dvt = tenDonVi(line.unit) ?? line.unit;
                       const chia = chiaDong[line.id] ?? { tinhTien: 0, du: 0 };
-                      const laTo = laGiayTo(line);
                       const kho = khoNhan[line.id] ?? { rong: line.kho_rong, dai: line.kho_dai };
-                      const khacKho = laTo && (kho.rong !== line.kho_rong || kho.dai !== line.kho_dai) && !!kho.rong && !!kho.dai;
+                      const khacKho = laGiay(line) && !!kho.rong
+                        && !cungKho(kho, { rong: line.kho_rong, dai: line.kho_dai });
+                      const khoDat = nhanKhoMua(line);
                       const dangGo = soNhan[line.id] ?? "";
                       return (
                         <tr key={line.id}>
@@ -434,25 +441,19 @@ export function DeliveryDialog({
                             <div className="kna-hang__ten">{line.item_name}</div>
                             {coGiay && line.hang_loai === "giay" && (
                               <div className="ycf-phu">
-                                {laTo ? (
-                                  <KhungKho
-                                    ariaLabel={`Khổ nhận ${line.item_name}`}
-                                    dang="to"
-                                    coTheDoiDang={false}
-                                    canh={khacKho}
-                                    rong={kho.rong}
-                                    dai={kho.dai}
-                                    goiY={[{ rong: line.kho_rong, dai: line.kho_dai, ghiChu: "Khổ đặt" }]}
-                                    onChange={(v) => setKhoNhan((c) => ({ ...c, [line.id]: { rong: v.rong, dai: v.dai } }))}
-                                  />
-                                ) : (
-                                  <KhungKho dang="cuon" chiDoc rong={line.kho_rong} dai={0} onChange={() => undefined} />
-                                )}
+                                <KhungKho
+                                  ariaLabel={`Khổ nhận ${line.item_name}`}
+                                  canh={khacKho}
+                                  rong={kho.rong}
+                                  dai={kho.dai}
+                                  goiY={line.kho_rong ? [{ rong: line.kho_rong, dai: line.kho_dai, ghiChu: "Khổ đặt" }] : []}
+                                  onChange={(v) => setKhoNhan((c) => ({ ...c, [line.id]: { rong: v.rong, dai: v.dai } }))}
+                                />
                               </div>
                             )}
                             {khacKho && (
                               <div className="ycd-phu ycd-vang">
-                                Khác khổ đặt {Math.min(line.kho_rong, line.kho_dai)} × {Math.max(line.kho_rong, line.kho_dai)}, hàng vào tồn theo khổ nhận
+                                {khoDat ? `Khác khổ đặt ${khoDat.replace(/^Khổ /, "")}` : "Đơn chưa ghi khổ"}, hàng vào tồn theo khổ nhận
                               </div>
                             )}
                           </td>
@@ -554,7 +555,10 @@ export function DeliveryDialog({
                       onChange={(v) => setNgayHoaDon(v)}
                     />
                   </div>
-                  <div className="ycf-pick" role="group" aria-label="Chọn nhanh hoá đơn">
+                  {/* Chọn nhanh CHỈ khi đơn đã có hoá đơn ở đợt trước. Chưa có đợt nào thì để trống
+                      hai ô là đủ nói "chưa có hoá đơn" — một nút "Chưa có" đứng lẻ chỉ gây rối. */}
+                  {hoaDonCu.length > 0 && (
+                  <div className="ycf-pick dgd-pick" role="group" aria-label="Chọn nhanh hoá đơn">
                     {hoaDonCu.map((h) => (
                       <button
                         key={h.so}
@@ -569,7 +573,6 @@ export function DeliveryDialog({
                         Cùng đợt {h.seq}
                       </button>
                     ))}
-                    {hoaDonCu.length > 0 && (
                       <button
                         type="button"
                         className={soHoaDon && !hoaDonCu.some((h) => h.so === soHoaDon) ? "on" : ""}
@@ -582,7 +585,6 @@ export function DeliveryDialog({
                       >
                         Hoá đơn mới
                       </button>
-                    )}
                     <button
                       type="button"
                       className={!soHoaDon && !ngayHoaDon ? "on" : ""}
@@ -594,6 +596,7 @@ export function DeliveryDialog({
                       Chưa có
                     </button>
                   </div>
+                  )}
                 </div>
                 <div className="kna-o-truong">
                   <span>Ảnh hoá đơn, biên bản giao</span>
@@ -612,7 +615,7 @@ export function DeliveryDialog({
                   />
                   <button
                     type="button"
-                    className={`kna-tha${dangKeo ? " is-drop" : ""}`}
+                    className={`kna-tha dgd-tha${dangKeo ? " is-drop" : ""}`}
                     disabled={busy}
                     onClick={() => fileRef.current?.click()}
                     onDragOver={(e) => {
@@ -631,7 +634,7 @@ export function DeliveryDialog({
                     <Icon name="paperclip" size={14} /> Kéo ảnh hoặc PDF vào đây
                   </button>
                   {(anhDaCo.length > 0 || anhMoi.length > 0) && (
-                    <div className="pdot__filegrid">
+                    <div className="pdot__filegrid dgd-tep">
                       {anhDaCo.map((a) => (
                         <div className="pdot__file" key={a.id}>
                           <a href={assetUrl(a.file_url) ?? "#"} target="_blank" rel="noreferrer" title={a.file_name}>
@@ -656,7 +659,7 @@ export function DeliveryDialog({
                               <Icon name="fileText" size={22} />
                             </span>
                           )}
-                          <span className="pdot__tilebadge">chờ tải lên</span>
+                          <span className="pdot__tilebadge">Chưa lưu</span>
                           <button type="button" className="pdot__filex" aria-label={`Bỏ ${a.file.name}`} disabled={busy} onClick={() => boAnhCho(i)}>
                             ×
                           </button>

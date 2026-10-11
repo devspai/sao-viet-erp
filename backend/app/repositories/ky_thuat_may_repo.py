@@ -49,7 +49,9 @@ ASSIGNABLE_SUA_CHUA = (
 # SỬA thì KHÔNG đổi được máy (14/09/2026): máy là máy đã báo hỏng — chép từ yêu cầu lúc tiếp nhận,
 # hoặc máy chọn lúc tổ kỹ thuật tự lập phiếu. Đổi máy trên phiếu là lời báo nói máy A mà việc sửa,
 # ảnh, lịch sử lại nằm ở máy B. Báo nhầm máy thì từ chối yêu cầu để người báo gửi lại.
-SUA_DUOC_SUA_CHUA = tuple(f for f in ASSIGNABLE_SUA_CHUA if f != "may_id")
+# 11/10/2026: lời NGƯỜI BÁO (triệu chứng, mức độ, giờ hỏng, chỗ hỏng) cũng chốt luôn — kể cả lúc
+# tiếp nhận. Phiếu chỉ còn phần của tổ sửa chữa: đã sửa gì (+ ghi chú cũ).
+SUA_DUOC_SUA_CHUA = ("nguyen_nhan_phuong_an", "ghi_chu")
 # Yêu cầu báo hỏng: người báo, thời điểm, trạng thái, mã — SERVICE gán hết. `nguoi_bao_id` lấy từ
 # TÀI KHOẢN ĐANG ĐĂNG NHẬP; cho client gửi lên là mở cửa hậu báo hỏng dưới tên người khác, mà cả
 # giá trị của bảng này nằm ở chỗ biết chính xác hỏi lại ai.
@@ -281,6 +283,13 @@ class KyThuatMayRepository:
             select(func.count()).select_from(YeuCauSuaChua)
             .where(YeuCauSuaChua.trang_thai == TT_YC_CHO_TIEP_NHAN)
         ).scalar_one())
+
+    def yeu_cau_cua_cong_viec(self, cong_viec_id: int) -> list[YeuCauSuaChua]:
+        """Các lần báo máy hỏng từ một công việc của bàn tổ (neo `cong_viec_id`) — tab Lịch sử."""
+        return list(self.db.execute(
+            select(YeuCauSuaChua).where(YeuCauSuaChua.cong_viec_id == cong_viec_id)
+            .order_by(YeuCauSuaChua.id)
+        ).scalars())
 
     def create_yeu_cau(self, data: dict, *, ma: str, cong_viec_id: int | None = None,
                        lsx_id: int | None = None, commit: bool = True) -> YeuCauSuaChua:

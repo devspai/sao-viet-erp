@@ -59,7 +59,8 @@ export type PermAction =
   | "manage_piece_rates"       // luong — tab Lương khoán
   | "manage_leave_types"       // nghi_phep — danh mục loại nghỉ
   | "plan"                     // giao_hang — tab Yêu cầu chờ lên kế hoạch + phân công
-  | "view_drivers";            // giao_hang — tab Nhân viên giao hàng
+  | "view_drivers"             // giao_hang — tab Nhân viên giao hàng
+  | "close_short";             // kcs — Đóng lệnh thiếu + mở lại nhóm đã đóng
 
 export type Capabilities = Map<string, ModuleCapability>;
 
@@ -69,15 +70,12 @@ interface PermissionsCtx {
   scopeOf: (moduleKey: string) => Scope | null;
   /** Hỏi lại máy chủ bộ quyền của CHÍNH người đang đăng nhập (menu + `can`). */
   reload: () => void;
-  /** Người đang đăng nhập thuộc một phòng ban có cờ "Tổ KCS" (mg 0306) — kiểm được mọi tổ. */
-  kcs: boolean;
 }
 
 const PermissionsContext = createContext<PermissionsCtx>({
   can: () => false,
   scopeOf: () => null,
   reload: () => {},
-  kcs: false,
 });
 
 export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
@@ -87,12 +85,10 @@ export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
 export function PermissionsProvider({
   caps,
   onReload,
-  kcs = false,
   children,
 }: {
   caps: Capabilities;
   onReload?: () => void;
-  kcs?: boolean;
   children: ReactNode;
 }) {
   function can(moduleKey: string, action: PermAction): boolean {
@@ -113,7 +109,7 @@ export function PermissionsProvider({
     return caps.get(moduleKey)?.scope ?? null;
   }
   return (
-    <PermissionsContext.Provider value={{ can, scopeOf, reload: onReload ?? (() => {}), kcs }}>
+    <PermissionsContext.Provider value={{ can, scopeOf, reload: onReload ?? (() => {}) }}>
       {children}
     </PermissionsContext.Provider>
   );
@@ -148,12 +144,6 @@ export function useSelfServiceWrite(): boolean {
 /** Returns `can(module, action)`. Defaults to deny until the provider is mounted. */
 export function useCan(): (moduleKey: string, action: PermAction) => boolean {
   return useContext(PermissionsContext).can;
-}
-
-/** KCS theo lệnh (mg 0306): KHÔNG phải ô quyền của vai — là tư cách thành viên phòng ban có cờ
- *  "Tổ KCS". Máy chủ trả cờ này ở `GET /api/auth/permissions`; cổng thật vẫn ở máy chủ. */
-export function useKcs(): { kcs: boolean } {
-  return { kcs: useContext(PermissionsContext).kcs };
 }
 
 /** Tải lại quyền của người đang đăng nhập. AppShell chỉ hỏi quyền MỘT lần lúc vào phiên, nên màn

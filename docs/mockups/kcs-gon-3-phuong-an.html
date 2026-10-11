@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KCS gọn 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --nen:#f8fafc; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8; --chu-5:#cbd5e1;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --vien-3:#f3f5f8; --hair:#f1f5f9;
+  --rust:#c5400a; --la:#15803d; --do:#b91c1c; --cam:#c2410c; --xanh:#1d4ed8;
+  --vang-bg:#fef3c7; --vang-fg:#b45309;
+  --cam-bg:#ffedd5; --cam-fg:#c2410c;
+  --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8;
+  --cyan-bg:#cffafe; --cyan-fg:#0e7490;
+  --la-bg:#dcfce7; --la-fg:#15803d;
+  --do-bg:#fee2e2; --do-fg:#b91c1c;
+  --xam-bg:#e5e7eb; --xam-fg:#374151;
+  --slate-bg:#f1f5f9; --slate-fg:#475569;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1480px;margin:0 auto;padding:28px 20px 120px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--chu-2);margin:0 0 16px;max-width:1100px}
+.hop{background:var(--trang);border-radius:12px;padding:16px 22px;margin:0 0 16px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ul{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:3px 0}
+.hai-cot{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ref{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.ref figure{margin:0}
+.ref img{width:100%;border:1px solid var(--vien);border-radius:8px;display:block;background:#fff}
+.ref figcaption{font-size:12.5px;color:var(--chu-2);margin-top:6px}
+.ref figcaption b{font-weight:500;color:var(--chu)}
+.doi td,.doi th{padding:5px 10px;border-bottom:1px solid var(--vien-2);text-align:left;font-size:13px;vertical-align:top}
+.doi th{font-weight:400;color:var(--chu-3);font-size:12px}
+.doi td:first-child{color:var(--chu-3);text-decoration:line-through;text-decoration-color:var(--chu-5)}
+.doi{border-collapse:collapse;width:100%}
+
+/* thanh đổi quyền */
+.quyen{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0f172a;color:#e2e8f0;padding:9px 16px;border-radius:10px;margin:0 0 18px;font-size:13px}
+.quyen .q-nut{height:28px;padding:0 12px;border-radius:7px;border:1px solid #334155;background:transparent;color:#cbd5e1;font:inherit;font-size:13px;cursor:pointer}
+.quyen .q-nut.on{background:#fff;color:#0f172a;border-color:#fff}
+.quyen .q-giai{color:#94a3b8;font-size:12.5px;flex:1;min-width:260px}
+
+.pa{margin:44px 0 0}
+.pa-dau{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:22px;align-items:start;margin:0 0 14px}
+.pa-dau h2{font-size:19px;font-weight:500;margin:0 0 6px}
+.pa-dau p{margin:0 0 6px;color:var(--chu-2)}
+.pa-dau ul{margin:6px 0 0;padding-left:20px;color:var(--chu-2)}
+.pa-dau li{margin:3px 0}
+.pa-dau img{width:100%;border:1px solid var(--vien);border-radius:8px;display:block}
+.pa-dau figure{margin:0}
+.pa-dau figcaption{font-size:12px;color:var(--chu-3);margin-top:5px}
+.man-nhan{font-size:12.5px;color:var(--chu-3);margin:18px 0 6px;display:flex;gap:8px;align-items:center}
+.man-nhan b{font-weight:500;color:var(--chu-2)}
+
+/* khung app giả */
+.app{background:var(--nen);border-radius:12px;border:1px solid #dfe3e8;overflow:hidden;position:relative}
+.app-than{padding:18px 22px 22px}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
+
+/* đầu trang + thẻ lọc (khuôn lds đã duyệt) */
+.dau{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.dau h3{margin:0;font-size:22px;font-weight:500;flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:7px;font:inherit;font-size:13px;color:var(--chu);white-space:nowrap;cursor:pointer}
+.btn--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--nho{height:26px;padding:0 9px;font-size:12.5px;border-radius:6px}
+.btn--khoa{opacity:.45;cursor:not-allowed}
+.btn--lk{border:0;background:none;padding:0;height:auto;color:var(--xanh)}
+.loc{background:var(--trang);border:1px solid var(--vien);border-radius:10px 10px 0 0;border-bottom:0;padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.loc-nhanh{display:flex;gap:6px;flex-wrap:wrap}
+.ln{height:28px;padding:0 11px;border:1px solid var(--vien);border-radius:7px;background:var(--trang);font:inherit;font-size:12.5px;color:var(--chu-2);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.ln span{color:var(--chu-4)}
+.ln.on{border-color:var(--chu);color:var(--chu)}
+.loc-thanh{display:flex;gap:8px;align-items:center}
+.o-tim{flex:0 1 360px;height:32px;border:1px solid var(--vien);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--chu-4);font-size:13px}
+.gian{flex:1}
+.sheet{background:var(--trang);border:1px solid var(--vien);border-radius:0 0 10px 10px;overflow:hidden}
+.sheet--tron{border-radius:10px}
+
+/* lưới đặc kiểu bảng tính */
+table.g{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+.g th{height:32px;padding:0 10px;text-align:left;font-weight:400;font-size:12px;color:var(--chu-3);background:#fbfcfd;border-bottom:1px solid var(--vien);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--vien-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g th + th,.g td + td{border-left:1px solid var(--vien-3)}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g tbody tr:hover td{background:var(--hair)}
+.g tr.chon td{background:#fff;box-shadow:inset 0 1px 0 var(--chu-4),inset 0 -1px 0 var(--chu-4)}
+.g tr.chon td:first-child{box-shadow:inset 1px 1px 0 var(--chu-4),inset 0 -1px 0 var(--chu-4)}
+.g tr.chon td:last-child{box-shadow:inset -1px 1px 0 var(--chu-4),inset 0 -1px 0 var(--chu-4)}
+.g tfoot td{background:#fbfcfd;color:var(--chu-3);font-size:12px;border-bottom:0;border-top:1px solid var(--vien)}
+.g tfoot td b{font-weight:400;color:var(--chu);font-size:13px;margin-left:4px}
+.g td.boc{white-space:normal;line-height:1.4;padding-top:6px;padding-bottom:6px}
+.btn--nho{padding:0 8px}
+.mu{color:var(--chu-3)} .mu4{color:var(--chu-4)}
+.do{color:var(--do)} .la{color:var(--la)} .cam{color:var(--cam)}
+.the{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--vien-3);color:var(--chu-2);font-size:11.5px;white-space:nowrap;vertical-align:1px}
+.tt{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.tt::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tt--xanh{background:var(--xanh-bg);color:var(--xanh-fg)}
+.tt--cyan{background:var(--cyan-bg);color:var(--cyan-fg)}
+.tt--la{background:var(--la-bg);color:var(--la-fg)}
+.tt--do{background:var(--do-bg);color:var(--do-fg)}
+.tt--vang{background:var(--vang-bg);color:var(--vang-fg)}
+.tt--cam{background:var(--cam-bg);color:var(--cam-fg)}
+.tt--xam{background:var(--xam-bg);color:var(--xam-fg)}
+.tt--slate{background:var(--slate-bg);color:var(--slate-fg)}
+.chan-trang{display:flex;align-items:center;gap:16px;padding:8px 12px;border-top:1px solid var(--vien-2);font-size:12.5px;color:var(--chu-3)}
+.thanh-so{display:inline-block;height:6px;border-radius:3px;background:#fca5a5;vertical-align:1px;margin-right:8px}
+
+/* ngăn chi tiết (1180px chuẩn) */
+.mo-nen{position:absolute;inset:0;background:rgba(15,23,42,.28)}
+.ngan{position:relative;margin-left:auto;width:1180px;max-width:100%;background:var(--trang);box-shadow:-18px 0 48px rgba(15,23,42,.16);min-height:100%}
+.ng-dau{padding:14px 22px 0;border-bottom:1px solid var(--vien-2)}
+.ng-h{display:flex;align-items:center;gap:10px}
+.ng-h h4{margin:0;font-size:18px;font-weight:500}
+.ng-chips{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:6px 0 10px;font-size:13px;color:var(--chu-2)}
+.so-hang{display:flex;border:1px solid var(--vien-2);border-radius:9px;margin:0 0 12px;overflow:hidden}
+.so-hang > div{flex:1;padding:6px 12px;min-width:0}
+.so-hang > div + div{border-left:1px solid var(--vien-2)}
+.so-hang .n{font-size:12px;color:var(--chu-3);white-space:nowrap}
+.so-hang .v{font-size:15px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tabs{display:flex;gap:22px}
+.tabs span{padding:6px 0 9px;font-size:13px;color:var(--chu-3);border-bottom:2px solid transparent;cursor:pointer}
+.tabs span.on{color:var(--chu);border-color:var(--chu)}
+.ng-than{padding:14px 22px 18px}
+.ghi{font-size:12.5px;color:var(--chu-2)}
+
+/* hộp xác nhận đóng */
+.dong-wrap{position:relative;display:inline-flex;align-items:center;gap:8px}
+.ly-do{display:none;font-size:12px;color:var(--cam)}
+.pop{display:none;position:absolute;right:0;top:38px;z-index:20;width:440px;background:#fff;border:1px solid var(--vien);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.18);padding:14px 16px;text-align:left;white-space:normal}
+.pop.mo{display:block}
+.pop p{margin:0 0 8px;font-size:13.5px}
+.pop ul{margin:0 0 12px;padding-left:18px;font-size:13px;color:var(--chu-2)}
+.pop li{margin:3px 0}
+.pop .nut{display:flex;justify-content:flex-end;gap:8px}
+
+/* quyền */
+.q-xem .can-tt{display:none !important}
+.q-tt .can-dt{opacity:.45;cursor:not-allowed}
+.q-tt .ly-do{display:inline}
+.q-dt .ly-do{display:none}
+
+/* ===== B ===== */
+.b-tabs{display:flex;gap:24px;border-bottom:1px solid var(--vien);margin:0 0 12px}
+.b-tabs span{padding:4px 0 9px;font-size:14px;color:var(--chu-3);border-bottom:2px solid transparent}
+.b-tabs span.on{color:var(--chu);border-color:var(--chu)}
+.chuoi-nho{display:flex;gap:3px;align-items:center}
+.chuoi-nho i{width:14px;height:14px;border-radius:3px;display:inline-grid;place-items:center;font-style:normal;font-size:9px;color:#fff}
+.cn-xong{background:#86efac}
+.cn-chay{background:#93c5fd}
+.cn-chua{background:#e2e8f0}
+.cn-loi{background:#f87171}
+.cn-cuoi{outline:1.5px solid var(--chu-3);outline-offset:1px}
+.cn-gach{width:6px;height:1px;background:var(--chu-5)}
+.heat td.h{text-align:center;font-variant-numeric:tabular-nums}
+.h1{background:#fee2e2}.h2{background:#fecaca}.h3{background:#fca5a5}
+.so-dong{display:flex;gap:28px;padding:10px 14px;background:var(--trang);border:1px solid var(--vien);border-radius:10px;margin:0 0 12px;font-size:13px;color:var(--chu-3)}
+.so-dong b{font-weight:400;color:var(--chu);font-size:16px;margin-left:6px;font-variant-numeric:tabular-nums}
+
+.so-do{position:relative;background:#f6f8fa;border:1px solid var(--vien);border-radius:10px;padding:16px 18px 18px;overflow-x:auto}
+.lane{display:flex;align-items:center;gap:0;margin:0 0 26px}
+.lane:last-of-type{margin-bottom:0}
+.noi-xuong{position:absolute;width:1.5px;background:#cbd5e1}
+.noi-xuong::after{content:"";position:absolute;left:-4px;bottom:-1px;border:4.5px solid transparent;border-top:6px solid #cbd5e1;border-bottom:0}
+.lane-ten{width:130px;flex:none;font-size:12px;color:var(--chu-3);line-height:1.35}
+.lane-ten span{display:block;color:var(--chu-2);font-size:12.5px}
+.nut-cd{width:196px;flex:none;background:#fff;border:1px solid var(--vien);border-radius:8px;padding:7px 10px;box-shadow:0 1px 2px rgba(15,23,42,.05);cursor:pointer;font-size:13px;line-height:1.35}
+.nut-cd .h{display:flex;align-items:center;gap:7px}
+.nut-cd .h .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nut-cd .p{display:flex;justify-content:space-between;gap:8px;font-size:12px;color:var(--chu-3);margin-top:2px;padding-left:22px;flex-wrap:wrap}
+.nut-cd .p span{white-space:nowrap}
+.nut-cd.chon{border-color:var(--chu);box-shadow:0 0 0 1px var(--chu)}
+.noi{width:22px;height:1.5px;background:#cbd5e1;flex:none}
+.ic{width:15px;height:15px;border-radius:50%;flex:none;display:inline-grid;place-items:center}
+.ic--xong{background:#16a34a;color:#fff}
+.ic--chay{border:2px solid #3b82f6;background:#fff;position:relative}
+.ic--chay::after{content:"";width:5px;height:5px;border-radius:50%;background:#3b82f6}
+.ic--chua{border:1.5px solid #94a3b8;background:#fff}
+.ic--loi{background:#dc2626;color:#fff}
+.ic svg.i{width:10px;height:10px;stroke-width:2.6;vertical-align:0}
+.noi-doc{position:absolute;border-right:1.5px solid #cbd5e1;border-bottom:1.5px solid #cbd5e1;border-radius:0 0 8px 0}
+.b-chi{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:14px}
+.b-the{background:#fff;border:1px solid var(--vien);border-radius:10px}
+.b-the-dau{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--vien-2)}
+.b-the-dau h5{margin:0;font-size:15px;font-weight:500}
+.b-the-dau .the{margin-left:2px}
+.dk{display:flex;gap:26px;padding:9px 14px;border-bottom:1px solid var(--vien-2);font-size:12.5px;color:var(--chu-3);flex-wrap:wrap}
+.dk b{font-weight:400;color:var(--chu);font-size:14px;margin-left:6px;font-variant-numeric:tabular-nums}
+.anh{display:inline-block;width:22px;height:22px;border-radius:4px;background:linear-gradient(135deg,#cbd5e1,#94a3b8);vertical-align:middle;margin-right:3px}
+
+/* ===== C ===== */
+.c-dai{display:flex;align-items:center;gap:22px;background:#fff;border:1px solid var(--vien);border-radius:10px;padding:8px 14px;margin:0 0 12px;font-size:13px;color:var(--chu-3)}
+.c-dai b{font-weight:400;color:var(--chu);margin-left:6px;font-size:15px}
+.c-spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px}
+.c-spark i{width:6px;background:#fca5a5;border-radius:1px}
+#c-top{display:inline-flex;gap:6px}
+.g .caret{display:inline-grid;place-items:center;width:18px;height:18px;margin-right:4px;color:var(--chu-3);cursor:pointer;vertical-align:-4px;border-radius:4px}
+.g .caret:hover{background:var(--vien-2)}
+.g .caret svg.i{width:13px;height:13px;transition:transform .12s}
+.g tr.dong-mo .caret svg.i{transform:rotate(90deg)}
+.g tr.c-nhom td{background:#f6f8fa;height:36px}
+.g tr.c-nhom:hover td{background:#eef1f5}
+.g tr.c-lenh td:first-child{padding-left:30px}
+.g tr.c-cd td{height:32px;color:var(--chu-2)}
+.g tr.c-cd td:first-child{padding-left:56px}
+.g tr.c-cd td.do{color:var(--do)} .g tr.c-cd td.la{color:var(--la)} .g tr.c-cd td.cam{color:var(--cam)}
+.g tr.c-loi td{height:auto;padding-top:6px;padding-bottom:8px;white-space:normal;background:#fcfcfd;border-bottom:1px solid var(--vien-2)}
+.g tr.c-loi td:first-child{padding-left:80px}
+.c-loi-ds{display:grid;grid-template-columns:minmax(0,1.6fr) 90px minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1.3fr) 70px;gap:4px 14px;font-size:12.5px;color:var(--chu-2);align-items:center}
+.c-loi-ds .hd{color:var(--chu-4);font-size:11.5px}
+.c-an{display:none}
+.c-ben{background:#fff;border:1px solid var(--vien);border-radius:10px;overflow:hidden}
+.c-ben h5{margin:0;padding:10px 14px;font-size:14px;font-weight:500;border-bottom:1px solid var(--vien-2);display:flex;align-items:center}
+.c-ben .g td{height:30px}
+.so-mini{display:flex;flex-wrap:wrap;gap:4px 18px;padding:10px 14px;border-bottom:1px solid var(--vien-2);font-size:12.5px;color:var(--chu-3)}
+.so-mini b{font-weight:400;color:var(--chu);margin-left:5px}
+.ngay-cot{display:flex;align-items:flex-end;gap:4px;height:64px;padding:8px 14px 4px}
+.ngay-cot i{flex:1;background:#fca5a5;border-radius:2px 2px 0 0;min-height:2px}
+.ngay-truc{display:flex;justify-content:space-between;padding:0 14px 10px;font-size:11px;color:var(--chu-4)}
+</style>
+</head>
+<body class="q-tt">
+<div class="page">
+
+<h1>KCS — làm gọn màn danh sách và màn chuỗi công đoạn</h1>
+<p class="lead">Ba phương án cho hai ảnh bạn gửi: màn KCS (danh sách lệnh và báo cáo lỗi) và màn chuỗi công đoạn của một lệnh. Dữ liệu là cụm Bibica thật trên máy dev (LSX26-0003 Ruột, LSX26-0004 Bìa, nhóm NTP26-0004), thêm vài lệnh minh hoạ cho đủ trạng thái. Thanh đen bên dưới đổi quyền của người đang xem để thấy nút nào hiện, nút nào khoá.</p>
+
+<div class="quyen" id="quyen">
+  <span>Xem màn này với quyền KCS:</span>
+  <button class="q-nut" data-q="q-xem">Chỉ Xem</button>
+  <button class="q-nut on" data-q="q-tt">Xem + Thao tác</button>
+  <button class="q-nut" data-q="q-dt">Xem + Thao tác + Đóng lệnh thiếu</button>
+  <span class="q-giai" id="q-giai"></span>
+</div>
+
+<div class="hai-cot">
+  <div class="hop">
+    <h2>Logic giữ nguyên trong cả ba phương án</h2>
+    <ul>
+      <li>Lỗi tính cho công đoạn GÂY ra lỗi, bắt ở đâu cũng vậy. Công đoạn chỉ là nơi bắt thì không bị "Có lỗi"; nó chỉ có ghi chú "bắt được …, tính cho …".</li>
+      <li>Số lỗi giữ đúng đơn vị lúc bắt. Hai đơn vị khác nhau thì ghi riêng, không cộng.</li>
+      <li>Công đoạn giữa: KCS chỉ Ghi lỗi khi thấy. Chỉ công đoạn cuối mới Kiểm hàng (đạt, lỗi) và Gửi nhập kho.</li>
+      <li>Đóng lệnh theo NHÓM. Đủ hết thì ô Thao tác là đóng được. Còn dở (chưa kiểm, chưa gửi kho, thiếu số, việc đang làm) hoặc Mở lại thì cần ô Đóng lệnh thiếu; thiếu ô thì nút vẫn hiện nhưng khoá kèm lý do.</li>
+      <li>Chỉ Xem: thấy hết, xuất được Excel, không có nút ghi.</li>
+    </ul>
+  </div>
+  <div class="hop">
+    <h2>Đổi chữ cho dễ hiểu</h2>
+    <table class="doi">
+      <thead><tr><th>Chữ cũ</th><th>Chữ mới</th></tr></thead>
+      <tbody>
+        <tr><td>Sản xuất (tổ ghi) — "Đã làm 0 tờ in"</td><td>Tổ đã làm</td></tr>
+        <tr><td>KCS kiểm định — "Chưa ghi lỗi"</td><td>Đã kiểm đạt (chỉ công đoạn cuối) và Lỗi do công đoạn này</td></tr>
+        <tr><td>Tình trạng KCS "Không lỗi" khi chưa ai làm gì</td><td>Bỏ chip. Ô lỗi để trống; chỉ hiện chữ đỏ khi có lỗi</td></tr>
+        <tr><td>Đạt ở công đoạn cuối 0/0</td><td>Đã kiểm đạt, kèm Chờ kiểm (tổ đã làm mà KCS chưa kiểm)</td></tr>
+        <tr><td>YC Kho (600)</td><td>Gửi nhập kho 600 cuốn</td></tr>
+        <tr><td>Trạng thái nhóm</td><td>Trạng thái, thêm cột Còn phải làm: Chờ kiểm, Chưa gửi kho, Chờ đóng lệnh</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="hop">
+  <h2>Ảnh tham khảo (chụp từ trang thật 09/10/2026)</h2>
+  <div class="ref">
+    <figure><img src="tham-khao-kcs/ref-airtable-nhom-tong.png" alt="Airtable lưới và thanh tổng">
+      <figcaption><b>Airtable, lưới và thanh tổng.</b> Không có ô số to; con số tổng nằm ngay dưới cột của nó ở chân lưới. Mọi chỗ trống được dùng cho dữ liệu. Phương án A bám ảnh này.</figcaption></figure>
+    <figure><img src="tham-khao-kcs/ref-github-chuoi-buoc.png" alt="GitHub Actions sơ đồ chuỗi bước">
+      <figcaption><b>GitHub Actions, sơ đồ chuỗi bước.</b> Mỗi bước là một thẻ thấp: biểu tượng trạng thái, tên, một con số. Hai nhánh nhập vào một bước sau, giống Bìa nhập vào Ruột ở bước Vào bìa. Phương án B bám ảnh này.</figcaption></figure>
+    <figure><img src="tham-khao-kcs/ref-github-buoc-mo-rong.png" alt="GitHub Actions bước mở rộng tại chỗ">
+      <figcaption><b>GitHub Actions, bước mở rộng tại chỗ.</b> Bấm mũi tên là dòng bung ra ngay bên dưới, không chuyển trang, không mở hộp. Phương án C bám ảnh này: nhóm, lệnh, công đoạn, lỗi lồng nhau trong một lưới.</figcaption></figure>
+  </div>
+</div>
+
+<!-- ======================================================================= A -->
+<section class="pa">
+  <div class="pa-dau">
+    <div>
+      <h2>Phương án A — Một lưới và thanh tổng, chi tiết mở ngăn bên phải</h2>
+      <p>Giữ khuôn danh sách đã duyệt ở các module khác (thẻ lọc dính lưới, nút Cột, chân phân trang). Bỏ bốn ô KPI to và hai thẻ biểu đồ; con số tổng chuyển xuống chân lưới như Airtable. Báo cáo lỗi thành hai bảng nhỏ đặt cạnh nhau ngay dưới, dùng chung kỳ với danh sách nên chỉ còn MỘT bộ lọc trên màn.</p>
+      <ul>
+        <li>Cột mới "Còn phải làm" nói thẳng việc KCS cần làm với từng lệnh.</li>
+        <li>Bấm một lệnh mở ngăn 1180px, không rời danh sách. Ngăn có tab Công đoạn, Lần kiểm, Nhập kho, Lịch sử.</li>
+        <li>Nút Gửi nhập kho và Đóng lệnh lên đầu ngăn, không nằm cuối trang.</li>
+      </ul>
+    </div>
+    <figure><img src="tham-khao-kcs/ref-airtable-nhom-tong.png" alt=""><figcaption>Khuôn: Airtable, lưới và thanh tổng.</figcaption></figure>
+  </div>
+
+  <div class="man-nhan"><b>Màn 1</b> Danh sách KCS</div>
+  <div class="app"><div class="app-than">
+    <div class="dau"><h3>KCS</h3><button class="btn"><svg class="i"><use href="#i-tai"/></svg>Xuất Excel</button></div>
+    <div class="loc">
+      <div class="loc-nhanh">
+        <button class="ln on">Tất cả <span>6</span></button>
+        <button class="ln">Chờ kiểm <span>2</span></button>
+        <button class="ln">Chưa gửi kho <span>1</span></button>
+        <button class="ln">Chờ đóng lệnh <span>1</span></button>
+        <button class="ln">Có lỗi <span>4</span></button>
+        <button class="ln">Đã đóng <span>1</span></button>
+      </div>
+      <div class="loc-thanh">
+        <div class="o-tim"><svg class="i"><use href="#i-tim"/></svg>Tìm mã lệnh, sản phẩm, khách hàng…</div>
+        <button class="btn"><svg class="i"><use href="#i-lich"/></svg>Tháng 10/2026<svg class="i"><use href="#i-xuong"/></svg></button>
+        <button class="btn"><svg class="i"><use href="#i-loc"/></svg>Lọc</button>
+        <span class="gian"></span>
+        <button class="btn"><svg class="i"><use href="#i-cot"/></svg>Cột</button>
+      </div>
+    </div>
+    <div class="sheet">
+      <table class="g" id="a-luoi"></table>
+      <div class="chan-trang"><span>Trang 1/1</span><span>6 dòng</span><span class="gian"></span><span>Dòng/trang 25</span></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:14px;margin-top:16px">
+      <div class="sheet sheet--tron">
+        <table class="g" id="a-loi-cd"></table>
+      </div>
+      <div class="sheet sheet--tron">
+        <table class="g" id="a-loi-to"></table>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="man-nhan"><b>Màn 2</b> Bấm LSX26-0003, ngăn chi tiết mở bên phải (tab Công đoạn)</div>
+  <div class="app" style="min-height:660px">
+    <div class="mo-nen"></div>
+    <div class="ngan">
+      <div class="ng-dau">
+        <div class="ng-h">
+          <h4>LSX26-0003</h4><span class="tt tt--xanh">Đang sản xuất</span>
+          <span class="gian"></span>
+          <button class="btn btn--nho can-tt" style="height:32px">Gửi nhập kho 600 cuốn</button>
+          <span class="dong-wrap can-tt">
+            <span class="ly-do">Còn 4 việc chưa xong, cần quyền Đóng lệnh thiếu</span>
+            <button class="btn btn--chinh can-dt nut-dong" data-pop="a-pop">Đóng lệnh nhóm</button>
+            <div class="pop" id="a-pop"></div>
+          </span>
+          <button class="btn" style="width:32px;padding:0;justify-content:center"><svg class="i"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="ng-chips">
+          <span>Ruột sách A5 64 trang</span>
+          <span class="the">CÔNG TY CỔ PHẦN BIBICA</span>
+          <span class="the">Nhóm NTP26-0004</span>
+          <span class="mu">Đi cùng</span><a class="btn--lk" style="font-size:13px">LSX26-0004 Bìa sách A5</a>
+        </div>
+        <div class="so-hang">
+          <div><div class="n">Cần làm</div><div class="v">4.000 cuốn</div></div>
+          <div><div class="n">Đã kiểm đạt</div><div class="v la">1.800</div></div>
+          <div><div class="n">Chờ kiểm</div><div class="v cam">588</div></div>
+          <div><div class="n">Đã gửi kho</div><div class="v">1.200</div></div>
+          <div><div class="n">Chưa gửi kho</div><div class="v cam">600</div></div>
+        </div>
+        <div class="tabs"><span class="on">Công đoạn</span><span>Lần kiểm</span><span>Nhập kho</span><span>Lịch sử</span></div>
+      </div>
+      <div class="ng-than">
+        <div class="sheet sheet--tron"><table class="g" id="a-cd"></table></div>
+        <p class="ghi" style="margin:10px 2px 0">Số lỗi là lỗi DO công đoạn đó gây ra, ghi theo đơn vị lúc bắt. Đã kiểm đạt và Chờ kiểm chỉ có ở công đoạn cuối nên nằm trên dải số đầu ngăn. Bấm một dòng có lỗi để xem từng lần ghi (tab Lần kiểm lọc sẵn công đoạn đó).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================================= B -->
+<section class="pa">
+  <div class="pa-dau">
+    <div>
+      <h2>Phương án B — Sơ đồ chuỗi kiểu GitHub Actions</h2>
+      <p>Danh sách có thêm cột "Chuỗi": mỗi ô vuông là một công đoạn, đỏ là có lỗi, xanh lá là xong, xanh dương là đang làm, viền đậm là công đoạn cuối. Liếc một dòng biết lệnh đang tới đâu và hỏng ở bước nào. Báo cáo lỗi tách sang tab riêng, dạng ma trận công đoạn × ngày như bảng tính.</p>
+      <ul>
+        <li>Màn chi tiết là sơ đồ chuỗi của CẢ NHÓM: Bìa và Ruột hai làn, Bìa nhập vào Ruột ở Vào bìa keo, cuối là ô Nhập kho và đóng lệnh.</li>
+        <li>Bấm một ô công đoạn, bảng bên dưới hiện đúng công đoạn đó: số, lần kiểm, từng lỗi bắt ở đâu, tổ đã xem chưa.</li>
+        <li>Chỗ hỏng nhìn ra ngay trên sơ đồ, không phải dò bảng.</li>
+      </ul>
+    </div>
+    <figure><img src="tham-khao-kcs/ref-github-chuoi-buoc.png" alt=""><figcaption>Khuôn: GitHub Actions, sơ đồ chuỗi bước.</figcaption></figure>
+  </div>
+
+  <div class="man-nhan"><b>Màn 1a</b> Tab Lệnh</div>
+  <div class="app"><div class="app-than">
+    <div class="dau"><h3>KCS</h3><button class="btn"><svg class="i"><use href="#i-tai"/></svg>Xuất Excel</button></div>
+    <div class="b-tabs"><span class="on">Lệnh</span><span>Báo cáo lỗi</span></div>
+    <div class="loc">
+      <div class="loc-nhanh">
+        <button class="ln on">Tất cả <span>6</span></button>
+        <button class="ln">Chờ kiểm <span>2</span></button>
+        <button class="ln">Chưa gửi kho <span>1</span></button>
+        <button class="ln">Chờ đóng lệnh <span>1</span></button>
+        <button class="ln">Đã đóng <span>1</span></button>
+      </div>
+      <div class="loc-thanh">
+        <div class="o-tim"><svg class="i"><use href="#i-tim"/></svg>Tìm mã lệnh, sản phẩm, khách hàng…</div>
+        <button class="btn"><svg class="i"><use href="#i-lich"/></svg>Mọi thời gian<svg class="i"><use href="#i-xuong"/></svg></button>
+        <button class="btn"><svg class="i"><use href="#i-loc"/></svg>Lọc</button>
+        <span class="gian"></span>
+        <span class="mu" style="font-size:12px;display:flex;gap:10px;align-items:center">
+          <span class="chuoi-nho"><i class="cn-xong"></i></span>Xong
+          <span class="chuoi-nho"><i class="cn-chay"></i></span>Đang làm
+          <span class="chuoi-nho"><i class="cn-chua"></i></span>Chưa làm
+          <span class="chuoi-nho"><i class="cn-loi"></i></span>Có lỗi
+        </span>
+        <button class="btn"><svg class="i"><use href="#i-cot"/></svg>Cột</button>
+      </div>
+    </div>
+    <div class="sheet"><table class="g" id="b-luoi"></table>
+      <div class="chan-trang"><span>Trang 1/1</span><span>6 dòng</span><span class="gian"></span><span>Dòng/trang 25</span></div>
+    </div>
+  </div></div>
+
+  <div class="man-nhan"><b>Màn 1b</b> Tab Báo cáo lỗi</div>
+  <div class="app"><div class="app-than">
+    <div class="dau"><h3>KCS</h3><button class="btn"><svg class="i"><use href="#i-tai"/></svg>Xuất Excel</button></div>
+    <div class="b-tabs"><span>Lệnh</span><span class="on">Báo cáo lỗi</span></div>
+    <div class="so-dong">
+      <span>Lượt kiểm<b>14</b></span><span>Đã kiểm đạt ở công đoạn cuối<b>35.750</b></span><span>Tỷ lệ đạt<b>99,1%</b></span><span>Lần ghi lỗi<b>9</b></span><span>Công đoạn có lỗi<b>5</b></span>
+      <span class="gian"></span>
+      <button class="btn btn--nho"><svg class="i"><use href="#i-lich"/></svg>01/10 – 09/10/2026</button>
+      <button class="btn btn--nho">Theo công đoạn<svg class="i"><use href="#i-xuong"/></svg></button>
+    </div>
+    <div class="sheet sheet--tron"><table class="g heat" id="b-heat"></table></div>
+    <p class="ghi" style="margin:8px 2px 0">Mỗi ô là số lỗi DO công đoạn đó gây ra trong ngày, theo đơn vị lúc bắt. Bấm ô mở danh sách lỗi của ngày đó. Nút "Theo công đoạn" đổi được sang "Theo tổ".</p>
+  </div></div>
+
+  <div class="man-nhan"><b>Màn 2</b> Bấm LSX26-0003 (đang chọn ô Xén 3 mặt)</div>
+  <div class="app"><div class="app-than">
+    <div class="dau" style="margin-bottom:8px">
+      <button class="btn btn--nho"><svg class="i" style="transform:rotate(180deg)"><use href="#i-phai"/></svg>Danh sách</button>
+      <h3 style="font-size:19px;flex:none">Nhóm NTP26-0004</h3>
+      <span class="tt tt--xanh">Đang sản xuất</span>
+      <span class="the">CÔNG TY CỔ PHẦN BIBICA</span>
+      <span class="mu" style="font-size:13px">Sách A5 64 trang</span>
+      <span class="gian"></span>
+      <span class="mu" style="font-size:13px">Đã kiểm đạt <span class="la">1.800</span> / 4.000 cuốn</span>
+      <span class="dong-wrap can-tt">
+        <span class="ly-do">Còn 4 việc chưa xong, cần quyền Đóng lệnh thiếu</span>
+        <button class="btn btn--chinh can-dt nut-dong" data-pop="b-pop">Đóng lệnh nhóm</button>
+        <div class="pop" id="b-pop"></div>
+      </span>
+    </div>
+    <div class="so-do" id="b-sodo"></div>
+    <div class="b-chi">
+      <div class="b-the">
+        <div class="b-the-dau">
+          <h5>Xén 3 mặt</h5><span class="the">Công đoạn cuối</span><span class="the">LSX26-0003 Ruột</span><span class="mu" style="font-size:13px">Tổ Xén</span><span class="tt tt--cyan">Đang làm</span>
+          <span class="gian"></span>
+          <button class="btn can-tt">Gửi nhập kho 600 cuốn</button>
+          <button class="btn btn--chinh can-tt"><svg class="i"><use href="#i-khien"/></svg>Kiểm hàng</button>
+        </div>
+        <div class="dk">
+          <span>Tổ đã làm<b>2.400 cuốn</b></span><span>Đã kiểm đạt<b class="la">1.800</b></span><span>Chờ kiểm<b class="cam">588</b></span>
+          <span>Lỗi bắt ở đây<b class="do">12</b></span><span>Đã gửi kho<b>1.200</b></span><span>Chưa gửi kho<b class="cam">600</b></span>
+        </div>
+        <table class="g" id="b-lan"></table>
+      </div>
+    </div>
+  </div></div>
+</section>
+
+<!-- ======================================================================= C -->
+<section class="pa">
+  <div class="pa-dau">
+    <div>
+      <h2>Phương án C — Một lưới lồng nhau: nhóm, lệnh, công đoạn, lỗi</h2>
+      <p>Không có màn thứ hai. Lưới xếp theo NHÓM vì đóng lệnh là theo nhóm: dòng nhóm có số tổng và nút Đóng lệnh. Bấm mũi tên ở lệnh là công đoạn bung ra ngay bên dưới; bấm mũi tên ở công đoạn có lỗi là từng lỗi bung ra (bắt ở đâu, tổ nào chịu, tổ đã xem chưa, ảnh). Báo cáo lỗi thu thành một dải số trên lưới, bảng đầy đủ mở bằng nút "Báo cáo lỗi đầy đủ".</p>
+      <ul>
+        <li>So được hai lệnh, hai nhóm cạnh nhau mà không phải mở ra đóng vào.</li>
+        <li>Kiểm hàng, Ghi lỗi, Gửi nhập kho nằm ngay trên dòng công đoạn.</li>
+        <li>Nút "Mở hết" bung toàn bộ để in hoặc rà một lượt như Excel.</li>
+      </ul>
+    </div>
+    <figure><img src="tham-khao-kcs/ref-github-buoc-mo-rong.png" alt=""><figcaption>Khuôn: GitHub Actions, bước mở rộng tại chỗ.</figcaption></figure>
+  </div>
+
+  <div class="man-nhan"><b>Màn duy nhất</b> Bấm mũi tên để bung hoặc thu (thử được)</div>
+  <div class="app"><div class="app-than">
+    <div class="dau"><h3>KCS</h3><button class="btn"><svg class="i"><use href="#i-tai"/></svg>Xuất Excel</button></div>
+    <div class="c-dai">
+      <span>Tháng 10</span><span>Lượt kiểm<b>14</b></span><span>Tỷ lệ đạt<b>99,1%</b></span><span>Lần ghi lỗi<b>9</b></span>
+      <span class="c-spark" id="c-ngay"></span>
+      <span class="mu">Lỗi nhiều ở</span><span id="c-top"></span>
+      <span class="gian"></span><button class="btn btn--nho">Báo cáo lỗi đầy đủ</button>
+    </div>
+    <div class="loc">
+      <div class="loc-nhanh">
+        <button class="ln on">Tất cả <span>5 nhóm</span></button>
+        <button class="ln">Chờ kiểm <span>1</span></button>
+        <button class="ln">Chưa gửi kho <span>1</span></button>
+        <button class="ln">Chờ đóng lệnh <span>1</span></button>
+        <button class="ln">Đã đóng <span>1</span></button>
+      </div>
+      <div class="loc-thanh">
+        <div class="o-tim"><svg class="i"><use href="#i-tim"/></svg>Tìm mã lệnh, nhóm, khách hàng…</div>
+        <button class="btn"><svg class="i"><use href="#i-lich"/></svg>Tháng 10/2026<svg class="i"><use href="#i-xuong"/></svg></button>
+        <button class="btn"><svg class="i"><use href="#i-loc"/></svg>Lọc</button>
+        <span class="gian"></span>
+        <button class="btn" id="c-mo-het">Mở hết</button>
+        <button class="btn"><svg class="i"><use href="#i-cot"/></svg>Cột</button>
+      </div>
+    </div>
+    <div class="sheet"><table class="g" id="c-luoi"></table></div>
+  </div></div>
+</section>
+
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-tim" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-lich" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-loc" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-cot" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></symbol>
+  <symbol id="i-tai" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-xuong" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+  <symbol id="i-phai" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  <symbol id="i-khien" viewBox="0 0 24 24"><path d="M12 3 5 6v6c0 4 3 7 7 9 4-2 7-5 7-9V6z"/></symbol>
+  <symbol id="i-anh" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 17-5-5-8 7"/></symbol>
+</svg>
+
+<script>
+const ic = (id, s) => `<svg class="i"${s ? ` style="${s}"` : ""}><use href="#i-${id}"/></svg>`;
+
+/* ---------------- dữ liệu dùng chung ---------------- */
+const LENH = [
+  { ma: "LSX26-0006", ngay: "08/10/2026", khach: "Sông Xanh", khachDu: "CÔNG TY TNHH NƯỚC GIẢI KHÁT SÔNG XANH", ten: "Nhãn chai 330ml", nhom: "NTP26-0006", phu: false,
+    can: "25.000 nhãn", lam: 18000, dat: 18000, cho: 0, dv: "nhãn", loi: [["In nhãn", "120 tờ in"]], conLam: ["Chưa gửi kho", "cam"], tt: ["Đang sản xuất", "xanh"], gan: "09/10 08:12",
+    chuoi: ["xong", "loi", "xong", "chay*"] },
+  { ma: "LSX26-0004", ngay: "06/10/2026", khach: "Bibica", khachDu: "CÔNG TY CỔ PHẦN BIBICA", ten: "Bìa sách A5", nhom: "NTP26-0004", phu: true,
+    can: "4.000 bìa", lam: null, dat: null, cho: null, dv: "", loi: [["Cán màng", "5 cuốn"]], conLam: ["Đang làm", "cyan"], tt: ["Đang sản xuất", "xanh"], gan: "08/10 16:40",
+    chuoi: ["xong", "xong", "loi", "chay"] },
+  { ma: "LSX26-0003", ngay: "06/10/2026", khach: "Bibica", khachDu: "CÔNG TY CỔ PHẦN BIBICA", ten: "Ruột sách A5 64 trang", nhom: "NTP26-0004", phu: false,
+    can: "4.000 cuốn", lam: 2400, dat: 1800, cho: 588, dv: "cuốn", loi: [["Gấp", "40 tay sách"], ["Vào bìa keo", "7 cuốn"]], conLam: ["Chờ kiểm 588", "vang"], tt: ["Đang sản xuất", "xanh"], gan: "08/10 16:40",
+    chuoi: ["xong", "loi", "chay", "loi", "chay*"] },
+  { ma: "LSX26-0005", ngay: "05/10/2026", khach: "Nội thất Hoà Bình", khachDu: "CÔNG TY CỔ PHẦN NỘI THẤT HOÀ BÌNH", ten: "Catalogue sản phẩm 2027", nhom: "NTP26-0005", phu: false,
+    can: "1.500 cuốn", lam: 0, dat: 0, cho: 0, dv: "cuốn", loi: [], conLam: ["Chờ tổ làm", "slate"], tt: ["Đang sản xuất", "xanh"], gan: null,
+    chuoi: ["xong", "chay", "chua", "chua", "chua*"] },
+  { ma: "LSX26-0002", ngay: "03/10/2026", khach: "Thực phẩm An Khang", khachDu: "CÔNG TY TNHH THỰC PHẨM AN KHANG", ten: "Tờ rơi khuyến mãi A4", nhom: "NTP26-0003", phu: false,
+    can: "10.000 tờ", lam: 10000, dat: 10000, cho: 0, dv: "tờ", loi: [], conLam: ["Chờ đóng lệnh", "cam"], tt: ["Đang sản xuất", "xanh"], gan: "08/10 10:05",
+    chuoi: ["xong", "xong", "xong*"] },
+  { ma: "LSX26-0001", ngay: "01/10/2026", khach: "Bánh kẹo Phú An", khachDu: "CÔNG TY TNHH BÁNH KẸO PHÚ AN", ten: "Hộp bánh Tết 2027", nhom: "NTP26-0001", phu: false,
+    can: "5.000 hộp", lam: 5000, dat: 4950, cho: 0, dv: "hộp", loi: [["Bế hộp", "50 hộp"]], conLam: ["Đã đóng", "xam"], tt: ["Đã đóng", "xam"], gan: "05/10 15:30",
+    chuoi: ["xong", "xong", "xong", "loi", "xong*"] },
+];
+const LOI_CD = [
+  { cd: "In nhãn", lenh: "LSX26-0006", to: "Nhóm thợ in máy 4 màu", so: "120 tờ in", lan: 2, w: 100 },
+  { cd: "Bế hộp", lenh: "LSX26-0001", to: "Tổ Bế", so: "50 hộp", lan: 2, w: 42 },
+  { cd: "Gấp", lenh: "LSX26-0003", to: "Tổ Gấp", so: "40 tay sách", lan: 1, w: 33 },
+  { cd: "Vào bìa keo", lenh: "LSX26-0003", to: "Tổ Vào bìa", so: "7 cuốn", lan: 1, w: 6 },
+  { cd: "Cán màng", lenh: "LSX26-0004", to: "Tổ Cán màng", so: "5 cuốn", lan: 1, w: 4 },
+];
+const LOI_TO = [
+  { to: "Nhóm thợ in máy 4 màu", lan: 2, cd: "In nhãn" },
+  { to: "Tổ Bế", lan: 2, cd: "Bế hộp" },
+  { to: "Tổ Gấp", lan: 1, cd: "Gấp" },
+  { to: "Tổ Vào bìa", lan: 1, cd: "Vào bìa keo" },
+  { to: "Tổ Cán màng", lan: 1, cd: "Cán màng" },
+];
+// chuỗi của nhóm NTP26-0004
+const RUOT = [
+  { ten: "In ruột 4 màu", to: "Nhóm thợ in máy 4 màu", tt: "xong", lam: "8.200 tờ in", loi: null, ghi: "" },
+  { ten: "Gấp", to: "Tổ Gấp", tt: "xong", lam: "16.000 tay sách", loi: "40 tay sách", ghi: "Bắt ngay tại Gấp" },
+  { ten: "Bắt cuốn", to: "Tổ Bắt cuốn", tt: "chay", lam: "2.400 cuốn", loi: null, ghi: "" },
+  { ten: "Vào bìa keo", to: "Tổ Vào bìa", tt: "chay", lam: "2.400 cuốn", loi: "7 cuốn", ghi: "Bắt ở Xén 3 mặt" },
+  { ten: "Xén 3 mặt", to: "Tổ Xén", tt: "chay", lam: "2.400 cuốn", loi: null, cuoi: true, dat: "1.800", cho: "588",
+    ghi: "Bắt 12 cuốn lỗi, tính cho Vào bìa keo 7 và Cán màng của Bìa 5",
+    ghiHtml: 'Bắt được 12 cuốn lỗi, tính cho <span class="the">Vào bìa keo 7</span> <span class="the">Cán màng của Bìa 5</span>' },
+];
+const BIA = [
+  { ten: "Cắt tờ", to: "Cắt 2", tt: "xong", lam: "1.050 tờ", loi: null, ghi: "" },
+  { ten: "In bìa 4 màu", to: "Nhóm thợ in máy 4 màu", tt: "xong", lam: "1.050 tờ in", loi: null, ghi: "" },
+  { ten: "Cán màng", to: "Tổ Cán màng", tt: "xong", lam: "1.040 tờ in", loi: "5 cuốn", ghi: "Bắt ở Xén 3 mặt của LSX26-0003" },
+  { ten: "Cắt thành phẩm", to: "Cắt 2", tt: "chay", lam: "2.600 bìa", loi: null, ghi: "Đi vào Vào bìa keo của LSX26-0003" },
+];
+const TT_CD = { xong: ["Đã xong", "slate"], chay: ["Đang làm", "cyan"], chua: ["Chưa bắt đầu", "xam"], dung: ["Tạm dừng", "vang"] };
+const CANH_BAO = [
+  "Còn 588 cuốn tổ đã làm mà KCS chưa kiểm.",
+  "Còn 600 cuốn đạt chưa gửi yêu cầu nhập kho.",
+  "Đã kiểm đạt 1.800 / 4.000 cuốn, thiếu 2.200 cuốn.",
+  "Còn 4 việc chưa xong ở Tổ Bắt cuốn, Tổ Vào bìa, Tổ Xén, Cắt 2. Đóng là rút khỏi bàn tổ.",
+];
+const tt = ([chu, mau]) => `<span class="tt tt--${mau}">${chu}</span>`;
+const so = (n) => n == null ? "" : n.toLocaleString("vi-VN");
+const loiO = (ds) => ds.length ? ds.map(([cd, s]) => `<span class="the">${cd}</span> <span class="do">${s}</span>`).join("&nbsp;&nbsp;&nbsp;") : "";
+const nutCd = (c) => c.tt === "chua" ? "" : `<button class="btn btn--nho can-tt">${c.cuoi ? "Kiểm hàng" : "Ghi lỗi"}</button>`;
+
+/* ---------------- A ---------------- */
+document.getElementById("a-luoi").innerHTML = `
+<colgroup><col style="width:112px"><col style="width:196px"><col style="width:160px"><col style="width:112px"><col style="width:96px"><col style="width:170px"><col style="width:84px"><col><col style="width:160px"></colgroup>
+<thead><tr><th>Lệnh</th><th>Tên lệnh</th><th>Khách hàng</th><th>Nhóm</th><th class="n">Tổ đã làm</th><th class="n">Đã kiểm đạt / cần</th><th class="n">Chờ kiểm</th><th>Lỗi do lệnh này gây</th><th>Tình trạng</th></tr></thead>
+<tbody>${LENH.map((l) => `<tr${l.ma === "LSX26-0003" ? ' class="chon"' : ""}>
+<td>${l.ma}</td><td title="${l.ten}">${l.ten}</td><td class="mu" title="${l.khachDu}">${l.khach}</td><td class="mu">${l.nhom}</td>
+${l.phu ? `<td colspan="3" class="mu4" style="text-align:center">Lệnh đi kèm, kiểm ở lệnh chính</td>` :
+`<td class="n">${l.lam ? so(l.lam) : '<span class="mu4">0</span>'}</td><td class="n"><span class="${l.dat ? "la" : "mu4"}">${so(l.dat)}</span> <span class="mu">/ ${l.can}</span></td><td class="n ${l.cho ? "cam" : "mu4"}">${l.cho ? so(l.cho) : "—"}</td>`}
+<td>${loiO(l.loi)}</td>
+<td>${tt(l.conLam)}</td></tr>`).join("")}</tbody>
+<tfoot><tr><td>6 lệnh</td><td></td><td></td><td></td><td class="n"><b>35.400</b></td><td class="n"><b>34.750</b></td><td class="n"><b>588</b></td><td>Có lỗi<b>4 lệnh</b></td><td>KCS cần làm<b>4</b></td></tr></tfoot>`;
+
+document.getElementById("a-loi-cd").innerHTML = `
+<colgroup><col style="width:190px"><col style="width:110px"><col><col style="width:170px"><col style="width:70px"></colgroup>
+<thead><tr><th>Lỗi theo công đoạn gây ra</th><th>Lệnh</th><th>Tổ chịu</th><th>Số lỗi</th><th class="n">Lần ghi</th></tr></thead>
+<tbody>${LOI_CD.map((r) => `<tr><td>${r.cd}</td><td class="mu">${r.lenh}</td><td class="mu">${r.to}</td><td><span class="thanh-so" style="width:${Math.max(4, r.w * .7)}px"></span><span class="do">${r.so}</span></td><td class="n">${r.lan}</td></tr>`).join("")}</tbody>
+<tfoot><tr><td>5 công đoạn</td><td></td><td></td><td class="mu">Giữ đơn vị lúc bắt</td><td class="n">Tổng<b>7</b></td></tr></tfoot>`;
+document.getElementById("a-loi-to").innerHTML = `
+<colgroup><col><col style="width:150px"><col style="width:80px"></colgroup>
+<thead><tr><th>Lỗi theo tổ chịu</th><th>Công đoạn</th><th class="n">Lần ghi</th></tr></thead>
+<tbody>${LOI_TO.map((r) => `<tr><td>${r.to}</td><td class="mu">${r.cd}</td><td class="n">${r.lan}</td></tr>`).join("")}</tbody>
+<tfoot><tr><td>5 tổ</td><td></td><td class="n">Tổng<b>7</b></td></tr></tfoot>`;
+
+document.getElementById("a-cd").innerHTML = `
+<colgroup><col style="width:34px"><col style="width:160px"><col style="width:180px"><col style="width:114px"><col style="width:130px"><col style="width:130px"><col><col style="width:112px"></colgroup>
+<thead><tr><th class="n">#</th><th>Công đoạn</th><th>Tổ làm</th><th>Đang</th><th class="n">Tổ đã làm</th><th>Lỗi do bước này</th><th>Ghi chú</th><th></th></tr></thead>
+<tbody>${RUOT.map((c, i) => `<tr>
+<td class="n mu">${i + 1}</td><td>${c.ten}${c.cuoi ? ' <span class="the">Cuối</span>' : ""}</td><td class="mu">${c.to}</td><td>${tt(TT_CD[c.tt])}</td>
+<td class="n">${c.lam}</td>
+<td class="do">${c.loi ?? ""}</td><td class="mu boc">${c.ghiHtml ?? c.ghi}</td><td>${nutCd(c)}</td></tr>`).join("")}</tbody>`;
+
+/* ---------------- B ---------------- */
+const chuoiNho = (ds) => `<span class="chuoi-nho">${ds.map((s, i) => {
+  const cuoi = s.endsWith("*"); const k = s.replace("*", "");
+  return `${i ? '<span class="cn-gach"></span>' : ""}<i class="cn-${k}${cuoi ? " cn-cuoi" : ""}"></i>`;
+}).join("")}</span>`;
+document.getElementById("b-luoi").innerHTML = `
+<colgroup><col style="width:108px"><col style="width:192px"><col style="width:158px"><col style="width:108px"><col style="width:126px"><col style="width:170px"><col style="width:84px"><col><col style="width:160px"></colgroup>
+<thead><tr><th>Lệnh</th><th>Tên lệnh</th><th>Khách hàng</th><th>Nhóm</th><th>Chuỗi</th><th class="n">Đã kiểm đạt / cần</th><th class="n">Chờ kiểm</th><th>Lỗi do lệnh này gây</th><th>Tình trạng</th></tr></thead>
+<tbody>${LENH.map((l) => `<tr>
+<td>${l.ma}</td><td>${l.ten}${l.phu ? ' <span class="the">Đi kèm</span>' : ""}</td><td class="mu" title="${l.khachDu}">${l.khach}</td><td class="mu">${l.nhom}</td>
+<td>${chuoiNho(l.chuoi)}</td>
+${l.phu ? `<td colspan="2" class="mu4" style="text-align:center">Kiểm ở lệnh chính</td>` :
+`<td class="n">${l.dat != null ? `<span class="${l.dat ? "la" : "mu4"}">${so(l.dat)}</span> <span class="mu">/ ${l.can}</span>` : ""}</td><td class="n ${l.cho ? "cam" : "mu4"}">${l.cho ? so(l.cho) : "—"}</td>`}
+<td>${loiO(l.loi)}</td><td>${tt(l.conLam)}</td></tr>`).join("")}</tbody>`;
+
+const NGAY = ["01/10", "02/10", "03/10", "04/10", "05/10", "06/10", "07/10", "08/10", "09/10"];
+const HEAT = [
+  { cd: "In nhãn", lenh: "LSX26-0006", to: "Nhóm thợ in máy 4 màu", dv: "tờ in", v: [0, 0, 0, 0, 0, 0, 0, 80, 40] },
+  { cd: "Bế hộp", lenh: "LSX26-0001", to: "Tổ Bế", dv: "hộp", v: [0, 0, 30, 20, 0, 0, 0, 0, 0] },
+  { cd: "Gấp", lenh: "LSX26-0003", to: "Tổ Gấp", dv: "tay sách", v: [0, 0, 0, 0, 0, 0, 40, 0, 0] },
+  { cd: "Vào bìa keo", lenh: "LSX26-0003", to: "Tổ Vào bìa", dv: "cuốn", v: [0, 0, 0, 0, 0, 0, 0, 7, 0] },
+  { cd: "Cán màng", lenh: "LSX26-0004", to: "Tổ Cán màng", dv: "cuốn", v: [0, 0, 0, 0, 0, 0, 0, 5, 0] },
+];
+const muc = (v, max) => !v ? "" : v / max > .6 ? "h3" : v / max > .25 ? "h2" : "h1";
+document.getElementById("b-heat").innerHTML = `
+<colgroup><col style="width:140px"><col style="width:110px"><col style="width:190px"><col style="width:80px">${NGAY.map(() => "<col>").join("")}<col style="width:90px"></colgroup>
+<thead><tr><th>Công đoạn gây lỗi</th><th>Lệnh</th><th>Tổ chịu</th><th>Đơn vị</th>${NGAY.map((d) => `<th style="text-align:center">${d}</th>`).join("")}<th class="n">Cộng</th></tr></thead>
+<tbody>${HEAT.map((r) => { const m = Math.max(...r.v); return `<tr><td>${r.cd}</td><td class="mu">${r.lenh}</td><td class="mu">${r.to}</td><td class="mu">${r.dv}</td>${r.v.map((v) => `<td class="h ${muc(v, m)}">${v ? so(v) : '<span class="mu4">·</span>'}</td>`).join("")}<td class="n do">${so(r.v.reduce((a, b) => a + b, 0))}</td></tr>`; }).join("")}</tbody>
+<tfoot><tr><td>5 công đoạn</td><td></td><td></td><td></td>${NGAY.map((d, i) => { const n = HEAT.filter((r) => r.v[i]).length; return `<td style="text-align:center">${n ? `${n} lần` : ""}</td>`; }).join("")}<td></td></tr></tfoot>`;
+
+const nut = (c, chon) => {
+  const k = c.loi ? "loi" : c.tt === "xong" ? "xong" : c.tt === "chay" ? "chay" : "chua";
+  const icx = k === "xong" ? ic("check") : k === "loi" ? '<span style="font-size:10px;line-height:1">!</span>' : "";
+  return `<div class="nut-cd${chon ? " chon" : ""}"><div class="h"><span class="ic ic--${k}">${icx}</span><span class="t">${c.ten}</span>${c.cuoi ? '<span class="the">Cuối</span>' : ""}</div>
+  <div class="p"><span>${c.lam}</span>${c.loi ? `<span class="do">lỗi ${c.loi}</span>` : c.dat ? `<span class="la">đạt ${c.dat}</span>` : ""}</div></div>`;
+};
+document.getElementById("b-sodo").innerHTML = `
+<div class="lane"><div class="lane-ten">LSX26-0004<span>Bìa, đi kèm</span></div>${BIA.map((c, i) => `${i ? '<span class="noi"></span>' : ""}${nut(c)}`).join("")}</div>
+<div class="lane"><div class="lane-ten">LSX26-0003<span>Ruột, lệnh chính</span></div>${RUOT.map((c, i) => `${i ? '<span class="noi"></span>' : ""}${nut(c, c.cuoi)}`).join("")}<span class="noi"></span>
+<div class="nut-cd" style="width:150px;background:#f8fafc"><div class="h"><span class="ic ic--chua"></span><span class="t">Nhập kho</span></div><div class="p"><span>1.200 / 1.800 đạt</span></div></div></div>
+<span class="noi-xuong" id="b-xuong"></span>`;
+{ const sd = document.getElementById("b-sodo"); const ln = sd.querySelectorAll(".lane"); const tren = ln[0].querySelectorAll(".nut-cd")[3]; const duoi = ln[1].querySelectorAll(".nut-cd")[3];
+  const o = sd.getBoundingClientRect(), a = tren.getBoundingClientRect(), b = duoi.getBoundingClientRect(); const x = document.getElementById("b-xuong");
+  x.style.left = `${a.left - o.left + a.width / 2}px`; x.style.top = `${a.bottom - o.top}px`; x.style.height = `${b.top - a.bottom - 1}px`; }
+
+document.getElementById("b-lan").innerHTML = `
+<colgroup><col style="width:130px"><col style="width:140px"><col style="width:100px"><col style="width:80px"><col style="width:190px"><col style="width:90px"><col style="width:210px"><col style="width:200px"><col></colgroup>
+<thead><tr><th>Lúc kiểm</th><th>Người kiểm</th><th class="n">Đạt</th><th class="n">Lỗi</th><th>Lỗi gì</th><th class="n">Số</th><th>Tính cho công đoạn</th><th>Tổ chịu</th><th>Tổ đã xem</th></tr></thead>
+<tbody>
+<tr><td>08/10 16:40</td><td>Trần Văn Nam</td><td class="n la">1.000</td><td class="n do">12</td><td>Bong gáy</td><td class="n do">7 cuốn</td><td>Vào bìa keo <span class="the">LSX26-0003</span></td><td class="mu">Tổ Vào bìa</td><td class="mu">Đã xem 08/10 17:02 <span class="anh"></span><span class="anh"></span></td></tr>
+<tr><td></td><td></td><td></td><td></td><td>Bọt khí màng bìa</td><td class="n do">5 cuốn</td><td>Cán màng <span class="the">LSX26-0004</span></td><td class="mu">Tổ Cán màng</td><td class="cam">Chưa xem <span class="anh"></span></td></tr>
+<tr><td>07/10 10:15</td><td>Trần Văn Nam</td><td class="n la">800</td><td class="n mu4">0</td><td class="mu4">Không lỗi</td><td></td><td></td><td></td><td></td></tr>
+</tbody>`;
+
+/* ---------------- C ---------------- */
+const NHOM_C = [
+  { ma: "NTP26-0004", khach: "Bibica", khachDu: "CÔNG TY CỔ PHẦN BIBICA", can: "4.000 cuốn", lam: "2.400", dat: "1.800", cho: "588", loi: 3, conLam: ["Chờ kiểm 588", "vang"], tt: ["Đang sản xuất", "xanh"], mo: true,
+    lenh: [
+      { ma: "LSX26-0003", ten: "Ruột sách A5 64 trang", vai: "Lệnh chính", cd: RUOT, mo: true },
+      { ma: "LSX26-0004", ten: "Bìa sách A5", vai: "Đi kèm", cd: BIA, mo: false },
+    ] },
+  { ma: "NTP26-0006", khach: "Sông Xanh", khachDu: "CÔNG TY TNHH NƯỚC GIẢI KHÁT SÔNG XANH", can: "25.000 nhãn", lam: "18.000", dat: "18.000", cho: "", loi: 1, conLam: ["Chưa gửi kho", "cam"], tt: ["Đang sản xuất", "xanh"], lenh: [] },
+  { ma: "NTP26-0005", khach: "Nội thất Hoà Bình", khachDu: "CÔNG TY CỔ PHẦN NỘI THẤT HOÀ BÌNH", can: "1.500 cuốn", lam: "0", dat: "", cho: "", loi: 0, conLam: ["Chờ tổ làm", "slate"], tt: ["Đang sản xuất", "xanh"], lenh: [] },
+  { ma: "NTP26-0003", khach: "Thực phẩm An Khang", khachDu: "CÔNG TY TNHH THỰC PHẨM AN KHANG", can: "10.000 tờ", lam: "10.000", dat: "10.000", cho: "", loi: 0, conLam: ["Chờ đóng lệnh", "cam"], tt: ["Đang sản xuất", "xanh"], dongDu: true, lenh: [] },
+  { ma: "NTP26-0001", khach: "Bánh kẹo Phú An", khachDu: "CÔNG TY TNHH BÁNH KẸO PHÚ AN", can: "5.000 hộp", lam: "5.000", dat: "4.950", cho: "", loi: 1, conLam: ["Đã đóng", "xam"], tt: ["Đã đóng", "xam"], daDong: true, lenh: [] },
+];
+const LOI_CHI_TIET = {
+  "Gấp": [["Gấp lệch bát", "40 tay sách", "Gấp (ngay tại chỗ)", "Nguyễn Thị Hoa 07/10 14:20", "Đã xem", 1]],
+  "Vào bìa keo": [["Bong gáy", "7 cuốn", "Xén 3 mặt", "Trần Văn Nam 08/10 16:40", "Đã xem", 2]],
+  "Cán màng": [["Bọt khí màng bìa", "5 cuốn", "Xén 3 mặt của LSX26-0003", "Trần Văn Nam 08/10 16:40", "Chưa xem", 1]],
+};
+let cId = 0;
+function cRows() {
+  const r = [];
+  for (const n of NHOM_C) {
+    const idN = `n${cId++}`;
+    const nutDong = n.daDong
+      ? `<button class="btn btn--nho can-tt can-dt-mo">Mở lại</button>`
+      : n.dongDu
+        ? `<button class="btn btn--nho btn--chinh can-tt">Đóng lệnh</button>`
+        : `<button class="btn btn--nho can-tt can-dt nut-dong" data-pop="c-pop" title="Còn 4 việc chưa xong, cần quyền Đóng lệnh thiếu">Đóng lệnh</button>`;
+    r.push(`<tr class="c-nhom${n.mo ? " dong-mo" : ""}" data-id="${idN}">
+<td><span class="caret">${ic("phai")}</span>${n.ma}</td><td class="mu" title="${n.khachDu}">${n.khach}</td><td class="mu">${n.can}</td>
+<td class="n">${n.lam}</td><td class="n la">${n.dat}</td><td class="n cam">${n.cho}</td><td>${n.loi ? `<span class="do">${n.loi} công đoạn</span>` : ""}</td>
+<td>${tt(n.conLam)}</td><td style="text-align:right">${nutDong}</td></tr>`);
+    for (const l of n.lenh) {
+      const idL = `l${cId++}`;
+      r.push(`<tr class="c-lenh${l.mo ? " dong-mo" : ""}${n.mo ? "" : " c-an"}" data-cha="${idN}" data-id="${idL}">
+<td><span class="caret">${ic("phai")}</span>${l.ma} <span class="the">${l.vai}</span></td><td>${l.ten}</td><td></td><td></td><td></td><td></td>
+<td>${l.cd.some((c) => c.loi) ? `<span class="do">${l.cd.filter((c) => c.loi).length} công đoạn</span>` : ""}</td><td></td><td></td></tr>`);
+      l.cd.forEach((c, i) => {
+        const idC = `c${cId++}`;
+        const an = !(n.mo && l.mo);
+        r.push(`<tr class="c-cd${an ? " c-an" : ""}" data-cha="${idL}" data-id="${idC}">
+<td>${c.loi ? `<span class="caret">${ic("phai")}</span>` : '<span class="caret" style="visibility:hidden"></span>'}${i + 1}. ${c.ten}${c.cuoi ? ' <span class="the">Cuối</span>' : ""}</td>
+<td class="mu">${c.to}</td><td>${tt(TT_CD[c.tt])}</td><td class="n">${c.lam}</td><td class="n la">${c.dat ?? ""}</td><td class="n cam">${c.cho ?? ""}</td>
+<td class="do">${c.loi ?? ""}</td><td class="mu boc">${c.ghiHtml ?? c.ghi}</td>
+<td style="text-align:right">${c.cuoi ? '<button class="btn btn--nho can-tt">Gửi kho 600</button> ' : ""}${nutCd(c)}</td></tr>`);
+        if (c.loi && LOI_CHI_TIET[c.ten]) {
+          r.push(`<tr class="c-loi c-an" data-cha="${idC}"><td colspan="9"><div class="c-loi-ds">
+<span class="hd">Lỗi gì</span><span class="hd">Số</span><span class="hd">Bắt ở</span><span class="hd">Ai ghi, lúc nào</span><span class="hd">Tổ ${c.to.replace(/^Tổ /, "")}</span><span class="hd">Ảnh</span>
+${LOI_CHI_TIET[c.ten].map(([g, s, b, ai, xem, a]) => `<span>${g}</span><span class="do">${s}</span><span>${b}</span><span class="mu">${ai}</span><span class="${xem === "Đã xem" ? "mu" : "cam"}">${xem}</span><span>${'<span class="anh"></span>'.repeat(a)}</span>`).join("")}
+</div></td></tr>`);
+        }
+      });
+    }
+  }
+  return r.join("");
+}
+document.getElementById("c-luoi").innerHTML = `
+<colgroup><col style="width:250px"><col style="width:174px"><col style="width:108px"><col style="width:124px"><col style="width:100px"><col style="width:84px"><col style="width:116px"><col><col style="width:202px"></colgroup>
+<thead><tr><th>Nhóm, lệnh, công đoạn</th><th>Khách hàng, tổ làm</th><th>Cần làm, đang</th><th class="n">Tổ đã làm</th><th class="n">Đã kiểm đạt</th><th class="n">Chờ kiểm</th><th>Lỗi do nó gây</th><th>Tình trạng, ghi chú</th><th></th></tr></thead>
+<tbody>${cRows()}</tbody>`;
+// cột "Còn phải làm/ghi chú" dồn chung để vừa màn — bộ khung vẫn 9 cột
+document.querySelectorAll("#c-luoi .caret").forEach((el) => el.addEventListener("click", () => {
+  const tr = el.closest("tr"); const mo = !tr.classList.contains("dong-mo"); tr.classList.toggle("dong-mo", mo);
+  const an = (id, v) => document.querySelectorAll(`#c-luoi tr[data-cha="${id}"]`).forEach((x) => {
+    x.classList.toggle("c-an", v); if (v || x.classList.contains("dong-mo")) an(x.dataset.id, v || !x.classList.contains("dong-mo"));
+  });
+  an(tr.dataset.id, !mo);
+}));
+document.getElementById("c-mo-het").addEventListener("click", () => {
+  document.querySelectorAll("#c-luoi tr").forEach((x) => { x.classList.remove("c-an"); if (x.querySelector(".caret svg")) x.classList.add("dong-mo"); });
+});
+document.getElementById("c-ngay").innerHTML = [0, 0, 30, 20, 0, 0, 40, 92, 40].map((v) => `<i style="height:${Math.max(2, v / 92 * 22)}px"></i>`).join("");
+document.getElementById("c-top").innerHTML = LOI_CD.slice(0, 3).map((r) => `<span class="the">${r.cd} <span class="do" style="margin-left:4px">${r.so}</span></span>`).join("");
+// hộp xác nhận cho C dùng chung một popup nổi
+const popC = document.createElement("div"); popC.className = "pop"; popC.id = "c-pop"; popC.style.right = "24px"; popC.style.top = "260px";
+document.querySelector("#c-luoi").closest(".app").appendChild(popC); popC.style.top = "330px";
+
+/* ---------------- quyền + hộp đóng lệnh ---------------- */
+const GIAI = {
+  "q-xem": "Chỉ thấy số và xuất Excel. Không có nút Kiểm hàng, Ghi lỗi, Gửi nhập kho, Đóng lệnh.",
+  "q-tt": "Ghi lỗi, Kiểm hàng, Gửi nhập kho được. Nhóm còn dở thì nút Đóng lệnh khoá kèm lý do; nhóm đã đủ (NTP26-0003) đóng được.",
+  "q-dt": "Đóng được cả nhóm còn dở: bấm Đóng lệnh hiện hộp liệt kê việc còn dở để xác nhận. Mở lại nhóm đã đóng được.",
+};
+function datQuyen(q) {
+  document.body.className = q;
+  document.querySelectorAll(".q-nut").forEach((b) => b.classList.toggle("on", b.dataset.q === q));
+  document.getElementById("q-giai").textContent = GIAI[q];
+  document.querySelectorAll(".can-dt-mo").forEach((b) => { b.classList.toggle("btn--khoa", q !== "q-dt"); b.title = q !== "q-dt" ? "Cần quyền Đóng lệnh thiếu để mở lại" : ""; });
+  document.querySelectorAll(".pop").forEach((p) => p.classList.remove("mo"));
+}
+document.querySelectorAll(".q-nut").forEach((b) => b.addEventListener("click", () => datQuyen(b.dataset.q)));
+const popHtml = (id) => `<p>Đóng nhóm NTP26-0004 (2 lệnh: LSX26-0003, LSX26-0004)?</p><ul>${CANH_BAO.map((c) => `<li>${c}</li>`).join("")}</ul>
+<div class="nut"><button class="btn" data-dong="${id}">Để sau</button><button class="btn btn--chinh" data-dong="${id}">Xác nhận đóng</button></div>`;
+document.querySelectorAll(".pop").forEach((p) => { p.innerHTML = popHtml(p.id); });
+document.addEventListener("click", (e) => {
+  const n = e.target.closest(".nut-dong");
+  if (n && document.body.classList.contains("q-dt")) { document.getElementById(n.dataset.pop).classList.toggle("mo"); return; }
+  const d = e.target.closest("[data-dong]");
+  if (d) document.getElementById(d.dataset.dong).classList.remove("mo");
+});
+datQuyen("q-tt");
+</script>
+</body>
+</html>

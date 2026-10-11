@@ -14,6 +14,12 @@
 .kho-baocao__daterow .rc-input {
   width: auto;
 }
+/* Thanh lọc lưới của tab Nhập-Xuất-Tồn có HAI hàng: kho + kỳ ở trên, tìm + Lọc + Cột ở dưới. */
+/* Báo cáo kho: đầu trang không kẻ vạch ngang dưới (11/10/2026) — hai hàng tab tự tách bằng khoảng trống. */
+.kho-baocao > .rc__head { border-bottom: 0; padding-bottom: 0; }
+/* Nút Kỳ của Báo cáo kho (phương án B): lời nhắc dưới hai ô ngày. */
+.kho-bc-ky__goi-y { margin: 0; padding: 4px 12px 10px; max-width: 320px; font-size: 12px; line-height: 1.45; color: var(--ash-2); }
+.lds-loc__thanh .kho-chieu-segmented { flex: none; }
 
 /* Nút chuyển chiều Nhập / Xuất / Chuyển kho dạng Segmented Control (MISA / ERP style) */
 .kho-chieu-segmented {
@@ -3783,7 +3789,8 @@ button.hero-del-img-btn {
   }
 }
 
-/* Hộp "Bổ sung dạng/khổ" cho lô giấy cũ — cùng dáng khung khổ của bước vật tư ở Kế hoạch SX. */
+/* Hộp "Bổ sung khổ" cho lô giấy chưa có khổ — hai ô rộng × dài, cùng dáng khung khổ của bước vật tư
+   ở Kế hoạch SX. */
 .kho-bsdk__kho {
   display: inline-flex;
   align-items: center;

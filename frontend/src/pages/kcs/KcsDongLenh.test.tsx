@@ -41,21 +41,21 @@ describe("KcsDongLenh", () => {
     const onDone = vi.fn();
     render(<KcsDongLenh nhomId={4} canDong onDone={onDone} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Đóng lệnh" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Đóng lệnh nhóm" }));
     expect(screen.getByText("Đóng lệnh LSX26-0004?")).toBeTruthy();
     expect(screen.getByText("Còn 300 hộp đạt chưa gửi yêu cầu nhập kho.")).toBeTruthy();
     expect(screen.getByText("Đạt 9.690 / 10.000 hộp — thiếu 310.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Xác nhận đóng" }));
     await waitFor(() => expect(dong).toHaveBeenCalledWith("token-test", 4, { expected_version: 1 }));
     expect(await screen.findByText(/Đã đóng bởi KCS A/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Mở lại" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mở lại nhóm" })).toBeTruthy();
     expect(onDone).toHaveBeenCalled();
   });
 
   it("nhóm nhiều lệnh thì tiêu đề liệt kê đủ", async () => {
     tinhTrang.mockResolvedValueOnce(tt({ lenh: [{ id: 1, ma: "LSX26-0004" }, { id: 2, ma: "LSX26-0005" }] }));
     render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Đóng lệnh" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Đóng lệnh nhóm" }));
     expect(screen.getByText("Đóng 2 lệnh: LSX26-0004, LSX26-0005?")).toBeTruthy();
   });
 
@@ -64,7 +64,7 @@ describe("KcsDongLenh", () => {
       dong_luc: "2026-09-29T07:20:00Z" }));
     moLai.mockResolvedValue({});
     render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Mở lại" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mở lại nhóm" }));
     fireEvent.click(screen.getByRole("button", { name: "Xác nhận mở lại" }));
     await waitFor(() => expect(moLai).toHaveBeenCalledWith("token-test", 4, { expected_version: 3 }));
   });
@@ -72,21 +72,22 @@ describe("KcsDongLenh", () => {
   it("thiếu ô Đóng lệnh thiếu: còn cảnh báo thì nút khoá kèm lý do + danh sách việc", async () => {
     tinhTrang.mockResolvedValueOnce(tt({ duoc_dong_thieu: false }));
     render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
-    const nut = await screen.findByRole("button", { name: "Đóng lệnh" });
+    const nut = await screen.findByRole("button", { name: "Đóng lệnh nhóm" });
     expect((nut as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText("Còn 2 việc chưa xong — cần quyền Đóng lệnh thiếu.")).toBeTruthy();
-    expect(screen.getByText("Còn 300 hộp đạt chưa gửi yêu cầu nhập kho.")).toBeTruthy();
+    // Danh sách việc còn dở nằm ở lời chú của lý do khoá (dải đầu sơ đồ không còn chỗ cho danh sách).
+    expect(screen.getByText("Còn 2 điểm chưa xong, cần quyền Đóng lệnh thiếu.").getAttribute("title"))
+      .toContain("Còn 300 hộp đạt chưa gửi yêu cầu nhập kho.");
   });
 
   it("thiếu ô Đóng lệnh thiếu: hết cảnh báo vẫn đóng được, nhưng không mở lại được", async () => {
     tinhTrang.mockResolvedValueOnce(tt({ duoc_dong_thieu: false, canh_bao: [] }));
     const { unmount } = render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
-    expect(((await screen.findByRole("button", { name: "Đóng lệnh" })) as HTMLButtonElement).disabled)
+    expect(((await screen.findByRole("button", { name: "Đóng lệnh nhóm" })) as HTMLButtonElement).disabled)
       .toBe(false);
     unmount();
     tinhTrang.mockResolvedValueOnce(tt({ duoc_dong_thieu: false, canh_bao: [], trang_thai: "closed" }));
     render(<KcsDongLenh nhomId={4} canDong onDone={() => {}} />);
-    expect(((await screen.findByRole("button", { name: "Mở lại" })) as HTMLButtonElement).disabled)
+    expect(((await screen.findByRole("button", { name: "Mở lại nhóm" })) as HTMLButtonElement).disabled)
       .toBe(true);
     expect(screen.getByText("Cần quyền Đóng lệnh thiếu để mở lại.")).toBeTruthy();
   });
@@ -95,6 +96,6 @@ describe("KcsDongLenh", () => {
     tinhTrang.mockResolvedValueOnce(tt());
     render(<KcsDongLenh nhomId={4} canDong={false} onDone={() => {}} />);
     expect(await screen.findByText(/9.690/)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Đóng lệnh" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Đóng lệnh nhóm" })).toBeNull();
   });
 });

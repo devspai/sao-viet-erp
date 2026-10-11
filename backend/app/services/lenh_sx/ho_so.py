@@ -866,7 +866,7 @@ def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
             "nguoi_id": y.nguoi_bao_id,
             "cong_viec_id": y.cong_viec_id,
             "ten_viec": ten_cv.get(y.cong_viec_id),
-            "noi_dung": f"Báo sự cố {y.ma}: {y.bo_phan_hong}",
+            "noi_dung": f"Báo sự cố {y.ma}" + (f": {y.bo_phan_hong}" if y.bo_phan_hong else ""),
         })
 
     for d in bc.nhap_kho_tp[lsx_id]:

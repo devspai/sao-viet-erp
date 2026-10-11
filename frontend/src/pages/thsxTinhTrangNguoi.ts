@@ -1,4 +1,5 @@
-// Tình trạng người ở ô "Giao người" (ThsxDrawer) và ô "Thợ hỗ trợ" (ThsxExecPanels · HoTroForm).
+// Tình trạng người ở ô "Giao người" (ThsxDrawer) và ô "Thêm người tổ khác" của hộp Ghi sản lượng /
+// Sửa số (ThsxExecPanels · NguoiLamChon).
 // Máy chủ trả dữ kiện thô (`SxTinhTrangNguoi`), đây chỉ dịch ra câu cho tổ trưởng đọc + xếp thứ
 // tự. Luật chặn THẬT nằm ở máy chủ (`services/san_xuat/tinh_trang_nguoi.py`) — ô chọn tắt đúng
 // những người máy chủ sẽ chặn, để khỏi bấm rồi mới nhận lỗi.

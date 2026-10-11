@@ -17,7 +17,7 @@ import { Select, type SelectOption } from "../components/Select";
 import { CongThucTip, ketQuaDienGiai } from "../components/CongThucTip";
 import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
-import { nhanDangKho } from "../lib/khoGiay";
+import { coDonViGoc, nhanDongTon } from "../lib/khoGiay";
 import { num } from "./keHoachSxShared";
 import { donViOptions, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
@@ -233,10 +233,12 @@ export function LsxBuocDrawer({
     // CHÍNH LÀ khai NVL chính cho bước — bước nào mang dòng giấy thì ngày cần giấy bám bước đó.
     for (const x of giayRefs ?? []) {
       if (daCo("giay", x.id)) continue;
+      // Khổ gợi ý của chính mã này (nếu máy chủ đã tính cho bước) — để nhãn nói "khổ 1000 mm (kg)".
+      const khoGoiY = row.vat_tu_goi_y.find((g) => capMon(g.hang_loai, g.vat_tu_id) === capMon("giay", x.id))?.kho_rong;
+      const nhanDv = nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi), khoGoiY);
       ds.push({
         value: capMon("giay", x.id),
-        label: nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))
-          ? `${x.ten} (${nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi))})` : x.ten,
+        label: nhanDv ? `${x.ten} (${nhanDv})` : x.ten,
         search: x.ma ?? "",
         group: "NVL chính — danh mục Giấy",
       });
@@ -804,7 +806,7 @@ export function LsxBuocDrawer({
                             </select>
                             <span className="khsx-field__hint">
                               {toChon.gioiHan
-                                ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi mẻ, bàn tổ chọn trong công việc khoán của tổ này."
+                                ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi sản lượng, bàn tổ chọn trong công việc khoán của tổ này."
                                 : "Công đoạn chưa khai tổ phụ trách — đang mời mọi tổ."}
                             </span>
                           </>
@@ -939,6 +941,7 @@ export function LsxBuocDrawer({
                                   {/* Công thức định mức hiện khi rê chuột vào TÊN — bày ra luôn thì câu
                                       diễn giải dài chiếm cả một cột mà ít khi ai đọc. */}
                                   <CongThucTip
+                                    tieuDe={v.vat_tu_ten}
                                     congThuc={goiY?.dien_giai}
                                     ghiChu={!goiY?.dien_giai && choLuu ? "Số tờ theo đầu vào của bước — máy tính khi lưu." : null}
                                   >
@@ -956,15 +959,18 @@ export function LsxBuocDrawer({
                                     ))}
                                   </div>
                                 )}
-                                {/* Giấy: dạng + khổ do MÁY CHỦ suy từ đầu vào của bước — chỉ đọc. */}
+                                {/* Giấy: khổ + đơn vị gốc do MÁY CHỦ suy từ đầu vào của bước — chỉ đọc. */}
                                 {v.hang_loai === "giay" && (
                                   <div className="khsx-vattu-kho">
                                     <span className="khsx-vattu-kho__label">
-                                      {nhanDangKho(
-                                        v.dang_giay ?? goiY?.dang_giay,
-                                        Number(v.kho_rong) || goiY?.kho_rong,
-                                        Number(v.kho_dai) || goiY?.kho_dai,
-                                      ) || "Dạng và khổ do máy tính khi lưu"}
+                                      {(v.don_vi_goc || goiY?.don_vi_goc)
+                                        ? nhanDongTon(
+                                          v.don_vi_goc || goiY?.don_vi_goc,
+                                          Number(v.kho_rong) || goiY?.kho_rong || 0,
+                                          Number(v.kho_dai) || goiY?.kho_dai || 0,
+                                          { laGiay: true },
+                                        )
+                                        : "Khổ do máy tính khi lưu"}
                                     </span>
                                   </div>
                                 )}
@@ -1093,7 +1099,7 @@ export function LsxBuocDrawer({
                                       vat_tu_id: item.id,
                                       vat_tu_ma: item.ma ?? "",
                                       vat_tu_ten: item.ten,
-                                      // Giấy: đơn vị + khổ + dạng do máy chủ gợi ý theo đầu vào của
+                                      // Giấy: đơn vị + khổ + đơn vị gốc do máy chủ gợi ý theo đầu vào của
                                       // bước (chỉ để hiện — lưu xong máy chủ ghi lại).
                                       don_vi: (hangLoai === "giay" ? goiY?.don_vi : undefined)
                                         ?? item.donVi ?? "",
@@ -1101,7 +1107,9 @@ export function LsxBuocDrawer({
                                       tu_dong: false,
                                       kho_rong: hangLoai === "giay" && goiY?.kho_rong ? String(goiY.kho_rong) : "",
                                       kho_dai: hangLoai === "giay" && goiY?.kho_dai ? String(goiY.kho_dai) : "",
-                                      dang_giay: hangLoai === "giay" ? goiY?.dang_giay ?? null : null,
+                                      // Giấy rỗng ⇒ dòng còn "chờ lưu" (giayChoLuu) cho tới khi máy chủ dẫn
+                                      // xuất. Vật tư khác cũng mang đơn vị gốc (nhóm đơn vị đã khai).
+                                      don_vi_goc: coDonViGoc(hangLoai) ? goiY?.don_vi_goc ?? "" : "",
                                     },
                                   ]);
                                 }}
@@ -1236,6 +1244,7 @@ export function LsxBuocDrawer({
                       {/* Công thức quy đổi (có khi là cả câu `if (…)` ba dòng) hiện khi rê chuột vào
                           tên — dòng dưới chỉ giữ phép chia ngắn. */}
                       <CongThucTip
+                        tieuDe={row.loai_buoc === "to" ? "Tổ làm" : "Chạy máy"}
                         congThuc={coMay && tg.quy_doi_dien_giai ? String(tg.quy_doi_dien_giai) : null}
                         them={
                           coMay && tg.quy_doi_dien_giai

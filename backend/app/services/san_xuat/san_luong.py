@@ -31,8 +31,10 @@ from ...models.san_xuat_san_luong import (
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import moc_tu_client
-from .dau_vao import kiem_tran_ghi
-from .thuc_thi import _gate, _moc
+from .dau_vao import _so, kiem_giam_buoc_sau, kiem_tran_ghi, tran_buoc_sau
+from .nguoi_ghi import chot_nguoi, ghi_nguoi, sua_nguoi
+from .nguoi_trong_me import ngay_cua_me
+from .thuc_thi import _gate, _kiem_version, _moc
 from .viec_khoan import chuan_hoa_khi_ghi
 
 # Dung sai làm tròn cho ràng buộc tong = tot + hong: cột Numeric(18,3) nên nửa bậc số lẻ cuối là
@@ -177,13 +179,34 @@ def _chuan_hoa_lot(
     )
 
 
+def _aware(dt: datetime) -> datetime:
+    """SQLite trả datetime NAIVE (vốn là UTC) — ép nhãn UTC trước khi so với `_moc()`."""
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def _khoang_luc_bam(db: Session, repo: SanXuatSanLuongRepository, cv) -> tuple[datetime, datetime]:
+    """Cửa sổ lần ghi khi tổ KHÔNG gõ giờ (10/10/2026, chủ xưởng: *"thời gian sẽ theo cái nút ghi
+    sản lượng"*): kết thúc = lúc bấm; bắt đầu = kết thúc lần ghi gần nhất, chưa ghi lần nào thì đầu
+    phiên chạy đầu tiên — đúng mốc hộp Ghi sản lượng vẫn gợi ý trước đây."""
+    from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
+
+    bay_gio = _moc()
+    cuoi_me = [_aware(b.ket_thuc) for b in repo.cac_batch(cv.id)
+               if b.ket_thuc is not None and _aware(b.ket_thuc) <= bay_gio]
+    if cuoi_me:
+        return max(cuoi_me), bay_gio
+    dau_phien = [_aware(p.bat_dau) for p in SanXuatThucThiRepository(db).cac_phien(cv.id)
+                 if p.bat_dau is not None and _aware(p.bat_dau) <= bay_gio]
+    return (min(dau_phien) if dau_phien else bay_gio), bay_gio
+
+
 def tao_batch(
     db: Session,
     *,
     user,
     cong_viec_id: int,
-    bat_dau: datetime,
-    ket_thuc: datetime,
+    bat_dau: datetime | None = None,
+    ket_thuc: datetime | None = None,
     tong,
     tot,
     hong=0,
@@ -192,12 +215,16 @@ def tao_batch(
     ghi_chu: str | None = None,
     lot_vao: list[dict] | None = None,
     phat_sinh: list[dict] | None = None,
+    nguoi_ids: list[int] | None = None,
 ) -> dict:
     """Ghi MỘT batch sản lượng (§11.1) + lot đầu vào (§10.3) + việc khoán & phát sinh (§7.1).
 
     Ràng buộc: `tong = tot + hong`. Đơn vị bỏ trống ⇒ lấy `don_vi_ra` của công việc (đơn vị bản
     địa công đoạn). Khoán được tự lấy theo công đoạn nguồn. `phat_sinh` là
-    `[{phat_sinh_id, so_luong}]`, cho phép rỗng."""
+    `[{phat_sinh_id, so_luong}]`, cho phép rỗng. `nguoi_ids` = người làm lần này: người tổ mình tổ
+    tick + người tổ khác tổ thêm thẳng (`nguoi_ghi.chot_nguoi`).
+
+    Không truyền giờ (hộp Ghi sản lượng từ 10/10/2026) ⇒ giờ theo lúc bấm, xem `_khoang_luc_bam`."""
     repo = SanXuatSanLuongRepository(db)
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
@@ -221,20 +248,22 @@ def tao_batch(
     if abs(tong_f - (tot_f + hong_f)) > _EPS:
         raise ValueError("Tổng số lượng phải bằng Tốt + Hỏng.")
 
-    if bat_dau is None or ket_thuc is None:
+    tu_lay_gio = bat_dau is None and ket_thuc is None
+    if not tu_lay_gio and (bat_dau is None or ket_thuc is None):
         raise ValueError("Batch phải có khoảng thời gian bắt đầu và kết thúc.")
     # Ô `datetime-local` gửi chuỗi KHÔNG offset ⇒ naive = GIỜ TƯỜNG xưởng. Quy về UTC THẬT ngay ở
     # cửa vào để cửa sổ mẻ đo cùng thước với khoảng tham gia và chấm công (§7.3/§12.1), xem
     # `services/gio_xuong.moc_tu_client`.
-    bat_dau = moc_tu_client(bat_dau)
-    ket_thuc = moc_tu_client(ket_thuc)
-    if ket_thuc < bat_dau:
+    if not tu_lay_gio:
+        bat_dau = moc_tu_client(bat_dau)
+        ket_thuc = moc_tu_client(ket_thuc)
+    if not tu_lay_gio and ket_thuc < bat_dau:
         raise ValueError("Kết thúc batch không được trước khi bắt đầu.")
     # Mẻ ghi SAU khi làm xong. Cửa sổ ở tương lai là gõ nhầm hoặc để nguyên giờ kế hoạch (16/09/2026:
     # ba mẻ Dán mang 17/09 20:00→22:50 khi bước mới chạy từ 16/09 15:24) — không dấu chấm công nào
     # rơi vào đó nên cổng §7.3 chặn chốt phân bổ mãi. Nới vài phút cho đồng hồ máy tổ lệch máy chủ.
-    if ket_thuc > _moc() + _LECH_DONG_HO:
-        raise ValueError("Giờ kết thúc mẻ đang ở sau thời điểm hiện tại — chỉ ghi mẻ đã làm xong.")
+    if not tu_lay_gio and ket_thuc > _moc() + _LECH_DONG_HO:
+        raise ValueError("Giờ kết thúc đang ở sau thời điểm hiện tại — chỉ ghi phần đã làm xong.")
 
     # Chống ghi trùng: giờ cao điểm máy chủ chậm, tổ bấm "Ghi mẻ" lần nữa (hoặc mạng tự gửi lại) ⇒
     # trước đây ra HAI mẻ y hệt, sản lượng nhân đôi. Khoá việc rồi mới tìm, để hai lượt đồng thời
@@ -242,17 +271,21 @@ def tao_batch(
     # TRƯỚC `kiem_tran_ghi`: lượt gửi lại của một mẻ vừa chạm trần sẽ bị trần chặn oan.
     repo.khoa_cong_viec(cv.id)
     da_co = repo.me_vua_ghi(
-        cong_viec_id=cv.id, created_by=getattr(user, "id", None), bat_dau=bat_dau,
-        ket_thuc=ket_thuc, tong=tong_f, tot=tot_f, hong=hong_f,
+        cong_viec_id=cv.id, created_by=getattr(user, "id", None),
+        bat_dau=None if tu_lay_gio else bat_dau, ket_thuc=None if tu_lay_gio else ket_thuc,
+        tong=tong_f, tot=tot_f, hong=hong_f,
         # Giờ THẬT, không phải `_moc()`: so với `created_at` — cột này luôn ghi giờ thật.
         tu_luc=datetime.now(timezone.utc) - _CHONG_GHI_LAI,
     )
     if da_co is not None:
         return _ket_qua_batch(cv, da_co)
+    if tu_lay_gio:
+        # Sau khoá việc: hai lượt ghi liền nhau nối đúng vào nhau, không chồng cửa sổ.
+        bat_dau, ket_thuc = _khoang_luc_bam(db, repo, cv)
 
     don_vi_batch = (don_vi or cv.don_vi_ra or "").strip()
     if not don_vi_batch:
-        raise ValueError("Mẻ chưa có đơn vị — báo kỹ thuật khai đơn vị ra cho công đoạn này.")
+        raise ValueError("Công đoạn chưa có đơn vị sản lượng — báo kỹ thuật khai đơn vị ra cho công đoạn này.")
     # Sản lượng được CỘNG THẲNG rồi đem trừ `so_luong_ra` (mục tiêu bước) — không có tầng quy đổi ở
     # đây. Nhận đơn vị khác `don_vi_ra` là cộng táo với cam: 20 ram ghi vào bước khai 10.000 tờ ra
     # "còn thiếu 9.980" dù việc đã xong. Từ chối rõ ràng đúng hơn là cộng nhầm im lặng.
@@ -280,6 +313,7 @@ def tao_batch(
     o_khoan, cac_phat_sinh = chuan_hoa_khi_ghi(
         db, khoan=khoan, ten_cong_doan=ten_cong_doan, phat_sinh=phat_sinh,
     )
+    nguoi = chot_nguoi(db, cv, nguoi_ids, ngay_cua_me(bat_dau))
 
     batch = SanXuatBatch(
         cong_viec_id=cv.id,
@@ -302,6 +336,7 @@ def tao_batch(
     for ps in cac_phat_sinh:
         ps.batch_id = batch.id
         repo.add(ps)
+    ghi_nguoi(db, batch.id, nguoi)
 
     from ...repositories.audit_repo import AuditLogRepository
     AuditLogRepository(db).create(
@@ -310,11 +345,176 @@ def tao_batch(
         target=f"san_xuat_batch:{batch.id}",
         detail=(f"cong_viec={cv.id} tot={tot_f} hong={hong_f} "
                 f"khoan_cong_doan={o_khoan['khoan_cong_doan_id']} "
-                f"phat_sinh={len(cac_phat_sinh)}"),
+                f"phat_sinh={len(cac_phat_sinh)} nguoi={len(nguoi)}"),
     )
     ket_qua_lsx = _toa_san_luong(db, repo, cv=cv, batch=batch, tot=tot_f, actor=user)
     db.commit()
     return _ket_qua_batch(cv, batch, ket_qua_lsx)
+
+
+def sua_so_me(
+    db: Session,
+    *,
+    user,
+    batch_id: int,
+    tot,
+    ly_do: str | None = None,
+    expected_version: int | None = None,
+    nguoi_ids: list[int] | None = None,
+) -> dict:
+    """Sửa SỐ LÀM ĐƯỢC của một mẻ đã ghi (10/10/2026) — thay "Điều chỉnh số" trên lần giao: chủ
+    xưởng *"bỏ điều chỉnh số ở các lần giao, sửa số ở chỗ lần mẻ ấy"*.
+
+    Quyền: Xác nhận sản lượng ở tổ của công đoạn (cùng quyền đề xuất bàn giao) — mẻ ghi bằng Thực
+    hiện lệnh, sửa lại con số tổ đã chịu là việc của người xác nhận.
+
+    - Tăng: không vượt trần ghi mẻ (số nhận trừ lỗi KCS), tính như mẻ khác đã ghi giữ nguyên.
+    - Giảm: Σ mẻ không xuống dưới số KCS đã kiểm đạt ở bước; trần bước sau không tụt dưới số bước
+      đó đã ghi mẻ (`dau_vao.kiem_giam_buoc_sau`).
+    - Mẻ đã giao: số lần giao đổi theo phần chênh. Lần giao đã xác nhận mà khác tổ ⇒ xoá ai nhận,
+      lúc nào — bên nhận xác nhận lại. Mẻ đã giao không sửa về 0 (lần giao còn gì mà nhận).
+    - Mẻ điểm toả bài ghép đã chia số cho từng lệnh ⇒ không sửa.
+
+    Lịch sử: audit `san_xuat_sua_batch` trên mẻ; mẻ đã giao thì thêm `san_xuat_ban_giao_theo_me`
+    trên lần giao để bước nhận cũng thấy trong Lịch sử của nó.
+
+    Cùng hộp đổi được NGƯỜI làm lần đó, kể cả người tổ khác (`nguoi_ids`, None = không đụng) —
+    audit `san_xuat_sua_nguoi_batch`."""
+    from ...repositories.audit_repo import AuditLogRepository
+    from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
+    from ..quyen_to import VIEC_XAC_NHAN
+
+    repo = SanXuatSanLuongRepository(db)
+    batch = repo.batch(batch_id)
+    if batch is None:
+        raise ValueError("Không tìm thấy lần ghi sản lượng.")
+    cv = repo.cong_viec(batch.cong_viec_id)
+    if cv is None:
+        raise ValueError("Không tìm thấy công việc của lần ghi sản lượng.")
+    if cv.gia_cong_ngoai_id is not None:
+        from ..gia_cong_ngoai import CHAN_XUONG
+
+        raise ValueError(CHAN_XUONG)
+    _gate(db, user, cv, VIEC_XAC_NHAN)
+    from .dong_lenh import chan_neu_da_dong
+
+    chan_neu_da_dong(db, cv)
+    _kiem_version(batch, expected_version)
+
+    moi = _so_khong_am(tot, "Số lượng làm được")
+    cu = float(batch.tot)
+    if abs(moi - cu) <= _EPS:
+        if nguoi_ids is None:
+            raise ValueError("Số mới trùng số đang ghi.")
+        return _sua_nguoi_me(db, user, batch, cv, nguoi_ids, ly_do)
+    if repo.co_ket_qua_nhanh(batch.id):
+        raise ValueError("Lần ghi này đã chia số cho từng lệnh trong bài ghép — không sửa số được.")
+    repo.khoa_cong_viec(cv.id)
+    bg = repo.ban_giao_cua_me(batch.id)
+    if bg is not None and moi <= _EPS:
+        raise ValueError("Sản lượng lần này đã giao sang bước sau — không sửa về 0 được.")
+    dv_ten = DonViDoRepository(db).ten_theo_ma()
+    dv = nhan_don_vi(dv_ten, batch.don_vi) if batch.don_vi else ""
+
+    truoc: dict = {}
+    if moi > cu:
+        kiem_tran_ghi(db, repo, cv, moi, bo_qua=cu)
+    else:
+        da_dat = sum(float(k.so_luong_dat or 0) for k in SanXuatKcsRepository(db).cac_kcs_batch(cv.id))
+        con = repo.tong_tot(cv.id) - cu + moi
+        if con < da_dat - _EPS:
+            raise ValueError(
+                f"KCS đã kiểm đạt {_so(da_dat)} {dv} ở bước này — tổng sản lượng không xuống dưới số "
+                f"đó được (sửa thế thì còn {_so(con)})."
+            )
+        truoc = tran_buoc_sau(db, repo, cv)
+
+    batch.tot = moi
+    batch.tong = moi + float(batch.hong or 0)
+    batch.version += 1
+    cho_nhan_lai = False
+    dich_cv = None
+    sl_bg_cu = None
+    if bg is not None:
+        dich_cv = repo.cong_viec(bg.dich_cong_viec_id) if bg.dich_cong_viec_id else None
+        sl_bg_cu = float(bg.so_luong)
+        bg.so_luong = round(max(0.0, sl_bg_cu + moi - cu), 3)
+        bg.version += 1
+        # Đã xác nhận ⇒ bên nhận xác nhận lại số mới; trừ cùng tổ và bước gia công ngoài (không tổ nào nhận).
+        cho_nhan_lai = (bg.trang_thai == BG_XAC_NHAN and not bg.cung_to and dich_cv is not None
+                        and dich_cv.gia_cong_ngoai_id is None)
+        if cho_nhan_lai:
+            bg.xac_nhan_by_id = None
+            bg.xac_nhan_luc = None
+    doi_nguoi = sua_nguoi(db, batch, cv, nguoi_ids) if nguoi_ids is not None else None
+    repo.flush()
+    if moi < cu:
+        try:
+            kiem_giam_buoc_sau(db, repo, cv, truoc)
+        except ValueError:
+            db.rollback()
+            raise
+
+    uid = getattr(user, "id", None)
+    ly = (ly_do or "").strip()[:300]
+    audit = AuditLogRepository(db)
+    if doi_nguoi is not None:
+        _audit_nguoi(audit, uid, batch, doi_nguoi, ly)
+    audit.create(
+        actor_user_id=uid, action="san_xuat_sua_batch", target=f"san_xuat_batch:{batch.id}",
+        detail=(f"tot={cu:g}->{moi:g} ban_giao={bg.id if bg else '-'}"
+                f"{' cho_nhan_lai' if cho_nhan_lai else ''}" + (f" | {ly}" if ly else "")),
+        commit=False,
+    )
+    if bg is not None:
+        audit.create(
+            actor_user_id=uid, action="san_xuat_ban_giao_theo_me", target=f"san_xuat_ban_giao:{bg.id}",
+            detail=(f"sl={sl_bg_cu:g}->{float(bg.so_luong):g} me={batch.id}"
+                    f"{' cho_nhan_lai' if cho_nhan_lai else ''}" + (f" | {ly}" if ly else "")),
+            commit=False,
+        )
+    db.commit()
+
+    ra = _ket_qua_batch(cv, batch)
+    ra["ban_giao"] = None
+    if bg is not None:
+        from .ban_giao import _ket_qua, _nguoi_nhan
+
+        nguon_cv = cv
+        # Bên nhận cần biết khi phải xác nhận lại, hoặc khi đề xuất đang chờ họ vừa đổi số.
+        bao = cho_nhan_lai or (bg.trang_thai != BG_XAC_NHAN and dich_cv is not None
+                               and dich_cv.gia_cong_ngoai_id is None)
+        ra["ban_giao"] = _ket_qua(
+            bg, nguon_cv, dich_cv,
+            su_kien="sua_me" if cho_nhan_lai else "sua",
+            notify_user_ids=_nguoi_nhan(db, user, dich_cv.department_id) if bao and dich_cv else [],
+        )
+    return ra
+
+
+def _audit_nguoi(audit, uid, batch: SanXuatBatch, doi: tuple[list[str], list[str]], ly: str) -> None:
+    bot, them = doi
+    audit.create(
+        actor_user_id=uid, action="san_xuat_sua_nguoi_batch", target=f"san_xuat_batch:{batch.id}",
+        detail=(f"bot={'/'.join(bot)};them={'/'.join(them)}" + (f" | {ly}" if ly else "")),
+        commit=False,
+    )
+
+
+def _sua_nguoi_me(db: Session, user, batch: SanXuatBatch, cv, nguoi_ids: list[int], ly_do: str | None) -> dict:
+    """Nhánh của `sua_so_me` khi số giữ nguyên, chỉ đổi người làm."""
+    from ...repositories.audit_repo import AuditLogRepository
+
+    doi = sua_nguoi(db, batch, cv, nguoi_ids)
+    if doi is None:
+        raise ValueError("Số và người làm đều chưa đổi gì.")
+    batch.version += 1
+    _audit_nguoi(AuditLogRepository(db), getattr(user, "id", None), batch, doi,
+                 (ly_do or "").strip()[:300])
+    db.commit()
+    ra = _ket_qua_batch(cv, batch)
+    ra["ban_giao"] = None
+    return ra
 
 
 def them_lot(

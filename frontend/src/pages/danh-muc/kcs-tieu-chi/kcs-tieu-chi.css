@@ -38,6 +38,9 @@
   white-space: nowrap;
 }
 .ktc-nut:hover:not(:disabled) { background: var(--rule-hair); }
+/* Nút phụ trong ô sửa: không khung, chữ xám; rê chuột mới hiện nền. */
+.ktc-nut--nhe { height: 30px; padding: 0 10px; border-color: transparent; background: transparent; color: var(--ash); }
+.ktc-nut--nhe:hover:not(:disabled) { color: var(--ink); }
 .ktc-nut:disabled { color: var(--ash-2); cursor: default; }
 .ktc-nut--chinh { background: var(--ink); border-color: var(--ink); color: #fff; }
 .ktc-nut--chinh:hover:not(:disabled) { background: #1e293b; }

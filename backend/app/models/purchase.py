@@ -195,10 +195,8 @@ class SupplierItem(Base):
     # "Couché 150 79×109" là trượt, mà trượt thì im lặng — không báo lỗi, chỉ là mãi không so được giá.
     hang_loai: Mapped[str | None] = mapped_column(String(8), nullable=True)
     hang_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # DẠNG BÁN của dòng giá GIẤY (chủ chốt 07/10/2026): `to` = bán tờ đúng khổ (kho_rong ×
-    # kho_dai, cạnh ngắn trước), `cuon` = bán cuộn (kho_rong = khổ cuộn, 0 = mọi khổ). Dạng quyết
-    # đơn vị gốc để so giá: tờ so đ/tờ CÙNG khổ, cuộn so đ/kg. NULL cho vật tư không phải giấy. mg 0376.
-    dang_ban: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # KHỔ của dòng giá GIẤY (mm, cạnh ngắn trước; chỉ rộng ⇒ rộng × 0). Giấy không còn dạng bán
+    # cuộn/tờ (bỏ `dang_ban` mg 0388): so giá chỉ giữa các dòng CÙNG khổ + CÙNG họ đơn vị (`unit`).
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     item_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
@@ -678,6 +676,9 @@ class YeuCauMuaNguonLenh(Base):
     # NULL = liên kết lập trước 07/10/2026 ⇒ coi bằng số cần hiện tại của ô.
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # MÃ đơn vị gốc của ô (mg 0391) — cùng mã cùng khổ khác gốc (tờ vs kg, kg vs thùng) là hai ô.
+    # Rỗng = liên kết lập trước 11/10/2026 ⇒ khớp mọi dòng cùng mã + khổ như cũ.
+    don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     so_luong: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
 
     request: Mapped[DepartmentPurchaseRequest] = relationship(

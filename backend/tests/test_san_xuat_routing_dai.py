@@ -174,3 +174,28 @@ def test_so_truy_van_khong_tang_theo_so_lenh(sess, orders, lsx_svc, admin, custo
     ba = dem([("lsx", i) for i in ids], [c for i in ids for c in _cvs(sess, i)])
     assert mot == ba, f"dải gọi {mot} truy vấn cho 1 lệnh nhưng {ba} cho 3 lệnh — N+1 quay lại"
     assert ba <= 10, f"dải gọi {ba} truy vấn cho cả trang — quá nhiều, soi lại chỗ gom"
+
+
+def test_chi_tiet_co_dai_routing_du_buoc(sess, lenh_that):
+    """Ngăn chi tiết (09/10/2026) có dải đủ bước cho khối "Hàng đang tới đâu": bước của tổ khác
+    không mang `cong_viec_id`, bước của tổ đang xem mang đúng id việc."""
+    from app.models.user import User
+    from app.repositories.rbac_repo import RoleRepository
+    from app.schemas.san_xuat import WorkItemChiTietOut
+    from app.services.rbac_service import AuthorizationService
+    from app.services.san_xuat import board
+    from tests.quyen_to_fixtures import cap_quyen_to
+
+    cvs = _cvs(sess, lenh_that)
+    to_khac = _to_moi(sess, "Tổ CTP dải 5", "TO-DAI-CTP5")
+    cvs[0].department_id = to_khac.id
+    to_toi = sess.get(Department, cvs[1].department_id)
+    u = sess.query(User).filter(User.username == "admin").one()
+    cap_quyen_to(sess, u, to_toi)
+    sess.commit()
+
+    ra = board.chi_tiet_cong_viec(sess, u, AuthorizationService(RoleRepository(sess)), cong_viec_id=cvs[1].id)
+    dai = WorkItemChiTietOut.model_validate(ra).routing
+    assert len(dai) == 3
+    assert [o.la_cua_toi for o in dai] == [False, True, True]
+    assert dai[0].cong_viec_id is None and dai[1].cong_viec_id == cvs[1].id

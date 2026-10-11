@@ -96,9 +96,8 @@ class SanXuatVatTuDeNghiDong(Base):
     )
     hang_loai: Mapped[str] = mapped_column(String(8), nullable=False)
     hang_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    #: Giấy: dạng (`to`/`cuon`) + khổ mm (ngắn × dài; cuộn chỉ khổ rộng). Vật tư khác: NULL · 0 · 0.
-    #: Cùng mã khác dạng/khổ là hai dòng (spec 2026-10-01-giay-dem-to-theo-kho §4.5).
-    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    #: Giấy: khổ mm (ngắn × dài; khổ chỉ-rộng: rộng × 0). Vật tư khác: 0 · 0. Cùng mã khác khổ / khác
+    #: đơn vị gốc (`dvt_goc`) là hai dòng (spec 2026-10-01-giay-dem-to-theo-kho §4.5; mg 0388).
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     dvt: Mapped[str] = mapped_column(String(24), nullable=False)
@@ -107,6 +106,7 @@ class SanXuatVatTuDeNghiDong(Base):
     sl_ke_hoach_goc: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False, default=0.0)
     sl_yeu_cau: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False, default=0.0)
     sl_yeu_cau_goc: Mapped[float] = mapped_column(Numeric(18, 3), nullable=False, default=0.0)
+    # Chỉ còn ĐỌC dữ liệu cũ: luật «lệch kế hoạch phải ghi lý do» đã gỡ 09/10/2026, không ghi mới.
     ly_do_chenh_lech: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     de_nghi: Mapped[SanXuatVatTuDeNghi] = relationship(
@@ -114,6 +114,6 @@ class SanXuatVatTuDeNghiDong(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("de_nghi_id", "hang_loai", "hang_id", "kho_rong", "kho_dai",
+        UniqueConstraint("de_nghi_id", "hang_loai", "hang_id", "kho_rong", "kho_dai", "dvt_goc",
                          name="uq_sx_vt_dn_dong_hang"),
     )

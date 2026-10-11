@@ -19,14 +19,14 @@ import "../trang-thai-mua.css";
 export const COT_YEU_CAU: CotMH[] = [
   { key: "chon", label: "Chọn", coDinh: true, w: 40 },
   { key: "ma", label: "Mã yêu cầu", coDinh: true, w: 150 },
+  { key: "nguoi", label: "NV yêu cầu", w: 140 },
   { key: "ngay", label: "Ngày tạo", w: 104 },
   { key: "can", label: "Cần hàng", w: 200 },
   { key: "bo_phan", label: "Bộ phận", w: 140 },
   { key: "nd", label: "Nội dung", w: 300 },
   { key: "mua_cho", label: "Mua cho", w: 160 },
   { key: "mon", label: "Món có đơn", w: 116, n: true },
-  { key: "tt", label: "Trạng thái", w: 150 },
-  { key: "nguoi", label: "Người yêu cầu" },
+  { key: "tt", label: "Trạng thái" },
 ];
 
 /** Số ngày từ hôm nay (giờ máy) tới `ngay` yyyy-mm-dd; âm = quá hạn. */

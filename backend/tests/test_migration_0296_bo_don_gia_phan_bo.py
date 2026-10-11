@@ -56,9 +56,14 @@ def test_0297_bo_bang_thuong_to_truong():
 def test_model_khong_con_cot_don_gia():
     """18/09/2026 (mg `0322`): cả tầng CHIA SẢN LƯỢNG gỡ hẳn — bốn bảng phân bổ không còn model
     nào, nên chẳng còn chỗ nào mọc lại cột tiền."""
-    import app.models as m
-    import app.models.san_xuat_phan_bo as pb
+    import importlib.util
 
+    import app.models as m
+
+    # Module `san_xuat_phan_bo` gỡ hẳn cùng mg 0389 (bỏ hỗ trợ chéo) — còn thì không được mang lại
+    # bốn model cũ.
+    pb = (importlib.import_module("app.models.san_xuat_phan_bo")
+          if importlib.util.find_spec("app.models.san_xuat_phan_bo") else None)
     for ten in ("SanXuatPhanBo", "SanXuatPhanBoDong", "SanXuatPhanBoBuTru",
                 "SanXuatPhanBoLoaiTru"):
         assert not hasattr(pb, ten) and not hasattr(m, ten), ten

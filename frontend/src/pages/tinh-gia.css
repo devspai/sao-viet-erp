@@ -1119,6 +1119,24 @@ select.tg-input {
   font-size: 12.5px;
 }
 
+/* ---------- Mã tái bản đang gắn trên thẻ ---------- */
+.tg-taiban {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  font-size: 12.5px;
+}
+.tg-taiban__nhan {
+  color: var(--ash-2);
+}
+.tg-taiban__tach {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
 /* ---------- Hint ---------- */
 .tg-hint {
   display: block;
@@ -3705,49 +3723,9 @@ select.tg-input--sm {
   min-width: 88px;
   white-space: nowrap;
 }
-.tg-bvt__luong { position: relative; cursor: help; border-radius: var(--r-2); }
+.tg-bvt__luong { cursor: help; border-radius: var(--r-2); }
 .tg-bvt__luong:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
 .tg-bvt__luong-so { font-size: 13px; font-weight: 600; color: var(--ink); }
-/* Tooltip công thức định mức — bong bóng tối như InfoHint, mở XUỐNG, neo mép PHẢI (ô lượng sát mép
-   phải thẻ). Hai dòng: công thức bằng chữ rồi "= thế số = kết quả". */
-.tg-bvt__tip {
-  position: absolute;
-  z-index: 60;
-  top: calc(100% + 8px);
-  right: -6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: max-content;
-  max-width: 320px;
-  padding: var(--sp-2) 10px;
-  border-radius: var(--r-3);
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.45;
-  text-align: left;
-  white-space: normal;
-  opacity: 0;
-  transform: translateY(-4px);
-  pointer-events: none;
-  transition: opacity 140ms ease, transform 140ms ease;
-}
-.tg-bvt__tip::after {
-  content: "";
-  position: absolute;
-  bottom: 100%;
-  right: 14px;
-  border: 5px solid transparent;
-  border-bottom-color: var(--ink);
-}
-.tg-bvt__luong:hover .tg-bvt__tip,
-.tg-bvt__luong:focus-visible .tg-bvt__tip,
-.tg-bvt__luong:focus .tg-bvt__tip { opacity: 1; transform: none; }
-.tg-bvt__tip-goc { color: var(--rule-soft); }
-.tg-bvt__tip-so { font-weight: 600; }
 .tg-bvt__luong--chua .tg-bvt__luong-so { font-weight: 500; color: var(--ash-2); }
 .tg-bvt__dv { font-size: 12px; color: var(--ash-2); }
 .tg-bvt__luoi {
@@ -3837,7 +3815,7 @@ select.tg-input--sm {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tg-cdv__muc, .tg-cdv__nut, .tg-bvt__dong, .tg-cdv-rong__chip, .tg-bvt__tip { transition: none; }
+  .tg-cdv__muc, .tg-cdv__nut, .tg-bvt__dong, .tg-cdv-rong__chip { transition: none; }
 }
 
 /* Hẹp (thẻ sản phẩm trên điện thoại / cột trái hẹp): danh sách trên, thẻ dưới. Nút chạm cao 44px

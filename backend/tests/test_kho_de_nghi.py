@@ -673,7 +673,8 @@ def test_nhap_theo_don_vi_khac_thi_ton_quy_ve_don_vi_goc(client):
     ln = body["lines"][0]
     # Đề nghị GIỮ đúng con số người ta khai, kèm số đã quy đổi để họ thấy trước cái sẽ vào tồn.
     assert ln["dvt"] == "ram" and ln["sl_de_nghi"] == 2
-    assert ln["sl_quy_doi"] == 1000 and ln["don_vi_goc"] == "tờ"
+    # `don_vi_goc` là MÃ (khoá tồn giấy đọc mã này), tên để bày ở `don_vi_goc_ten`.
+    assert ln["sl_quy_doi"] == 1000 and ln["don_vi_goc"] == "to" and ln["don_vi_goc_ten"] == "tờ"
     assert ln["canh_bao_dv"] is None
 
     rid, line_id = body["id"], ln["id"]
@@ -709,7 +710,7 @@ def test_don_vi_khong_doi_duoc_thi_chan_ngay_luc_khai(client):
         "lines": [{"hang_loai": mat_id[0], "hang_id": mat_id[1], "dvt": "kg", "sl_de_nghi": 5}],
     })
     assert r.status_code == 400, r.text
-    assert "không đổi được" in r.json()["detail"]
+    assert "chưa khai ở danh mục" in r.json()["detail"] and "tờ, ram" in r.json()["detail"]
 
 
 def test_khong_con_duong_de_nghi_hang_go_tay(client):

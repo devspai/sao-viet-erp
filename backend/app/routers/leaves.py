@@ -108,9 +108,12 @@ def _raise(exc: Exception) -> None:
     raise exc
 
 
-def _req_out(r, emp_names: dict[int, str], type_map: dict) -> LeaveRequestOut:
+def _req_out(r, emp_names: dict[int, str], type_map: dict,
+             decider_names: dict[int, str] | None = None) -> LeaveRequestOut:
     out = LeaveRequestOut.model_validate(r)
     out.employee_name = emp_names.get(r.employee_id)
+    if r.decided_by and decider_names is not None:
+        out.decided_by_name = decider_names.get(r.decided_by)
     lt = type_map.get(r.leave_type_id)
     if lt is not None:
         out.leave_type_name = lt.name
@@ -133,11 +136,17 @@ def _resolve(svc: LeaveService, employees: EmployeeRepository, reqs: list):
         emp = employees.get_by_id(eid)
         if emp is not None:
             emp_names[eid] = emp.full_name
+    # Người duyệt/từ chối là user id → tra hồ sơ NV theo user_id (cùng cách Tăng ca).
+    decider_names: dict[int, str] = {}
+    for uid in {r.decided_by for r in reqs if r.decided_by}:
+        emp = employees.get_by_user_id(uid)
+        if emp is not None:
+            decider_names[uid] = emp.full_name
     # Yêu cầu hủy mới nhất của từng đơn — MỘT truy vấn cho cả trang (23/09/2026).
     yc_map = svc.yeu_cau_huy_moi_nhat([r.id for r in reqs])
     out = []
     for r in reqs:
-        o = _req_out(r, emp_names, type_map)
+        o = _req_out(r, emp_names, type_map, decider_names)
         yc = yc_map.get(r.id)
         if yc is not None:
             o.yeu_cau_huy = _yc_out(yc, employees)
@@ -405,12 +414,13 @@ def list_requests(svc: Service, employees: Employees, authz: Authz,
                   moc: str = Query(default="tao", pattern="^(tao|nghi)$"),
                   loai: int | None = Query(default=None),
                   phong: int | None = Query(default=None),
+                  nguoi_duyet: int | None = Query(default=None),
                   ) -> LeaveRequestsOut:
     # Data-scope: HCNS/Admin (scope=all) thấy mọi đơn; NV (scope=own) chỉ thấy đơn của mình.
     # `employee_id` / `phong` KHÔNG nới phạm vi — chỉ lọc THÊM bên trong phạm vi đã có.
     scope = authz.scope_for(user, MODULE) or "own"
     loc = LocDon(tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, employee_id=employee_id,
-                 phong=phong, loai=loai)
+                 phong=phong, loai=loai, nguoi_duyet=nguoi_duyet)
     try:
         reqs, total, dem = svc.list_requests(scope=scope, actor=user, loc=loc, status=status_filter,
                                              page=page, size=size)
@@ -421,9 +431,9 @@ def list_requests(svc: Service, employees: Employees, authz: Authz,
 
 
 @router.get("/loc/{truong}", response_model=list[LuaChonLoc])
-def loc_lua_chon(truong: Annotated[str, Path(pattern="^(nhan_vien|phong)$")], svc: Service,
+def loc_lua_chon(truong: Annotated[str, Path(pattern="^(nhan_vien|phong|nguoi_duyet)$")], svc: Service,
                  authz: Authz, user: Annotated[User, Depends(require_permission(MODULE, "read"))]):
-    """Giá trị của điều kiện Nhân viên / Phòng ban ở tab Duyệt — chỉ người có đơn trong phạm vi."""
+    """Giá trị của điều kiện Nhân viên / Phòng ban / NV duyệt ở tab Duyệt — chỉ người có đơn trong phạm vi."""
     scope = authz.scope_for(user, MODULE) or "own"
     return [LuaChonLoc(**x) for x in svc.lua_chon(truong, scope=scope, actor=user)]
 

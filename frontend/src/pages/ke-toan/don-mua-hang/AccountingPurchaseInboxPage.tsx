@@ -20,7 +20,7 @@ import { ChonCotBang, useCotBang } from "../../mua-hang/luoi-mua-hang";
 import { useMoLenh } from "../../mua-hang/mua-cho/OMuaCho";
 import { ThanhCongCuMuaHang, tabCoSo } from "../../mua-hang/loc-mua-hang/ThanhCongCuMuaHang";
 import { tabTien } from "../../mua-hang/phieu-mua-hang/tabs/PhieuListTab";
-import { TT_DON } from "../../mua-hang/trang-thai-mua";
+import { TT_HANG_LOC } from "../../mua-hang/trang-thai-mua";
 import { useDebounced } from "../../../utils/useDebounced";
 import { RejectModal } from "./modals/RejectModal";
 import { useNapTenDonVi } from "../../tenDonVi";
@@ -34,6 +34,7 @@ import {
   thamSoLocDonMua,
   useDieuKienDonMua,
   type LocManDonMua,
+  type ThamSoLocDonMua,
 } from "./shared/dieuKienDonMua";
 import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
 import { useLocMan } from "../../thanh-loc/useLocMan";
@@ -42,7 +43,7 @@ import "../../accounting.css";
 import "../../purchase.css";
 
 /** Chip Hàng luôn hiện ở hộp Kế toán — không có Nháp: đơn nháp chưa gửi duyệt, không thuộc hộp này. */
-const TAB_HANG_KT = ["pending_approval", "approved", "purchased", "partially_received", "received"];
+const TAB_HANG_KT = ["pending_approval", "approved", "purchased", "partially_received", "cho_gui_kho", "kho_chua_nhap", "da_nhap_kho"];
 
 export function AccountingPurchaseInboxPage({
   navigate,
@@ -128,7 +129,7 @@ export function AccountingPurchaseInboxPage({
         q: qDebounced.trim() || undefined,
         status: statusFilter === "all" ? null : statusFilter,
         tien: tien || null,
-        ...(JSON.parse(khoaLoc) as { tu_ngay?: string; den_ngay?: string; moc?: string; supplier_id?: number; deposit_status?: string }),
+        ...(JSON.parse(khoaLoc) as { tu_ngay?: string; den_ngay?: string; moc?: string } & ThamSoLocDonMua),
         sort: "-created_at",
         page,
         size,
@@ -317,7 +318,7 @@ export function AccountingPurchaseInboxPage({
       )}
 
       <ThanhCongCuMuaHang
-        tabs={tabCoSo(TAB_HANG_KT, TT_DON, demTheoTab, statusFilter)}
+        tabs={tabCoSo(TAB_HANG_KT, TT_HANG_LOC, demTheoTab, statusFilter)}
         tab={statusFilter}
         ariaTabs="Lọc trạng thái hàng của đơn"
         nhanNhom="Hàng"
