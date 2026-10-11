@@ -96,8 +96,10 @@ describe("TdsxTheoMay · bảng theo máy", () => {
       <TdsxTheoMay data={DATA} dangTai={false} rong={<p>RỖNG</p>} onMo={() => {}}
         cotAn={new Set(["san_luong"])} thuTu={["ke_tiep", "dang_chay"]} />,
     );
+    // xepCot (LuoiDs): cột chưa có trong thuTu chen sau cột đứng trước nó ở mặc định, không dồn cuối
+    // — Tình trạng đứng đầu mặc định nên vẫn đứng đầu nhóm; Kế tiếp vẫn trước Đang chạy như đã kéo.
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Máy", "Kế tiếp", "Đang chạy", "Tình trạng", "Kế hoạch xong",
+      "Máy", "Tình trạng", "Kế tiếp", "Đang chạy", "Kế hoạch xong",
     ]);
   });
 

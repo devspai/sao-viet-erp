@@ -167,6 +167,9 @@ def test_nhan_thieu_thi_moc_rut_theo_ti_le_khong_de_ke_hoach(
     cv.trang_thai = CV_DANG_CHAY
     cv.so_luong_vao, cv.don_vi_vao = 1000, "tờ"
     cv.so_luong_ra, cv.don_vi_ra = 1000, "cái"
+    # Bước cuối ra Thành phẩm (luật 11/10/2026, spec buoc-cuoi-theo-don-vi-san-pham) ⇒ snapshot
+    # mang hệ số cầu của sản phẩm (18 con/tờ). Khai lại đúng kế hoạch của kịch bản: 1 cái/tờ.
+    cv.he_so_quy_doi = 1
     db.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=2),
                         tong=960, tot=960, hong=0, don_vi="cái"))
     db.commit()
@@ -316,6 +319,7 @@ def test_ket_thuc_thi_nhan_tru_tot_thanh_loi(db, orders, lsx_svc, admin, custome
     cv.trang_thai = CV_DANG_CHAY
     cv.so_luong_vao, cv.don_vi_vao = 1300, "tờ"
     cv.so_luong_ra, cv.don_vi_ra = 1300, "tờ"
+    cv.he_so_quy_doi = 1        # tờ → tờ; bỏ hệ số cầu 18 snapshot chụp theo luật bước cuối 11/10
     db.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=2),
                         tong=1200, tot=1200, hong=0, don_vi="tờ"))
     db.commit()
@@ -340,6 +344,7 @@ def test_buoc_dau_chuoi_nhan_la_so_vao_lay_tu_kho(db, orders, lsx_svc, admin, cu
     cv.trang_thai = CV_HOAN_THANH
     cv.so_luong_vao, cv.don_vi_vao = 1910, "tờ"
     cv.so_luong_ra, cv.don_vi_ra = 1660, "tờ"
+    cv.he_so_quy_doi = 1        # tờ → tờ; bỏ hệ số cầu 18 snapshot chụp theo luật bước cuối 11/10
     db.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=2),
                         tong=1300, tot=1300, hong=0, don_vi="tờ"))
     db.commit()

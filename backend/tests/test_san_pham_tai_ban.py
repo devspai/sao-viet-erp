@@ -217,6 +217,20 @@ def test_HAI_KHACH_cung_ten_la_HAI_ma(svc, admin, db):
     assert _ma_cua_don(o1) != _ma_cua_don(o2)
 
 
+def test_CUNG_DON_hai_cum_cung_ten_la_MOT_ma(svc, admin, db):
+    """Ruột + bìa cùng nhãn mà khác SL là hai cụm cùng tên — vẫn là MỘT món, một mã."""
+    cust = _customer(db)
+    q = _quote_nhieu(db, cust, [_thanh_phan(db, ten="Ruột"), _thanh_phan(db, ten="Bìa")],
+                     nhom="Kỷ yếu 2027")
+    q_items = sorted(db.get(QuoteVersion, q.current_version_id).items, key=lambda x: x.line_no)
+    q_items[1].quantity = 1_200
+    db.commit()
+    o = _chot(svc, db, admin, q)
+    from app.services.thanh_pham_khai_bao import cum_ban
+
+    assert len(cum_ban(o)) == 2 and len(_ma_cua_don(o)) == 1
+
+
 def test_cung_khach_KHONG_gan_tai_ban_la_san_pham_MOI(svc, admin, db):
     """Danh tính do người lập phiếu CHỌN, không đoán bằng tên: không chọn tái bản = sản phẩm mới."""
     cust = _customer(db)

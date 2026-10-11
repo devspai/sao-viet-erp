@@ -550,8 +550,9 @@ def _nhom_hai_lenh(sess, lsx_id: int, *, nhan: str = "Kỷ yếu") -> int:
         .first()
     )
     assert lsx2 is not None, "đơn của `lenh_that` phải có lệnh anh em — xem `_hai_lsx_san_sang`"
-    sess.get(OrderLine, lsx.order_line_id).nhom = nhan
-    sess.get(OrderLine, lsx2.order_line_id).nhom = nhan
+    for ln in (sess.get(OrderLine, lsx.order_line_id), sess.get(OrderLine, lsx2.order_line_id)):
+        ln.nhom = nhan
+        ln.thanh_pham_id = None   # dán nhãn SAU chốt ⇒ dấu mã cũ lệch, tìm lại theo (khách, tên)
     lsx2.trang_thai = lsx.trang_thai
     # FLUSH bắt buộc: session test bật `autoflush=False`, mà `dam_bao_nhom` đọc nhãn nhóm bằng
     # `select` thô (`nguon_nhom_cua_lsx`). Không đẩy xuống trước thì lượt LSX đầu đọc nhãn CŨ

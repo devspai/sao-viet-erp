@@ -84,6 +84,13 @@ def _may_chu_gac() -> set[tuple[str, str]]:
         for ten_ham, a in re.findall(r'(_ghi_cau_hinh_chung|_ghi_lich_chung)\(\s*"(\w+)"', s):
             if (k := hang.get("MODULE")):
                 dung.add((k, a))
+        # Cổng Bàn tổ `require_quyen_to("read", (MODULE, "read"), ...)` gác THẬT các ô tĩnh `hoac`
+        # (deps.py) — vd danh mục Tiêu chí KCS đọc bằng `dm_kcs_tieu_chi:read`, nút "Tiêu chí" ở
+        # sơ đồ KCS (mg 0381/0383) hỏi đúng ô đó.
+        for blob in re.findall(r'require_quyen_to\(\s*"\w+"((?:\s*,\s*\([^()]*\))*)', s):
+            for m, a in re.findall(r'\(\s*([\w".]+)\s*,\s*"(\w+)"\s*\)', blob):
+                if (k := giai(m)):
+                    dung.add((k, a))
         for blob in re.findall(r'require_any_permission\(([\s\S]{0,400}?)\)\s*\)', s):
             for m, a in re.findall(r'\(\s*([\w".]+)\s*,\s*"(\w+)"\s*\)', blob):
                 if (k := giai(m)):

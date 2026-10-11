@@ -313,7 +313,9 @@ def khai_cho_don(db, order) -> list[VatTuInAn]:
     Mỗi cụm:
       1. thẻ phiếu tính giá gắn tái bản (`tai_ban_thanh_pham_id`) ⇒ đúng mã đó — mã phải là thành
          phẩm của CHÍNH khách đơn, không thì `ThanhPhamKhacKhach`;
-      2. cụm từ phiếu tính giá mà không gắn ⇒ sản phẩm mới, đẻ mã mới (không so tên);
+      2. cụm từ phiếu tính giá mà không gắn ⇒ sản phẩm mới, đẻ mã mới (không so tên với đơn KHÁC).
+         Trong CÙNG đơn, cụm cùng tên vẫn là một món (ruột + bìa khác SL ⇒ hai cụm cùng nhãn) ⇒
+         dùng chung mã vừa đẻ;
       3. cụm nhập tay ⇒ `khai_cum` (tìm theo khách + tên, không có thì đẻ).
     Rồi đóng dấu mã lên dòng, và cụm có phiếu tính giá thì chụp cấu hình kỹ thuật từng thành phần vào
     mã (`cau_hinh_tai_ban`) — nguồn của ô tái bản lần sau.
@@ -327,6 +329,7 @@ def khai_cho_don(db, order) -> list[VatTuInAn]:
     if order is None or not order.customer_id:
         return []
     ra: list[VatTuInAn] = []
+    cung_ten: dict[str, VatTuInAn] = {}
     for cum in cum_ban(order):
         nguon = _thanh_phan_cua_cum(db, cum)
         gan = next((p.tai_ban_thanh_pham_id for p in nguon if p.tai_ban_thanh_pham_id), None)
@@ -338,10 +341,12 @@ def khai_cho_don(db, order) -> list[VatTuInAn]:
                     f"«{cum.ten}» đang gắn tái bản mã{ma} không thuộc khách của đơn — mở phiếu tính "
                     "giá, bấm Tách thành sản phẩm mới hoặc chọn lại sản phẩm tái bản")
         elif nguon:
-            tp = _khai_moi(db, customer_id=order.customer_id, ten=cum.ten, dvt=cum.dvt,
-                           order_id=order.id, order_line_id=cum.dong_dau.id)
+            tp = cung_ten.get(chuan_ten(cum.ten)) or _khai_moi(
+                db, customer_id=order.customer_id, ten=cum.ten, dvt=cum.dvt,
+                order_id=order.id, order_line_id=cum.dong_dau.id)
         else:
             tp = khai_cum(db, order, cum)
+        cung_ten.setdefault(chuan_ten(cum.ten), tp)
         _dong_dau(cum, tp)
         if nguon:
             tp.cau_hinh_tai_ban = [cau_hinh_tu_thanh_phan(p) for p in nguon]

@@ -46,7 +46,7 @@ from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import thuc_te_hien_thi
 from ..lenh_sx import boi_canh
 from ..quyen_to import MUC_CUA_TOI, VIEC_XAC_NHAN, gate_to_tron, nguoi_co_quyen
-from .kcs_checklist import checklist_gop, chuoi_gop, kiem_ket_qua
+from .kcs_checklist import checklist_gop, chuoi_gop, khoa_ket_qua, kiem_ket_qua
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _moc
 
@@ -407,8 +407,12 @@ def kiem_cong_doan(
         for chiu, sl, _m, _a, tt in dong_loi:
             if tt is not None:
                 so_theo_tc[(chiu.id, tt)] = so_theo_tc.get((chiu.id, tt), 0.0) + sl
+        # Chuỗi chưa gắn tiêu chí ⇒ `kiem_ket_qua` trả nguyên checklist form gửi, có thể thiếu
+        # `cong_viec_id` — khoá theo luật chung (thiếu = công việc của lần kiểm).
         for kq in checklist_ket_qua or []:
-            k = (kq["cong_viec_id"], kq["thu_tu"])
+            if not isinstance(kq, dict) or kq.get("thu_tu") is None:
+                continue
+            k = khoa_ket_qua(kq, cv.id)
             if k in so_theo_tc:
                 if kq["dat"]:
                     raise ValueError("Tiêu chí có ghi lỗi thì phải là không đạt.")

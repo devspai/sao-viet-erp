@@ -17693,7 +17693,7 @@ def _migrate_bo_phan_yeu_cau_theo_nguoi_tao(db: Session) -> None:
 MIGRATIONS.append(("0393_bo_phan_yeu_cau_theo_nguoi_tao", _migrate_bo_phan_yeu_cau_theo_nguoi_tao))
 
 
-def _migrate_thanh_pham_theo_khach(db: Session) -> None:
+def _migrate_thanh_pham_cua_khach_tai_ban(db: Session) -> None:
     """0394 — thành phẩm THUỘC VỀ KHÁCH + tái bản theo mã (11/10/2026, plan
     docs/superpowers/plans/2026-10-11-thanh-pham-theo-khach-tai-ban.md).
 
@@ -17762,4 +17762,4 @@ def _migrate_thanh_pham_theo_khach(db: Session) -> None:
     db.commit()
 
 
-MIGRATIONS.append(("0394_thanh_pham_theo_khach", _migrate_thanh_pham_theo_khach))
+MIGRATIONS.append(("0394_thanh_pham_theo_khach", _migrate_thanh_pham_cua_khach_tai_ban))

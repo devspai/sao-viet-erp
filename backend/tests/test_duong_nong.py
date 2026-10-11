@@ -108,6 +108,8 @@ def test_danh_sach_yeu_cau_kho_giu_nguyen_ket_qua_va_khong_n_cong_1(client, monk
     # Bản CŨ: map gom lô rỗng ⇒ mọi dòng rơi về `quy_ve_goc` từng dòng như trước khi sửa.
     monkeypatch.setattr(VatLieuKhoService, "don_vi_nhieu_mat_hang",
                         lambda self, caps, san=None: {})
+    # Dòng giấy / vật tư có ĐƠN VỊ GỐC (mg 0390) đi lô theo `(loại, mã, gốc)` — tắt luôn.
+    monkeypatch.setattr(VatLieuKhoService, "don_vi_nhieu_theo_goc", lambda self, khoa: {})
     cu_8, n_cu_8, _ = _dem(lay)
     assert cu_8 == moi_8, "kết quả JSON phải Y HỆT đường cũ"
     print(f"\n[kho de-nghi] 8 yêu cầu × 3 dòng: cũ {n_cu_8} câu → mới {n_moi_8} câu "
@@ -432,6 +434,12 @@ def _chay_0344(db: Session) -> None:
     dict(MIGRATIONS)["0344_index_duong_nong"](db)
 
 
+def _index_0344_con_bang() -> list:
+    """Danh sách index của mg 0344 trừ bảng model đã gỡ SAU đó (vd `san_xuat_ho_tro`, mg 0389) —
+    migration tự bỏ qua bảng không có, nên chỉ chấm những bảng còn trong model."""
+    return [x for x in _INDEX_0344 if x[0] in Base.metadata.tables]
+
+
 def test_0344_chay_hai_lan_tren_sqlite_va_tao_du_index():
     eng = create_engine("sqlite://")
     Base.metadata.create_all(eng)
@@ -443,7 +451,7 @@ def test_0344_chay_hai_lan_tren_sqlite_va_tao_du_index():
         _chay_0344(db)
         _chay_0344(db)          # chạy lại không nổ
         insp = inspect(db.get_bind())
-        for bang, ten, cot, _ in _INDEX_0344:
+        for bang, ten, cot, _ in _index_0344_con_bang():
             idx = {i["name"]: i["column_names"] for i in insp.get_indexes(bang)}
             assert idx.get(ten) == list(cot), f"{bang}: thiếu {ten}"
         # Partial index mang đúng điều kiện.
@@ -463,7 +471,7 @@ def test_0344_thieu_bang_thi_bo_qua():
 
 
 def test_0344_ten_va_cot_index_trung_model():
-    for bang, ten, cot, _ in _INDEX_0344:
+    for bang, ten, cot, _ in _index_0344_con_bang():
         idx = {i.name: [c.name for c in i.columns] for i in Base.metadata.tables[bang].indexes}
         assert idx.get(ten) == list(cot), (
             f"{bang}: model chưa khai {ten}{cot} — DB trắng (`create_all`) sẽ lệch DB đi migration")

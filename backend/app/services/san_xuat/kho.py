@@ -31,7 +31,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, object_session
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.orm import Session
 
 from ...models.san_xuat import SanXuatCongViec
 from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
@@ -419,7 +420,10 @@ def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> d
 def _bao_ban_to_yeu_cau(req) -> None:
     """Yêu cầu kho thuộc một công việc của tổ (trả hàng thừa, hoặc lần đề nghị cấp vật tư) ⇒ đẩy
     `san_xuat_cong_viec_changed` tới đúng tổ đó. Không thuộc việc nào thì im lặng."""
-    db = object_session(req)
+    # `inspect(..., raiseerr=False)`: yêu cầu chưa gắn phiên (hay không phải bản ghi ORM) thì im
+    # lặng — `object_session` ném lỗi với đối tượng không map.
+    st = sa_inspect(req, raiseerr=False)
+    db = st.session if st is not None else None
     if db is None:
         return
     cv_ids = {getattr(req, "vat_tu_tra_cong_viec_id", None)} | set(db.scalars(

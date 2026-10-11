@@ -143,6 +143,7 @@ def test_ruot_bia_cung_nhan_la_mot_dong_gia_cum(db, orders, lsx_svc, admin, cust
     a, b = _dong_don(db, cv)
     for ln in (a, b):
         ln.nhom, ln.dvt_nhom, ln.qty = "Kỷ yếu", "cuốn", 20_000
+        ln.thanh_pham_id = None   # dán nhãn SAU chốt ⇒ dấu mã cũ lệch, tìm lại theo (khách, tên)
     cv.don_vi_ra = "cuốn"                                # KCS đếm quyển — cùng đơn vị cụm
     db.commit()
 
@@ -186,6 +187,7 @@ def test_hai_cum_cung_ten_ra_cung_ma_thi_gop_mot_dong(db, orders, lsx_svc, admin
     _gop_lenh_thu_hai_vao_nhom(db, cv)
     for ln in _dong_don(db, cv):
         ln.nhom = "Hộp quà"                              # cùng nhãn, khác SL ⇒ hai cụm, một mã
+        ln.thanh_pham_id = None   # dán nhãn SAU chốt ⇒ dấu mã cũ lệch, tìm lại theo (khách, tên)
     db.commit()
 
     res = _gui(db, cv, rb)

@@ -171,6 +171,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                boi_canh: dict | None = None,
                gia_kcs: tuple[dict, dict] | None = None,
                don_vi_map: dict | None = None,
+               don_vi_goc_map: dict | None = None,
                ten_map: dict | None = None,
                mua_cho_map: dict | None = None) -> StockRequestOut:
     """Dựng payload + ÁP quyền hiển thị.
@@ -197,6 +198,8 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         # Bảng đơn vị + bảng cặp quy đổi đọc MỘT lần cho mọi dòng — `quy_ve_goc` từng dòng đọc lại
         # cả hai bảng mỗi dòng (N+1, khoảng 3 câu SQL/dòng trên màn Hộp yêu cầu).
         don_vi_map = hang_svc.don_vi_nhieu_mat_hang(cap, san=hang_map)
+    if don_vi_goc_map is None:
+        don_vi_goc_map = _don_vi_goc_map(hang_svc, [req])
     if lenh_map is None:
         lenh_map = _lenh_map(db, [req])
     if boi_canh is None:
@@ -219,8 +222,10 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
             # Giấy / vật tư: gốc theo ĐƠN VỊ GỐC của dòng (đơn vị đã khai), không phải ĐVT chính.
             if co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
-                qd = hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi),
-                                         goc=ln.don_vi_goc)
+                dvg = don_vi_goc_map.get((ln.hang_loai, ln.hang_id, ln.don_vi_goc))
+                qd = (hang_svc.quy_tu_don_vi(dvg, ln.dvt, float(ln.sl_de_nghi)) if dvg is not None
+                      else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
+                                               float(ln.sl_de_nghi), goc=ln.don_vi_goc))
             else:
                 qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
                       else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
@@ -304,6 +309,17 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
     )
 
 
+def _don_vi_goc_map(hang_svc: VatLieuKhoService, reqs) -> dict:
+    """Đơn vị của mọi dòng giấy / vật tư CÓ đơn vị gốc, theo `(loại, mã, gốc)`, một lượt cho cả
+    trang. Quy đổi từng dòng đọc lại bảng đơn vị + cặp quy đổi mỗi dòng (N+1, ~3 câu SQL/dòng).
+    Bộ không dựng được thì vắng mặt ⇒ dòng đó đi `quy_ve_goc` lẻ để giữ ĐÚNG câu lỗi."""
+    khoa = {(ln.hang_loai, ln.hang_id, ln.don_vi_goc) for r in reqs for ln in r.lines
+            if co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc}
+    if not khoa:
+        return {}
+    return {k: v for k, v in hang_svc.don_vi_nhieu_theo_goc(khoa).items() if v is not None}
+
+
 def _levels(svc: StockRequestService, req):
     """TỒN KHẢ DỤNG + đèn (`muc_ton`) cho các dòng của yêu cầu. Yêu cầu KHÔNG gắn kho (kho quyết ở
     bước lập phiếu) → `req.kho_id` thường None → `on_hand_map` cộng tồn khả dụng TRÊN MỌI KHO.
@@ -376,6 +392,7 @@ def list_requests(
     cap_trang = [(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines]
     hang_map = hang_svc.map_theo_cap(cap_trang)
     don_vi_map = hang_svc.don_vi_nhieu_mat_hang(cap_trang, san=hang_map)
+    don_vi_goc_map = _don_vi_goc_map(hang_svc, rows)
     lenh_map = _lenh_map(db, rows)
     ten_map = _ten_map(db, rows)
     # Tổ/công đoạn/giờ cần (đề nghị cấp vật tư công đoạn) của CẢ TRANG trong 1 query — tránh N+1
@@ -395,8 +412,8 @@ def list_requests(
                                 levels=levels, on_hand=on_hand, lenh_map=lenh_map,
                                 open_voucher_id=draft_map.get(r.id), hang_map=hang_map,
                                 hang_svc=hang_svc, boi_canh=boi_canh, gia_kcs=gia_kcs,
-                                don_vi_map=don_vi_map, ten_map=ten_map,
-                                mua_cho_map=mua_cho_map))
+                                don_vi_map=don_vi_map, don_vi_goc_map=don_vi_goc_map,
+                                ten_map=ten_map, mua_cho_map=mua_cho_map))
     return StockRequestPage(items=items, total=total)
 
 
