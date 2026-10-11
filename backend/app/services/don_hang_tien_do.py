@@ -106,6 +106,8 @@ def tien_do_don(db: Session, order) -> dict:
             "kho_da_nhan": round(da_nhan, 3),
             "cho_kho": round(max(0.0, de_nghi - da_nhan), 3),
             "ton_that": round(n["ton_that"], 3),
+            "ton_kho": n["ton_kho"],
+            "giu_don_khac": n["giu_don_khac"],
             "da_giao": n["da_giao"],
             "giao_thang": n["giao_thang"],
             "dang_giu": n["dang_giu"],

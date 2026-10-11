@@ -191,7 +191,8 @@ def test_buoc_tren_dong_giay_giu_nguyen_don_vi_va_co_dai_phut(
 
     cv = _cv_cua(db, goi, in_buoc.step_key)
     assert cv.don_vi_vao == in_buoc.don_vi_vao == "to"
-    assert cv.don_vi_ra == in_buoc.don_vi_ra == "to"
+    # In là bước cuối trên dòng giấy của lệnh chính ⇒ ra chặng Thành phẩm (11/10/2026).
+    assert cv.don_vi_ra == in_buoc.don_vi_ra == "cai"
     assert float(cv.so_luong_vao) == float(in_buoc.so_luong_vao)
 
     dm = cv.dinh_muc_json

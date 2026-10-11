@@ -92,7 +92,7 @@ KHO = (780, 905)
 
 def _giay(db, *, ma="GY-1") -> GiayNguyen:
     """Mã giấy ở danh mục — giấy tờ đếm tờ nguyên theo khổ `KHO`."""
-    g = GiayNguyen(ma=ma, ten=f"Giấy {ma}", gsm=150, kho_dai=860, kho_rong=650, don_vi_gia="kg")
+    g = GiayNguyen(don_vi_them=["to"], ma=ma, ten=f"Giấy {ma}", gsm=150, kho_dai=860, kho_rong=650, don_vi_gia="kg")
     db.add(g)
     db.commit()
     return g
@@ -158,11 +158,15 @@ def _ton(db, hang, so_luong) -> None:
         db.add(kho)
         db.flush()
     giay = hang[0] == "giay"
-    kr, kd = (hang[2], hang[3]) if len(hang) == 4 else KHO     # lô tờ đúng khổ của khoá
+    # Lô giấy đúng khổ + đơn vị gốc của khoá (mặc định khổ `KHO`, đếm tờ).
+    kr, kd, goc = (hang[2], hang[3], hang[4]) if len(hang) == 5 else (*KHO, "to")
+    if hang[0] == "vat_tu":
+        # Vật tư tách tồn theo đơn vị gốc (mg 0390): cặp `(loai, id)` ⇒ ĐVT chính của mã.
+        goc = hang[4] if len(hang) == 5 else (db.get(VatTuInAn, hang[1]).don_vi_gia or "").lower()
     db.add(StockLot(hang_loai=hang[0], hang_id=hang[1], kho_id=kho.id,
-                    ma_lo=f"LOT-{hang[0]}{hang[1]}-{kr}x{kd}-{so_luong}", sl_ban_dau=so_luong,
+                    ma_lo=f"LOT-{hang[0]}{hang[1]}-{kr}x{kd}{goc}-{so_luong}", sl_ban_dau=so_luong,
                     sl_con_lai=so_luong, ngay_nhap=HOM_NAY, trang_thai=LOT_AVAILABLE,
-                    dang_giay="to" if giay else None, kho_rong=kr if giay else 0,
+                    don_vi_goc=goc if hang[0] in ("giay", "vat_tu") else "", kho_rong=kr if giay else 0,
                     kho_dai=kd if giay else 0))
     db.commit()
 
@@ -170,7 +174,7 @@ def _ton(db, hang, so_luong) -> None:
 def _kho_va_dv(hang, unit):
     """Dòng mua giấy: khổ `KHO`, đơn vị tờ nguyên; vật tư khác: 0 · 0, kg."""
     if hang[0] == "giay":
-        kr, kd = (hang[2], hang[3]) if len(hang) == 4 else KHO
+        kr, kd = (hang[2], hang[3]) if len(hang) == 5 else KHO
         return {"kho_rong": kr, "kho_dai": kd, "unit": unit or don_vi_goc_to()}
     return {"kho_rong": 0, "kho_dai": 0, "unit": unit or "kg"}
 
@@ -202,9 +206,9 @@ def _ycmh(db, *, hang, so_luong, status=DPR_OPEN, unit=None) -> DepartmentPurcha
     return yc
 
 
-def _giay_hang(g, kho=KHO) -> tuple[str, int, int, int]:
-    """Khoá giữ chỗ của giấy tờ = (mã, khổ)."""
-    return ("giay", g.id, *kho)
+def _giay_hang(g, kho=KHO, goc="to") -> tuple[str, int, int, int, str]:
+    """Khoá giữ chỗ của giấy = (mã, khổ, đơn vị gốc) — dòng giấy của bộ test đếm tờ."""
+    return ("giay", g.id, *kho, goc)
 
 
 # ================== TỒN TỰ DO ==================
@@ -391,7 +395,7 @@ def test_cung_vat_tu_o_hai_buoc_phai_giu_TONG_ca_hai(db, svc, customer):
 
     tt = svc.bat(lsx_id=a.id)
     assert tt["du"] is False, "7 kg < 10 kg cần cho hai bước"
-    assert tt["dang_giu"][("vat_tu", vt.id, 0, 0)] == pytest.approx(7)
+    assert tt["dang_giu"][("vat_tu", vt.id, 0, 0, "kg")] == pytest.approx(7)
 
 
 # ================== KHÔNG ĐÁNH GIÁ ĐƯỢC ==================
@@ -403,16 +407,17 @@ def test_dong_khong_quy_doi_duoc_thi_KHONG_BAO_GIO_du(db, svc, customer):
     Coi là 0 rồi mở khoá xếp lịch là mở cho một lệnh chưa ai biết cần bao nhiêu — đúng kiểu hỏng
     tệ nhất: bảng xanh, lịch xếp xong, tới ngày chạy mới biết không có giấy.
     """
-    g = GiayNguyen(ma="GY-MU", ten="Giấy mù", gsm=150, kho_dai=860, kho_rong=650, don_vi_gia="kg")
+    g = GiayNguyen(don_vi_them=["to"], ma="GY-MU", ten="Giấy mù", gsm=150, kho_dai=860, kho_rong=650, don_vi_gia="kg")
     db.add(g)
     db.commit()
     _ton(db, _giay_hang(g), 1_000)
-    # Dòng giấy CŨ ghi kg — giấy tờ đếm tờ nguyên, không có phép đổi kg → tờ ⇒ dòng `khong_ro`.
+    # Dòng giấy ghi kg ⇒ đơn vị gốc kg; lô đếm TỜ cùng khổ là món khác (tờ ↔ kg không quy đổi) nên
+    # không được giữ hộ — tuyệt đối không coi là đủ.
     a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200, dvt_giay="kg")
 
     tt = svc.bat(lsx_id=a.id)
-    assert tt["khong_ro"] is True
-    assert tt["du"] is False, "chưa quy đổi được thì KHÔNG được tính là đủ"
+    assert tt["du"] is False, "lô tờ không được giữ hộ nhu cầu kg"
+    assert _giay_hang(g) not in tt["dang_giu"]
 
 
 # ================== BÀI GHÉP ==================
@@ -1425,13 +1430,13 @@ def _dung_phieu_xuat(db, hang, *, lsx_id, bai_ghep_id, kho_id=None):
                      ngay=HOM_NAY, nguoi_lap_id=1, trang_thai=VOUCHER_DRAFT)
     db.add(v)
     db.flush()
-    # Giấy tờ mang dạng + khổ của khoá (`khoa_ton` của dòng phiếu là khoá giữ chỗ).
-    giay_to = hang[0] == "giay" and len(hang) == 4 and hang[2] and hang[3]
+    # Giấy mang khổ + đơn vị gốc của khoá (`khoa_ton` của dòng phiếu là khoá giữ chỗ).
+    giay = hang[0] == "giay" and len(hang) == 5
     db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai=hang[0],
                             hang_id=hang[1], so_luong=10, sl_goc=10, lot_id=None,
-                            dang_giay="to" if giay_to else None,
-                            kho_rong=hang[2] if giay_to else 0,
-                            kho_dai=hang[3] if giay_to else 0))
+                            don_vi_goc=hang[4] if giay else "",
+                            kho_rong=hang[2] if giay else 0,
+                            kho_dai=hang[3] if giay else 0))
     db.commit()
     return v, {rl.id: rl}
 

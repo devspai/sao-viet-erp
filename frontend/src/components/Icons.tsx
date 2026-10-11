@@ -519,9 +519,10 @@ const ICONS = {
   // Tổ sản xuất — mũ bảo hộ
   hardHat: (
     <>
-      <path d="M2.5 18.5h19v-1.75a1 1 0 0 0-1-1h-17a1 1 0 0 0-1 1Z" />
-      <path d="M4.5 15.75V14a7.5 7.5 0 0 1 15 0v1.75" />
-      <path d="M10 6.7V4.5h4v2.2M10 15.75V9.5M14 15.75V9.5" />
+      <path d="M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5" />
+      <path d="M14 6a6 6 0 0 1 6 6v3" />
+      <path d="M4 15v-3a6 6 0 0 1 6-6" />
+      <rect x="2" y="15" width="20" height="4" rx="1" />
     </>
   ),
   // KCS — huy hiệu đạt chuẩn

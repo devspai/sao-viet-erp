@@ -170,6 +170,12 @@ def lenh_dang_chay(db, may_ids: list[int], bay_gio: datetime) -> dict[int, dict]
     return out
 
 
+def _ten_hong(p) -> str:
+    """Gọi tên cái hỏng của phiếu: chỗ hỏng nếu có ghi (phiếu cũ), không thì triệu chứng người báo —
+    từ 11/10/2026 phiếu không còn ô chỗ hỏng."""
+    return (p.bo_phan_hong or "").strip() or (p.mo_ta or "").strip()
+
+
 def phieu_sua_dang_mo(db, may_ids: list[int]) -> dict[int, dict]:
     """{may_id: {ma, phieu_id, bo_phan_hong, so}} — phiếu sửa chữa CHƯA đóng của từng máy.
 
@@ -198,16 +204,69 @@ def phieu_sua_dang_mo(db, may_ids: list[int]) -> dict[int, dict]:
     for p in rows:
         cu = out.get(p.may_id)
         if cu is None:
-            out[p.may_id] = {"ma": p.ma, "phieu_id": p.id, "bo_phan_hong": p.bo_phan_hong,
+            out[p.may_id] = {"ma": p.ma, "phieu_id": p.id, "bo_phan_hong": _ten_hong(p),
                              "so": 1, "_nang": nang.get(p.muc_do, -1), "_khi": p.thoi_diem}
             continue
         cu["so"] += 1
         mm, khi = nang.get(p.muc_do, -1), p.thoi_diem
         if (mm, khi) > (cu["_nang"], cu["_khi"]):
-            cu.update(ma=p.ma, phieu_id=p.id, bo_phan_hong=p.bo_phan_hong, _nang=mm, _khi=khi)
+            cu.update(ma=p.ma, phieu_id=p.id, bo_phan_hong=_ten_hong(p), _nang=mm, _khi=khi)
     for v in out.values():
         v.pop("_nang", None)
         v.pop("_khi", None)
+    return out
+
+
+def bao_hong_dang_mo(db, may_id: int | None) -> list[dict]:
+    """Các lần báo hỏng CHƯA xử lý xong của một máy — dòng "Máy" ở ngăn bàn tổ (11/10/2026).
+
+    Gồm yêu cầu còn chờ tổ sửa chữa nhận và phiếu sửa chưa xong. Yêu cầu đã thành phiếu thì chỉ
+    hiện phiếu (cùng một lần hỏng, không đếm hai lần); từ chối hoặc sửa xong là rụng. Máy dừng lên
+    trước, rồi mới nhất trước. Import cục bộ cùng lý do với `phieu_sua_dang_mo`.
+    """
+    if not may_id:
+        return []
+    try:
+        from ..models.ky_thuat_may import (
+            TT_SC_DANG_MO, TT_YC_DANG_MO, SuaChuaMay, YeuCauSuaChua,
+        )
+    except Exception:  # noqa: BLE001
+        return []
+
+    yeu_cau = list(db.execute(
+        select(YeuCauSuaChua).where(
+            YeuCauSuaChua.may_id == may_id, YeuCauSuaChua.trang_thai.in_(TT_YC_DANG_MO),
+        )
+    ).scalars())
+    phieu = list(db.execute(
+        select(SuaChuaMay).where(
+            SuaChuaMay.may_id == may_id, SuaChuaMay.trang_thai.in_(TT_SC_DANG_MO),
+        )
+    ).scalars())
+    # Máy dừng là lời của NGƯỜI BÁO, nằm trên yêu cầu — phiếu sinh từ yêu cầu mượn lại cờ đó.
+    dung_theo_phieu: dict[int, bool] = {}
+    if phieu:
+        for pid, dung in db.execute(
+            select(YeuCauSuaChua.phieu_id, YeuCauSuaChua.may_dung).where(
+                YeuCauSuaChua.phieu_id.in_([p.id for p in phieu]),
+            )
+        ).all():
+            dung_theo_phieu[pid] = dung_theo_phieu.get(pid, False) or bool(dung)
+
+    out = [
+        {"loai": "yeu_cau", "id": y.id, "ma": y.ma, "trang_thai": y.trang_thai,
+         "may_dung": bool(y.may_dung), "trieu_chung": (y.mo_ta or "").strip() or None,
+         "thoi_diem": y.thoi_diem}
+        for y in yeu_cau
+    ] + [
+        {"loai": "phieu", "id": p.id, "ma": p.ma, "trang_thai": p.trang_thai,
+         "may_dung": dung_theo_phieu.get(p.id, False), "trieu_chung": _ten_hong(p) or None,
+         "thoi_diem": p.thoi_diem}
+        for p in phieu
+    ]
+    out.sort(key=lambda d: _aware(d["thoi_diem"]) or datetime.min.replace(tzinfo=timezone.utc),
+             reverse=True)
+    out.sort(key=lambda d: not d["may_dung"])
     return out
 
 
@@ -227,7 +286,7 @@ def trang_thai_may(db, may_ids: list[int], *, bay_gio: datetime | None = None) -
         finish = lenh.get("finish_at")
         out[may_id] = {
             "trang_thai": TT_DANG_CHAY, "nhan": NHAN[TT_DANG_CHAY],
-            "chi_tiet": f"{lenh['ma']} · xong {_gio(finish)}",
+            "chi_tiet": f"lệnh {lenh['ma']} xong lúc {_gio(finish)}" if finish else f"lệnh {lenh['ma']}",
             "phieu_id": None, "den": finish,
         }
 
@@ -269,10 +328,12 @@ def trang_thai_may(db, may_ids: list[int], *, bay_gio: datetime | None = None) -
     for may_id, p in phieu_sua_dang_mo(db, may_ids).items():
         if may_id in out:
             continue
-        them = f" · +{p['so'] - 1} phiếu" if p["so"] > 1 else ""
+        # Câu liền mạch, không nối mẩu bằng "·" (hộp Đổi máy đọc nguyên câu sau dấu hai chấm).
+        hong = (p["bo_phan_hong"] or "").strip()[:40]
+        them = f" và {p['so'] - 1} phiếu khác" if p["so"] > 1 else ""
         out[may_id] = {
             "trang_thai": TT_CO_PHIEU_SUA, "nhan": NHAN[TT_CO_PHIEU_SUA],
-            "chi_tiet": f"{p['ma']} · {(p['bo_phan_hong'] or '').strip()[:40]}{them}",
+            "chi_tiet": f"phiếu {p['ma']}{f' sửa {hong}' if hong else ''}{them}",
             "phieu_id": p["phieu_id"], "den": None,
         }
     return out

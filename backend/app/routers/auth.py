@@ -207,12 +207,8 @@ def change_password(
 def my_permissions(
     current_user: CurrentUser,
     authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
-    db: Annotated[Session, Depends(get_db)],
 ) -> PermissionsOut:
-    from ..services.san_xuat.kcs import la_nguoi_kcs
-
     return PermissionsOut(
         modules=authz.readable_modules(current_user),
         permissions=authz.capabilities(current_user),
-        kcs=la_nguoi_kcs(db, current_user),
     )

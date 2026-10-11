@@ -20,14 +20,13 @@ class QuyenToRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def cay_phong_ban(self) -> list[tuple[int, int | None, str, bool, bool]]:
-        """(id, parent_id, tên, la_san_xuat, is_kcs) của MỌI phòng ban — bảng nhỏ, đọc một lượt."""
+    def cay_phong_ban(self) -> list[tuple[int, int | None, str, bool]]:
+        """(id, parent_id, tên, la_san_xuat) của MỌI phòng ban — bảng nhỏ, đọc một lượt."""
         return [
-            (r.id, r.parent_id, r.name, bool(r.la_san_xuat), bool(r.is_kcs))
+            (r.id, r.parent_id, r.name, bool(r.la_san_xuat))
             for r in self.db.execute(
                 select(
-                    Department.id, Department.parent_id, Department.name,
-                    Department.la_san_xuat, Department.is_kcs,
+                    Department.id, Department.parent_id, Department.name, Department.la_san_xuat,
                 ).order_by(Department.id)
             ).all()
         ]

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { SxWorkItem } from "../api/client";
-import { ThsxDanhSach } from "./ThsxDanhSach";
+import type { SxLenhNhom, SxRoutingBuoc, SxWorkItem } from "../api/client";
+import { ThsxDanhSach, dongPhuTrangThai } from "./ThsxDanhSach";
 
 function mockViec(p: Partial<SxWorkItem>): SxWorkItem {
   return {
@@ -52,7 +52,8 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
       />
     );
 
-    expect(screen.getByText("0003")).toBeInTheDocument();
+    // Mockup: mã lệnh đầy đủ, không rút còn số đuôi.
+    expect(screen.getByText("LSX26-0003")).toBeInTheDocument();
     expect(screen.getByText("Ghi kẽm CTP")).toBeInTheDocument();
     expect(screen.getByText("CTP Screen 8600")).toBeInTheDocument();
     expect(screen.getByText("Bản kẽm CTP 1030x790")).toBeInTheDocument();
@@ -93,9 +94,86 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     );
     expect(container.querySelector("table.lds-g")).not.toBeNull();
     expect(container.querySelector("tbody tr.lds-dong.is-chon")).not.toBeNull();
-    expect(screen.queryByText("Máy / Trạm")).toBeNull();
+    expect(screen.queryByText("Máy và thời gian")).toBeNull();
     expect(screen.queryByText("CTP Screen 8600")).toBeNull();
     expect(screen.queryByText("Định mức vật tư")).toBeNull();
     expect(screen.getByText("Công đoạn")).toBeInTheDocument();
+  });
+
+  it("lưới phẳng: mỗi việc một dòng, đủ 9 cột, lệnh thành cột Lệnh + Sản phẩm", () => {
+    const a = mockViec({ id: 1, nguon_ma: "LSX26-0004", nguon_ten: "Bìa sách A5", khach_hang: "Bibica" });
+    const b = mockViec({ id: 2, nguon_ma: "LSX26-0005", nguon_ten: "Ruột sách", ten_cong_doan: "Xén 3 mặt" });
+    const c = mockViec({ id: 3, nguon_ma: "LSX26-0005", nguon_ten: "Ruột sách", ten_cong_doan: "Cắt tờ" });
+    const lenh = [...mockLenh([a]), ...mockLenh([b, c])] as SxLenhNhom[];
+    const { container } = render(<ThsxDanhSach lenh={lenh} selectedId={null} onPick={vi.fn()} />);
+    expect(container.querySelectorAll("tbody tr.lds-dong")).toHaveLength(3);
+    expect([...container.querySelectorAll("thead th")].map((t) => t.textContent)).toEqual([
+      "Lệnh", "Sản phẩm", "Công đoạn", "Trạng thái", "Tốt / cần", "Hàng đang tới đâu",
+      "Máy và thời gian", "Quy cách", "Định mức vật tư",
+    ]);
+    expect(screen.getByText("Bìa sách A5")).toBeInTheDocument();
+    expect(screen.getByText("Bibica")).toBeInTheDocument();
+    // Lệnh một bước: máy chủ không dựng dải nhưng hàng chỉ có thể ở tổ mình.
+    expect(screen.getAllByText("Hàng ở tổ mình")).toHaveLength(3);
+  });
+
+  it("cột Hàng đang tới đâu vẽ dải theo routing, rê chuột lên chấm đọc tên bước và số", () => {
+    const buoc = (n: number, ten: string, tt: string, cv: number | null, extra: Partial<SxRoutingBuoc> = {}): SxRoutingBuoc => ({
+      thu_tu: n, step_key: `s${n}`, ten_cong_doan: ten, to_id: null, to_ten: `Tổ ${n}`, la_cua_toi: cv != null,
+      la_kcs_cuoi: false, trang_thai: tt, phan_doan_tong: 1, chay_chung: false, ke_hoach: null, thuc_te: 0,
+      don_vi: null, da_giao_sang_toi: null, da_nhan: null, cong_viec_id: cv, ...extra,
+    });
+    const w = mockViec({ id: 9, ten_cong_doan: "Bế" });
+    const lenh = mockLenh([w]).map((l) => ({
+      ...l,
+      routing: [
+        buoc(1, "Cắt tờ", "completed", null),
+        buoc(2, "In offset", "running", null, { ke_hoach: 350, thuc_te: 200, da_giao_sang_toi: 150 }),
+        buoc(3, "Cán màng", "released", null, { thue_ngoai: true }),
+        buoc(4, "Bế", "released", 9),
+      ],
+    })) as SxLenhNhom[];
+    const { container } = render(<ThsxDanhSach lenh={lenh} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByText("Còn 2 bước tới mình")).toBeInTheDocument();
+    const cham = container.querySelectorAll(".thsx-tk__dt:not(.thsx-tk-cg .thsx-tk__dt)");
+    expect(cham).toHaveLength(4);
+    expect(cham[1].getAttribute("title")).toContain("2. In offset, Tổ 2, đang làm");
+    expect(cham[1].getAttribute("title")).toContain("Đã giao sang tổ mình 150");
+    expect(cham[2].className).toContain("is-ngoai");
+    expect(cham[3].className).toContain("is-me");
+    expect(screen.getByLabelText("Còn 2 bước nữa mới tới tổ mình")).toBeInTheDocument();
+  });
+
+  it("lệnh gấp có thẻ GẤP cạnh mã ở mọi dòng của lệnh, lệnh thường thì không", () => {
+    const a = mockViec({ id: 1, nguon_ma: "LSX26-0004" });
+    const b = mockViec({ id: 2, nguon_ma: "LSX26-0005", ten_cong_doan: "Xén 3 mặt" });
+    const c = mockViec({ id: 3, nguon_ma: "LSX26-0005", ten_cong_doan: "Cắt tờ" });
+    const lenh = [
+      ...mockLenh([a]),
+      ...mockLenh([b, c]).map((l) => ({ ...l, is_rush: true })),
+    ] as SxLenhNhom[];
+    const { container } = render(<ThsxDanhSach lenh={lenh} selectedId={null} onPick={vi.fn()} />);
+    const dong = [...container.querySelectorAll("tbody tr.lds-dong")];
+    expect(dong.map((d) => d.querySelector(".lsc-gap")?.textContent ?? null)).toEqual([null, "GẤP", "GẤP"]);
+  });
+
+  it("bài ghép chưa có dải thì ô tuyến là gạch", () => {
+    const w = mockViec({ id: 7, nguon_loai: "bai_ghep" });
+    const lenh = mockLenh([w]).map((l) => ({ ...l, nguon_loai: "bai_ghep", routing: [] })) as SxLenhNhom[];
+    render(<ThsxDanhSach lenh={lenh} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.queryByText("Hàng ở tổ mình")).toBeNull();
+  });
+
+  it("dòng phụ trạng thái: chưa giao, đã giao, đang chạy, xong", () => {
+    expect(dongPhuTrangThai(mockViec({ trang_thai: "released", nguoi_lam: [] }))).toBe("chưa giao thợ");
+    expect(dongPhuTrangThai(mockViec({ trang_thai: "released", nguoi_lam: ["Đào Văn Hoan"] }))).toBe("đã giao Đào Văn Hoan");
+    const bay = new Date();
+    bay.setHours(11, 41, 0, 0);
+    expect(dongPhuTrangThai(mockViec({
+      trang_thai: "running", nguoi_lam: ["Đào Văn Hoan"], thuc_te: [{ bat_dau: bay.toISOString(), ket_thuc: null }],
+    }))).toBe("từ 11:41 Đào Văn Hoan");
+    expect(dongPhuTrangThai(mockViec({
+      trang_thai: "completed", thuc_te: [{ bat_dau: "2026-10-05T08:00:00", ket_thuc: "2026-10-05T16:20:00" }],
+    }))).toMatch(/^xong 5\/10(\/2026)? 16:20$/);
   });
 });

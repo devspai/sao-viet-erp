@@ -11,25 +11,17 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..services.kho_giay import DANG_GIAY, DANG_TO, chuan_kho, khoa_dong
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, khoa_dong
 from .purchase import MuaChoLenhOut
 
 
-def _chuan_giay(hang_loai: str | None, dang: str | None, kho_rong, kho_dai, *, bat_buoc: bool):
-    """Dạng + khổ của dòng kho (spec 2026-10-01 §3.1). Giấy: dạng bắt buộc (`bat_buoc`), tờ phải đủ hai
-    cạnh > 0, khổ chuẩn hoá cạnh ngắn × cạnh dài. Hàng khác: ép NULL · 0 · 0 (client gửi gì cũng bỏ)."""
+def _chuan_kho_giay(hang_loai: str | None, kho_rong, kho_dai) -> tuple[int, int]:
+    """Khổ của dòng kho: giấy chuẩn hoá cạnh ngắn × cạnh dài (một cạnh ⇒ khổ chỉ-rộng `(r, 0)`); hàng
+    khác ép 0 · 0 (client gửi gì cũng bỏ). Giấy KHÔNG còn dạng cuộn/tờ (10/10/2026) — đơn vị gốc của dòng
+    máy chủ suy từ ĐVT, client gửi thừa `dang_giay` thì schema bỏ qua (không 422)."""
     if hang_loai is not None and hang_loai != "giay":
-        return None, 0, 0
-    if dang is not None and dang not in DANG_GIAY:
-        raise ValueError("Dạng giấy chỉ có tờ hoặc cuộn.")
-    kr, kd = chuan_kho(kho_rong, kho_dai)
-    if dang is None:
-        if hang_loai == "giay" and bat_buoc:
-            raise ValueError("Giấy phải chọn dạng: tờ hoặc cuộn.")
-        return None, kr, kd
-    if dang == DANG_TO and not (kr and kd):
-        raise ValueError("Giấy dạng tờ phải khai đủ khổ (hai cạnh, mm).")
-    return dang, kr, (kd if dang == DANG_TO else 0)
+        return 0, 0
+    return chuan_kho(kho_rong, kho_dai)
 
 
 # --- Yêu cầu ----------------------------------------------------------------
@@ -50,16 +42,14 @@ class StockRequestLineIn(BaseModel):
     # Đơn giá NHẬP do người đề nghị khai (chỉ đề nghị NHẬP), theo `dvt`. Phiếu kế thừa; kho không sửa.
     don_gia: int | None = Field(default=None, ge=0)
     ghi_chu: str | None = Field(default=None, max_length=500)
-    # GIẤY: dạng (`to` | `cuon`) + khổ mm. Giấy bắt buộc dạng; tờ bắt buộc đủ hai cạnh; hàng khác bị ép
-    # NULL · 0 · 0. Chuẩn hoá cạnh ngắn × cạnh dài lúc nhận.
-    dang_giay: str | None = None
+    # GIẤY: khổ mm (đủ hai cạnh hoặc chỉ rộng); hàng khác bị ép 0 · 0. Chuẩn hoá cạnh ngắn × cạnh dài
+    # lúc nhận. Đơn vị gốc của dòng máy chủ suy từ `dvt` (họ tờ ⇒ tờ, họ đơn vị giá ⇒ đơn vị giá).
     kho_rong: int | float | None = Field(default=0, ge=0)
     kho_dai: int | float | None = Field(default=0, ge=0)
 
     @model_validator(mode="after")
-    def _chuan_dang_kho(self) -> "StockRequestLineIn":
-        self.dang_giay, self.kho_rong, self.kho_dai = _chuan_giay(
-            self.hang_loai, self.dang_giay, self.kho_rong, self.kho_dai, bat_buoc=True)
+    def _chuan_kho(self) -> "StockRequestLineIn":
+        self.kho_rong, self.kho_dai = _chuan_kho_giay(self.hang_loai, self.kho_rong, self.kho_dai)
         return self
 
 
@@ -70,6 +60,8 @@ class StockRequestCreate(BaseModel):
     # Số yêu cầu tự nhập (tuỳ chọn); bỏ trống → hệ thống tự sinh (DNN/DNX####).
     ma: str | None = Field(default=None, max_length=30)
     ngay_can: date | None = None
+    # GIỜ cần hàng (mg 0384). Có thì `ngay_can` lấy theo ngày của giờ này (máy chủ tự tính).
+    can_luc: datetime | None = None
     uu_tien: str = Field(default="binh_thuong", pattern="^(binh_thuong|gap)$")
     ghi_chu: str | None = Field(default=None, max_length=1000)
     # Mã loại nhập/xuất kho theo MISA (0/1/2/3…) — người tạo gõ tay; Báo cáo kho dùng để export.
@@ -81,6 +73,7 @@ class StockRequestCreate(BaseModel):
 
 class StockRequestUpdate(BaseModel):
     ngay_can: date | None = None
+    can_luc: datetime | None = None
     uu_tien: str | None = Field(default=None, pattern="^(binh_thuong|gap)$")
     ghi_chu: str | None = Field(default=None, max_length=1000)
     loai_kho: str | None = Field(default=None, max_length=50)
@@ -115,13 +108,15 @@ class StockRequestLineOut(BaseModel):
     lsx_ma: str | None = None
     bai_ghep_ma: str | None = None
     dvt: str
-    # Giấy: dạng + khổ mm của dòng (hàng khác: None · 0 · 0).
-    dang_giay: str | None = None
+    # Giấy: khổ mm của dòng (hàng khác: 0 · 0).
     kho_rong: int = 0
     kho_dai: int = 0
-    # Số đã quy về ĐƠN VỊ GỐC + câu diễn giải ("1 ram = 41,93 kg") — FE hiện dòng nhắc dưới ô SL
-    # để người khai thấy trước con số sẽ vào tồn. None = không đổi được (kèm `canh_bao_dv`).
+    # ĐƠN VỊ GỐC của dòng: giấy = cột `don_vi_goc` (tờ / đơn vị giá, máy chủ suy từ ĐVT); router đè bằng
+    # gốc của phép quy đổi bên dưới (giấy hai số trùng nhau, hàng khác là đơn vị gốc của mã). Đi kèm
+    # số đã quy về gốc + câu diễn giải ("1 ram = 500 tờ") — FE hiện dòng nhắc dưới ô SL để người khai
+    # thấy trước con số sẽ vào tồn. None = không đổi được (kèm `canh_bao_dv`).
     don_vi_goc: str | None = None
+    don_vi_goc_ten: str | None = None
     sl_quy_doi: float | None = None
     quy_doi_dien_giai: str | None = None
     canh_bao_dv: str | None = None
@@ -230,8 +225,8 @@ class BaoCaoKhoRow(BaseModel):
     ma_hang: str | None = None
     ten_hang: str | None = None
     dvt: str | None = None
-    # Giấy: dạng + khổ của dòng phiếu (cột "Khổ"). Hàng khác: None · 0 · 0.
-    dang_giay: str | None = None
+    # Giấy: đơn vị gốc + khổ của dòng phiếu (cột "Khổ"). Hàng khác: "" · 0 · 0.
+    don_vi_goc: str = ""
     kho_rong: int = 0
     kho_dai: int = 0
     so_luong: float
@@ -243,6 +238,46 @@ class BaoCaoKhoRow(BaseModel):
     # ĐIỀU CHUYỂN nội bộ (mig 0203): FE gắn nhãn "điều chuyển" + LOẠI dòng này khỏi tổng mua/bán
     # ở Tổng quan (chỉ tính luân chuyển từng kho, không thổi phồng "mua/bán trong kỳ").
     dieu_chuyen: bool = False
+    hang_loai: str | None = None          # giay | vat_tu — khoá danh mục của dòng
+    #: Nhóm hàng cho điều kiện "Loại hàng": giay | vat_tu | thanh_pham (vật tư bật cờ thành phẩm).
+    nhom_hang: str | None = None
+    #: Tên (hoặc khoảng ngày) của kỳ ĐÃ KHÓA SỔ phủ ngày chứng từ của dòng; None = chưa khóa.
+    ky_khoa: str | None = None
+    #: Phiếu sinh ra từ đâu (mã + chữ hiện): nhap_mua · nhap_thanh_pham · nhap_gia_cong · nhap_tra_vat_tu ·
+    #: nhap_khac · xuat_san_xuat · xuat_giao_khach · xuat_gia_cong · xuat_khac.
+    ly_do: str | None = None
+    ly_do_ten: str | None = None
+    lenh: str | None = None               # mã lệnh sản xuất của dòng (nếu có)
+    don_hang: str | None = None           # số đơn hàng bán
+    khach_hang: str | None = None
+    nha_cung_cap: str | None = None       # NCC của đợt mua, hoặc nhà gia công ngoài
+    bo_phan: str | None = None            # bộ phận lập yêu cầu kho
+    ma_yeu_cau: str | None = None
+    nguoi_giao_nhan: str | None = None
+    nguoi_lap: str | None = None          # người lập phiếu
+    dien_giai: str | None = None
+
+
+class LuaChonDem(BaseModel):
+    """Một giá trị chọn được trong menu Lọc + số dòng mang giá trị đó (đếm trước khi áp điều kiện)."""
+
+    value: str
+    nhan: str
+    so: int = 0
+
+
+class LuaChonBaoCaoKho(BaseModel):
+    """Giá trị cho nút Lọc của các bảng Báo cáo kho — chỉ những giá trị CÓ trong kỳ + kho + ô tìm
+    đang xem (bấm vào không ra bảng rỗng), đếm trước khi áp các điều kiện thuộc tính."""
+
+    hang_loai: list[LuaChonDem] = []
+    mat_hang: list[LuaChonDem] = []
+    phat_sinh: list[LuaChonDem] = []
+    ton: list[LuaChonDem] = []
+    loai_phieu: list[LuaChonDem] = []
+    ly_do: list[LuaChonDem] = []
+    khach_hang: list[LuaChonDem] = []
+    nha_cung_cap: list[LuaChonDem] = []
 
 
 class BaoCaoKhoPage(BaseModel):
@@ -251,6 +286,7 @@ class BaoCaoKhoPage(BaseModel):
     #: Tổng tiền của MỌI dòng khớp lọc (không chỉ trang đang xem); None khi người xem không có
     #: ô xem giá của màn — cùng luật ẩn tiền với từng dòng.
     tong_tien: int | None = None
+    lua_chon: LuaChonBaoCaoKho | None = None
 
 
 class BaoCaoChuyenKhoRow(BaseModel):
@@ -273,6 +309,9 @@ class BaoCaoChuyenKhoRow(BaseModel):
     kho_xuat_id: int | None = None
     kho_nhap_id: int | None = None
     dien_giai: str | None = None          # ghi chú điều chuyển
+    hang_loai: str | None = None
+    nhom_hang: str | None = None          # giay | vat_tu | thanh_pham
+    ky_khoa: str | None = None            # kỳ đã khóa sổ phủ dòng (ở kho nguồn hoặc kho đích)
 
 
 class BaoCaoChuyenKhoPage(BaseModel):
@@ -281,6 +320,7 @@ class BaoCaoChuyenKhoPage(BaseModel):
     #: Tổng tiền của MỌI dòng khớp lọc (không chỉ trang đang xem); None khi người xem không có
     #: ô xem giá của màn — cùng luật ẩn tiền với từng dòng.
     tong_tien: int | None = None
+    lua_chon: LuaChonBaoCaoKho | None = None
 
 
 class BaoCaoNXTRow(BaseModel):
@@ -296,11 +336,14 @@ class BaoCaoNXTRow(BaseModel):
     hang_id: int
     ma_hang: str | None = None
     ten_hang: str | None = None
-    hang_nhom: str | None = None          # "Giấy" | "Vật tư" — cho FE gom nhóm
+    hang_nhom: str | None = None          # "Giấy" | "Vật tư" | "Thành phẩm" — cho FE gom nhóm
+    nhom_hang: str | None = None          # giay | vat_tu | thanh_pham — điều kiện "Loại hàng"
     dvt: str | None = None
-    # Khổ giấy TỜ (mm) — dòng tờ tách theo khổ, đếm tờ nguyên. Cuộn / hàng khác: 0 · 0 (gom theo mã).
+    # Giấy: khổ (mm) + đơn vị gốc — dòng tách theo khoá tồn (cùng khổ khác đơn vị gốc là hai dòng).
+    # Hàng khác: 0 · 0 · "" (gom theo mã).
     kho_rong: int = 0
     kho_dai: int = 0
+    don_vi_goc: str = ""
     dau_sl: float = 0
     # Bốn ô GIÁ TRỊ nhận None (không phải 0) khi người xem thiếu `kho:view_cost`: họ vẫn đọc được
     # SỐ LƯỢNG nhập-xuất-tồn, chỉ không thấy tiền (xem `_an_tien` ở `routers/kho_baocao.py`).
@@ -328,6 +371,7 @@ class BaoCaoNXTPage(BaseModel):
     # vẫn hiện Giá trị cuối kỳ nhưng là số TẠM TÍNH tới `den` (khác số đã chốt tại `ky_da_tinh_den`).
     ky_da_tinh_den: date | None = None
     ky_da_tinh_ten: str | None = None
+    lua_chon: LuaChonBaoCaoKho | None = None
 
 
 class ThanhPhamChuaGiaGocRow(BaseModel):
@@ -368,6 +412,7 @@ class ThanhPhamChuaGiaGocPage(BaseModel):
     # Lựa chọn cho ô lọc nâng cao — chỉ kho/khách có lô gốc thành phẩm từ KCS.
     cac_kho: list[LuaChonLocGiaGoc] = []
     cac_khach: list[LuaChonLocGiaGoc] = []
+    cac_hang: list[LuaChonLocGiaGoc] = []
 
 
 class TinhGiaKyIn(BaseModel):
@@ -512,16 +557,14 @@ class StockVoucherLineIn(BaseModel):
     # Phiếu NHẬP: hạn sử dụng của lô sắp tạo (tuỳ chọn). Tách hạn = nhiều dòng (mỗi hạn 1 dòng),
     # phần dư không hạn để None. XUẤT bỏ qua.
     hsd: date | None = None
-    # Phiếu NHẬP giấy: dạng + khổ của lô sắp tạo. Bỏ trống ⇒ kế thừa dòng yêu cầu. Khai thì phải hợp lệ
-    # (tờ đủ hai cạnh). Phiếu XUẤT: bỏ qua — dạng/khổ lấy từ dòng yêu cầu, lô phải khớp.
-    dang_giay: str | None = None
+    # Phiếu NHẬP giấy: khổ của lô sắp tạo. Bỏ trống ⇒ kế thừa dòng yêu cầu. Đơn vị gốc LUÔN theo dòng
+    # yêu cầu. Phiếu XUẤT: bỏ qua — khổ + đơn vị lấy từ dòng yêu cầu, lô phải khớp.
     kho_rong: int | float | None = Field(default=0, ge=0)
     kho_dai: int | float | None = Field(default=0, ge=0)
 
     @model_validator(mode="after")
-    def _chuan_dang_kho(self) -> "StockVoucherLineIn":
-        self.dang_giay, self.kho_rong, self.kho_dai = _chuan_giay(
-            None, self.dang_giay, self.kho_rong, self.kho_dai, bat_buoc=False)
+    def _chuan_kho(self) -> "StockVoucherLineIn":
+        self.kho_rong, self.kho_dai = _chuan_kho_giay(None, self.kho_rong, self.kho_dai)
         return self
 
 
@@ -545,7 +588,6 @@ class StockVoucherLineOut(BaseModel):
     hang_ma: str | None = None
     hang_ten: str | None = None
     dvt: str | None = None
-    dang_giay: str | None = None
     kho_rong: int = 0
     kho_dai: int = 0
     lot_id: int | None = None
@@ -632,16 +674,20 @@ class DieuChuyenItemIn(BaseModel):
     # Vị trí cất ở KHO ĐÍCH (kệ/ô) — tuỳ chọn, khai ngay lúc ấn điều chuyển; áp cho MỌI lô của mặt
     # hàng này. Thủ kho đích còn sửa lại được ở drawer trước khi ghi sổ.
     vi_tri: str | None = Field(default=None, max_length=100)
-    # GIẤY: nhóm lô nguồn cần chuyển — dạng (+ khổ với tờ). `so_luong` theo đơn vị gốc CỦA DẠNG
-    # (tờ ⇒ tờ nguyên, cuộn ⇒ đơn vị gốc của mã giấy). Cùng mã hai khổ/dạng = hai dòng.
-    dang_giay: str | None = None
+    # GIẤY / VẬT TƯ: nhóm lô nguồn cần chuyển — khổ (chỉ giấy) + ĐƠN VỊ GỐC của dòng tồn (`don_vi_goc` đọc từ dòng tồn,
+    # "to" / "kg"…). `so_luong` theo đơn vị gốc đó. Cùng mã khác khổ / khác đơn vị = hai dòng. Bỏ trống
+    # `don_vi_goc` ⇒ máy chủ suy từ lô ở kho nguồn khi chúng cùng một đơn vị, không thì chặn.
+    don_vi_goc: str | None = Field(default=None, max_length=16)
     kho_rong: int | float | None = Field(default=0, ge=0)
     kho_dai: int | float | None = Field(default=0, ge=0)
 
     @model_validator(mode="after")
-    def _chuan_dang_kho(self) -> "DieuChuyenItemIn":
-        self.dang_giay, self.kho_rong, self.kho_dai = _chuan_giay(
-            self.hang_loai, self.dang_giay, self.kho_rong, self.kho_dai, bat_buoc=False)
+    def _chuan_kho(self) -> "DieuChuyenItemIn":
+        self.kho_rong, self.kho_dai = _chuan_kho_giay(self.hang_loai, self.kho_rong, self.kho_dai)
+        if not co_don_vi_goc(self.hang_loai):
+            self.don_vi_goc = None
+        elif self.don_vi_goc is not None:
+            self.don_vi_goc = self.don_vi_goc.strip().lower() or None
         return self
 
 
@@ -659,9 +705,8 @@ class DieuChuyenIn(BaseModel):
             raise ValueError("Kho nguồn và kho đích phải khác nhau.")
         seen: set = set()
         for it in self.items:
-            # Giấy: cùng mã khác dạng/khổ là hai dòng hợp lệ.
-            key = (khoa_dong(it.hang_loai, it.hang_id, it.dang_giay, it.kho_rong, it.kho_dai)
-                   if it.dang_giay else (it.hang_loai, it.hang_id))
+            # Giấy: cùng mã khác khổ / khác đơn vị gốc là hai dòng hợp lệ.
+            key = khoa_dong(it.hang_loai, it.hang_id, it.don_vi_goc, it.kho_rong, it.kho_dai)
             if key in seen:
                 raise ValueError("Một mặt hàng chỉ được điều chuyển 1 dòng — gộp số lượng lại.")
             seen.add(key)
@@ -704,10 +749,9 @@ class StockVoucherAttachmentListOut(BaseModel):
 
 # --- Lô & phân bổ ------------------------------------------------------------
 
-class StockLotDangKhoIn(BaseModel):
-    """Kho bổ sung dạng/khổ cho lô giấy cũ (chưa có dạng)."""
+class StockLotKhoIn(BaseModel):
+    """Kho bổ sung KHỔ cho lô giấy cũ chưa có khổ — chỉ ghi khổ, số lượng / đơn vị / giá giữ nguyên."""
 
-    dang_giay: str = Field(pattern="^(to|cuon)$")
     kho_rong: int = Field(ge=1, le=100000)
     kho_dai: int = Field(default=0, ge=0, le=100000)
 
@@ -762,8 +806,8 @@ class StockLotOut(BaseModel):
     dvt_ten: str | None = None
     kho_id: int
     vi_tri: str | None = None
-    # Giấy: dạng + khổ của lô (lô cũ / vật tư khác: None · 0 · 0).
-    dang_giay: str | None = None
+    # Giấy: đơn vị gốc + khổ của lô (vật tư khác: "" · 0 · 0). Lô cũ chưa có khổ: 0 · 0.
+    don_vi_goc: str = ""
     kho_rong: int = 0
     kho_dai: int = 0
     ngay_nhap: date
@@ -813,7 +857,7 @@ class AllocationLineOut(BaseModel):
     hsd: date | None = None
     sl_con_lai: float
     so_luong: float
-    dang_giay: str | None = None
+    don_vi_goc: str = ""
     kho_rong: int = 0
     kho_dai: int = 0
     don_gia_nhap: int | None = None
@@ -951,20 +995,19 @@ class StockThresholdIn(BaseModel):
     nguong_can_ton: float | None = Field(default=None, ge=0)
     nguong_toi_da: float | None = Field(default=None, ge=0)
     canh_bao: bool = True
-    # Khổ giấy TỜ (mm) — ngưỡng tờ đặt riêng từng khổ. Giấy cuộn bỏ trống (0 · 0, gom theo mã);
-    # hàng khác máy chủ ép 0 · 0. Một cạnh lẻ không thành khổ nào ⇒ chặn.
+    # Giấy: ngưỡng đặt riêng cho từng dòng tồn = khổ (mm, đủ hai cạnh hoặc chỉ rộng) + ĐƠN VỊ GỐC
+    # (`don_vi_goc` của dòng tồn — "to" / "kg"…). Vật tư: khổ 0 · 0 + đơn vị gốc (mg 0390).
     kho_rong: int = 0
     kho_dai: int = 0
+    don_vi_goc: str = Field(default="", max_length=16)
 
     @model_validator(mode="after")
     def _khoa_kho(self):
-        if self.hang_loai != "giay":
-            self.kho_rong, self.kho_dai = 0, 0
+        if not co_don_vi_goc(self.hang_loai):
+            self.kho_rong, self.kho_dai, self.don_vi_goc = 0, 0, ""
             return self
-        kr, kd = chuan_kho(self.kho_rong, self.kho_dai)
-        if kr and not kd:
-            raise ValueError("Ngưỡng giấy tờ phải khai đủ khổ (hai cạnh, mm); giấy cuộn để trống khổ.")
-        self.kho_rong, self.kho_dai = kr, kd
+        self.kho_rong, self.kho_dai = _chuan_kho_giay(self.hang_loai, self.kho_rong, self.kho_dai)
+        self.don_vi_goc = (self.don_vi_goc or "").strip().lower()
         return self
 
 
@@ -979,6 +1022,7 @@ class StockThresholdOut(BaseModel):
     kho_id: int
     kho_rong: int = 0
     kho_dai: int = 0
+    don_vi_goc: str = ""
     nguong_ton: float
     nguong_can_ton: float | None = None
     nguong_toi_da: float | None = None
@@ -1025,10 +1069,9 @@ class DuBaoVeRow(BaseModel):
 
 
 class TonKhoaRow(BaseModel):
-    """Tồn toàn xưởng của MỘT khoá (dạng + khổ) của một mặt hàng — không tiền. Số theo đơn vị gốc
-    của khoá: giấy tờ đếm "tờ", giấy cuộn và hàng khác theo đơn vị gốc của mã."""
+    """Tồn toàn xưởng của MỘT khoá (khổ + đơn vị gốc) của một mặt hàng — không tiền. Số theo đơn vị
+    gốc của khoá: giấy theo `don_vi_goc` của lô (tờ / đơn vị giá), hàng khác theo đơn vị gốc của mã."""
 
-    dang_giay: str | None = None
     kho_rong: int = 0
     kho_dai: int = 0
     ton: float = 0
@@ -1037,7 +1080,7 @@ class TonKhoaRow(BaseModel):
 
 
 class DuBaoTonRow(BaseModel):
-    """Dự báo của MỘT dòng màn Tồn kho (khoá tồn 4 phần). Số đều theo đơn vị GỐC của mặt hàng.
+    """Dự báo của MỘT dòng màn Tồn kho (khoá tồn 5 phần). Số đều theo đơn vị GỐC của dòng.
 
     Không có tiền: PMH chỉ được gọi tên (`phieu_mua`), giá nằm ở sổ giá của danh mục."""
 
@@ -1045,6 +1088,8 @@ class DuBaoTonRow(BaseModel):
     hang_id: int
     kho_rong: int = 0
     kho_dai: int = 0
+    #: Giấy: đơn vị gốc của dòng (tờ / đơn vị giá). Hàng khác "".
+    don_vi_goc: str = ""
     #: Tồn TOÀN XƯỞNG mà bảng cân đối đang dùng — giữ chỗ không chia theo kho, nên màn kho cần
     #: số này để nói "lệnh tính trên tồn mọi kho". `None` = không lệnh nào cần mã này.
     ton_toan_xuong: float | None = None
@@ -1059,14 +1104,16 @@ class TonNhomMuc(BaseModel):
     """Phán quyết của MỘT dòng tồn (nhóm) trong trang — máy chủ là nguồn DUY NHẤT của "Cần mua", chip
     Tình trạng và các số dự báo mà dòng bày; màn không tự tính lại. Không có tiền."""
 
-    #: Khoá dòng tồn dạng chuỗi như `khoaTon` bên màn: `giay:12:780:905` · `giay:12:0:0` · `giay:12` · `vat_tu:5`.
+    #: Khoá dòng tồn dạng chuỗi như `khoaTon` bên màn, luôn 5 phần: `giay:12:780:905:to` ·
+    #: `giay:12:1000:0:kg` · `vat_tu:5:0:0:`.
     khoa: str
     hang_loai: str
     hang_id: int
     kho_rong: int = 0
     kho_dai: int = 0
+    don_vi_goc: str = ""
     can_mua: bool = False
-    #: Đã khai ngưỡng cho dòng này ở kho này (giấy cũ chưa có dạng khớp ngưỡng khổ 0 × 0).
+    #: Đã khai ngưỡng cho dòng này ở kho này (cùng khổ + đơn vị gốc; lô giấy chưa có khổ khớp ngưỡng 0 × 0).
     co_nguong: bool = False
     #: `het` · `can_mua` · `vuot` (đang vượt tối đa) · `se_vuot` · `chua` (chưa đặt mức) · None (trong mức).
     tinh_trang: str | None = None

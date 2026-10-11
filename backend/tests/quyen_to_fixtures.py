@@ -36,11 +36,30 @@ def cap_quyen_to(db, user, dept, *, scope: str = SCOPE_ALL, viec=BON_VIEC, xem: 
     return user
 
 
-def cap_dong_thieu(db, user):
-    """Bật "Đóng lệnh thiếu" (mg 0382) cho vai của `user` trên dòng phòng `is_kcs` họ đứng — phòng
-    đó phải nằm trong khối Sản xuất mới có dòng quyền, y như ma trận thật."""
+def cap_kcs(db, user, *, thao_tac: bool = True, dong_thieu: bool = False):
+    """Bật dòng `kcs` (mg 0383, 09/10/2026) cho vai của `user`: Xem + Thao tác (`can_create`) +
+    tuỳ chọn Đóng lệnh thiếu — y như quản trị bấm ở ma trận. Chưa có vai thì dựng vai riêng."""
     from app.models.department import Department
 
-    dept = db.get(Department, user.department_id)
-    dept.la_san_xuat = True
-    return cap_quyen_to(db, user, dept, viec=("close_short",), xem=False)
+    db.flush()
+    roles = RoleRepository(db)
+    if user.role_id is None:
+        phong = user.department_id
+        if phong is None:
+            d = Department(name=f"Phòng vai KCS {user.id}", code=f"PV-KCS-{user.id}")
+            db.add(d)
+            db.flush()
+            phong = d.id
+        vai = Role(name=f"Vai KCS test {user.id}", department_id=phong)
+        db.add(vai)
+        db.flush()
+        user.role_id = vai.id
+    roles.set_permission(role_id=user.role_id, module_key="kcs", scope=SCOPE_ALL, can_read=True,
+                         can_create=thao_tac, can_close_short=dong_thieu)
+    db.commit()
+    return user
+
+
+def cap_dong_thieu(db, user):
+    """Bật "Đóng lệnh thiếu" (+ Xem, Thao tác) ở dòng `kcs` cho vai của `user`."""
+    return cap_kcs(db, user, dong_thieu=True)

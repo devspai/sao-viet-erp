@@ -393,6 +393,187 @@ def _nap_phai_tra(
     return don, chi, hoan, ma_ncc
 
 
+# ══════════════════════════════════════════════════════════════════════════════════
+# KHOẢN CÒN NỢ tại `den_ngay` — nguồn DUY NHẤT cho rổ tuổi của sổ tổng hợp VÀ tab "Đợt còn nợ"
+# ══════════════════════════════════════════════════════════════════════════════════
+#
+# Tab "Đợt còn nợ" (11/10/2026, phương án C) là thứ người xem mở ra để giải thích các cột tuổi nợ
+# của một dòng. Hai bên đi CÙNG một vòng cấn trừ thì cộng các khoản trong tab ra đúng bằng ô của
+# dòng đó — tự viết vòng thứ hai là mở cửa cho hai con số cãi nhau.
+
+
+def _khoan_phai_thu(hoa_don, phieu):
+    """Phần CÒN LẠI của từng hoá đơn bán tính tới `den_ngay` (phiếu đã nạp sẵn tới mốc đó).
+
+    Phải tính lại ở đây, không mượn `remaining_amount` của `_receivable_rows` — số đó là "còn lại
+    tính tới HÔM NAY", nên tiền khách trả SAU kỳ đã bị trừ mất và tuổi nợ của kỳ cũ hoá ra nhẹ đi.
+    Cách cấn trừ y hệt `receivable_rows`: thu ĐÍCH DANH hoá đơn trừ trước, cọc của đơn cấn FIFO
+    theo (ngày hoá đơn, id). Chép luật ở đây là có ý — bản gốc không nhận mốc ngày."""
+    thu_dich_danh: dict[int, int] = {}
+    coc_theo_don: dict[int, int] = {}
+    for p in phieu:
+        if p.source_type == RECEIPT_SOURCE_PURCHASE:
+            continue
+        if p.sales_invoice_id is not None:
+            thu_dich_danh[p.sales_invoice_id] = (
+                thu_dich_danh.get(p.sales_invoice_id, 0) + int(p.amount_vnd)
+            )
+        elif p.order_id is not None:
+            coc_theo_don[p.order_id] = coc_theo_don.get(p.order_id, 0) + int(p.amount_vnd)
+
+    theo_don: dict[int, list] = {}
+    for hd in hoa_don:
+        theo_don.setdefault(hd.order_id, []).append(hd)
+
+    for don_id, ds in theo_don.items():
+        con_coc = coc_theo_don.get(don_id, 0)
+        for hd in sorted(ds, key=lambda x: (x.invoice_date, x.id)):
+            tien = int(hd.amount_vnd)
+            truc_tiep = min(tien, thu_dich_danh.get(hd.id, 0))
+            bu_coc = min(con_coc, max(0, tien - truc_tiep))
+            con_coc -= bu_coc
+            yield {
+                "doi_tuong_id": hd.customer_id,
+                "ten_lui": hd.customer_name_snapshot,
+                "so_ct": _so_hoa_don(hd),
+                "ngay": hd.invoice_date,
+                "han": hd.due_date,
+                "con_no": max(0, tien - truc_tiep - bu_coc),
+            }
+
+
+def _khoan_phai_tra(don, *, den_ngay: date):
+    """Phần còn nợ của từng ĐỢT GIAO tính tới `den_ngay`.
+
+    `phan_bo_tien_dot(..., den_ngay=...)` chỉ đếm tiền đã chi TỚI HẾT ngày đó, nên phần còn nợ
+    của từng đợt là con số ĐÚNG TẠI MỐC ĐANG XEM. Hạn trả lấy bằng `han_tra_dot` — cùng thang
+    4 bậc mà màn Công nợ đang dùng, không tự đặt luật hạn riêng ở đây."""
+    for pr in don:
+        phan_bo, _, _ = phan_bo_tien_dot(pr, den_ngay=den_ngay)
+        for m in phan_bo:
+            d = m["delivery"]
+            if d.delivery_date > den_ngay:
+                continue
+            yield {
+                "doi_tuong_id": pr.supplier_id,
+                "ten_lui": None,
+                # Số ĐỢT TRONG ĐƠN, cùng cách ghi với dòng "Hàng đã nhận" của sổ chi tiết.
+                "so_ct": f"{pr.code} đợt {d.seq_no}",
+                "ngay": d.delivery_date,
+                "han": han_tra_dot(d, pr.supplier, pr.debt_cutoff_date),
+                "con_no": int(m["con_no"]),
+            }
+
+
+def _ra_khoan_con_no(khoan, *, doi_tuong_id: int | None, den_ngay: date) -> dict:
+    """Lọc các khoản CÒN NỢ của một đối tượng + gắn rổ tuổi tại `den_ngay`.
+
+    Xếp khoản trễ lâu nhất lên đầu (đó là thứ cần trả / đòi trước), khoản chưa có hạn xuống cuối."""
+    from .accounting_service import ro_tuoi
+
+    ra = []
+    for k in khoan:
+        if k["doi_tuong_id"] != doi_tuong_id or k["con_no"] <= 0:
+            continue
+        tre = (den_ngay - k["han"]).days if k["han"] is not None else 0
+        ra.append({
+            "so_ct": k["so_ct"],
+            "ngay": k["ngay"],
+            "han": k["han"],
+            "con_no": k["con_no"],
+            # Âm = còn bấy nhiêu ngày mới tới hạn; 0 = đúng hạn hôm đó; None = chưa đặt hạn.
+            "tre_ngay": tre if k["han"] is not None else None,
+            "ro": ro_tuoi(max(0, tre)),
+        })
+    ra.sort(key=lambda r: (r["han"] is None, r["han"] or den_ngay, r["ngay"], r["so_ct"]))
+    return {"den_ngay": den_ngay, "items": ra, "tong": sum(r["con_no"] for r in ra)}
+
+
+def khoan_con_no_phai_thu(repo, *, doi_tuong_id: int | None, den_ngay: date) -> dict:
+    """Các hoá đơn bán CÒN NỢ của một khách tại `den_ngay` — tab "Hoá đơn còn nợ"."""
+    hoa_don, phieu, _khach_don, _ma = _nap_phai_thu(repo, den_ngay=den_ngay)
+    return _ra_khoan_con_no(
+        _khoan_phai_thu(hoa_don, phieu), doi_tuong_id=doi_tuong_id, den_ngay=den_ngay
+    )
+
+
+def khoan_con_no_phai_tra(
+    repo, purchases, *, doi_tuong_id: int | None, den_ngay: date
+) -> dict:
+    """Các đợt giao CÒN NỢ của một nhà cung cấp tại `den_ngay` — tab "Đợt còn nợ"."""
+    don = purchases.list_for_payables()
+    return _ra_khoan_con_no(
+        _khoan_phai_tra(don, den_ngay=den_ngay), doi_tuong_id=doi_tuong_id, den_ngay=den_ngay
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════════
+# LỌC NHANH + PHÂN TRANG của sổ tổng hợp (11/10/2026, phương án C)
+# ══════════════════════════════════════════════════════════════════════════════════
+
+#: Hàng lọc nhanh của sổ tổng hợp. `con_no` / `tra_truoc` đọc theo BÊN của tài khoản: 331 còn nợ là
+#: dư Có, 131 còn nợ là dư Nợ — bên kia là tiền đã trả trước (331) / khách ứng trước (131).
+THE_SO = ("all", "con_no", "qua_han", "tra_truoc")
+
+
+def _khop_the(d: dict, the: str) -> bool:
+    from .accounting_service import AGING_KEYS_TRE
+
+    con_no, truoc = (d["cuoi_co"], d["cuoi_no"]) if d["tk"] == TK_PHAI_TRA else (d["cuoi_no"], d["cuoi_co"])
+    if the == "con_no":
+        return con_no > 0
+    if the == "tra_truoc":
+        return truoc > 0
+    if the == "qua_han":
+        return any((d.get("aging") or {}).get(k, {}).get("amount", 0) > 0 for k in AGING_KEYS_TRE)
+    return True
+
+
+def loc_the_va_cat_trang(bc: dict, *, the: str | None, page: int, size: int | None) -> dict:
+    """Áp hàng lọc nhanh rồi cắt trang. Chạy SAU ô tìm và lọc rổ tuổi.
+
+    - `dem_the`: số dòng mỗi mục lọc nhanh, đếm trên tập ĐÃ qua ô tìm / rổ tuổi (đúng nếp các
+      danh sách khác: tab đếm theo bộ lọc) nhưng TRƯỚC khi áp chính mục lọc nhanh.
+    - `tong` + `tong_aging`: dòng Cộng của MỌI dòng khớp bộ lọc, không chỉ trang đang xem.
+    - `aging` (dải toàn màn) giữ nguyên — xem `_loc_ro` ở router.
+    - `size` bỏ trống = trả hết (người gọi cũ, file Excel)."""
+    from .accounting_service import AGING_KEYS
+
+    goc = bc["items"]
+    dem = {t: sum(1 for d in goc if _khop_the(d, t)) for t in THE_SO}
+    giu = [d for d in goc if _khop_the(d, the or "all")] if the in THE_SO else goc
+    tong_ro = {k: sum((d.get("aging") or {}).get(k, {}).get("amount", 0) for d in giu) for k in AGING_KEYS}
+    total = len(giu)
+    if size:
+        page = max(1, page)
+        trang = giu[(page - 1) * size: page * size]
+    else:
+        page, trang = 1, giu
+    return {
+        **bc,
+        "items": trang,
+        "tong": _tong(giu),
+        "tong_aging": tong_ro,
+        "dem_the": dem,
+        "total": total,
+        "page": page,
+        "size": size or total,
+    }
+
+
+def cat_trang_so_chi_tiet(so: dict, *, page: int, size: int | None) -> dict:
+    """Cắt trang SỔ CHI TIẾT ở máy chủ, MỚI NHẤT LÊN ĐẦU (chủ chốt Cách 1: Đầu kỳ → phát sinh mới
+    đến cũ → Cuối kỳ). Luỹ kế đã tính trên CẢ sổ theo thứ tự thời gian nên cắt sau không làm sai
+    số nào; hai mốc đầu kỳ / cuối kỳ là trường riêng, trang nào cũng có. `size` bỏ trống = giữ nguyên
+    thứ tự cũ, trả hết (file Excel và người gọi cũ)."""
+    dong = so["dong"]
+    if not size:
+        return {**so, "so_dong": len(dong)}
+    moi_truoc = list(reversed(dong))
+    page = max(1, page)
+    return {**so, "dong": moi_truoc[(page - 1) * size: page * size], "so_dong": len(dong)}
+
+
 def _so_chi_tiet(
     chung_tu: list[dict],
     *,
@@ -514,35 +695,8 @@ def tong_hop_phai_thu(
     #
     # Cách cấn trừ y hệt `receivable_rows`: thu ĐÍCH DANH hoá đơn trừ trước, cọc của đơn cấn FIFO
     # theo (ngày hoá đơn, id). Chép luật ở đây là có ý — bản gốc không nhận mốc ngày.
-    thu_dich_danh: dict[int, int] = {}
-    coc_theo_don: dict[int, int] = {}
-    for p in phieu:
-        if p.source_type == RECEIPT_SOURCE_PURCHASE:
-            continue
-        if p.sales_invoice_id is not None:
-            thu_dich_danh[p.sales_invoice_id] = (
-                thu_dich_danh.get(p.sales_invoice_id, 0) + int(p.amount_vnd)
-            )
-        elif p.order_id is not None:
-            coc_theo_don[p.order_id] = coc_theo_don.get(p.order_id, 0) + int(p.amount_vnd)
-
-    theo_don: dict[int, list] = {}
-    for hd in hoa_don:
-        theo_don.setdefault(hd.order_id, []).append(hd)
-
-    for don_id, ds in (theo_don.items() if tinh_tuoi else ()):
-        con_coc = coc_theo_don.get(don_id, 0)
-        for hd in sorted(ds, key=lambda x: (x.invoice_date, x.id)):
-            tien = int(hd.amount_vnd)
-            truc_tiep = min(tien, thu_dich_danh.get(hd.id, 0))
-            bu_coc = min(con_coc, max(0, tien - truc_tiep))
-            con_coc -= bu_coc
-            _bo_ro(
-                _muc(hd.customer_id, hd.customer_name_snapshot),
-                max(0, tien - truc_tiep - bu_coc),
-                hd.due_date,
-                den_ngay,
-            )
+    for k in (_khoan_phai_thu(hoa_don, phieu) if tinh_tuoi else ()):
+        _bo_ro(_muc(k["doi_tuong_id"], k["ten_lui"]), k["con_no"], k["han"], den_ngay)
 
     items = gom.ket_qua()
     tong_ro = _ro_rong()
@@ -604,18 +758,8 @@ def tong_hop_phai_tra(
     # `phan_bo_tien_dot(..., den_ngay=...)` chỉ đếm tiền đã chi TỚI HẾT ngày đó, nên phần còn nợ
     # của từng đợt là con số ĐÚNG TẠI MỐC ĐANG XEM. Hạn trả lấy bằng `han_tra_dot` — cùng thang
     # 4 bậc mà màn Công nợ đang dùng, không tự đặt luật hạn riêng ở đây.
-    for pr in (don if tinh_tuoi else ()):
-        phan_bo, _, _ = phan_bo_tien_dot(pr, den_ngay=den_ngay)
-        for m in phan_bo:
-            d = m["delivery"]
-            if d.delivery_date > den_ngay:
-                continue
-            _bo_ro(
-                _muc(pr.supplier_id, None),
-                int(m["con_no"]),
-                han_tra_dot(d, pr.supplier, pr.debt_cutoff_date),
-                den_ngay,
-            )
+    for k in (_khoan_phai_tra(don, den_ngay=den_ngay) if tinh_tuoi else ()):
+        _bo_ro(_muc(k["doi_tuong_id"], None), k["con_no"], k["han"], den_ngay)
 
     items = gom.ket_qua()
     tong_ro = _ro_rong()

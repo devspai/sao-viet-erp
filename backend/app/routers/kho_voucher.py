@@ -64,7 +64,7 @@ from ..schemas.stock import (
     MaterialHistoryPage,
     MaterialXuatRow,
     StockLotOut,
-    StockLotDangKhoIn,
+    StockLotKhoIn,
     StockLotViTriIn,
     StockThresholdIn,
     StockThresholdOut,
@@ -78,7 +78,7 @@ from ..schemas.stock import (
     StockVoucherPage,
 )
 from ..services import kho_gia_goc_service
-from ..services.kho_giay import don_vi_goc_to, khoa_ton, khoa_ton_cua
+from ..services.kho_giay import co_don_vi_goc, don_vi_khai, khoa_ton, khoa_ton_cua
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
@@ -107,6 +107,14 @@ MODULE = "kho"
 # MỘT khoá `ton_kho` chung (mg `0334`) mở cùng lúc mọi kho.
 # Action nhật ký khi ĐIỀU CHỈNH phiếu xuất (SX dùng ít hơn) — đọc lại cho "Lịch sử điều chỉnh".
 _ACTION_DIEU_CHINH_XUAT = "kho_xuat_dieu_chinh"
+
+
+def _goc_q(hang_loai: str | None, goc: str | None) -> str | None:
+    """Query `goc` (đơn vị gốc của dòng tồn giấy / vật tư — "to", "kg", "thung"…) đã chuẩn hoá; hàng
+    khác / bỏ trống ⇒ None (không lọc theo đơn vị). Dòng tồn giấy = mã + khổ + đơn vị gốc; vật tư =
+    mã + đơn vị gốc (mg 0390)."""
+    g = (goc or "").strip().lower()
+    return g if (co_don_vi_goc(hang_loai) and g) else None
 
 
 def _hang_service(db: Session) -> VatLieuKhoService:
@@ -241,9 +249,10 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
     goc_map = svc.hang.don_vi_goc_map([(ln.hang_loai, ln.hang_id) for ln in v.lines])
 
     def goc_cua_dong(ln):
-        """Đơn vị gốc của dòng: giấy TỜ đếm bằng đơn vị kho "tờ" (`to`), còn lại theo mã hàng."""
-        if ln.hang_loai == "giay" and ln.dang_giay == "to":
-            return don_vi_goc_to()
+        """Đơn vị gốc của dòng: giấy / vật tư theo cột `don_vi_goc` của dòng (đơn vị đã khai), còn lại
+        theo mã."""
+        if co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
+            return ln.don_vi_goc
         return goc_map.get((ln.hang_loai, ln.hang_id))
     # Phiếu NHẬP ứng theo yêu cầu KCS: lúc còn nháp chưa có lô để truy nguồn, nên dựa vào yêu cầu gốc.
     nhap_tu_kcs = getattr(req, "san_xuat_cong_viec_id", None) is not None
@@ -268,7 +277,7 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
                 hang_ma=getattr(m, "ma", None),
                 hang_ten=getattr(m, "ten", None),
                 dvt=line_dvt.get(ln.request_line_id),
-                dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
+                kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
                 lot_id=ln.lot_id,
                 ma_lo=getattr(lot, "ma_lo", None),
                 sl_de_nghi=line_sl_de_nghi.get(ln.request_line_id),
@@ -326,8 +335,7 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
                 hang_ma=getattr(m, "ma", None),
                 hang_ten=getattr(m, "ten", None),
                 dvt=line_dvt.get(k),
-                dang_giay=first.dang_giay, kho_rong=int(first.kho_rong or 0),
-                kho_dai=int(first.kho_dai or 0),
+                kho_rong=int(first.kho_rong or 0), kho_dai=int(first.kho_dai or 0),
                 lot_id=None,
                 ma_lo=None,
                 sl_de_nghi=line_sl_de_nghi.get(k),
@@ -589,20 +597,19 @@ def update_lot_vi_tri(
     return {"id": lot.id, "vi_tri": lot.vi_tri}
 
 
-@router.patch("/lo/{lot_id}/dang-kho")
-def bo_sung_dang_kho_lo(
-    lot_id: int, payload: StockLotDangKhoIn, svc: Service,
-    # Cùng quyền với sửa vị trí lô: người CẦM HÀNG biết cuộn/tờ và khổ thật.
+@router.patch("/lo/{lot_id}/kho")
+def bo_sung_kho_lo(
+    lot_id: int, payload: StockLotKhoIn, svc: Service,
+    # Cùng quyền với sửa vị trí lô: người CẦM HÀNG biết khổ thật.
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
 ):
-    """Kho bổ sung DẠNG + KHỔ cho lô giấy cũ chưa có (tờ: đổi kg → tờ nguyên; cuộn: giữ số)."""
+    """Kho bổ sung KHỔ cho lô giấy cũ chưa có khổ — giữ nguyên số lượng, đơn vị, đơn giá."""
     try:
-        lot = svc.bo_sung_dang_kho_lo(
-            lot_id, user=user, dang_giay=payload.dang_giay,
-            kho_rong=payload.kho_rong, kho_dai=payload.kho_dai)
+        lot = svc.bo_sung_kho_lo(lot_id, user=user, kho_rong=payload.kho_rong,
+                                 kho_dai=payload.kho_dai)
     except StockVoucherError as e:
         raise _err(e) from None
-    return {"id": lot.id, "dang_giay": lot.dang_giay, "kho_rong": lot.kho_rong,
+    return {"id": lot.id, "don_vi_goc": lot.don_vi_goc or "", "kho_rong": lot.kho_rong,
             "kho_dai": lot.kho_dai, "sl_ban_dau": float(lot.sl_ban_dau),
             "sl_con_lai": float(lot.sl_con_lai)}
 
@@ -651,21 +658,22 @@ def suggest_allocation(
     kho_id: int = Query(...),
     so_luong: float = Query(..., gt=0, description="Số theo ĐƠN VỊ GỐC của mặt hàng"),
     request_id: int | None = Query(default=None, gt=0, description="Yêu cầu xuất — xuất cho Giao hàng thì ưu tiên lô của đúng đơn"),
-    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$", description="Giấy: chỉ lấy lô đúng dạng"),
-    kho_rong: int = Query(default=0, ge=0, description="Giấy tờ: khổ mm — chỉ lấy lô đúng khổ"),
+    goc: str | None = Query(default=None, max_length=16,
+                            description="Giấy / vật tư: chỉ lấy lô đếm đúng đơn vị gốc này (to / kg…)"),
+    kho_rong: int = Query(default=0, ge=0, description="Giấy: khổ mm — có khổ thì chỉ lấy lô đúng khổ"),
     kho_dai: int = Query(default=0, ge=0),
 ) -> AllocationOut:
     """Gợi ý lấy hàng từ lô nào (FEFO → FIFO). Thủ kho sửa được — giá xuất là ĐÍCH DANH."""
     rows, thieu = svc.suggest_allocation(
         (hang_loai, hang_id), kho_id, so_luong, request_id=request_id,
-        dang=dang_giay, kho_rong=kho_rong, kho_dai=kho_dai)
+        goc=_goc_q(hang_loai, goc), kho_rong=kho_rong, kho_dai=kho_dai)
     can_view_cost = authz.can(user, MODULE, "view_cost")
     return AllocationOut(
         lines=[
             AllocationLineOut(
                 lot_id=r["lot_id"], ma_lo=r["ma_lo"], ngay_nhap=r["ngay_nhap"],
                 hsd=r["hsd"], sl_con_lai=r["sl_con_lai"], so_luong=r["so_luong"],
-                dang_giay=r["dang_giay"], kho_rong=r["kho_rong"] or 0, kho_dai=r["kho_dai"] or 0,
+                don_vi_goc=r["don_vi_goc"], kho_rong=r["kho_rong"] or 0, kho_dai=r["kho_dai"] or 0,
                 don_gia_nhap=r["don_gia_nhap"] if can_view_cost else None,
                 order_ma=r["order_ma"], khach_hang=r["khach_hang"], canh_bao=r["canh_bao"],
             )
@@ -926,7 +934,7 @@ def list_lots(
     hang_id: int | None = Query(default=None),
     kho_id: int | None = Query(default=None),
     con_hang: bool = Query(default=True),
-    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
+    goc: str | None = Query(default=None, max_length=16),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
     man: str = Query(default="ton", pattern="^(ton|yeu_cau|bao_cao)$", description=_MAN_MO_TA),
@@ -937,11 +945,12 @@ def list_lots(
     _chan_neu_khong_xem_ton(db, authz, user, kho_id)
     gia_kho = gia_lo_theo_man(authz, user, man)
     hang = (hang_loai, hang_id) if (hang_loai and hang_id) else None
-    if dai_dien_het and kho_id is not None and hang is None and dang_giay is None:
+    goc_loc = _goc_q(hang_loai or "giay", goc)
+    if dai_dien_het and kho_id is not None and hang is None and goc_loc is None:
         lots = svc.lots.list_lots_gon(kho_id=kho_id)
     else:
         lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=con_hang,
-                                  dang=dang_giay, kho_rong=kho_rong, kho_dai=kho_dai)
+                                  goc=goc_loc, kho_rong=kho_rong, kho_dai=kho_dai)
     return _dong_lo_danh_sach(svc, lots, gia_kho)
 
 
@@ -964,7 +973,9 @@ def _dong_lo_danh_sach(svc, lots, gia_kho) -> list[StockLotOut]:
         row.hang_ma = getattr(m, "ma", None)
         row.hang_ten = getattr(m, "ten", None)
         row.hang_anh = getattr(m, "anh_url", None)
-        row.dvt = don_vi_goc_to() if lot.dang_giay == "to" else getattr(m, "don_vi_gia", None)
+        # Giấy / vật tư đếm theo ĐƠN VỊ GỐC của lô (đơn vị đã khai); hàng khác theo đơn vị của mã.
+        row.dvt = ((lot.don_vi_goc or None) if co_don_vi_goc(lot.hang_loai) else None) \
+            or getattr(m, "don_vi_gia", None)
         row.dvt_ten = dv_ten.get(row.dvt, row.dvt)
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
         # Thủ kho chọn lô nhưng KHÔNG thấy giá (spec §6). Tiền theo ô xem giá của MÀN gọi.
@@ -1030,15 +1041,16 @@ def ton_theo_khoa(
     hang_loai: str = Query(..., pattern="^(giay|vat_tu)$"),
     hang_id: int = Query(..., gt=0),
 ) -> list[TonKhoaRow]:
-    """Tồn TOÀN XƯỞNG của một mặt hàng theo từng khoá dạng + khổ (07/10/2026) — cột Tồn và gợi ý
-    khổ ở form yêu cầu. Gộp mọi kho ⇒ cùng cửa với danh sách lô không truyền kho."""
+    """Tồn TOÀN XƯỞNG của một mặt hàng theo từng khoá đơn vị gốc + khổ — cột Tồn và gợi ý khổ ở form
+    yêu cầu. Gộp mọi kho ⇒ cùng cửa với danh sách lô không truyền kho."""
     _chan_neu_khong_xem_ton(db, authz, user, None)
     m = svc.hang.map_theo_cap([(hang_loai, hang_id)]).get((hang_loai, hang_id))
     dv_ten = {d.ma: d.ten for d in svc.hang.don_vi.all_active()}
     out = []
-    for dang, kr, kd, sl in svc.lots.ton_theo_khoa((hang_loai, hang_id)):
-        dv = don_vi_goc_to() if dang == "to" else getattr(m, "don_vi_gia", None)
-        out.append(TonKhoaRow(dang_giay=dang, kho_rong=kr, kho_dai=kd, ton=sl,
+    for goc, kr, kd, sl in svc.lots.ton_theo_khoa((hang_loai, hang_id)):
+        dv = (goc or None) if co_don_vi_goc(hang_loai) else None
+        dv = dv or getattr(m, "don_vi_gia", None)
+        out.append(TonKhoaRow(kho_rong=kr, kho_dai=kd, ton=sl,
                               don_vi_goc=dv, don_vi_goc_ten=dv_ten.get(dv, dv)))
     return out
 
@@ -1087,7 +1099,7 @@ def _dong_lo_lich_su(svc, lots, m, dvt, can_view_cost: bool) -> list[StockLotOut
         row = StockLotOut.model_validate(lot)
         row.hang_ma = getattr(m, "ma", None)
         row.hang_ten = getattr(m, "ten", None)
-        row.dvt = don_vi_goc_to() if lot.dang_giay == "to" else dvt
+        row.dvt = ((lot.don_vi_goc or None) if co_don_vi_goc(lot.hang_loai) else None) or dvt
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
         row.don_gia_nhap = int(lot.don_gia_nhap or 0) if can_view_cost else None
         # SL yêu cầu KHÔNG phải tiền → luôn hiện (không gate theo can_view_cost). Kèm ĐƠN VỊ người
@@ -1123,7 +1135,7 @@ def material_history(
     hang_loai: str, hang_id: int, svc: Service, db: Db, authz: Authz,
     user: Annotated[User, Depends(require_xem_kho_nao((MODULE, "read")))],
     kho_id: int = Query(...),
-    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
+    goc: str | None = Query(default=None, max_length=16),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
     man: str = Query(default="ton", pattern="^(ton|yeu_cau|bao_cao)$", description=_MAN_MO_TA),
@@ -1136,10 +1148,10 @@ def material_history(
     hang = (hang_loai, hang_id)
     m = svc.hang.map_theo_cap([hang]).get(hang)
     dvt = getattr(m, "don_vi_gia", None)
-    # Giấy: một dòng màn Tồn = một (mã, dạng, khổ) ⇒ lịch sử + tồn lọc đúng dòng đó (spec §3.2).
-    dang = dang_giay if hang_loai == "giay" else None
-    loc = {"dang": dang, "kho_rong": kho_rong, "kho_dai": kho_dai}
-    khoa = khoa_ton(hang_loai, hang_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai) if dang else hang
+    # Giấy: một dòng màn Tồn = một (mã, khổ, đơn vị gốc); vật tư = (mã, đơn vị gốc).
+    goc = _goc_q(hang_loai, goc)
+    loc = {"goc": goc, "kho_rong": kho_rong, "kho_dai": kho_dai}
+    khoa = khoa_ton(hang_loai, hang_id, goc=goc, kho_rong=kho_rong, kho_dai=kho_dai) if goc else hang
 
     # NHẬP = mọi lô của mặt hàng tại kho (con_hang=False để giữ cả lô đã xuất hết), FIFO theo ngày.
     lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=False, **loc)
@@ -1154,7 +1166,7 @@ def material_history(
         hang_id=hang_id,
         hang_ma=getattr(m, "ma", None),
         hang_ten=getattr(m, "ten", None),
-        dvt=don_vi_goc_to() if dang == "to" else dvt,
+        dvt=goc or dvt,
         on_hand=svc.lots.on_hand(khoa, kho_id),
         nhap=nhap, xuat=xuat,
     )
@@ -1171,7 +1183,7 @@ def material_history_page(
     tab: str = Query(default="lo_ton", pattern=_TAB_LICH_SU),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=10, ge=1, le=100),
-    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
+    goc: str | None = Query(default=None, max_length=16),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
     man: str = Query(default="ton", pattern="^(ton|yeu_cau|bao_cao)$", description=_MAN_MO_TA),
@@ -1185,9 +1197,9 @@ def material_history_page(
     hang = (hang_loai, hang_id)
     m = svc.hang.map_theo_cap([hang]).get(hang)
     dvt = getattr(m, "don_vi_gia", None)
-    dang = dang_giay if hang_loai == "giay" else None
-    loc = {"dang": dang, "kho_rong": kho_rong, "kho_dai": kho_dai}
-    khoa = khoa_ton(hang_loai, hang_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai) if dang else hang
+    goc = _goc_q(hang_loai, goc)
+    loc = {"goc": goc, "kho_rong": kho_rong, "kho_dai": kho_dai}
+    khoa = khoa_ton(hang_loai, hang_id, goc=goc, kho_rong=kho_rong, kho_dai=kho_dai) if goc else hang
 
     dem_lo = svc.lots.dem_lo_theo_tab(hang, kho_id, **loc)
     dem_xuat = svc.vouchers.dem_xuat_theo_chieu(hang, kho_id, **loc)
@@ -1197,7 +1209,7 @@ def material_history_page(
     tu = (page - 1) * size
     out = MaterialHistoryPage(
         hang_loai=hang_loai, hang_id=hang_id, hang_ma=getattr(m, "ma", None),
-        hang_ten=getattr(m, "ten", None), dvt=don_vi_goc_to() if dang == "to" else dvt,
+        hang_ten=getattr(m, "ten", None), dvt=goc or dvt,
         on_hand=svc.lots.on_hand(khoa, kho_id), tab=tab, page=page, size=size, dem=dem,
     )
     if tab in ("lo_ton", "nhap"):
@@ -1235,17 +1247,16 @@ def material_tong_xuat(
     user: Annotated[User, Depends(require_xem_kho_nao((MODULE, "read")))],
     kho_id: int = Query(...),
     so_ngay: int = Query(default=90, ge=1, le=730),
-    dang_giay: str | None = Query(default=None, pattern="^(to|cuon)$"),
+    goc: str | None = Query(default=None, max_length=16),
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
 ) -> dict:
     """Tổng xuất THƯỜNG của một dòng tồn trong `so_ngay` ngày qua — hộp đặt ngưỡng tính bình quân
     mỗi ngày từ đây, khỏi nạp cả lịch sử xuất về trình duyệt chỉ để cộng."""
     _chan_neu_khong_xem_ton(db, authz, user, kho_id)
-    dang = dang_giay if hang_loai == "giay" else None
     tu_ngay = date.today() - timedelta(days=so_ngay)
-    tong = svc.vouchers.tong_xuat((hang_loai, hang_id), kho_id, tu_ngay=tu_ngay, dang=dang,
-                                  kho_rong=kho_rong, kho_dai=kho_dai)
+    tong = svc.vouchers.tong_xuat((hang_loai, hang_id), kho_id, tu_ngay=tu_ngay,
+                                  goc=_goc_q(hang_loai, goc), kho_rong=kho_rong, kho_dai=kho_dai)
     return {"so_ngay": so_ngay, "tong": tong}
 
 
@@ -1354,8 +1365,13 @@ def upsert_threshold(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ngưỡng tối đa phải lớn hơn hoặc bằng ngưỡng tồn.",
         )
+    goc = payload.don_vi_goc
+    if payload.hang_loai == "vat_tu" and not goc:
+        # Vật tư tách tồn theo đơn vị gốc (mg 0390): khai ngưỡng không nói đơn vị ⇒ ĐVT chính.
+        m = _hang_service(db).map_theo_cap([("vat_tu", payload.hang_id)]).get(("vat_tu", payload.hang_id))
+        goc = (don_vi_khai(m) or [""])[0]
     obj = StockThresholdRepository(db).upsert(
-        hang=(payload.hang_loai, payload.hang_id, payload.kho_rong, payload.kho_dai),
+        hang=(payload.hang_loai, payload.hang_id, payload.kho_rong, payload.kho_dai, goc),
         kho_id=payload.kho_id,
         nguong_ton=payload.nguong_ton, nguong_can_ton=payload.nguong_can_ton,
         nguong_toi_da=payload.nguong_toi_da, canh_bao=payload.canh_bao,

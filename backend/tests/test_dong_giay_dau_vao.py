@@ -8,14 +8,14 @@ QC = {"kho_nguyen_dai": 1090, "kho_nguyen_rong": 790, "kho_in_dai": 790, "kho_in
 def test_buoc_in_nhan_to_in_lay_kho_in():
     d = dong_giay_theo_dau_vao(don_vi_vao=TRAM_TO, so_luong_vao=10520, so_luong_ra=10400,
                                quy_cach=QC, gsm=250)
-    assert (d["dang"], d["so_luong"], d["kho_rong"], d["kho_dai"], d["don_vi"]) == \
-        ("to", 10520, 545, 790, TRAM_TO)
+    assert "dang" not in d     # giấy bỏ dạng cuộn/tờ (10/10/2026): chỉ còn khổ + đơn vị
+    assert (d["so_luong"], d["kho_rong"], d["kho_dai"], d["don_vi"]) == (10520, 545, 790, TRAM_TO)
 
 
 def test_buoc_cat_to_nhan_to_nguyen_lay_kho_nguyen():
     d = dong_giay_theo_dau_vao(don_vi_vao=TRAM_TO_NGUYEN, so_luong_vao=5260, so_luong_ra=10520,
                                quy_cach=QC, gsm=250)
-    assert (d["dang"], d["so_luong"], d["kho_rong"], d["kho_dai"]) == ("to", 5260, 790, 1090)
+    assert (d["so_luong"], d["kho_rong"], d["kho_dai"]) == (5260, 790, 1090)
 
 
 def test_in_thang_kho_nguyen_khi_kho_in_trong():
@@ -28,7 +28,7 @@ def test_in_thang_kho_nguyen_khi_kho_in_trong():
 def test_buoc_nhan_cuon_tinh_kg_tu_to_nguyen_ra():
     d = dong_giay_theo_dau_vao(don_vi_vao="cuon", so_luong_vao=1, so_luong_ra=1370,
                                quy_cach=QC, gsm=150)
-    assert d["dang"] == "cuon" and d["don_vi"] == "kg"
+    assert d["don_vi"] == "kg"
     assert round(d["so_luong"], 3) == 176.956
     assert (d["kho_rong"], d["kho_dai"]) == (790, 0)
 
@@ -38,7 +38,7 @@ def test_don_vi_vao_trong_hoac_khong_phai_to_cuon_thi_khong_doan():
         d = dong_giay_theo_dau_vao(don_vi_vao=dv, so_luong_vao=10, so_luong_ra=10,
                                    quy_cach=QC, gsm=250)
         assert d["so_luong"] is None and d["ly_do"], dv
-        assert d["dang"] == "to"      # không bị lật sang cuộn
+        assert d["don_vi"] != "kg"    # không bị lật sang nhánh khổ rộng tính kg
     assert "chưa khai" in dong_giay_theo_dau_vao(
         don_vi_vao=None, so_luong_vao=1, so_luong_ra=1, quy_cach=QC, gsm=250)["ly_do"]
 
@@ -97,7 +97,7 @@ def _buoc(db, lsx, thu_tu, ten, vao, ra, giay, *, cd_vao=None):
 
 def _dong_giay(b):
     d = next(v for v in b.vat_tus if v.hang_loai == "giay")
-    return (d.dang_giay, float(d.so_luong), d.kho_rong, d.kho_dai, d.don_vi_snapshot)
+    return (d.don_vi_goc, float(d.so_luong), d.kho_rong, d.kho_dai, d.don_vi_snapshot)
 
 
 def test_dong_giay_buoc_cat_va_buoc_in_theo_dau_vao(db):
@@ -132,8 +132,9 @@ def _cuon(db, don_vi_gia, *, quy_doi=True):
 def test_buoc_nhan_cuon_don_vi_kg(db):
     lsx, b = _cuon(db, "kg")
     _svc(db)._dong_bo_dong_giay(lsx)
-    dang, sl, kr, kd, dv = _dong_giay(b)
-    assert (dang, kr, kd, dv) == ("cuon", 790, 0, "kg")
+    goc, sl, kr, kd, dv = _dong_giay(b)
+    # Nhánh khổ rộng: đơn vị gốc = đơn vị giá của mã (kg), khổ chỉ-rộng.
+    assert (goc, kr, kd, dv) == ("kg", 790, 0, "kg")
     assert round(sl, 3) == 176.956
 
 
@@ -145,8 +146,8 @@ def test_buoc_nhan_cuon_don_vi_tan_co_cap_quy_doi(db):
     assert float(cap.he_so) == 1000
     lsx, b = _cuon(db, "tan")
     _svc(db)._dong_bo_dong_giay(lsx)
-    dang, sl, kr, kd, dv = _dong_giay(b)
-    assert (dang, dv) == ("cuon", "tan")
+    goc, sl, kr, kd, dv = _dong_giay(b)
+    assert (goc, dv) == ("tan", "tan")
     assert round(sl, 6) == 0.176956
 
 
@@ -156,7 +157,7 @@ def test_buoc_nhan_cuon_thieu_cap_quy_doi_khong_raise(db):
     lsx, b = _cuon(db, "tan")
     _svc(db)._dong_bo_dong_giay(lsx)
     # Không đổi được ⇒ giữ NGUYÊN giá trị đã lưu (số rác ban đầu 1), không ghi 0.
-    assert _dong_giay(b)[:2] == (None, 1.0)
+    assert _dong_giay(b)[:2] == ("", 1.0)
 
 
 def test_buoc_khong_tinh_duoc_giu_nguyen_dong_giay_da_luu(db):
@@ -168,7 +169,7 @@ def test_buoc_khong_tinh_duoc_giu_nguyen_dong_giay_da_luu(db):
     lsx = _lenh(db, c, g)
     b = _buoc(db, lsx, 1, "Dán", "cai", "cai", g)
     v = b.vat_tus[0]
-    v.so_luong, v.kho_rong, v.kho_dai, v.don_vi_snapshot, v.dang_giay = 123, 790, 1090, "to_nguyen", "to"
+    v.so_luong, v.kho_rong, v.kho_dai, v.don_vi_snapshot, v.don_vi_goc = 123, 790, 1090, "to_nguyen", "to"
     b.so_luong_vao = 50
     db.refresh(lsx)
     _svc(db)._dong_bo_dong_giay(lsx)

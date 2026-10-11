@@ -13,7 +13,7 @@ from app.schemas.san_xuat import DongLenhKetQuaOut, DongLenhTinhTrangOut
 from app.services.san_xuat import dong_lenh
 
 from tests.test_san_xuat_kcs import (  # noqa: F401
-    _batch, _ghi_tot, _to_kiem, admin, customer, db, lsx_svc, orders,
+    _batch, _ghi_tot, _ngoai_kcs, _to_kiem, admin, customer, db, lsx_svc, orders,
 )
 from tests.quyen_to_fixtures import cap_dong_thieu
 
@@ -112,12 +112,12 @@ def test_version_lech_bi_chan(db, orders, lsx_svc, admin, customer):
 def test_nguoi_ngoai_kcs_bi_chan(db, orders, lsx_svc, admin, customer):
     _to, cv, _res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     with pytest.raises(PermissionError):
-        dong_lenh.dong(db, user=admin, nhom_id=cv.nhom_id, expected_version=None)
+        dong_lenh.dong(db, user=_ngoai_kcs(db), nhom_id=cv.nhom_id, expected_version=None)
 
 
 def test_dong_thieu_phai_co_o_dong_lenh_thieu(db, orders, lsx_svc, admin, customer):
-    """Còn cảnh báo (đạt 90 chưa gửi kho…) ⇒ người KCS thường bị chặn, kể cả trưởng phòng; bật ô
-    "Đóng lệnh thiếu" trên dòng tổ KCS của vai thì đóng được (08/10/2026)."""
+    """Còn cảnh báo (đạt 90 chưa gửi kho…) ⇒ người KCS chỉ có Thao tác bị chặn, kể cả trưởng phòng;
+    bật ô chi tiết "Đóng lệnh thiếu" ở dòng `kcs` của vai thì đóng được."""
     _to, cv, _res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
     _d, thuong = _to_kiem(db, ten="Tổ KCS 2", ma="KCS-2", truong=True)
     assert dong_lenh.tinh_trang_dong(db, cv.nhom_id, thuong)["duoc_dong_thieu"] is False

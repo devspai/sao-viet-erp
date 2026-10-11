@@ -236,6 +236,11 @@ class OrderLine(Base):
     # chốt bán. KHÔNG đọc-sống để định giá (cost_snapshot mới là chân lý tiền) → không phá
     # copy-on-write. NULL cho đơn nhập tay (không có ấn phẩm định giá).
     phieu_thanh_phan_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # MÃ THÀNH PHẨM của cụm bán chứa dòng này (soft → vat_tu_in_an.id, mg 0394). Đóng dấu lúc chốt
+    # đơn (`thanh_pham_khai_bao.khai_cho_don`): mọi dòng cùng cụm (ruột + bìa) mang CÙNG mã. Kho,
+    # giao hàng, tiến độ đọc mã ở đây chứ không tra lại theo tên. NULL = đơn chốt trước 11/10/2026
+    # (đọc rơi về tìm theo khách + tên, `thanh_pham_cua_cum`).
+    thanh_pham_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
     # Nhãn NHÓM GỘP KHI IN (copy từ `quote_items.nhom`): bản in xác nhận đơn gom các dòng cùng
     # nhãn thành 1 dòng, khớp bản báo giá khách đã nhận. KHÔNG đụng sản xuất — `lsx_service` vẫn

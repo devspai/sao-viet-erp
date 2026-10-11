@@ -34,11 +34,6 @@
    trên lưới bằng margin −10px (thẻ lọc + lưới đọc thành một tấm). */
 .md-page.mh-trang { gap: 10px; }
 .mh-trang > .lds-dau { margin: 0; padding: 0; border: 0; }
-.mh-tc__dai { padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); }
-.mh-tc__nhom { display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
-.mh-tc__nhan { color: var(--ash-2); font-size: 13px; padding: 0 4px 0 2px; white-space: nowrap; }
-/* Mười trạng thái món phải nằm một hàng ở màn 1440px: đệm chip hẹp hơn khuôn chung một chút. */
-.mh-tc .lds-flt button { padding: 0 8px; gap: 6px; }
 .mh-tc .mh-seg { height: 32px; align-items: stretch; margin-left: 0 !important; }
 .mh-tc .mh-seg button { padding: 0 11px; }
 
@@ -128,6 +123,10 @@
   padding: 1px 8px; font-size: 12px; cursor: pointer; white-space: nowrap; color: var(--ink); font-family: inherit; }
 .mh-nut:hover { background: var(--rule-hair); }
 .mh-nut:disabled { opacity: .45; cursor: not-allowed; }
+/* Nút VIỆC TIẾP THEO trong dòng bảng (Gửi kho): tô màu nhấn như nút chính đầu ngăn, cao hơn nút viền. */
+.mh-nut--chinh { height: 26px; padding: 0 10px; border-color: var(--rust); background: var(--rust); color: var(--paper-contrast); font-size: 12.5px; }
+.mh-nut--chinh:hover { background: var(--rust-deep); border-color: var(--rust-deep); }
+.mh-kho-cho { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* thanh nổi khi chọn món */
 .mh-noi { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 32px); background: #fff; border: 1px solid var(--rule);

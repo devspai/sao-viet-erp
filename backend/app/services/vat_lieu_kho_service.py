@@ -19,7 +19,7 @@ from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
-from .kho_giay import DANG_CUON, DANG_TO, don_vi_goc_to, la_ma_to_giay
+from .kho_giay import DON_VI_TO_KHO, GocMatHang, don_vi_khai, la_ma_to_giay
 from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU, ma_chip_hop_le, ma_tu_ten_chip
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
@@ -169,7 +169,70 @@ class VatLieuKhoService:
             # mục" — nửa đầu là `thanh_pham_khai_bao` chép thẳng ĐVT của dòng đơn sang.
             self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính",
                               dang_co=getattr(obj, "don_vi_gia", None))
+        if kind in ("giay", "vat_tu"):
+            self._kiem_don_vi_them(kind, data, obj)
+        else:
+            data.pop("don_vi_them", None)   # Thành phẩm một đơn vị (spec 2026-10-10 §4)
         self._kiem_chip_va_cong_thuc(kind, data, obj)
+
+    def _kiem_don_vi_them(self, kind: str, data: dict, obj=None) -> None:
+        """Danh sách đơn vị khai (spec 2026-10-10-mat-hang-nhieu-don-vi-tinh §2): chuẩn hoá `don_vi_them`
+        về MÃ, bỏ trùng với ĐVT chính; chặn hai đơn vị CÙNG nhóm quy đổi (thừa — nhóm đã có); chặn BỎ
+        đơn vị (kể cả đổi ĐVT chính) còn tồn kho / chứng từ chưa xong / dòng bảng giá NCC."""
+        if "don_vi_them" in data:
+            co = {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}
+            theo_ten = None
+            them: list[str] = []
+            for u in data["don_vi_them"] or []:
+                m = (u or "").strip().lower()
+                if not m:
+                    continue
+                if m not in co:
+                    theo_ten = theo_ten if theo_ten is not None else self.don_vi.ma_theo_ten()
+                    m = (theo_ten.get(m) or m).strip().lower()
+                them.append(m)
+            cu = {(x or "").strip().lower() for x in (getattr(obj, "don_vi_them", None) or [])}
+            for m in them:
+                self._kiem_don_vi(m, "Đơn vị thêm", dang_co=m if m in cu else None)
+            data["don_vi_them"] = them
+        chinh = data["don_vi_gia"] if "don_vi_gia" in data else getattr(obj, "don_vi_gia", None)
+        them = data["don_vi_them"] if "don_vi_them" in data else getattr(obj, "don_vi_them", None)
+        if them and not (chinh or "").strip():
+            raise VatLieuKhoValidationError("Chọn ĐVT chính trước khi thêm đơn vị.")
+        khai = don_vi_khai(_Khai(chinh, them))
+        if "don_vi_them" in data:
+            data["don_vi_them"] = khai[1:]
+        gm = self.goc_mat_hang()
+        ten = self.don_vi.ten_theo_ma()
+        for i, b in enumerate(khai):
+            for a in khai[:i]:
+                if gm.cung_nhom(a, b):
+                    raise VatLieuKhoValidationError(
+                        f"“{nhan_don_vi(ten, b)}” đã nằm trong nhóm của “{nhan_don_vi(ten, a)}” — "
+                        "không cần khai thêm.")
+        if obj is None:
+            return
+        cu_khai = don_vi_khai(obj)
+        bo = [u for u in cu_khai if u not in khai]
+        if not bo:
+            return
+        dung = self.repo.noi_dung_don_vi(kind, obj.id)
+        for u in bo:
+            con: list[str] = []
+            if dung["ton"].get(u, 0) > 0:
+                con.append(f"còn {_so(dung['ton'][u])} {nhan_don_vi(ten, u)} tồn kho")
+            if dung["yeu_cau_kho"].get(u):
+                con.append(f"{dung['yeu_cau_kho'][u]} yêu cầu kho chưa xong")
+            for khoa, nhan in (("don_mua", "dòng đơn mua chưa về hết"),
+                               ("yeu_cau_mua", "dòng yêu cầu mua chưa xong"),
+                               ("bang_gia", "dòng bảng giá nhà cung cấp")):
+                n = sum(1 for x in dung[khoa] if gm.goc(x, cu_khai) == u)
+                if n:
+                    con.append(f"{n} {nhan}")
+            if con:
+                ke = con[0] if len(con) == 1 else ", ".join(con[:-1]) + " và " + con[-1]
+                raise VatLieuKhoValidationError(
+                    f"Chưa bỏ được đơn vị “{nhan_don_vi(ten, u)}”: {ke}.")
 
     def _kiem_chip_va_cong_thuc(self, kind: str, data: dict, obj=None) -> None:
         """Vật tư: chuẩn hoá chip rồi kiểm công thức với tập biến = hệ thống ∪ chip của chính vật tư.
@@ -451,7 +514,7 @@ class VatLieuKhoService:
         return None, []
 
     def quy_ve_goc(self, hang_loai: str, hang_id: int, dvt: str, so_luong: float,
-                   *, dang: str | None = None) -> dict:
+                   *, goc: str | None = None) -> dict:
         """Quy `so_luong` từ đơn vị `dvt` về ĐƠN VỊ GỐC của mặt hàng.
 
         MỘT cửa duy nhất cho cả đề nghị (kiểm lúc khai) lẫn phiếu (chốt lúc ghi sổ) — hai nơi tự
@@ -461,11 +524,12 @@ class VatLieuKhoService:
         do (thiếu đường quy đổi / mặt hàng chưa khai đơn vị), chứ không lặng lẽ lấy hệ số 1 —
         hệ số 1 sai thì tồn kho sai mà không ai thấy dòng lỗi nào.
 
-        `dang` (giấy): `to` ⇒ gốc là đơn vị kho `to` ("tờ"); `cuon` ⇒ gốc là `don_vi_gia`, phải là khối lượng. Xem
+        `goc`: ép đơn vị gốc của dòng (một đơn vị đã khai, vd. đơn vị gốc của lô); bỏ trống ⇒ suy từ
+        `dvt` theo các nhóm đơn vị đã khai (`don_vi_goc` trong kết quả nói gốc nào). Xem
         `don_vi_cua_mat_hang`.
         """
         return self.quy_tu_don_vi(
-            self.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang), dvt, so_luong)
+            self.don_vi_cua_mat_hang(hang_loai, hang_id, goc=goc), dvt, so_luong)
 
     def quy_tu_don_vi(self, ra: dict, dvt: str, so_luong: float) -> dict:
         """Phần tính của `quy_ve_goc` trên kết quả `don_vi_cua_mat_hang` đã có sẵn. Nơi chỉ cần
@@ -476,6 +540,13 @@ class VatLieuKhoService:
         if not ma:
             raise VatLieuKhoValidationError(f"“{ra['ten']}”: chưa chọn đơn vị tính cho dòng này.")
         d = self._dong_don_vi(ra, ma)
+        if d is None and not ra.get("ep_goc"):
+            # Danh sách là MỌI nhóm đơn vị đã khai ⇒ đơn vị lạ là đơn vị CHƯA KHAI ở danh mục.
+            duoc = ", ".join(x["ten"] for x in ra["ds"]) or "(chưa có đơn vị nào)"
+            raise VatLieuKhoValidationError(
+                f"Đơn vị “{nhan_don_vi(self.don_vi.ten_theo_ma(), dvt)}” chưa khai ở danh mục cho "
+                f"“{ra['ten']}”. Đơn vị dùng được: {duoc}."
+            )
         if d is None:
             duoc = ", ".join(x["ten"] for x in ra["ds"]) or "(chưa có đơn vị nào)"
             # Bày TÊN đơn vị chứ không bày mã: hai vế còn lại của câu (`don_vi_goc_ten`, `duoc`)
@@ -490,8 +561,9 @@ class VatLieuKhoService:
             # phải lưu mã này, lưu nguyên chữ người gõ là giao diện (so theo mã) không nhận ra.
             "ma_don_vi": d["ma"],
             "sl_goc": float(so_luong) * float(d["he_so_ve_goc"]),
-            "don_vi_goc": ra["don_vi_goc"],
-            "don_vi_goc_ten": ra["don_vi_goc_ten"],
+            # Mỗi dòng đơn vị mang gốc của NHÓM nó — `ds` gộp mọi nhóm đã khai.
+            "don_vi_goc": d.get("goc") or ra["don_vi_goc"],
+            "don_vi_goc_ten": d.get("goc_ten") or ra["don_vi_goc_ten"],
             "he_so_ve_goc": float(d["he_so_ve_goc"]),
             "dien_giai": d["dien_giai"],
         }
@@ -507,7 +579,7 @@ class VatLieuKhoService:
         hop.update({(d["ten"] or "").strip().lower(): d for d in ra["ds"] if d["ten"]})
         if ma not in hop and ra.get("giay_to") and la_ma_to_giay(ma):
             # Mã chặng của dòng giấy lệnh qua cửa kho: cùng một tờ, hệ số 1.
-            return hop.get(ra["don_vi_goc"].lower())
+            return hop.get(DON_VI_TO_KHO)
         return hop.get(ma)
 
     def he_so_ve_goc(self, ra: dict, dvt: str | None) -> float | None:
@@ -520,14 +592,13 @@ class VatLieuKhoService:
         hs = float(d["he_so_ve_goc"]) if d is not None else 0.0
         return hs if hs > 0 else None
 
-    def don_vi_cua_mat_hang(self, hang_loai: str, hang_id: int, *, dang: str | None = None) -> dict:
+    def don_vi_cua_mat_hang(self, hang_loai: str, hang_id: int, *, goc: str | None = None) -> dict:
         """Đơn vị gốc + MỌI đơn vị đổi được với nó — nguồn của dropdown ĐVT ở Kho / NCC.
 
-        `dang` CHỈ có nghĩa với giấy (spec 2026-10-01 §3.2): `to` ⇒ gốc = đơn vị kho `to` ("tờ", chủ chốt
-        07/10/2026), `ds` = mọi đơn vị đổi được về nó theo cặp ở module Đơn vị (ram → tờ…); mã
-        chặng tờ của lệnh (`to_nguyen`) nhận hệ số 1 ở `_dong_don_vi`; `cuon` ⇒ gốc =
-        `don_vi_gia` của mã giấy, bắt buộc thuộc họ Khối lượng — không thì báo lỗi, không đoán.
-        `None` ⇒ như cũ (đường không phải kho).
+        Giấy + vật tư khai được NHIỀU đơn vị (spec 2026-10-10): mỗi đơn vị khai (`don_vi_khai`) là gốc
+        của một nhóm quy đổi, các nhóm không đổi lẫn nhau (tờ và kg). `goc` ⇒ chỉ nhóm của đơn vị đó
+        (mã chặng `to_nguyen` hệ số 1 ở `_dong_don_vi`); bỏ trống ⇒ GỘP mọi nhóm đã khai, mỗi dòng
+        `ds` mang `goc`/`goc_ten` của nhóm nó (một nhóm thì như cũ).
         """
         if hang_loai not in HANG_LOAI:
             raise VatLieuKhoValidationError("Loại mặt hàng không hợp lệ.")
@@ -536,12 +607,11 @@ class VatLieuKhoService:
         # `quy_ve_goc` không tìm ra nút gốc và NÉM LỖI ⇒ mọi dòng phiếu kho cũ hiện cảnh báo đỏ.
         dvs = don_vi_map(self.don_vi.all_rows())
         cap_rows = list(self.don_vi.cap_rows())
-        return self._don_vi_theo_dang(hang_loai, obj, dang, dvs, cap_rows)
+        return self._don_vi_theo_goc(hang_loai, obj, goc, dvs, cap_rows)
 
-    def don_vi_nhieu_theo_dang(self, khoa) -> dict[tuple[str, int, str | None], dict | None]:
-        """`don_vi_cua_mat_hang` cho NHIỀU bộ `(hang_loai, hang_id, dang)` một lượt — bảng đơn vị,
-        cặp quy đổi đọc một lần, mặt hàng nạp theo lô (bảng giá NCC: giấy quy theo dạng bán của
-        từng dòng). Bộ nào không dựng được (mặt hàng mất, cuộn mà gốc không phải khối lượng) ⇒ None."""
+    def don_vi_nhieu_theo_goc(self, khoa) -> dict[tuple[str, int, str | None], dict | None]:
+        """`don_vi_cua_mat_hang` cho NHIỀU bộ `(hang_loai, hang_id, goc)` một lượt — bảng đơn vị,
+        cặp quy đổi đọc một lần, mặt hàng nạp theo lô. Bộ nào không dựng được ⇒ None."""
         khoa = set(khoa)
         objs = self.map_theo_cap({(k[0], k[1]) for k in khoa})
         if not objs:
@@ -552,33 +622,46 @@ class VatLieuKhoService:
         for k in khoa:
             obj = objs.get((k[0], k[1]))
             try:
-                ra[k] = self._don_vi_theo_dang(k[0], obj, k[2], dvs, cap_rows) if obj else None
+                ra[k] = self._don_vi_theo_goc(k[0], obj, k[2], dvs, cap_rows) if obj else None
             except VatLieuKhoError:
                 ra[k] = None
         return ra
 
-    def _don_vi_theo_dang(self, hang_loai: str, obj, dang, dvs: dict, cap_rows: list) -> dict:
-        if hang_loai == "giay" and dang == DANG_TO:
-            return self._don_vi_giay_to(obj, dvs, cap_rows)
-        if hang_loai == "giay" and dang == DANG_CUON:
-            goc = (obj.don_vi_gia or "").strip()
-            if goc and (dvs.get(goc.lower()) or {}).get("ho") != "khoi_luong":
-                raise VatLieuKhoValidationError(
-                    f"“{obj.ma}” đơn vị gốc không phải khối lượng nên không nhập cuộn được — "
-                    "sửa đơn vị gốc ở danh mục Giấy."
-                )
-        return self._don_vi_tu(hang_loai, obj, dvs, cap_rows)
+    def goc_mat_hang(self) -> GocMatHang:
+        """Bộ suy đơn vị gốc dòng từ ĐVT (xem `kho_giay.GocMatHang`) — đọc bảng đơn vị một lần."""
+        return GocMatHang(don_vi_map(self.don_vi.all_rows()), self.don_vi.cap_rows())
 
-    def _don_vi_giay_to(self, obj, dvs: dict, cap_rows: list) -> dict:
-        """Giấy dạng TỜ: gốc là đơn vị kho `to` ("tờ"); ram… theo cặp ở module Đơn vị."""
-        goc = don_vi_goc_to()
-        ds = don_vi_dung_duoc(goc, dvs, cap_rows, None)
-        return {
-            "hang_loai": "giay", "hang_id": obj.id, "ma": obj.ma, "ten": obj.ten,
-            "don_vi_goc": goc,
-            "don_vi_goc_ten": (dvs.get(goc.lower()) or {}).get("ten") or "tờ",
-            "ds": ds, "ly_do": None, "giay_to": True,
-        }
+    def _don_vi_theo_goc(self, hang_loai: str, obj, goc, dvs: dict, cap_rows: list) -> dict:
+        g = (goc or "").strip().lower()
+        if hang_loai == "giay" and la_ma_to_giay(g):
+            g = DON_VI_TO_KHO
+        if g:
+            return {**self._don_vi_nhom(hang_loai, obj, g, dvs, cap_rows), "ep_goc": True}
+        khai = don_vi_khai(obj)
+        if len(khai) <= 1:
+            return self._don_vi_nhom(hang_loai, obj, khai[0] if khai else None, dvs, cap_rows)
+        return self._don_vi_hop(hang_loai, obj, khai, dvs, cap_rows)
+
+    def _don_vi_nhom(self, hang_loai: str, obj, goc, dvs: dict, cap_rows: list) -> dict:
+        """Một nhóm đơn vị (gốc `goc`). Giấy mang `giay_to`: mã chặng tờ của lệnh qua cửa kho là `to`."""
+        ra = self._don_vi_tu(hang_loai, obj, dvs, cap_rows, goc=goc)
+        return {**ra, "giay_to": True} if hang_loai == "giay" else ra
+
+    def _don_vi_hop(self, hang_loai: str, obj, khai: list[str], dvs: dict, cap_rows: list) -> dict:
+        """Gộp nhóm của MỌI đơn vị đã khai, theo thứ tự khai; mỗi dòng mang `goc`/`goc_ten` của nhóm
+        nó. Đầu kết quả (`don_vi_goc`) là ĐVT chính."""
+        nhom = [self._don_vi_nhom(hang_loai, obj, u, dvs, cap_rows) for u in khai]
+        nhom = [n for n in nhom if n["don_vi_goc"]]
+        if not nhom:
+            return self._don_vi_nhom(hang_loai, obj, None, dvs, cap_rows)
+        ds, thay = [], set()
+        for ra in nhom:
+            for d in ra["ds"]:
+                if d["ma"] in thay:
+                    continue
+                thay.add(d["ma"])
+                ds.append({**d, "goc": ra["don_vi_goc"], "goc_ten": ra["don_vi_goc_ten"]})
+        return {**nhom[0], "ds": ds}
 
     def don_vi_nhieu_mat_hang(self, caps, *, san: dict | None = None) -> dict[tuple[str, int], dict]:
         """`don_vi_cua_mat_hang` cho NHIỀU mặt hàng một lượt: bảng đơn vị và bảng cặp quy đổi đọc
@@ -593,10 +676,10 @@ class VatLieuKhoService:
             return {}
         dvs = don_vi_map(self.don_vi.all_rows())
         cap_rows = list(self.don_vi.cap_rows())
-        return {k: self._don_vi_tu(k[0], obj, dvs, cap_rows) for k, obj in objs.items()}
+        return {k: self._don_vi_theo_goc(k[0], obj, None, dvs, cap_rows) for k, obj in objs.items()}
 
-    def _don_vi_tu(self, hang_loai: str, obj, dvs: dict, cap_rows: list) -> dict:
-        goc = (obj.don_vi_gia or "").strip()
+    def _don_vi_tu(self, hang_loai: str, obj, dvs: dict, cap_rows: list, *, goc: str | None = None) -> dict:
+        goc = (goc or obj.don_vi_gia or "").strip()
         if not goc:
             # Chưa khai đơn vị gốc → KHÔNG đoán. UI khoá ô ĐVT và chỉ đường về danh mục.
             return {"hang_loai": hang_loai, "hang_id": obj.id, "ma": obj.ma, "ten": obj.ten,
@@ -645,6 +728,20 @@ class VatLieuKhoService:
         # y như một lần sửa (Đơn giá cũ → mới) chứ không phải dòng trống "đã thêm phiên bản".
         nk.ghi_sua(self.audit, actor_id=created_by, loai="giay", obj=giay, truoc=truoc)
         return v
+
+
+class _Khai:
+    """Bộ đôi (ĐVT chính, đơn vị thêm) giả một bản ghi cho `kho_giay.don_vi_khai`."""
+
+    def __init__(self, don_vi_gia, don_vi_them) -> None:
+        self.don_vi_gia, self.don_vi_them = don_vi_gia, don_vi_them
+
+
+def _so(x: float) -> str:
+    """Số kiểu Việt: 3.070 / 2,5."""
+    if float(x) == int(x):
+        return f"{int(x):,}".replace(",", ".")
+    return f"{float(x):,.2f}".rstrip("0").rstrip(".").replace(",", "§").replace(".", ",").replace("§", ".")
 
 
 class MotDanhMucVatLieu:

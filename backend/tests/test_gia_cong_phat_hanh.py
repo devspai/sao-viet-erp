@@ -334,12 +334,15 @@ def test_kiem_cong_doan_bi_chan_tren_cv_gia_cong(sess, orders, lsx_svc, admin, c
     from app.models.user import User
     from app.services.san_xuat import kcs
 
-    d = Department(name="Tổ KCS GC R1", code="TO-KCS-GC-R1", is_kcs=True)
+    from tests.quyen_to_fixtures import cap_kcs
+
+    d = Department(name="Tổ KCS GC R1", code="TO-KCS-GC-R1")
     sess.add(d)
     sess.flush()
     kcs_user = User(username="kcs_gc_r1", name="KCS GC R1", password_hash="x", department_id=d.id)
     sess.add(kcs_user)
-    sess.commit()
+    sess.flush()
+    cap_kcs(sess, kcs_user)
 
     lsx_id = dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, buoc=[
         ("In", "may", None, 1000, "to"),

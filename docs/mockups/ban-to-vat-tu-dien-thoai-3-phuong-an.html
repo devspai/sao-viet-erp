@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vật tư trên điện thoại</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f5;--paper:#f8fafc;--canvas:#fff;--ink:#0f172a;--ink-2:#334155;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;--rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--link:#1d4ed8;--do-fg:#b91c1c;--warn:#b45309}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrapx{max-width:1320px;margin:0 auto;padding:28px 16px 100px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.intro{color:var(--ash);font-size:13.5px;max-width:980px}
+.intro p{margin:0 0 8px}
+.phones{display:flex;gap:26px;flex-wrap:wrap;margin-top:20px}
+.col{width:390px;max-width:100%}
+.col h2{font-size:15px;font-weight:500;margin:0 0 2px}
+.col .ghi{font-size:12.5px;color:var(--ash-2);min-height:58px;margin-bottom:8px}
+.ph{width:390px;max-width:100%;height:820px;border-radius:44px;background:#0f172a;padding:12px}
+.scr{width:100%;height:100%;border-radius:34px;background:var(--canvas);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.sb{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:13px;flex:none}
+.ab{display:flex;align-items:center;gap:10px;padding:2px 14px 10px;border-bottom:1px solid var(--rule-soft);flex:none}
+.ab .bk{font-size:22px;color:var(--ash);width:22px}
+.ab .t{font-size:17px;font-weight:500;line-height:1.25}
+.ab .s{font-size:12px;color:var(--ash-2)}
+.ab .x{margin-left:auto;color:var(--ash-3);font-size:18px}
+.than{flex:1;overflow:auto}
+.chan{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px 24px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.chan .dem{font-size:13px;color:var(--ash-2);flex:1}
+.btn{height:44px;border:1px solid var(--rule-soft);border-radius:12px;background:var(--canvas);padding:0 18px;display:inline-flex;align-items:center;justify-content:center;font:inherit;font-size:14.5px;color:var(--ink-2);white-space:nowrap}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.lk{color:var(--link);font-size:13px;white-space:nowrap}
+.mo{color:var(--ash-3)} .mut{color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.hang-ctx{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule-hair);font-size:13.5px}
+.hang-ctx .n{color:var(--ash-2);width:96px;flex:none}
+.hang-ctx .v{flex:1}
+.hang-ctx .ar{color:var(--ash-3)}
+.nhom{font-size:12px;color:var(--ash-3);padding:14px 16px 4px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 16px 12px;scrollbar-width:none}
+.chips span{flex:none;height:30px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid var(--rule-soft);border-radius:999px;font-size:12.5px;color:var(--ink-2)}
+.chips span.on{border-color:var(--ink-2);color:var(--ink)}
+.them{margin:10px 16px 6px;height:42px;border:1px dashed var(--rule);border-radius:10px;display:flex;align-items:center;padding:0 12px;color:var(--ash-3);font-size:13.5px}
+.goi{font-size:12px;color:var(--ash-3);padding:2px 16px 12px}
+
+/* A */
+.a-dong{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:12px 16px;border-bottom:1px solid var(--rule-hair);align-items:center}
+.a-dong .ten{font-size:14px}
+.a-dong .phu{font-size:12px;color:var(--ash-2);display:flex;gap:12px;flex-wrap:wrap;grid-column:1/3;align-items:baseline}
+.a-dong .phu .tac{margin-left:auto;font-size:12.5px}
+.a-dong .tac{grid-column:2/3;text-align:right;font-size:12.5px}
+.o{display:inline-flex;align-items:center;height:38px;width:112px;border:1px solid var(--rule);border-radius:9px;overflow:hidden;font-size:15px}
+.o .v{flex:1;text-align:right;padding:0 6px;font-variant-numeric:tabular-nums}
+.o .dv{padding:0 9px 0 2px;font-size:12.5px;color:var(--ash-2)}
+.a-dong .loi{grid-column:1/3;font-size:12px;color:var(--warn)}
+
+/* B */
+.b-dong{padding:12px 16px;border-bottom:1px solid var(--rule-hair)}
+.b-dong .h{display:flex;align-items:baseline;gap:8px}
+.b-dong .h .ten{font-size:14px;flex:1}
+.b-dong .h .x{color:var(--ash-3)}
+.b-dong .phu{font-size:12px;color:var(--ash-2);display:flex;gap:12px;margin-top:1px}
+.b-dong .sl{display:flex;align-items:center;gap:10px;margin-top:8px}
+.step{display:inline-flex;align-items:center;border:1px solid var(--rule);border-radius:10px;overflow:hidden;height:40px}
+.step span{width:44px;text-align:center;font-size:18px;color:var(--ink-2)}
+.step b{font-weight:400;min-width:70px;text-align:center;font-size:16px;border-left:1px solid var(--rule-soft);border-right:1px solid var(--rule-soft);line-height:40px;font-variant-numeric:tabular-nums}
+.b-dong .sl .dv{font-size:13px;color:var(--ash-2)}
+.b-dong .sl .r{margin-left:auto}
+
+/* C */
+.c-dong{display:grid;grid-template-columns:1fr auto 14px;gap:1px 10px;padding:13px 16px;border-bottom:1px solid var(--rule-hair);align-items:center}
+.c-dong .ten{font-size:14px}
+.c-dong .so{font-size:16px;text-align:right;font-variant-numeric:tabular-nums}
+.c-dong .so small{font-size:12px;color:var(--ash-2);margin-left:3px}
+.c-dong .phu{font-size:12px;color:var(--ash-2);display:flex;gap:12px}
+.c-dong .phu2{font-size:12px;color:var(--ash-3);text-align:right}
+.c-dong .ar{grid-row:1/3;grid-column:3;color:var(--ash-3)}
+.c-dong .canh{grid-column:1/4;font-size:12px;color:var(--warn)}
+.phu-mo{position:absolute;inset:0;background:rgba(15,23,42,.4);display:flex;align-items:flex-end}
+.sheet{background:var(--canvas);border-radius:20px 20px 0 0;width:100%;padding:8px 16px 24px}
+.sheet .grip{width:40px;height:4px;border-radius:9px;background:var(--rule);margin:0 auto 10px}
+.sheet .t{font-size:16px}
+.sheet .s{font-size:12.5px;color:var(--ash-2);margin-bottom:12px;display:flex;gap:12px}
+.sheet .lb{font-size:12.5px;color:var(--ash-2);margin:10px 0 6px}
+.kk{display:inline-flex;align-items:center;height:38px;border:1px solid var(--rule-soft);border-radius:9px;font-size:14px;overflow:hidden}
+.kk span{padding:0 11px}
+.kk .dg{background:var(--rule-hair);height:100%;display:inline-flex;align-items:center}
+.lon{display:flex;align-items:center;height:52px;border:1px solid var(--ink-2);border-radius:12px;padding:0 14px;font-size:24px;font-variant-numeric:tabular-nums}
+.lon .dv{margin-left:auto;font-size:14px;color:var(--ash-2)}
+.sheet .hang{display:flex;gap:8px;margin-top:14px}
+.sheet .hang .btn{flex:1}
+
+table.so-sanh{width:100%;border-collapse:collapse;font-size:13px;background:var(--canvas);border-radius:12px;overflow:hidden;margin-top:28px}
+.so-sanh th{font-weight:400;color:var(--ash-2);text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule-soft);font-size:12px;background:var(--paper)}
+.so-sanh td{padding:9px 12px;border-bottom:1px solid var(--rule-hair);vertical-align:top}
+.ref{display:flex;gap:16px;align-items:flex-start;margin-top:18px;flex-wrap:wrap}
+.ref img{width:220px;border-radius:12px;border:1px solid var(--rule-soft)}
+.ref .g{font-size:12.5px;color:var(--ash-2);max-width:520px}
+</style>
+</head>
+<body>
+<div class="wrapx">
+<h1>Form vật tư trên điện thoại, 3 phương án</h1>
+<div class="intro">
+<p>Bản hiện tại dài vì nó chỉ là bản máy tính dồn hết xuống một cột. Đo được: nội dung cao 1.275px trong khung nhìn 584px, phải cuộn hơn hai màn. Mỗi dòng vật tư cao 187px do có nhãn riêng cho Kế hoạch, Tồn và Số lượng xin. Ba thẻ bên phải xếp thêm 470px. Đầu ngăn có đường dẫn gãy hai dòng. Chân ngăn có dòng đếm riêng.</p>
+<p>Cả ba phương án cùng sửa mấy chỗ chung: đầu ngăn chỉ còn tên form và tên việc; bỏ thẻ Lệnh sản xuất vì tên việc ở đầu ngăn đã nói lệnh nào; Cần xuất lúc và Ghi chú thu thành một dòng, bấm mới mở; dòng đếm mặt hàng đứng cạnh nút Gửi kho; bỏ nút Huỷ vì đã có ✕. Khác nhau ở cách nhập số cho từng dòng vật tư.</p>
+</div>
+
+<div class="phones">
+
+<!-- A -->
+<div class="col">
+<h2>A. Mỗi dòng hai hàng, ô số bên phải</h2>
+<div class="ghi">Tên và ô số cùng hàng. Hàng dưới là khổ, kế hoạch, tồn bằng chữ nhỏ, không nhãn cột. Gõ số thẳng như bản máy tính. Ba dòng vật tư vừa một màn.</div>
+<div class="ph"><div class="scr">
+<div class="sb"><span>10:02</span><span>●●● ▮</span></div>
+<div class="ab"><span class="bk">‹</span><div><div class="t">Yêu cầu xuất kho</div><div class="s">Cắt tờ của LSX26-0004</div></div></div>
+<div class="than">
+  <div class="hang-ctx"><span class="n">Cần xuất lúc</span><span class="v num">09/10 10:00</span><span class="mo" style="font-size:12px">lúc bắt đầu việc</span><span class="ar">›</span></div>
+  <div class="nhom">Vật tư</div>
+  <div class="a-dong"><span class="ten">Ivory 210 tờ</span><span class="o"><span class="v">180</span><span class="dv">tờ</span></span>
+    <span class="phu"><span>1090 × 790</span><span>Kế hoạch 175</span><span>Tồn 2.340</span><span class="tac lk">Về 0</span></span></div>
+  <div class="a-dong"><span class="ten">Couche 150</span><span class="o"><span class="v">20</span><span class="dv">tờ ▾</span></span>
+    <span class="phu"><span class="lk" style="font-size:12px">Tờ 650 × 860</span><span>Tồn 420</span><span class="tac mo">✕</span></span></div>
+  <div class="a-dong"><span class="ten">Keo dán gáy EVA</span><span class="o"><span class="v">0</span><span class="dv">—</span></span>
+    <span class="phu"><span>Chưa có đơn vị tính</span><span class="tac mo">✕</span></span></div>
+  <div class="them">+ Thêm vật tư</div>
+  <div class="goi">Dòng theo kế hoạch không xoá được, chỉ có Về 0.</div>
+  <div class="hang-ctx"><span class="n">Ghi chú</span><span class="v mo">Không bắt buộc</span><span class="ar">›</span></div>
+</div>
+<div class="chan"><span class="dem">3 mặt hàng</span><span class="btn pri">Gửi kho</span></div>
+</div></div>
+</div>
+
+<!-- B -->
+<div class="col">
+<h2>B. Nút trừ cộng to cho ngón cái</h2>
+<div class="ghi">Như giỏ hàng: mỗi dòng có cụm − số + to, bấm số để gõ thẳng. Dễ bấm khi đeo găng hay tay bẩn, nhưng mỗi dòng cao hơn A và cộng từng đơn vị thì chậm với số lớn.</div>
+<div class="ph"><div class="scr">
+<div class="sb"><span>10:02</span><span>●●● ▮</span></div>
+<div class="ab"><span class="bk">‹</span><div><div class="t">Yêu cầu xuất kho</div><div class="s">Cắt tờ của LSX26-0004</div></div></div>
+<div class="than">
+  <div class="nhom">Cần xuất lúc</div>
+  <div class="chips"><span class="on">Lúc bắt đầu việc 10:00</span><span>Bây giờ</span><span>Mai</span><span>Chọn giờ…</span></div>
+  <div class="nhom" style="padding-top:2px">Vật tư</div>
+  <div class="b-dong"><div class="h"><span class="ten">Ivory 210 tờ</span><span class="lk">Về 0</span></div>
+    <div class="phu"><span>1090 × 790</span><span>Kế hoạch 175</span><span>Tồn 2.340</span></div>
+    <div class="sl"><span class="step"><span>−</span><b>180</b><span>+</span></span><span class="dv">tờ</span></div></div>
+  <div class="b-dong"><div class="h"><span class="ten">Couche 150</span><span class="x">✕</span></div>
+    <div class="phu"><span class="lk" style="font-size:12px">Tờ 650 × 860</span><span>Tồn 420</span></div>
+    <div class="sl"><span class="step"><span>−</span><b>20</b><span>+</span></span><span class="dv">tờ ▾</span></div></div>
+  <div class="b-dong"><div class="h"><span class="ten">Keo dán gáy EVA</span><span class="x">✕</span></div>
+    <div class="phu"><span>Chưa có đơn vị tính, để 0 vẫn gửi được</span></div></div>
+  <div class="them">+ Thêm vật tư</div>
+  <div class="hang-ctx"><span class="n">Ghi chú</span><span class="v mo">Không bắt buộc</span><span class="ar">›</span></div>
+</div>
+<div class="chan"><span class="dem">3 mặt hàng</span><span class="btn pri">Gửi kho</span></div>
+</div></div>
+</div>
+
+<!-- C -->
+<div class="col">
+<h2>C. Danh sách đọc, bấm dòng để sửa</h2>
+<div class="ghi">Danh sách ngắn nhất: mỗi dòng chỉ đọc, số xin to bên phải. Bấm dòng thì trồi khay từ đáy để sửa số, khổ, Về 0 hoặc bỏ. Gọn nhất, nhưng mỗi lần sửa thêm một chạm.</div>
+<div class="ph"><div class="scr">
+<div class="sb"><span>10:02</span><span>●●● ▮</span></div>
+<div class="ab"><span class="bk">‹</span><div><div class="t">Yêu cầu xuất kho</div><div class="s">Cắt tờ của LSX26-0004</div></div></div>
+<div class="than">
+  <div class="hang-ctx"><span class="n">Cần xuất lúc</span><span class="v num">09/10 10:00</span><span class="ar">›</span></div>
+  <div class="nhom">Vật tư</div>
+  <div class="c-dong"><span class="ten">Ivory 210 tờ</span><span class="so">180<small>tờ</small></span><span class="ar">›</span>
+    <span class="phu"><span>1090 × 790</span><span>Tồn 2.340</span></span><span class="phu2">kế hoạch 175</span></div>
+  <div class="c-dong"><span class="ten">Couche 150</span><span class="so">20<small>tờ</small></span><span class="ar">›</span>
+    <span class="phu"><span>650 × 860</span><span>Tồn 420</span></span><span class="phu2">ngoài kế hoạch</span></div>
+  <div class="c-dong"><span class="ten">Keo dán gáy EVA</span><span class="so mo">0</span><span class="ar">›</span>
+    <span class="canh">Chưa có đơn vị tính</span></div>
+  <div class="them">+ Thêm vật tư</div>
+  <div class="hang-ctx"><span class="n">Ghi chú</span><span class="v mo">Không bắt buộc</span><span class="ar">›</span></div>
+</div>
+<div class="chan"><span class="dem">3 mặt hàng</span><span class="btn pri">Gửi kho</span></div>
+<div class="phu-mo"><div class="sheet">
+  <div class="grip"></div>
+  <div class="t">Ivory 210 tờ</div>
+  <div class="s"><span>Kế hoạch 175 tờ</span><span>Tồn 2.340</span></div>
+  <div class="lb">Khổ</div><span class="kk"><span class="dg">Tờ</span><span>1090 × 790 mm</span></span>
+  <div class="lb">Số lượng xin</div><div class="lon">180<span class="dv">tờ</span></div>
+  <div class="hang"><span class="btn">Về 0</span><span class="btn pri">Xong</span></div>
+</div></div>
+</div></div>
+<div style="font-size:12.5px;color:var(--ash-2);margin-top:8px">Khay đang mở sau khi bấm dòng Ivory.</div>
+</div>
+
+</div>
+
+<table class="so-sanh"><thead><tr><th style="width:150px"></th><th>Hiện tại</th><th>A</th><th>B</th><th>C</th></tr></thead><tbody>
+<tr><td>Một dòng vật tư cao</td><td class="num">187px</td><td class="num">84px</td><td class="num">113px</td><td class="num">70px</td></tr>
+<tr><td>Cả nội dung trong khung nhìn</td><td class="num">1.275 trên 584px, cuộn hơn hai màn</td><td class="num">467 trên 629px, vừa một màn</td><td class="num">499 trên 629px, vừa một màn</td><td class="num">394 trên 629px, còn thừa nhiều</td></tr>
+<tr><td>Sửa một con số</td><td>gõ thẳng</td><td>gõ thẳng</td><td>bấm − + hoặc chạm số để gõ</td><td>chạm dòng, gõ, bấm Xong</td></tr>
+<tr><td>Hợp với</td><td></td><td>tổ trưởng quen gõ số, nhiều dòng</td><td>chỉnh lệch vài đơn vị</td><td>đơn ít dòng, chủ yếu xem lại rồi gửi</td></tr>
+</tbody></table>
+
+<div class="ref"><img src="tham-khao-ngan-ban-to/ref-linear-di-dong-chi-tiet.jpg" alt="Linear trên điện thoại"><div class="g">Tham khảo: màn chi tiết của Linear trên điện thoại (đã chụp ở đợt trước). Thuộc tính thu thành từng dòng "nhãn bên trái, giá trị bên phải, mũi tên", bấm mới mở chọn; nội dung chính chiếm phần lớn màn. A và C mượn cách này cho Cần xuất lúc và Ghi chú. Mình đề xuất A: gọn gần bằng C mà vẫn gõ số thẳng như bản máy tính, tổ trưởng không phải học cách mới.</div></div>
+</div>
+</body>
+</html>

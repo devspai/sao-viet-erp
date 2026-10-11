@@ -756,7 +756,7 @@
 .dhb__lifecycle {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
 }
 
 .dhb__lifecycle-header {
@@ -776,41 +776,69 @@
   color: var(--ash);
 }
 
-/* Thanh chặng (phương án A, 05/10/2026) — Chốt → Cọc → Sản xuất (gồm nhập kho) → Giao → Hóa đơn.
-   Ô hình mũi tên bằng clip-path; chọn = viền ĐỦ quanh mũi tên (drop-shadow 4 phía bám theo hình
-   đã cắt — outline/border thì bị clip-path cắt mất). */
+/* Thanh chặng (phương án 2, 10/10/2026 — khuôn Atlassian progress tracker): năm chấm trên một trục
+   ngang, đoạn đã đi tô xanh tới chặng đang chạy, chặng đang chạy có vòng sáng cam. Chọn = viền ĐỦ
+   quanh nhãn (không viền một cạnh). Mockup: docs/mockups/vong-doi-don-phuong-an-2-du-5-chang.html. */
 .dhb__path {
-  display: flex;
-  gap: 3px;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   min-width: 0;
+  margin: 2px 0 4px;
+}
+.dhb__path-truc {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--rule-soft);
+}
+.dhb__path-truc i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--moss);
+  transition: width var(--duration-fast) var(--easing-standard);
 }
 .dhb__path-buoc {
-  flex: 1 1 0;
+  position: relative;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
   font: inherit;
-  text-align: left;
+  color: inherit;
+  text-align: center;
 }
+.dhb__path-cham {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+  border: 2px solid var(--rule);
+  color: var(--canvas);
+}
+.dhb__path-buoc.is-done .dhb__path-cham { background: var(--moss); border-color: var(--moss); }
+.dhb__path-buoc.is-dang .dhb__path-cham { border-color: var(--rust); box-shadow: 0 0 0 4px rgba(197, 64, 10, .12); }
+.dhb__path-buoc.is-dang .dhb__path-cham::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--rust); }
+.dhb__path-buoc.is-do .dhb__path-cham { border-color: var(--steel); }
 .dhb__path-o {
   display: grid;
-  gap: 1px;
-  padding: 7px 6px 7px 16px;
-  background: var(--rule-hair);
-  color: var(--ash-2);
-  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%, 9px 50%);
+  gap: 0;
+  max-width: 100%;
+  padding: 1px 8px 2px;
+  border: 1px solid transparent;
+  border-radius: var(--r-3);
   transition: background var(--duration-fast) var(--easing-standard);
-}
-.dhb__path-buoc:first-child .dhb__path-o {
-  padding-left: 10px;
-  border-radius: var(--r-2) 0 0 var(--r-2);
-  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%);
-}
-.dhb__path-buoc:last-child .dhb__path-o {
-  border-radius: 0 var(--r-2) var(--r-2) 0;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 9px 50%);
 }
 .dhb__path-o b,
 .dhb__path-o small {
@@ -818,38 +846,45 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dhb__path-o b { font-size: 12.5px; font-weight: 600; }
-.dhb__path-o small { font-size: 11.5px; }
-.dhb__path-o small.is-warn { color: var(--signal); font-weight: 600; }
-.dhb__path-buoc:hover .dhb__path-o { background: var(--rule-soft); }
-.dhb__path-buoc.is-done .dhb__path-o { background: var(--moss-soft); color: var(--moss-deep); }
-.dhb__path-buoc.is-do .dhb__path-o { background: var(--steel-soft); color: var(--ink); }
-.dhb__path-buoc.is-dang .dhb__path-o { background: var(--ink); color: var(--canvas); }
-.dhb__path-buoc.is-dang .dhb__path-o small.is-warn { color: var(--signal-soft); }
-.dhb__path-buoc.is-selected {
-  filter: drop-shadow(1.5px 0 0 var(--rust)) drop-shadow(-1.5px 0 0 var(--rust))
-    drop-shadow(0 1.5px 0 var(--rust)) drop-shadow(0 -1.5px 0 var(--rust));
-  position: relative;
-  z-index: 1;
-}
+.dhb__path-o b { font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--ink); }
+.dhb__path-o small { font-size: 11.5px; line-height: 1.35; color: var(--ash-2); }
+.dhb__path-o small.is-warn { color: var(--signal); }
+.dhb__path-buoc.is-dang .dhb__path-o b { color: var(--rust); }
+.dhb__path-buoc:not(.is-done):not(.is-dang) .dhb__path-o b { color: var(--ash); }
+.dhb__path-buoc:hover .dhb__path-o { background: var(--rule-hair); }
+.dhb__path-buoc.is-selected .dhb__path-o { border-color: var(--ink); }
 .dhb__path-buoc:focus-visible { outline: none; }
 .dhb__path-buoc:focus-visible .dhb__path-o { background: var(--rule-soft); }
 
-/* Việc tiếp theo — một câu + thẻ nhỏ + một nút, luôn ngay dưới thanh chặng. */
+/* Thẻ tóm tắt đơn — MỘT dòng (gọn lại 11/10/2026): trái là đơn đang chờ ai làm gì (câu + thẻ + nút nằm
+   ngang), phải là hạn giao + số ngày còn lại cũng nằm ngang. Hẹp quá thì tự xuống dòng. */
 .dhb__viec {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: var(--sp-2) var(--sp-3);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  padding: 10px 12px;
+  gap: 4px var(--sp-4);
+  padding: 2px 0 12px;
+  border-bottom: 1px solid var(--rule-hair);
 }
-.dhb__viec-chu { display: grid; gap: 6px; min-width: 0; flex: 1 1 260px; }
-.dhb__viec-cau { font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
-.dhb__viec-the { display: flex; flex-wrap: wrap; gap: 6px; }
+.dhb__viec-chu { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; flex: 1 1 260px; }
+.dhb__viec-cau { font-size: 14px; font-weight: 400; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere; }
+.dhb__viec-the { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+/* Thẻ trong dòng tóm tắt là CHỮ nhạt (có màu theo sắc), không đóng khung — khung là thứ làm dòng này nặng. */
+.dhb__viec .dhb__sx-tag { border: 0; background: none; padding: 0; font-size: 12.5px; color: var(--ash-2); }
+.dhb__viec .dhb__sx-tag--warn { color: var(--amber-deep); }
+.dhb__viec .dhb__sx-tag--bad { color: var(--signal); }
+.dhb__viec .dhb__sx-tag--ok { color: var(--moss-deep); }
 .dhb__viec-nut { flex: 0 0 auto; }
+.dhb__viec-han { display: flex; align-items: baseline; gap: 8px; flex: 0 0 auto; white-space: nowrap; }
+.dhb__viec-han small { font-size: 12px; color: var(--ash-2); }
+.dhb__viec-han span { font-size: 13.5px; color: var(--ink); }
+/* Trong Vòng đời đơn bỏ chữ đậm của .dhb__mono (số tiền phiếu thu, ngày): số đã đủ nổi nhờ cỡ chữ. */
+.dhb__chang-khung .dhb__mono, .dhb__viec .dhb__mono { font-weight: 400; }
+.dhb__viec-han .dhb__mono { font-weight: 500; font-size: 13.5px; }
+.dhb__viec-han em { font-style: normal; font-size: 12px; color: var(--moss-deep); }
+.dhb__viec-han em.is-warn { color: var(--amber-deep); }
+.dhb__viec-han em.is-bad { color: var(--signal); }
 
 /* Ô chi tiết chặng cao THEO chặng đang mở (06/10/2026). Bản 05/10 chồng năm khung trong một ô lưới,
    khung không chọn chỉ `visibility: hidden` ⇒ ô luôn cao bằng chặng dài nhất (Giao / Hóa đơn), chặng
@@ -858,6 +893,38 @@
 .dhb__chang-khung { min-width: 0; }
 .dhb__chang-o { min-width: 0; display: flex; flex-direction: column; }
 .dhb__chang-o:not(.is-mo) { display: none; }
+/* Khung chặng không đóng hộp thêm lớp nữa (gọn lại 10/10/2026): đã nằm trong thẻ "Vòng đời đơn" và ngay
+   dưới thẻ tóm tắt, thêm viền nữa là ba lớp hộp lồng nhau. */
+.dhb__chang-khung .dhb__lifecycle-box { border: 0; border-radius: 0; padding: 4px 0 0; gap: 10px; background: none; }
+.dhb__chang-khung .dhb__lifecycle-box-header { margin-bottom: 0; }
+.dhb__chang-khung .dhb__lifecycle-box-title { font-size: 14px; }
+.dhb__chang-khung .dhb__khung-lien-ket { margin-left: auto; font-size: 12.5px; font-weight: 400; }
+.dhb__chang-khung .dhb__invoice-panel { gap: 10px; }
+
+/* Phiếu thu cọc trong khung chặng: danh sách mảnh ngăn vạch, không đóng thẻ từng phiếu. */
+.dhb__coc-phieu { display: grid; }
+.dhb__coc-phieu .dhb__receipt-row { border: 0; border-bottom: 1px solid var(--rule-hair); border-radius: 0; padding: 7px 0; background: none; }
+.dhb__coc-phieu .dhb__receipt-row:last-child { border-bottom: 0; }
+
+/* Bảng hóa đơn trong khung chặng: cùng khuôn bảng kho — không khung, tiêu đề chữ thường nhạt. */
+.dhb__chang-khung .dhb__invoice-tablewrap { border: 0; border-radius: 0; }
+.dhb__chang-khung .dhb__invoice-table { font-size: 13px; }
+.dhb__chang-khung .dhb__invoice-table th {
+  padding: 0 10px 6px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: none;
+  color: var(--ash-2);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+}
+.dhb__chang-khung .dhb__invoice-table td { padding: 7px 10px; }
+.dhb__chang-khung .dhb__invoice-table th:first-child,
+.dhb__chang-khung .dhb__invoice-table td:first-child { padding-left: 0; }
+.dhb__chang-khung .dhb__invoice-table td small { margin-top: 1px; font-size: 11.5px; }
+.dhb__chang-khung .dhb__invoice-status { font-weight: 400; min-height: 20px; font-size: 12px; }
+.dhb__hd-so { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.dhb__hd-so > span:first-child:not(:last-child) { color: var(--ash-2); }
 
 /* Sections inside Vòng đời đơn */
 .dhb__lifecycle-box {
@@ -883,14 +950,17 @@
 
 .dhb__lifecycle-box-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
 }
+.dhb__lifecycle-box-header .dhb__sx-goi-y { margin-left: auto; }
 
 .dhb__lifecycle-box-title {
   margin: 0;
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 500;
   color: var(--ink);
   display: flex;
   align-items: center;
@@ -898,12 +968,12 @@
 }
 
 .dhb__lifecycle-badge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: var(--r-2);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* Màu từ bộ chip trạng thái chung --tt-* (tokens.css): xong lá · đang làm xanh · chưa tới slate · huỷ đỏ. */
@@ -1512,52 +1582,64 @@
 .dhb__td-note { margin: 0; font-size: 12px; color: var(--ash); }
 .dhb__td-warn { color: var(--signal); font-style: normal; }
 
-.dhb__td-cums { display: grid; gap: var(--sp-3); margin-top: var(--sp-2); }
-.dhb__td-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: 11px;
-  color: var(--ash);
-}
-.dhb__td-legend i {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  margin-right: 4px;
-  vertical-align: -1px;
-}
-.dhb__td-cum { display: grid; gap: 4px; min-width: 0; }
-.dhb__td-cum-head {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: baseline;
-  font-size: 12.5px;
-  flex-wrap: wrap;
-}
-.dhb__td-cum-head b { overflow-wrap: anywhere; }
-.dhb__td-cum-head span { margin-left: auto; color: var(--ash); }
-.dhb__td-bar {
-  display: flex;
-  height: 12px;
-  border-radius: 3px;
-  overflow: hidden;
-  background: var(--rule-soft);
-}
-.dhb__td-bar > span { height: 100%; }
-.dhb__td-seg--giao { background: var(--moss); }
-.dhb__td-seg--kho { background: var(--steel); }
-.dhb__td-seg--chokho { background: var(--amber); }
-.dhb__td-seg--sx { background: var(--amber-soft); box-shadow: inset 0 0 0 1px var(--amber); }
-.dhb__td-seg--chua { background: var(--rule-soft); box-shadow: inset 0 0 0 1px var(--rule); }
-.dhb__td-cum-nums {
+.dhb__td-cums { display: grid; gap: var(--sp-4); }
+.dhb__td-cum { display: grid; gap: 14px; min-width: 0; }
+.dhb__td-cum-head + .dhb__so4 { margin-top: -4px; }
+.dhb__td-cum-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.dhb__td-cum-ten { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.dhb__td-cum-dat { color: var(--ash-2); font-size: 12px; }
+
+/* Dải số đầu mỗi chặng (gọn lại 10/10/2026, khuôn stat group Stripe/Polaris): MỘT khung bo góc, các ô
+   ngăn bằng vạch mảnh (nền khung lộ qua khe 1px), không tô nền ô. Ô cần để mắt / ô xong chỉ đổi màu SỐ,
+   kèm chấm nhỏ trước nhãn — không viền riêng từng ô. Xuống hàng thì vạch ngăn vẫn đúng nhờ khe lưới. */
+.dhb__so4 {
   display: grid;
-  gap: 2px;
-  font-size: 11.5px;
-  color: var(--ash);
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px 24px;
+  min-width: 0;
+}
+.dhb__so4-o { min-width: 0; }
+.dhb__so4-o small { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ash-2); }
+.dhb__so4-o span {
+  display: block;
+  margin-top: 1px;
+  font-size: 20px;
+  line-height: 1.3;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
   overflow-wrap: anywhere;
 }
+.dhb__so4-o span.is-vua { font-size: 14.5px; line-height: 1.5; margin-top: 3px; letter-spacing: 0; }
+.dhb__so4-o span .dhb__td-link { font-size: inherit; }
+.dhb__so4-dv { margin-left: 4px; font-style: normal; font-size: 12px; letter-spacing: 0; color: var(--ash-2); }
+.dhb__so4-o em { display: block; font-style: normal; font-size: 11.5px; line-height: 1.4; color: var(--ash-2); }
+.dhb__so4-o.is-chu small::before,
+.dhb__so4-o.is-ok small::before { content: ""; width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.dhb__so4-o.is-chu small::before { background: var(--rust); }
+.dhb__so4-o.is-chu span { color: var(--rust); }
+.dhb__so4-o.is-ok small::before { background: var(--moss); }
+.dhb__so4-o.is-ok span { color: var(--moss-deep); }
+
+/* Bảng hàng đang nằm ở kho nào: không khung, chỉ vạch dòng; hàng của đơn khác / tồn chung chữ nhạt. */
+.dhb__td-kho { overflow-x: auto; min-width: 0; }
+.dhb__td-kho table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dhb__td-kho th {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ash-2);
+  text-align: left;
+  padding: 0 10px 6px;
+  border-bottom: 1px solid var(--rule-soft);
+  white-space: nowrap;
+}
+.dhb__td-kho th:first-child,
+.dhb__td-kho td:first-child { padding-left: 0; white-space: nowrap; }
+.dhb__td-kho th:nth-child(2),
+.dhb__td-kho td:nth-child(2) { width: 1%; white-space: nowrap; padding-right: 28px; }
+.dhb__td-kho td { padding: 7px 10px; border-bottom: 1px solid var(--rule-hair); }
+.dhb__td-kho tr.is-khac td { color: var(--ash-2); }
+.dhb__td-kho tfoot td { border-bottom: 0; padding-top: 8px; color: var(--ash-2); font-size: 12px; }
 
 /* Khối Sản xuất của ngăn đơn + ô Sản xuất ngoài danh sách — từng mặt hàng (07/10/2026). */
 .dhb__sx-goi-y { font-size: 12px; color: var(--ash-2); }
@@ -1663,11 +1745,11 @@
   border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
-.sxm-bang td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--rule-hair); vertical-align: top; }
+.sxm-bang td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--rule-hair); vertical-align: top; }
 .sxm-bang tr:last-child td { border-bottom: 0; }
 .sxm-bang__mo { cursor: pointer; }
 .sxm-bang__mo:hover td { background: var(--rule-hair); }
-.sxm-bang__ten { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.sxm-bang__ten { font-weight: 400; color: var(--ink); overflow-wrap: anywhere; }
 .sxm-lenhs { display: flex; flex-wrap: wrap; gap: 4px; }
 .sxm-lenh {
   font: inherit;
@@ -1692,6 +1774,7 @@
 
 .dhb__td-giao { display: grid; gap: var(--sp-3); min-width: 0; }
 .dhb__td-yc-list { display: grid; gap: var(--sp-2); }
+.dhb__td-yc-list:empty { display: none; }
 .dhb__td-yc {
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-3);

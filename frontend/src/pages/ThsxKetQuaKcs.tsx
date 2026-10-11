@@ -18,7 +18,6 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, api, type SxKcsCongViec } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { EmptyState } from "../components/EmptyState";
-import { Icon } from "../components/Icons";
 import { KcsLoiCuaTo, loiCuaTo } from "./kcs/KcsLanKiemList";
 import { num } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
@@ -63,12 +62,9 @@ export function ThsxKetQuaKcs({
 
   if (loi) {
     return (
-      <section className="thsx-psec">
-        <div className="thsx-psec__h">
-          <Icon name="alert" size={14} />
-          <span className="thsx-psec__title">Lỗi KCS</span>
-        </div>
-        <p className="thsx-note">{loi}</p>
+      <section className="thsx-b-sec">
+        <h3 className="thsx-b-sec__h">Lỗi KCS</h3>
+        <p className="thsx-b-trong">{loi}</p>
       </section>
     );
   }
@@ -82,22 +78,21 @@ export function ThsxKetQuaKcs({
     : `${dong.length} lỗi`;
 
   return (
-    <section className="thsx-psec">
-      <div className="thsx-psec__h">
-        <Icon name="alert" size={14} />
-        <span className="thsx-psec__title">Lỗi KCS</span>
-        {dong.length > 0 && <span className="kcs-bs__tong">{nhanTong}</span>}
+    <section className="thsx-b-sec">
+      <div className="thsx-b-sec__dau">
+        <h3 className="thsx-b-sec__h">Lỗi KCS</h3>
+        {dong.length > 0 && <span className="thsx-b-mo3">{nhanTong}</span>}
       </div>
       {cuoi && (
         <p className="kcs-bs__cuoi">
-          KCS đạt <b>{num(cuoi.dat)}</b> / tổ ghi tốt <b>{num(cuoi.tot)}</b> {nhanDonVi(cuoi.don_vi)}
-          {" · "}đã đề nghị nhập kho <b>{num(cuoi.da_de_nghi_kho)}</b>
+          <span>KCS đạt {num(cuoi.dat)} trên tổ ghi tốt {num(cuoi.tot)} {nhanDonVi(cuoi.don_vi)}</span>
+          <span>Đã đề nghị nhập kho {num(cuoi.da_de_nghi_kho)} {nhanDonVi(cuoi.don_vi)}</span>
         </p>
       )}
       {dong.length > 0
         ? <KcsLoiCuaTo congViecId={congViecId} dong={dong} />
         : data
-          ? <p className="thsx-note">KCS chưa ghi lỗi nào cho công đoạn này.</p>
+          ? <p className="thsx-b-trong">KCS chưa ghi lỗi nào cho công đoạn này.</p>
           : <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải lỗi KCS…" />}
     </section>
   );

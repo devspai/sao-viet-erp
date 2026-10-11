@@ -8,8 +8,8 @@ Gồm:
     màn nào thì nhận tin của màn đó;
   · `to:<id>` cho mỗi tổ người đó xem được ở Bàn tổ (trọn tổ hoặc chỉ việc của mình) — tính theo
     cây phòng ban như `services/quyen_to`, kể cả quyền kế thừa từ nút cha;
-  · hai khoá GIẢ cho hai cổng FE không phải một ô quyền: `BAN_TO` (có Xem ở ít nhất một dòng quyền
-    tổ — `coQuyenBanTo`) và `KCS` (thành viên tổ KCS — mục menu "KCS", `kcsTuCach.kcs`).
+  · khoá GIẢ `BAN_TO` cho cổng FE không phải một ô quyền (có Xem ở ít nhất một dòng quyền tổ —
+    `coQuyenBanTo`). Màn KCS nay là ô thật `kcs` (09/10/2026), không cần khoá giả.
 
 Phần dưới là TẬP MÀN NGHE theo nhóm sự kiện, chép theo FE: `lib/suKienNhom.ts` (loại → nhóm) và
 `AppShell.renderContent` (màn nào nhận `tickCua(nhóm…)`), mỗi màn quy về khoá module gác nó ở
@@ -27,8 +27,8 @@ from .db import SessionLocal
 #: Có Xem ở ít nhất một dòng quyền tổ `to_sx_*` — cùng cổng `coQuyenBanTo` của FE (menu Tổ sản xuất,
 #: badge tổ). Dùng khi sự kiện đụng bàn tổ mà không biết tổ nào.
 BAN_TO = "ban_to"
-#: Thành viên phòng ban "Tổ KCS" — vào màn KCS theo lệnh bằng tư cách phòng ban, không qua vai.
-KCS = "kcs_theo_lenh"
+#: Màn KCS — dòng `kcs` của ma trận vai (09/10/2026; trước là khoá giả theo phòng ban "Tổ KCS").
+KCS = "kcs"
 
 # --- Màn nghe theo NHÓM sự kiện (FE `suKienNhom.ts`) ----------------------------------------------
 #: nhóm `ban_hang`: Báo giá · Đơn hàng bán · Giao hàng · Kế hoạch SX · Công nợ phải thu · Phiếu thu.
@@ -87,7 +87,6 @@ def nap_quyen_nhan(user_id: int) -> frozenset[str]:
     from .repositories.rbac_repo import RoleRepository
     from .services.quyen_to import VIEC_XEM, quyen_to_cua
     from .services.rbac_service import AuthorizationService
-    from .services.san_xuat.kcs import la_nguoi_kcs
 
     db = SessionLocal()
     try:
@@ -100,8 +99,6 @@ def nap_quyen_nhan(user_id: int) -> frozenset[str]:
         if user.role_id is not None:
             q = quyen_to_cua(db, user)
             khoa.update(f"to:{t}" for t in q.tron[VIEC_XEM] | q.rieng[VIEC_XEM])
-        if la_nguoi_kcs(db, user):
-            khoa.add(KCS)
         return frozenset(khoa)
     finally:
         db.close()

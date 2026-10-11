@@ -1,38 +1,11 @@
 /* Báo cáo kho · tab "Giá gốc thành phẩm" (`KhoGiaGocThanhPham.tsx`). File riêng, mọi lớp mang tiền tố
    `kgg-` — không đụng khuôn `.kho-bc` dùng chung của các tab sổ kế toán. */
 
-/* Thanh công cụ: ô tìm · Lọc nâng cao · công tắc "Chỉ lô chưa có giá gốc". Toolbar gốc có lề dưới
-   16px; bảng/hàng lọc bên dưới tự lo khoảng cách của nó. */
-.kgg-toolbar { margin-bottom: var(--sp-3); }
-.kgg-chi-chua {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-/* Hàng lọc nâng cao — khuôn `.rc__locnc` của màn danh mục, chỉ đổi lề cho khớp chỗ đứng ở đây. */
-.rc__locnc.kgg-loc { margin: 0 0 var(--sp-3); }
-.kgg-loc__ngay {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.kgg-loc__ngay > .rc-input { flex: 1 1 0; min-width: 0; }
-.kgg-loc__den { font-size: 13px; color: var(--ash); }
-.kgg-toolbar + .rc__locnc-tags { margin: 0 0 var(--sp-3); }
-
-/* Bảng: `.kho-bc` ép MỌI ô một dòng — 9 cột tên dài (công ty, mặt hàng) thì bảng tràn ngang, cột giá
-   gốc bị đẩy ra ngoài khung. Ở đây cột chữ được xuống dòng; cột số và cột giá gốc vẫn một dòng. */
-.rc__table.kgg-bang { table-layout: auto; }
-.rc__table.kgg-bang td.kgg-chu {
-  white-space: normal;
-  min-width: 120px;
-  overflow-wrap: anywhere;
-}
-.rc__table.kgg-bang tbody td { vertical-align: middle; }
+/* Lưới chung (`.lds-g`, luoi-ds.css). Ô giá gốc chứa ô gõ + nút Lưu: bỏ cắt chữ của ô lưới, đệm mỏng
+   để hàng vẫn thấp như các dòng khác. */
+.lds-g td.kgg-o-gia { overflow: visible; padding: 2px 8px; }
+.lds-g td.kgg-o-gia .rc-input { height: 26px; min-height: 26px; }
+.lds-g td .lds-tag { margin-left: 6px; }
 
 /* Ô giá gốc: [ô số][đ/cái][Lưu ✕]. Bề rộng cố định cho cả cụm — nút Lưu hiện/ẩn bằng visibility nên
    không bao giờ làm cột nở ra co vào. */

@@ -90,7 +90,7 @@ def svc(db):
 
 def _giay(db, *, ma="GY-TEST", don_vi="kg", gsm=150, dai=860, rong=650) -> GiayNguyen:
     """Mã giấy ở danh mục. `don_vi` (kg) chỉ còn cho tính giá + lô cuộn — giấy tờ đếm tờ nguyên."""
-    g = GiayNguyen(ma=ma, ten=f"Giấy {ma}", gsm=gsm, kho_dai=dai, kho_rong=rong,
+    g = GiayNguyen(don_vi_them=["to"], ma=ma, ten=f"Giấy {ma}", gsm=gsm, kho_dai=dai, kho_rong=rong,
                    don_vi_gia=don_vi)
     db.add(g)
     db.commit()
@@ -171,8 +171,8 @@ def _lenh(db, customer, *, ma, giay_id, so_to_nguyen, han=None, nguon_giay=None,
     return l
 
 
-def _ton(db, giay: GiayNguyen, so_luong: float, *, dang="to", kho=KHO) -> None:
-    """Một lô giấy: tờ (đếm tờ nguyên, khổ `kho`) hoặc cuộn (`dang="cuon"`, đếm kg)."""
+def _ton(db, giay: GiayNguyen, so_luong: float, *, goc="to", kho=KHO) -> None:
+    """Một lô giấy khổ `kho`, đơn vị gốc `goc` (`to` đếm tờ; đơn vị giá của mã — `kg` — đếm kg)."""
     kho_hang = db.query(KhoHang).first()
     if kho_hang is None:
         kho_hang = KhoHang(ma="K1", ten="Kho test")
@@ -181,9 +181,9 @@ def _ton(db, giay: GiayNguyen, so_luong: float, *, dang="to", kho=KHO) -> None:
     kr, kd = chuan_kho(*kho) if kho else (0, 0)
     db.add(StockLot(
         hang_loai="giay", hang_id=giay.id, kho_id=kho_hang.id,
-        ma_lo=f"LOT-{giay.ma}-{dang}-{kr}x{kd}-{so_luong}",
+        ma_lo=f"LOT-{giay.ma}-{goc}-{kr}x{kd}-{so_luong}",
         sl_ban_dau=so_luong, sl_con_lai=so_luong, ngay_nhap=HOM_NAY, trang_thai=LOT_AVAILABLE,
-        dang_giay=dang, kho_rong=kr, kho_dai=kd,
+        don_vi_goc=goc, kho_rong=kr, kho_dai=kd,
     ))
     db.commit()
 
@@ -198,7 +198,7 @@ def _de_nghi_xuat(db, giay: GiayNguyen, *, lsx_id, duyet, da_ung, dvt=None,
     db.add(StockRequestLine(
         request_id=r.id, hang_loai="giay", hang_id=giay.id, lsx_id=lsx_id,
         dvt=dvt or don_vi_goc_to(), sl_de_nghi=duyet, sl_duyet=duyet, sl_da_ung=da_ung,
-        dang_giay="to", kho_rong=kr, kho_dai=kd,
+        don_vi_goc="to", kho_rong=kr, kho_dai=kd,
     ))
     db.commit()
     return r
@@ -364,20 +364,22 @@ def test_bai_ghep_khong_dem_doi_giay(db, svc, customer):
 # --- KHÔNG ĐOÁN ---------------------------------------------------------------
 
 
-def test_dong_giay_cu_don_vi_kg_khong_doi_chieu(db, svc, customer):
-    """Dòng giấy CŨ ghi kg (trước 01/10/2026) ⇒ không có phép đổi kg → tờ nào ⇒ cờ
-    `khong_doi_chieu_duoc`, nhu cầu 0, có câu chỉ đường — không đoán một hệ số."""
+def test_dong_giay_ghi_kg_la_nhom_kg_khong_tru_ton_to(db, svc, customer):
+    """Dòng giấy ghi kg ⇒ đơn vị gốc là đơn vị giá của mã (kg) — một nhóm RIÊNG, cân theo kg. Tờ và
+    kg không quy đổi (bỏ dạng cuộn/tờ 10/10/2026) nên 10.000 tờ cùng khổ KHÔNG trừ vào nhu cầu kg;
+    chúng chỉ hiện cạnh nhóm ở `cung_kho_khac_don_vi` cho người lập kế hoạch tự xem."""
     g = _giay(db, ma="GY-KG-CU")
     _ton(db, g, 10_000)
     _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
           sl_giay=83.85, dvt_giay="kg")
 
     nhom = _nhom(svc.can_doi(), g)
+    assert nhom["don_vi_goc"] == "kg"
     dong = nhom["dong"][0]
-    assert "khong_doi_chieu_duoc" in dong["canh_bao"]
-    assert dong["nhu_cau"] == 0
-    assert dong["trang_thai"] == "khong_ro"
-    assert "kg" in dong["ly_do_canh_bao"]
+    assert "khong_doi_chieu_duoc" not in dong["canh_bao"]
+    assert dong["nhu_cau"] == pytest.approx(83.85)
+    assert dong["trang_thai"] == "do"
+    assert [(x["don_vi_goc"], x["ton"]) for x in nhom["cung_kho_khac_don_vi"]] == [("to", 10_000)]
 
 
 def test_dong_mua_khong_gan_mat_hang_thi_khong_tru(db, svc, customer):
@@ -613,15 +615,21 @@ def test_khong_doi_chieu_duoc_KHONG_deo_nhan_da_cap_du(db, svc, customer):
     dán lên đúng dòng chưa ai tính được. Và vì `so_dong_do` không tăng, nhóm còn biến mất khỏi bộ
     lọc "chỉ mặt hàng đang thiếu": giấu đúng cái cần thấy.
     """
-    g = _giay(db, ma="GY-KG-CU2")
-    _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000, han=MAI,
-          sl_giay=83.85, dvt_giay="kg")
+    # Giấy nay luôn quy được về đơn vị gốc suy từ chính ĐVT (bỏ dạng cuộn/tờ 10/10/2026) ⇒ dựng ca
+    # "không đổi được" bằng vật tư khai theo ĐVT không có đường quy đổi về đơn vị giá của mã.
+    g = _giay(db, ma="GY-KC2")
+    vt = _vat_tu(db, ma="VT-KC2", don_vi="kg")
+    l = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000, han=MAI)
+    _khai_vat_tu(db, _buoc_dau(db, l), vt, 3, dvt="hộp")
 
-    nhom = _nhom(svc.can_doi(), g)
+    def _nhom_vt(bang):
+        return next(x for x in bang["items"] if (x["hang_loai"], x["hang_id"]) == ("vat_tu", vt.id))
+
+    nhom = _nhom_vt(svc.can_doi())
     assert nhom["dong"][0]["trang_thai"] == "khong_ro"
     assert nhom["so_dong_khong_ro"] == 1
     # Và phải CÒN LẠI khi lọc "chỉ thiếu" — thứ máy không đánh giá được thì phải lo nhiều hơn.
-    assert _nhom(svc.can_doi(chi_thieu=True), g)["so_dong_khong_ro"] == 1
+    assert _nhom_vt(svc.can_doi(chi_thieu=True))["so_dong_khong_ro"] == 1
 
 
 def test_da_cap_gan_vao_lenh_thanh_vien_van_tru_dung_vao_bai_ghep(db, svc, customer):
@@ -676,10 +684,10 @@ def test_phieu_mua_da_nhan_mot_phan_thi_chi_con_phan_chua_ve(db, svc, customer):
 
 
 def test_dong_giay_chua_kho_canh_bao_khong_tra_ton(db, svc, customer):
-    """Dòng giấy CHƯA có khổ ⇒ cờ `giay_chua_kho`, nhu cầu 0, "không đánh giá được" — và KHÔNG tra
-    tồn: khoá `(giay, id, 0, 0)` là khoá của cuộn, đem lô cuộn ra so với nhu cầu tờ là sai bản chất."""
+    """Dòng giấy CHƯA có khổ ⇒ cờ `giay_chua_kho`, nhu cầu 0, "không đánh giá được" — và tồn của
+    nhóm không lấy lô kg khổ rộng hay lô tờ khổ khác: khoá `(giay, id, 0, 0, to)` không khớp lô nào."""
     g = _giay(db, ma="GY-TRONG")
-    _ton(db, g, 5_000, dang="cuon", kho=(1_000, 0))
+    _ton(db, g, 5_000, goc="kg", kho=(1_000, 0))
     _ton(db, g, 5_000)
     _lenh(db, customer, ma="LSX-TRONG", giay_id=g.id, so_to_nguyen=1_000,
           han=HOM_NAY + timedelta(days=10), kho=None)
@@ -902,7 +910,9 @@ def test_gom_de_nghi_KHONG_suy_ngay_can_va_tra_lenh_nguon(db, svc, customer):
     gom = svc.gom_de_nghi(chon)
     assert gom["needed_date"] is None
     assert "ghi_chu_ngay" not in gom
-    assert [{k: v for k, v in n.items() if k != "so_luong"} for n in gom["nguon"]] == chon
+    # Nguồn trả kèm đơn vị gốc của khoá (giấy đếm tờ ⇒ "to") — form gửi lại nguyên khoá.
+    assert [{k: v for k, v in n.items() if k != "so_luong"} for n in gom["nguon"]] == [
+        {**c, "don_vi_goc": "to"} for c in chon]
     assert [n["so_luong"] for n in gom["nguon"]] == [500, 500], "liên kết mang số đề nghị của ô"
     assert len(gom["lines"]) == 1
 
@@ -1044,7 +1054,8 @@ def test_xem_truoc_de_nghi_mua_TRA_DU_DE_DIEN_FORM_va_KHONG_ghi_gi(client):
     assert body["needed_date"] is None, "ngày cần để người lập tự gõ — hệ không suy"
     assert "LSX-X, LSX-Y" in body["noi_dung"]
     # Khổ là một phần khoá dòng + khổ cần của dòng mua; vật tư khác 0 · 0.
-    assert body["nguon"] == [{**n, "kho_rong": 0, "kho_dai": 0, "so_luong": None} for n in nguon]
+    assert body["nguon"] == [{**n, "kho_rong": 0, "kho_dai": 0, "don_vi_goc": "", "so_luong": None}
+                             for n in nguon]
     assert body["lines"] == [{"hang_loai": "vat_tu", "hang_id": 7, "kho_rong": 0, "kho_dai": 0,
                               "item_name": "Kẽm CTP", "unit": "kem", "quantity": 15}]
 
@@ -1654,11 +1665,12 @@ def _bai(db, ma, giay, thanh_vien, *, kho_in=(650, 860)) -> BaiGhep:
 
 
 def test_giay_so_to_voi_lo_dung_kho(db, svc, customer):
-    """Tồn đem so = Σ lô TỜ đúng mã + đúng khổ. Lô khổ khác và lô cuộn không cộng vào."""
+    """Tồn đem so = Σ lô đúng mã + đúng khổ + đúng đơn vị gốc. Lô khổ khác và lô kg khổ rộng không
+    cộng vào."""
     g = _giay(db, ma="C-300")
     _ton(db, g, 3_000)                                  # 780 × 905
     _ton(db, g, 9_000, kho=(800, 1_090))
-    _ton(db, g, 2_000, dang="cuon", kho=(1_000, 0))
+    _ton(db, g, 2_000, goc="kg", kho=(1_000, 0))
     _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=5_000, han=MAI)
 
     bang = svc.can_doi()
@@ -1668,8 +1680,31 @@ def test_giay_so_to_voi_lo_dung_kho(db, svc, customer):
     assert nhom["tong_can"] == pytest.approx(5_000)
     assert nhom["dong"][0]["thieu"] == pytest.approx(2_000)
     assert nhom["dong"][0]["trang_thai"] == "do"
-    # Không nhóm nào khác của mã này — lô 800 × 1090 và cuộn không đẻ nhu cầu, cũng không bù.
+    # Không nhóm nào khác của mã này — lô 800 × 1090 và lô kg khổ 1000 không đẻ nhu cầu, cũng không bù.
     assert [x for x in bang["items"] if x["hang_id"] == g.id] == [nhom]
+    # Lô kg khác KHỔ ⇒ không phải "cùng khổ khác đơn vị".
+    assert nhom["cung_kho_khac_don_vi"] == []
+
+
+def test_cung_kho_khac_don_vi_chi_bay_canh_khong_tru(db, svc, customer):
+    """Cùng mã + cùng khổ mà một bên đếm tờ một bên đếm kg (luật 1, chủ chốt 10/10/2026): nhóm tờ
+    chỉ ăn lô tờ; tồn kg cùng khổ + hàng kg đang về hiện CẠNH nhóm, máy không trừ chéo."""
+    g = _giay(db, ma="C-310")
+    _ton(db, g, 1_000)                                  # 1.000 tờ 780 × 905
+    _ton(db, g, 600, goc="kg")                          # 600 kg cùng khổ 780 × 905
+    _phieu_mua(db, hang=("giay", g.id), so_luong=250, unit="kg", ngay_ve=MAI)
+    _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=3_000, han=MAI)
+
+    bang = svc.can_doi()
+    nhom = _nhom(bang, g)
+    assert nhom["don_vi_goc"] == "to"
+    assert nhom["ton"] == pytest.approx(1_000)
+    assert nhom["dong"][0]["thieu"] == pytest.approx(2_000), "kg không được trừ vào số tờ thiếu"
+    assert nhom["cung_kho_khac_don_vi"] == [
+        {"don_vi_goc": "kg", "don_vi_goc_ten": nhom["cung_kho_khac_don_vi"][0]["don_vi_goc_ten"],
+         "ton": pytest.approx(600), "dang_ve": pytest.approx(250)}]
+    # Không có nhu cầu kg nên không có nhóm kg.
+    assert [x["don_vi_goc"] for x in bang["items"] if x["hang_id"] == g.id] == ["to"]
 
 
 def test_hai_lenh_khac_kho_cung_ma_la_hai_nhom(db, svc, customer):

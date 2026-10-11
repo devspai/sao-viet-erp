@@ -10,7 +10,7 @@ chẳng liên quan gì tới cân đối, rồi lần sau muốn biết màn nà
 """
 from __future__ import annotations
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from ..models.bai_ghep_cong_doan import (
@@ -19,6 +19,7 @@ from ..models.bai_ghep_cong_doan import (
 from ..models.lsx import LsxCongDoanVatTu
 from ..models.may_thiet_bi import MayThietBi
 from ..models.san_xuat import CV_HOAN_THANH, SanXuatCongViec
+from ..models.stock_lot import LOT_ISSUABLE, StockLot
 from ..models.xep_lich import XepLichCongDoan
 
 
@@ -31,6 +32,23 @@ class KeHoachVatTuRepository:
         return list(self.db.execute(
             select(XepLichCongDoan).where(XepLichCongDoan.start_at.is_not(None))
         ).scalars())
+
+    def ton_moi_goc(self, caps: set[tuple[str, int]]) -> dict[tuple[str, int, int, int, str], float]:
+        """Tồn khả dụng (cùng luật `StockLotRepository.on_hand_map`) của các mã giấy / vật tư, tách
+        theo `(loai, id, rộng, dài, đơn vị gốc)` — MỘT câu. Bảng cân đối dùng để bày tồn CÙNG mã +
+        CÙNG khổ nhưng KHÁC đơn vị gốc cạnh nhóm (tờ cạnh kg, keo kg cạnh keo thùng), không đem trừ."""
+        if not caps:
+            return {}
+        rows = self.db.execute(
+            select(StockLot.hang_loai, StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai,
+                   StockLot.don_vi_goc, func.coalesce(func.sum(StockLot.sl_con_lai), 0))
+            .where(tuple_(StockLot.hang_loai, StockLot.hang_id).in_(sorted(caps)),
+                   StockLot.trang_thai.in_(LOT_ISSUABLE))
+            .group_by(StockLot.hang_loai, StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai,
+                      StockLot.don_vi_goc)
+        ).all()
+        return {(loai, int(i), int(r or 0), int(d or 0), (g or "").strip().lower()): float(sl or 0)
+                for loai, i, r, d, g, sl in rows}
 
     def vat_tu_theo_buoc_lenh(self, buoc_ids: list[int]) -> list[LsxCongDoanVatTu]:
         """Vật tư khai tay ở các bước lệnh."""

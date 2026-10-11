@@ -55,7 +55,7 @@ def _dung_phieu(db, so_buoc: int, nhan: str = "a") -> PhieuTinhGia:
     """Phiếu 1 thành phần: In + `so_buoc` bước sau in, MỖI bước một vật tư khác nhau có 2 chip."""
     giay = db.query(GiayNguyen).filter(GiayNguyen.ma == "G-IV350").first()
     if giay is None:
-        giay = GiayNguyen(ma="G-IV350", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
+        giay = GiayNguyen(don_vi_them=["to"], ma="G-IV350", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
                           cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000")
         db.add(giay)
         db.add(DonViDo(ma="m2_sup", ten="m² support"))
@@ -201,7 +201,7 @@ def _seed_phieu_http(so_buoc: int, nhan: str) -> dict:
 
     s = SessionLocal()
     try:
-        giay = GiayNguyen(ma=f"G-{nhan}", ten="Couche test", gsm=150, kho_dai=1090, kho_rong=790,
+        giay = GiayNguyen(don_vi_them=["to"], ma=f"G-{nhan}", ten="Couche test", gsm=150, kho_dai=1090, kho_rong=790,
                           don_vi_gia="to", don_gia=2000)
         s.add(giay)
         cd = CongDoan(ma=f"CD-{nhan}", ten="Cán màng test", nhom="finishing", che_do_tinh="theo_san_luong",

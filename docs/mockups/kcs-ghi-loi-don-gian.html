@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghi lỗi đơn giản</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --nen:#f8fafc; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --hair:#f1f5f9;
+  --rust:#c5400a; --do:#b91c1c; --do-nen:#fef2f2; --do-vien:#fecaca; --xanh:#1d4ed8; --xanh-nen:#eff6ff;
+  --cyan-bg:#e0f7fa; --cyan-chu:#0e7490; --la-bg:#dcfce7; --la-chu:#15803d; --tim-bg:#f3e8ff; --tim-chu:#7e22ce;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1640px;margin:0 auto;padding:28px 16px 100px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--chu-2);margin:0 0 14px;max-width:1000px}
+.hop-ghi{background:#fff;border-radius:12px;padding:14px 20px;margin:0 0 16px;font-size:13px;color:var(--chu-2)}
+.hop-ghi h2{font-size:15px;font-weight:500;margin:0 0 6px;color:var(--chu)}
+.hop-ghi ol,.hop-ghi ul{margin:0;padding-left:20px}
+.hop-ghi li{margin:3px 0}
+.man-nhan{font-size:13px;color:var(--chu-3);margin:30px 0 10px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.man-nhan b{font-weight:500;color:var(--chu);font-size:17px}
+.chon-vd{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.chon-vd button{height:30px;padding:0 12px;border:1px solid var(--vien);border-radius:8px;background:#fff;font:inherit;font-size:13px;color:var(--chu-2);cursor:pointer}
+.chon-vd button.on{border-color:var(--chu);color:var(--chu)}
+.hai-man{display:grid;grid-template-columns:minmax(0,1fr) 392px;gap:22px;align-items:start}
+.nhan-man{font-size:12.5px;color:var(--chu-3);margin:0 0 6px}
+/* khung điện thoại */
+.dt{width:392px;border:10px solid #0f172a;border-radius:34px;background:#0f172a;overflow:hidden}
+.dt-man{height:780px;background:var(--nen);border-radius:24px;overflow:hidden;position:relative;display:flex;flex-direction:column}
+
+/* chung */
+.gian{flex:1}
+.mu{color:var(--chu-3)}
+.mu4{color:var(--chu-4)}
+.do{color:var(--do)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--hair);color:var(--chu-2);font-size:12px;white-space:nowrap}
+.tag--chay{background:var(--cyan-bg);color:var(--cyan-chu)}
+.tag--sx{background:var(--xanh-nen);color:var(--xanh)}
+.tag--do{background:#fee2e2;color:var(--do)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:1px solid var(--vien);background:#fff;border-radius:8px;font:inherit;font-size:13px;color:var(--chu);cursor:pointer;white-space:nowrap}
+.btn--nho{height:30px;padding:0 10px;font-size:12.5px}
+.btn--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--chinh:disabled{opacity:.45;cursor:not-allowed}
+.btn--lk{border:0;background:none;padding:0;height:auto;color:var(--xanh);font-size:12.5px}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* Hộp ghi lỗi */
+.ngan{background:var(--nen);border:1px solid #dfe3e8;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 28px rgba(15,23,42,.08)}
+.dt .ngan{border:0;border-radius:0;box-shadow:none;height:100%}
+.ngan-dau{background:#fff;padding:12px 16px 10px;border-bottom:1px solid var(--vien-2)}
+.ngan-dau .hang{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ngan-dau h3{margin:0;font-size:17px;font-weight:500}
+.x{width:30px;height:30px;border:0;background:none;color:var(--chu-3);font-size:20px;cursor:pointer}
+.so{display:flex;gap:6px 18px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--chu-3)}
+.so span b{font-weight:400;color:var(--chu);margin-left:5px}
+.tabs{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--vien);padding:0 12px}
+.tabs button{height:40px;padding:0 10px;border:0;border-bottom:2px solid transparent;background:none;font:inherit;font-size:13.5px;color:var(--chu-3);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.tabs button.on{color:var(--chu);border-bottom-color:var(--chu)}
+.tabs .dem{font-size:12px;color:var(--chu-4)}
+.ngan-than{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:12px;max-height:640px}
+.dt .ngan-than{max-height:none}
+.ngan-than>*{flex:none}
+.g td:first-child{white-space:nowrap}
+.cot2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,440px);gap:14px;align-items:start}
+.doi-chieu{position:sticky;top:0}
+.khoi{background:#fff;border:1px solid var(--vien);border-radius:10px;overflow:hidden}
+.khoi-h{padding:10px 12px 8px;font-size:14px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.khoi-h .mu{font-size:12.5px}
+
+/* dòng tiêu chí */
+.dong{border-top:1px solid var(--vien-2)}
+.dong-h{display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:13.5px;min-height:46px}
+.dong-h input{width:20px;height:20px;margin:0;accent-color:var(--do);flex:none;cursor:pointer}
+.dong-h .ten{flex:1;min-width:0;cursor:pointer}
+.dong-h .ls{display:block;font-size:12px;color:var(--chu-4)}
+/* Dòng đã tick: KHÔNG tô nền (user đã bỏ hẳn nền hồng), chỉ ô tick đỏ báo "không đạt". */
+.tom{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 10px 42px;align-items:center}
+.dong-than{padding:0 12px 12px 42px;display:grid;gap:10px 12px;grid-template-columns:150px minmax(0,1fr)}
+.dong-than .ca{grid-column:1/-1}
+.dong-than .anh-hang .nhan{margin-right:4px}
+.cu{padding:9px 12px;border-top:1px solid var(--vien-2);font-size:13px}
+.cu-1{display:flex;gap:12px;align-items:baseline}
+.cu-tc{flex:1;min-width:0}
+.cu-so{white-space:nowrap}
+.cu-2{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-top:3px;font-size:12.5px;color:var(--chu-3)}
+.dt .dong-than{grid-template-columns:1fr;padding-left:12px}
+.dt .tom{padding-left:12px}
+.nhan{display:block;font-size:12.5px;color:var(--chu-3);margin:0 0 4px}
+.nhan i{font-style:normal;color:var(--chu-4)}
+.o-so{display:flex;align-items:center;border:1px solid var(--vien);border-radius:8px;background:#fff;height:38px;overflow:hidden}
+.o-so input{flex:1;min-width:0;border:0;padding:0 10px;font:inherit;font-size:15px;outline:none;background:none}
+.o-so span{padding:0 10px;color:var(--chu-3);font-size:12.5px;white-space:nowrap}
+.o-so:focus-within{border-color:var(--chu-3)}
+.o{width:100%;border:1px solid var(--vien);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;background:#fff;height:38px;outline:none}
+.o:focus{border-color:var(--chu-3)}
+.anh-hang{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.anh{width:44px;height:44px;border-radius:7px;background:linear-gradient(135deg,#cbd5e1,#e2e8f0);border:1px solid var(--vien);position:relative;cursor:zoom-in}
+.anh button{position:absolute;top:-7px;right:-7px;width:18px;height:18px;border-radius:9px;border:0;background:#334155;color:#fff;font-size:11px;line-height:18px;cursor:pointer;padding:0}
+.xong{display:flex;justify-content:flex-end}
+.khac-tach{height:10px;background:var(--nen);border-top:1px solid var(--vien-2)}
+.dong--khac .ten{color:var(--chu-2)}
+
+/* lỗi đã ghi trước */
+table.g{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5px}
+.g th{height:30px;padding:0 10px;text-align:left;font-weight:400;font-size:12px;color:var(--chu-3);background:#fbfcfd;border-bottom:1px solid var(--vien);white-space:nowrap}
+.g td{padding:8px 10px;border-bottom:1px solid var(--vien-2);vertical-align:top}
+.g .n{text-align:right}
+.the-cu{padding:10px 12px;border-top:1px solid var(--vien-2);font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+.the-cu .h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.trong{padding:12px;color:var(--chu-3);font-size:13px}
+
+/* quy cách */
+.qc{width:100%;border-collapse:collapse;font-size:13px}
+.qc td{padding:7px 12px;border-top:1px solid var(--vien-2)}
+.qc td:first-child{color:var(--chu-3);width:46%}
+/* Mực in: bám đúng khối MucInHang của màn lệnh (chip tròn 28px, màu MUC_MAU) */
+.muc-khoi{border-top:1px solid var(--vien-2);padding:10px 12px 4px}
+.muc-nhan{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--chu-2);margin-bottom:2px}
+.muc-hang{display:flex;align-items:center;gap:10px;padding:6px 0 6px 10px;font-size:13px}
+.muc-hang+.muc-hang{border-top:1px solid var(--hair)}
+.muc-mat{width:52px;flex:none;color:var(--chu-2)}
+.muc-hang .mu{font-size:12.5px}
+.muc{display:flex;gap:5px;flex-wrap:wrap}
+.muc span{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-size:11.5px;font-weight:600;color:#fff}
+.m-C{background:#00A0DF}.m-M{background:#EC008C}.m-Y{background:#FFD700;color:#412402!important}.m-K{background:#231F20}
+.dando{padding:10px 12px;border-top:1px solid var(--vien-2);font-size:13px;color:var(--chu-2)}
+
+/* tệp */
+.tep{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--vien-2);font-size:13px}
+.tep .loai{width:34px;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex:none}
+.l-pdf{background:#dc2626}.l-anh{background:#2563eb}
+.tep .ten{flex:1;min-width:0}
+.tep .ten span{display:block;overflow-wrap:anywhere}
+.tep .ten small{display:flex;flex-wrap:wrap;gap:2px 10px;color:var(--chu-4);font-size:12px}
+.tc-dt{padding:10px 12px;border-top:1px solid var(--vien-2);font-size:13px}
+.tc-dt .h{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--chu-3)}
+.tc-dt .h b{font-weight:400;color:var(--chu);margin-left:4px}
+.tep button{width:32px;height:32px;border:1px solid var(--vien);border-radius:8px;background:#fff;color:var(--chu-2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.tep-nhom{padding:8px 12px 4px;font-size:12px;color:var(--chu-3);border-top:1px solid var(--vien-2);background:#fbfcfd}
+
+/* thanh đáy */
+.ngan-day{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--vien);background:#fff;flex-wrap:wrap}
+.ngan-day .tong{font-size:13px;color:var(--chu-3)}
+.ngan-day .tong b{font-weight:400;color:var(--chu);margin-left:6px}
+.ngan-day .ly{flex:1;min-width:150px;font-size:12.5px;color:var(--chu-3)}
+.ngan-day .ly.ok{color:var(--la-chu)}
+.dt .ngan-day{padding:10px 12px}
+.dt .ngan-day .ly{flex-basis:100%;order:-1}
+.dt .ngan-day .btn--chinh{flex:1;justify-content:center;height:42px}
+.dt .ngan-day .btn:not(.btn--chinh){height:42px}
+
+/* xem ảnh / tệp */
+.xem{position:fixed;inset:0;background:rgba(15,23,42,.72);display:none;align-items:center;justify-content:center;z-index:50}
+.xem.on{display:flex}
+.xem div{width:min(640px,90vw);height:min(440px,70vh);border-radius:12px;background:linear-gradient(135deg,#94a3b8,#e2e8f0);display:flex;align-items:flex-end;padding:14px;color:#fff;font-size:13px}
+
+/* sơ đồ */
+.so-do{background:var(--nen);border:1px solid #dfe3e8;border-radius:12px;overflow:hidden}
+.sd-dau{background:#fff;padding:12px 16px;border-bottom:1px solid var(--vien-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:relative}
+.sd-dau h3{margin:0;font-size:18px;font-weight:500}
+.sd-chuoi{padding:14px 16px;display:flex;gap:10px;overflow:auto;border-bottom:1px solid var(--vien-2)}
+.nut{flex:none;width:180px;border:1px solid var(--vien);border-radius:10px;background:#fff;padding:8px 10px;font-size:13px;cursor:pointer;text-align:left;font-family:inherit}
+.nut.chon{border-color:var(--chu);box-shadow:0 0 0 1px var(--chu)}
+.nut small{display:flex;justify-content:space-between;color:var(--chu-3);font-size:12px}
+.pn{background:#fff;margin:12px;border:1px solid var(--vien);border-radius:10px;overflow:hidden}
+.pn-h{display:flex;align-items:center;gap:8px;padding:12px 14px;flex-wrap:wrap}
+.pn-h h4{margin:0;font-size:16px;font-weight:500}
+.pop{position:absolute;right:16px;top:54px;width:380px;max-width:calc(100% - 32px);background:#fff;border:1px solid #d6dbe2;border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.16);z-index:5;display:none}
+.pop.on{display:block}
+.pop-h{display:flex;align-items:center;padding:10px 12px;font-size:14px}
+.dt .sd-dau{padding:10px 12px}
+.dt .sd-dau h3{font-size:16px}
+.dt .pn{margin:10px}
+.dt .nut{width:150px}
+.dt .so-do{border:0;border-radius:0;height:100%;overflow:auto}
+@media (max-width:1100px){
+  .hai-man{grid-template-columns:minmax(0,1fr)}
+  .cot2{grid-template-columns:minmax(0,1fr)}
+  .doi-chieu{position:static}
+}
+@media (max-width:440px){
+  .dt{width:100%;border-width:6px;border-radius:24px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ghi lỗi công đoạn giữa, bản đơn giản có đối chiếu quy cách và tệp</h1>
+  <p class="lead">Lệnh, tổ, tiêu chí, quy cách lấy thật từ DB dev. LSX26-0003 và LSX26-0004 trên DB dev CHƯA có tệp đính kèm: ví dụ Cắt tờ hiện đúng trạng thái đó, ví dụ Bài in dùng hai tệp và số sản lượng GIẢ ĐỊNH để thấy giao diện khi có.</p>
+
+  <div class="hop-ghi">
+    <h2>Logic, theo đúng thứ tự trên màn</h2>
+    <ol>
+      <li>Bấm Ghi lỗi ở một công đoạn: hiện tiêu chí của chính công đoạn đó, cuối danh sách tách riêng "Lỗi khác".</li>
+      <li>Tiêu chí không đạt thì tick, ô Số lỗi tự đặt con trỏ. Ảnh và Ghi chú không bắt buộc; Lỗi khác thì Ghi chú bắt buộc.</li>
+      <li>Bấm "Xong" hoặc tick dòng khác: dòng gọn lại thành vài thẻ nhỏ, bấm vào là sửa tiếp.</li>
+      <li>Muốn đối chiếu: trên máy tính khung Quy cách và Tệp của lệnh nằm bên phải, luôn thấy; trên điện thoại là hai tab cạnh tab Ghi lỗi.</li>
+      <li>Thanh đáy luôn thấy: tổng lỗi lần này, lý do chưa lưu được, nút Lưu lỗi.</li>
+    </ol>
+  </div>
+
+  <div class="man-nhan"><b>1. Hộp Ghi lỗi</b>bấm thử được</div>
+  <div class="chon-vd" id="vd">
+    <button data-vd="in" class="on">Bài in LSX26-0003 (tệp và số giả định)</button>
+    <button data-vd="cat">Cắt tờ LSX26-0004 (số thật, chưa có tệp)</button>
+  </div>
+  <div class="hai-man">
+    <div><p class="nhan-man">Máy tính, ngăn rộng 1180</p><div id="hop-mt"></div></div>
+    <div><p class="nhan-man">Điện thoại</p><div class="dt"><div class="dt-man" id="hop-dt"></div></div></div>
+  </div>
+
+  <div class="man-nhan"><b>2. Sơ đồ nhóm</b>nút Tệp của lệnh ở đầu, khung công đoạn có tab Quy cách</div>
+  <div class="hai-man">
+    <div><p class="nhan-man">Máy tính</p><div id="sd-mt"></div></div>
+    <div><p class="nhan-man">Điện thoại</p><div class="dt"><div class="dt-man" id="sd-dt"></div></div></div>
+  </div>
+
+  <div class="hop-ghi" style="margin-top:22px">
+    <h2>Máy chủ cần thêm gì</h2>
+    <ul>
+      <li>Một API tệp của lệnh cho KCS: ai có quyền xem KCS là xem và tải được, dùng lại đúng cách lấy tệp của bàn tổ. Thêm hay xoá tệp vẫn ở hồ sơ lệnh của Kế hoạch SX. Tệp đổi thì màn KCS tự nạp lại (đã có sự kiện đẩy).</li>
+      <li>Quy cách và dặn dò kỹ thuật đã có sẵn trong dữ liệu màn KCS, không cần thêm.</li>
+      <li>Ghi lỗi: lưu số theo từng tiêu chí, ảnh không bắt buộc ở công đoạn giữa (doc <code>design-kcs-ghi-loi-giua.md</code>).</li>
+    </ul>
+  </div>
+</div>
+<div class="xem" id="xem"><div id="xem-chu"></div></div>
+
+<script>
+const ic = {
+  mat: '<svg class="i" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  tai: '<svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+  kep: '<svg class="i" viewBox="0 0 24 24"><path d="M21 11l-8.5 8.5a5 5 0 01-7-7L14 4a3.3 3.3 0 014.7 4.7L10 17.4a1.7 1.7 0 01-2.4-2.4L15 7.6"/></svg>',
+};
+const QC = {
+  in: [["Giấy", "COUCHE 80GSM"], ["Định lượng", "80 gsm"], ["Khổ giấy nguyên", "1090 × 790 mm"], ["Khổ tờ in", "790 × 540 mm"], ["Khổ thành phẩm", "148 × 210 mm"], ["Cách in", "Hai mặt"], ["Số màu", "8"], ["Số kẽm", "32 bản"], ["Con / tờ", "8"], ["SL đặt của đơn", "1.000"]],
+  cat: [["Giấy", "GIẤY IVORY 210--230-250GSM"], ["Định lượng", "210 gsm"], ["Khổ giấy nguyên", "1090 × 790 mm"], ["Khổ tờ in", "790 × 540 mm"], ["Khổ thành phẩm", "300 × 210 mm"], ["Cách in", "Một mặt"], ["Số màu", "4"], ["Số kẽm", "4 bản"], ["Con / tờ", "4"], ["SL đặt của đơn", "1.000"]],
+};
+const MUC = { in: [["Mặt A", "CMYK"], ["Mặt B", "CMYK"]], cat: [["Mặt A", "CMYK"]] };
+const TEP = {
+  in: [{ lenh: "LSX26-0003 Ruột sách A5 64 trang", ds: [
+    { ten: "Maket ruot sach A5 64 trang.pdf", loai: "pdf", co: "2,4 MB", ai: "Kế hoạch SX", luc: "06/10 09:12" },
+    { ten: "Mau mau da ky voi khach.jpg", loai: "anh", co: "820 KB", ai: "Kế hoạch SX", luc: "06/10 09:14" }] }],
+  cat: [{ lenh: "LSX26-0004 Bìa sách A5", ds: [] }],
+};
+const VD = {
+  in: { ten: "Bài in 3 màu 4 màu (CMYK)", lenh: "LSX26-0003", to: "Nhóm thợ in máy 4 màu", dv: "tờ in", lam: 4150, daGhi: 30,
+    tc: ["Màu đúng mẫu đã ký", "Chữ rõ, không mất nét", "Chồng màu khớp, không lệch dấu", "Không lem mực, không bẩn nền"],
+    ls: { "Không lem mực, không bẩn nền": 30 },
+    cu: [{ luc: "08/10 14:20", tc: "Không lem mực, không bẩn nền", so: 30, anh: 2, ghi: "góc phải tờ", ai: "Nguyễn Văn KCS", xem: true }] },
+  cat: { ten: "Cắt tờ", lenh: "LSX26-0004", to: "Cắt 2", dv: "tờ in", lam: 200, daGhi: 0, tc: ["lỗi 1", "lỗi 2"], ls: {}, cu: [] },
+};
+const KHAC = "Lỗi khác";
+const fmt = (n) => n.toLocaleString("vi-VN");
+let vd = "in";
+
+function quyCach(k) {
+  return `<table class="qc">${QC[k].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("")}
+    </table>
+    <div class="muc-khoi"><span class="muc-nhan">Mực in</span>${MUC[k].map(([m, s]) => `<div class="muc-hang"><span class="muc-mat">${m}</span><span class="muc">${[...s].map((c) => `<span class="m-${c}">${c}</span>`).join("")}</span><span class="gian"></span><span class="mu">${s.length} mực</span></div>`).join("")}</div>
+    <div class="dando"><span class="nhan">Dặn dò kỹ thuật</span><span class="mu4">Kế hoạch không ghi dặn dò cho công đoạn này.</span></div>`;
+}
+function tepLenh(k) {
+  return TEP[k].map((n) => `<div class="tep-nhom">${n.lenh}</div>` + (n.ds.length
+    ? n.ds.map((t) => `<div class="tep"><span class="loai l-${t.loai}">${t.loai === "pdf" ? "PDF" : "ẢNH"}</span>
+        <span class="ten"><span>${t.ten}</span><small><span>${t.co}</span><span>${t.ai}</span><span>${t.luc}</span></small></span>
+        <button title="Xem" data-xem="${t.ten}">${ic.mat}</button><button title="Tải về">${ic.tai}</button></div>`).join("")
+    : `<div class="trong">Lệnh chưa có tệp đính kèm. Kế hoạch SX thêm ở hồ sơ lệnh, thêm xong tự hiện ở đây.</div>`)).join("");
+}
+const soTep = (k) => TEP[k].reduce((a, n) => a + n.ds.length, 0);
+const thuong = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+
+/* ---------------- Hộp Ghi lỗi ---------------- */
+function taoHop(el, dt) {
+  let st = {}, mo = null, tab = "ghi", dc = "qc";
+  const reset = () => { st = {}; [...VD[vd].tc, KHAC].forEach((t) => (st[t] = { tick: false, so: "", anh: 0, ghi: "" })); mo = null; tab = "ghi"; };
+  const hopLe = (t) => Number(st[t].so) > 0 && (t !== KHAC || st[t].ghi.trim());
+  function dongHtml(t) {
+    const d = VD[vd], s = st[t], khac = t === KHAC, dangMo = s.tick && mo === t;
+    const ls = d.ls[t] ? `<span class="ls">trước đã ghi ${fmt(d.ls[t])} ${d.dv}</span>` : "";
+    let duoi = "";
+    if (dangMo) duoi = `<div class="dong-than">
+        <label><span class="nhan">Số lỗi</span><span class="o-so"><input data-t="${t}" data-k="so" inputmode="numeric" value="${s.so}"><span>${d.dv}</span></span></label>
+        <label><span class="nhan">Ghi chú <i>${khac ? "bắt buộc, ghi lỗi gì" : "không bắt buộc"}</i></span><input class="o" data-t="${t}" data-k="ghi" value="${s.ghi}" placeholder="${khac ? "Ví dụ: tờ bị nhăn mép" : "Ví dụ: góc phải tờ"}"></label>
+        <div class="ca anh-hang"><span class="nhan" style="margin:0">Ảnh <i>không bắt buộc</i></span>${Array.from({ length: s.anh }, (_, i) => `<span class="anh" data-xem="Ảnh lỗi ${i + 1}"><button data-t="${t}" data-k="boanh" title="Bỏ ảnh">×</button></span>`).join("")}
+          <button class="btn btn--nho" data-t="${t}" data-k="anh">Chụp ảnh</button>${dt ? "" : `<button class="btn btn--nho" data-t="${t}" data-k="anh">Chọn ảnh</button>`}
+          <span class="gian"></span><button class="btn btn--nho" data-t="${t}" data-k="xong">Xong</button></div></div>`;
+    else if (s.tick) duoi = `<div class="tom">${Number(s.so) > 0 ? `<span class="tag">${fmt(Number(s.so))} ${d.dv}</span>` : `<span class="tag tag--do">chưa nhập số</span>`}
+        ${s.anh ? `<span class="tag">${s.anh} ảnh</span>` : ""}${s.ghi.trim() ? `<span class="tag">${s.ghi.trim()}</span>` : ""}
+        <button class="btn--lk btn" data-t="${t}" data-k="sua">Sửa</button></div>`;
+    return `${khac ? '<div class="khac-tach"></div>' : ""}<div class="dong${s.tick ? " tick" : ""}${khac ? " dong--khac" : ""}">
+      <div class="dong-h"><input type="checkbox" data-t="${t}" data-k="tick"${s.tick ? " checked" : ""} aria-label="${t}">
+        <span class="ten" data-t="${t}" data-k="ten">${khac ? "Lỗi khác, không có trong danh sách" : t}${ls}</span></div>${duoi}</div>`;
+  }
+  function cuHtml() {
+    const d = VD[vd];
+    if (!d.cu.length) return `<div class="trong">Chưa ghi lỗi lần nào ở công đoạn này.</div>`;
+    // Mỗi lần ghi một dòng hai tầng: trên là tiêu chí + số, dưới là ghi chú và các mẩu phụ tách bằng khoảng trống.
+    return d.cu.map((c) => `<div class="cu">
+      <div class="cu-1"><span class="cu-tc">${c.tc}</span><span class="cu-so">${fmt(c.so)} ${d.dv}</span>
+        ${c.xem ? '<span class="tag" style="background:var(--la-bg);color:var(--la-chu)">Tổ đã xem</span>' : '<span class="tag">Tổ chưa xem</span>'}</div>
+      <div class="cu-2">${c.ghi ? `<span>${c.ghi}</span>` : ""}<span class="btn--lk" style="cursor:pointer" data-xem="Ảnh lần ghi ${c.luc}">${c.anh} ảnh</span>
+        <span class="mu4">${c.luc}</span><span class="mu4">${c.ai}</span></div></div>`).join("");
+  }
+  function ve() {
+    const d = VD[vd], toiDa = d.lam - d.daGhi;
+    const tong = Object.entries(st).reduce((a, [, s]) => a + (s.tick ? Number(s.so) || 0 : 0), 0);
+    const ghiLoi = `<div class="khoi"><div class="khoi-h">Tick tiêu chí không đạt<span class="mu">Tiêu chí đạt thì để trống.</span></div>${[...d.tc, KHAC].map(dongHtml).join("")}</div>
+      <div class="khoi"><div class="khoi-h">Lỗi đã ghi trước<span class="mu">${d.cu.length ? d.cu.length + " lần" : ""}</span></div>${cuHtml()}</div>`;
+    const dcTabs = `<div class="tabs" style="padding:0 6px"><button data-dc="qc" class="${dc === "qc" ? "on" : ""}">Quy cách</button><button data-dc="tep" class="${dc === "tep" ? "on" : ""}">${ic.kep}Tệp của lệnh<span class="dem">${soTep(vd)}</span></button></div>`;
+    const doiChieu = `<div class="khoi doi-chieu"><div class="khoi-h">Đối chiếu<span class="mu">chỉ xem</span></div>${dcTabs}${dc === "qc" ? quyCach(vd) : tepLenh(vd)}</div>`;
+    let than;
+    if (dt) {
+      than = `<div class="tabs"><button data-tab="ghi" class="${tab === "ghi" ? "on" : ""}">Ghi lỗi</button><button data-tab="qc" class="${tab === "qc" ? "on" : ""}">Quy cách</button><button data-tab="tep" class="${tab === "tep" ? "on" : ""}">Tệp lệnh<span class="dem">${soTep(vd)}</span></button></div>
+        <div class="ngan-than">${tab === "ghi" ? ghiLoi : `<div class="khoi">${tab === "qc" ? quyCach(vd) : tepLenh(vd)}</div>`}</div>`;
+    } else {
+      than = `<div class="ngan-than"><div class="cot2"><div style="display:flex;flex-direction:column;gap:12px">${ghiLoi}</div>${doiChieu}</div></div>`;
+    }
+    const l = lyDo(toiDa, tong);
+    el.innerHTML = `<div class="ngan">
+      <div class="ngan-dau"><div class="hang"><h3>Ghi lỗi ${d.ten}</h3><span class="gian"></span><button class="x" title="Đóng">×</button></div>
+        <div class="hang" style="margin-top:4px"><span class="tag">${d.lenh}</span><span class="mu" style="font-size:13px">${d.to}</span><span class="tag tag--chay">Đang làm</span></div>
+        <div class="so"><span>Tổ đã làm<b>${fmt(d.lam)} ${d.dv}</b></span><span>Đã ghi lỗi<b>${fmt(d.daGhi)} ${d.dv}</b></span><span>Ghi thêm được tối đa<b>${fmt(toiDa)} ${d.dv}</b></span></div></div>
+      ${than}
+      <div class="ngan-day"><span class="tong">Tổng lỗi lần này<b class="${tong > toiDa ? "do" : ""}">${fmt(tong)} ${d.dv}</b></span>
+        <span class="ly${l ? "" : " ok"}">${l ?? "Lưu được. Lỗi báo ngay về " + d.to}</span><button class="btn">Huỷ</button><button class="btn btn--chinh"${l ? " disabled" : ""}>Lưu lỗi</button></div></div>`;
+  }
+  function lyDo(toiDa, tong) {
+    const tick = Object.entries(st).filter(([, s]) => s.tick);
+    if (!tick.length) return "Tick ít nhất một tiêu chí không đạt";
+    for (const [t, s] of tick) {
+      if (!(Number(s.so) > 0)) return `Nhập số lỗi cho ${t === KHAC ? "Lỗi khác" : t}`;
+      if (t === KHAC && !s.ghi.trim()) return "Ghi chú Lỗi khác là lỗi gì";
+    }
+    if (tong > toiDa) return `Tổng lỗi vượt mức ghi thêm được (${fmt(toiDa)} ${VD[vd].dv})`;
+    return null;
+  }
+  const focusSo = (t) => el.querySelector(`input[data-t="${CSS.escape(t)}"][data-k="so"]`)?.focus();
+  el.addEventListener("click", (e) => {
+    const x = e.target.closest("[data-xem]");
+    if (x && !e.target.closest('[data-k="boanh"]')) { document.getElementById("xem-chu").textContent = x.dataset.xem + " (xem trước, minh hoạ)"; document.getElementById("xem").classList.add("on"); return; }
+    const tb = e.target.closest("[data-tab]"); if (tb) { tab = tb.dataset.tab; ve(); return; }
+    const dcb = e.target.closest("[data-dc]"); if (dcb) { dc = dcb.dataset.dc; ve(); return; }
+    const b = e.target.closest("[data-k]"); if (!b) return;
+    const t = b.dataset.t, k = b.dataset.k, s = st[t];
+    if (k === "tick") {
+      s.tick = b.checked;
+      if (s.tick) { mo = t; ve(); focusSo(t); } else { s.so = ""; s.anh = 0; s.ghi = ""; if (mo === t) mo = null; ve(); }
+    } else if (k === "ten") {
+      if (!s.tick) { s.tick = true; mo = t; ve(); focusSo(t); } else { mo = mo === t ? null : t; ve(); }
+    } else if (k === "anh") { s.anh += 1; ve(); }
+    else if (k === "boanh") { s.anh = Math.max(0, s.anh - 1); ve(); }
+    else if (k === "xong") { mo = null; ve(); }
+    else if (k === "sua") { mo = t; ve(); focusSo(t); }
+  });
+  el.addEventListener("input", (e) => {
+    const i = e.target; if (!i.dataset.k) return;
+    const s = st[i.dataset.t];
+    if (i.dataset.k === "so") { s.so = i.value.replace(/\D/g, ""); i.value = s.so; }
+    if (i.dataset.k === "ghi") s.ghi = i.value;
+    // chỉ vẽ lại thanh đáy, giữ con trỏ trong ô
+    const d = VD[vd], toiDa = d.lam - d.daGhi;
+    const tong = Object.entries(st).reduce((a, [, x]) => a + (x.tick ? Number(x.so) || 0 : 0), 0);
+    const l = lyDo(toiDa, tong);
+    el.querySelector(".ngan-day .tong b").textContent = `${fmt(tong)} ${d.dv}`;
+    el.querySelector(".ngan-day .tong b").className = tong > toiDa ? "do" : "";
+    const ly = el.querySelector(".ngan-day .ly"); ly.textContent = l ?? "Lưu được. Lỗi báo ngay về " + d.to; ly.className = "ly" + (l ? "" : " ok");
+    el.querySelector(".ngan-day .btn--chinh").disabled = !!l;
+  });
+  return { doi() { reset(); ve(); } };
+}
+
+/* ---------------- Sơ đồ nhóm ---------------- */
+const CHUOI = {
+  "LSX26-0004": [["Cắt tờ", "200 tờ in", 2, "chay"], ["Bài in 3 màu 4 màu (CMYK)", "0 tờ in", 4], ["Cán màng", "0 tờ in", 2], ["Cắt thành phẩm", "0 con", 2]],
+  "LSX26-0003": [["Cắt tờ", "0 tờ in", 2], ["Bài in 3 màu 4 màu (CMYK)", "0 tờ in", 4], ["Gấp", "0 tay sách", 4], ["Bắt tay + vào keo", "0 tay sách", 4], ["Xén 3 mặt", "0 tay sách", "24 gộp"]],
+};
+function taoSoDo(el, dt) {
+  let tab = "tc", pop = false;
+  function ve() {
+    const nut = Object.entries(CHUOI).map(([l, ds]) => `<div style="display:flex;flex-direction:column;gap:6px;flex:none"><span class="mu" style="font-size:12px">${l}</span><div style="display:flex;gap:8px">${ds.map(([t, s, n, c], i) => `<button class="nut${l === "LSX26-0004" && i === 0 ? " chon" : ""}">${t}<small><span>${s}</span><span>${n} tiêu chí</span></small></button>`).join("")}</div></div>`).join("");
+    const bang = dt ? [["lỗi 1", "12 tờ in", "0 lần", "0 lần", true], ["lỗi 2", "0", "0 lần", "0 lần"], ["Lỗi khác", "0"]].map(([t, a, b, c, d]) =>
+      `<div class="tc-dt"><span class="${d ? "do" : t === "Lỗi khác" ? "mu" : ""}">${t}</span><div class="h"><span>Lỗi ghi ở đây<b class="${d ? "do" : ""}">${a}</b></span>${b ? `<span>Kiểm cuối đã xét<b>${b}</b></span><span>Kiểm cuối thấy hỏng<b>${c}</b></span>` : ""}</div></div>`).join("")
+      : `<table class="g"><colgroup><col><col style="width:${dt ? 74 : 110}px"><col style="width:${dt ? 70 : 120}px"><col style="width:${dt ? 70 : 130}px"></colgroup>
+      <thead><tr><th>Tiêu chí</th><th class="n">Lỗi ghi ở đây</th><th class="n">${dt ? "Cuối xét" : "Kiểm cuối đã xét"}</th><th class="n">${dt ? "Cuối hỏng" : "Kiểm cuối thấy hỏng"}</th></tr></thead><tbody>
+      <tr><td class="do">lỗi 1</td><td class="n do">12 tờ in</td><td class="n">0 lần</td><td class="n mu">0 lần</td></tr>
+      <tr><td>lỗi 2</td><td class="n mu">0</td><td class="n">0 lần</td><td class="n mu">0 lần</td></tr>
+      <tr><td class="mu">Lỗi khác</td><td class="n mu">0</td><td></td><td></td></tr></tbody></table>`;
+    el.innerHTML = `<div class="so-do">
+      <div class="sd-dau"><button class="btn btn--nho">‹ Danh sách</button><h3>Nhóm NTP26-0004</h3><span class="tag tag--sx">Đang sản xuất</span>${dt ? "" : '<span class="tag">CÔNG TY CỔ PHẦN BIBICA</span><span class="mu">Sách A5 64 trang</span>'}<span class="gian"></span>
+        <button class="btn btn--nho" data-pop="1">${ic.kep}Tệp của lệnh<span class="mu4">${soTep("cat")}</span></button>${dt ? "" : '<button class="btn btn--nho btn--chinh">Đóng lệnh nhóm</button>'}
+        <div class="pop${pop ? " on" : ""}"><div class="pop-h">Tệp của lệnh<span class="gian"></span><button class="x" data-pop="0">×</button></div>${TEP.cat.map(() => "").join("")}${tepLenh("cat")}<div class="tep-nhom">LSX26-0003 Ruột sách A5 64 trang</div><div class="trong">Lệnh chưa có tệp đính kèm. Kế hoạch SX thêm ở hồ sơ lệnh, thêm xong tự hiện ở đây.</div></div></div>
+      <div class="sd-chuoi">${nut}</div>
+      <div class="pn"><div class="pn-h"><h4>Cắt tờ</h4><span class="tag">LSX26-0004</span><span class="mu" style="font-size:13px">Cắt 2</span><span class="tag tag--chay">Đang làm</span><button class="btn btn--nho" style="${dt ? "margin-left:auto" : ""}">Ghi lỗi</button></div>
+        <div class="tabs" style="padding:0 8px"><button data-sdtab="tc" class="${tab === "tc" ? "on" : ""}">Tiêu chí</button><button data-sdtab="qc" class="${tab === "qc" ? "on" : ""}">Quy cách</button><button data-sdtab="loi" class="${tab === "loi" ? "on" : ""}">Lỗi đã ghi</button></div>
+        ${tab === "tc" ? bang : tab === "qc" ? quyCach("cat") : '<div class="the-cu"><div class="h"><span class="mu">09/10 15:02</span><span class="tag">12 tờ in</span><span class="tag">lỗi 1</span><span class="gian"></span><span class="tag">Tổ chưa xem</span></div></div>'}
+      </div></div>`;
+  }
+  el.addEventListener("click", (e) => {
+    const p = e.target.closest("[data-pop]"); if (p) { pop = p.dataset.pop === "1"; ve(); return; }
+    const t = e.target.closest("[data-sdtab]"); if (t) { tab = t.dataset.sdtab; ve(); }
+  });
+  ve();
+}
+
+const hops = [taoHop(document.getElementById("hop-mt"), false), taoHop(document.getElementById("hop-dt"), true)];
+hops.forEach((h) => h.doi());
+taoSoDo(document.getElementById("sd-mt"), false);
+taoSoDo(document.getElementById("sd-dt"), true);
+document.getElementById("vd").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-vd]"); if (!b) return;
+  vd = b.dataset.vd; document.querySelectorAll("#vd button").forEach((x) => x.classList.toggle("on", x === b)); hops.forEach((h) => h.doi());
+});
+document.getElementById("xem").addEventListener("click", () => document.getElementById("xem").classList.remove("on"));
+</script>
+</body>
+</html>

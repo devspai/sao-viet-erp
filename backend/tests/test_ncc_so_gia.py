@@ -105,7 +105,8 @@ def test_don_vi_ncc_ban_phai_doi_duoc_ve_goc(client):
                    "unit": "kg", "unit_price": 1000}],
     })
     assert r.status_code == 422, r.text
-    assert "không đổi được" in r.json()["detail"]
+    # Từ 10/10/2026 (nhiều ĐVT): đơn vị ngoài mọi nhóm đã khai = đơn vị CHƯA KHAI ở danh mục.
+    assert "chưa khai ở danh mục" in r.json()["detail"]
 
 
 def test_hang_ngoai_danh_muc_van_luu_duoc_nhung_khong_vao_so_gia(client):

@@ -5,39 +5,66 @@
 //   · MẺ CỦA TỔ — cộng vào dòng tổng;
 //   · NGƯỜI CỦA TỔ ĐI LÀM Ở TỔ KHÁC — cùng con số của mẻ, KHÔNG cộng tổng (đếm hai lượt là sai
 //     sản lượng xưởng).
-// Mỗi mục là MỘT bảng phẳng, mỗi dòng một mẻ: lệnh · tổ · công đoạn · mẻ · công việc · số lượng ·
+// Mỗi mục là MỘT bảng phẳng, mỗi dòng một mẻ: lệnh · tổ · công đoạn · mẻ · việc phát sinh · số lượng ·
 // người tham gia (19/09/2026 — bỏ kiểu bấm mở ba tầng LỆNH → CÔNG ĐOẠN → MẺ). Không chia ai
 // được bao nhiêu, không số phút, không tiền — "ghi nhận thế thôi, đừng có chia bất cứ gì".
 //
 // Mọi thứ lọc · cắt trang · cộng tổng Ở MÁY CHỦ. Ngày là ngày BẮT ĐẦU mẻ theo giờ xưởng. Số luôn đi
 // theo ĐƠN VỊ — không cộng tờ với cái.
+import { Building2, Flame, FileStack, Layers, PackagePlus, Users } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   ApiError, api,
-  type SxSanLuongTo, type SxSlCongDoan, type SxSlKho, type SxSlLenh, type SxSlMe, type SxSlPhatSinh,
+  type SxSanLuongTo, type SxSlCongDoan, type SxSlKho, type SxSlLenh, type SxSlMe,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
-import { ChonNgay } from "../components/ChonNgay";
 import { Icon } from "../components/Icons";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import {
-  ChonCot, CuonLuoi, OTim, rongLuoi, useCauHinhLuoi, type CauHinhLuoi, type CotLuoi,
+  ChonCot, OTim, apLuoi, rongLuoi, useCauHinhLuoi, xepCot, type CauHinhLuoi, type CotLuoi,
 } from "../components/LuoiDs";
 import { useDebounced } from "../utils/useDebounced";
+import { useHep } from "../lib/useHep";
 import { EmptyState as EmptyStateChung } from "../components/EmptyState";
 import { BangLoi, EmptyState, gioNgan, ngay, num } from "./keHoachSxShared";
-import { nhanDonVi } from "./lsxBuoc";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { khoangKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import type { DieuKien } from "./thanh-loc/thanh-loc";
 
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function dauThang(d: Date): string {
-  return ymd(new Date(d.getFullYear(), d.getMonth(), 1));
-}
+/** Kỳ tính theo ngày BẮT ĐẦU mẻ (giờ xưởng). Máy chủ chặn khoảng quá 366 ngày ⇒ không có "Mọi thời gian". */
+const MOC_SL: [string, string][] = [["bat_dau", "Ngày bắt đầu"]];
+const KY_MAC_DINH: KyDS = { loai: "thang", moc: "bat_dau" };
 
-function dv(ma: string | null | undefined): string {
-  return ma ? ` ${nhanDonVi(ma)}` : "";
-}
+/** Điều kiện nút "Lọc" — mọi thứ lọc Ở MÁY CHỦ. */
+type LocSl = {
+  toId?: number;
+  congDoan: string[];
+  nguoi: number[];
+  phatSinh?: "co" | "khong";
+  loai?: "lsx" | "bai_ghep";
+  gap?: "gap" | "thuong";
+};
+const LOC_TRONG: LocSl = { congDoan: [], nguoi: [] };
+const motTrong = <T extends string>(ds: readonly T[]) => (v: string | undefined): T | undefined =>
+  ds.find((x) => x === v);
+const laPhatSinh = motTrong(["co", "khong"] as const);
+const laLoai = motTrong(["lsx", "bai_ghep"] as const);
+const laGap = motTrong(["gap", "thuong"] as const);
+
+interface CotSl extends CotLuoi { w?: number; n?: boolean }
+
+/** Cột của bảng mẻ, đúng thứ tự cũ. Lệnh là coDinh (dính mép trái khi cuộn ngang). Cột cuối không
+ *  đặt bề rộng — nó co giãn lấp phần còn lại. */
+const COT_SL: CotSl[] = [
+  { key: "lenh", label: "Lệnh sản xuất", coDinh: true, w: 150 },
+  { key: "qc", label: "Giấy và quy cách (cm)", w: 300 },
+  { key: "to", label: "Tổ", w: 120 },
+  { key: "cd", label: "Công đoạn", w: 130 },
+  { key: "me", label: "Lần ghi", w: 210 },
+  { key: "ps", label: "Việc phát sinh", w: 170 },
+  { key: "sl", label: "Số lượng", w: 110, n: true },
+  { key: "nguoi", label: "Người tham gia" },
+];
 
 function khoaLenh(l: SxSlLenh): string {
   return `${l.nguon_loai}:${l.nguon_id ?? "-"}`;
@@ -50,42 +77,6 @@ function theoMuc(lenh: SxSlLenh[], muc: Muc): { l: SxSlLenh; cds: SxSlCongDoan[]
   return lenh
     .map((l) => ({ l, cds: l.cong_doan.filter((c) => c.la_khach === (muc === "khach")) }))
     .filter((x) => x.cds.length > 0);
-}
-
-/** Màn điện thoại (≤640px) ⇒ bảng 8 cột đổi sang THẺ mỗi lệnh một thẻ. Chỉ vẽ MỘT bố cục, không
- *  vẽ cả hai rồi ẩn bằng CSS (chữ nhân đôi, test bắt trùng). jsdom không có matchMedia ⇒ coi là rộng. */
-function useManDienThoai(): boolean {
-  const truyVan = "(max-width: 640px)";
-  const coMq = typeof window !== "undefined" && typeof window.matchMedia === "function";
-  const [hep, setHep] = useState(() => coMq && window.matchMedia(truyVan).matches);
-  useEffect(() => {
-    if (!coMq) return;
-    const mq = window.matchMedia(truyVan);
-    const doi = () => setHep(mq.matches);
-    doi();
-    mq.addEventListener("change", doi);
-    return () => mq.removeEventListener("change", doi);
-  }, [coMq]);
-  return hep;
-}
-
-/** "01/09 → 19/09" — tóm tắt khoảng ngày cho nút Lọc đang thu gọn. */
-function ngayNgan(v: string): string {
-  return v ? `${v.slice(8, 10)}/${v.slice(5, 7)}` : "…";
-}
-
-/** Tổng số làm được theo công đoạn (gộp các lần chạy cùng tên + cùng đơn vị), giữ thứ tự bảng. */
-function gomTheoCd(cds: SxSlCongDoan[]): { khoa: string; ten: string; tot: number }[] {
-  const m = new Map<string, { khoa: string; ten: string; tot: number }>();
-  for (const c of cds) {
-    for (const s of c.san_luong) {
-      const khoa = `${c.ten_cong_doan}|${s.don_vi ?? ""}`;
-      const x = m.get(khoa) ?? { khoa, ten: c.ten_cong_doan || "—", tot: 0 };
-      x.tot += s.tot;
-      m.set(khoa, x);
-    }
-  }
-  return [...m.values()];
 }
 
 function ngayDu(d: Date): string {
@@ -133,12 +124,13 @@ function QuyCachLenh({ qc }: { qc: SxSlLenh["quy_cach"] }) {
   );
 }
 
-/** Việc phát sinh của mẻ — khối riêng dưới tên việc khoán, KHÔNG cộng vào cột Số lượng. */
-function PhatSinhMe({ ds }: { ds: SxSlMe["phat_sinh"] }) {
+/** Việc phát sinh của mẻ, KHÔNG cộng vào cột Số lượng. Trong bảng đã có cột "Việc phát sinh" nên
+ *  bỏ nhãn (`coTieu={false}`); thẻ điện thoại giữ nhãn vì không có tiêu đề cột. */
+function PhatSinhMe({ ds, coTieu = true }: { ds: SxSlMe["phat_sinh"]; coTieu?: boolean }) {
   if (!ds?.length) return null;
   return (
     <div className="thsx-sl__ps" title="Việc phát sinh — không cộng vào sản lượng">
-      <span className="thsx-sl__ps-tieu">Phát sinh</span>
+      {coTieu && <span className="thsx-sl__ps-tieu">Phát sinh</span>}
       <ul>
         {ds.map((p, i) => (
           <li key={i}>
@@ -156,193 +148,122 @@ function PhatSinhMe({ ds }: { ds: SxSlMe["phat_sinh"] }) {
 
 /** Mỗi người một dòng — tên tổ khách ghi nhỏ bên cạnh. */
 function NguoiMe({ ds }: { ds: SxSlMe["nguoi"] }) {
-  if (ds.length === 0) return <span className="thsx-sl__trong">Chưa ai vào mẻ</span>;
+  if (ds.length === 0) return <span className="thsx-sl__trong">Chưa ai tham gia</span>;
   return (
     <ul className="thsx-sl__ds-nguoi">
       {ds.map((n) => (
         <li key={n.employee_id}>
-          {n.ho_ten}
-          {n.to_ten && <span className="thsx-sl__to">{n.to_ten}</span>}
+          <span>{n.ho_ten}</span>
+          {n.to_ten && <>{" "}<span className="thsx-sl__to">{n.to_ten}</span></>}
         </li>
       ))}
     </ul>
   );
 }
 
-interface CotSl extends CotLuoi { w?: number; n?: boolean }
-
-/** Cột lưới sản lượng. Thứ tự: Lệnh → Ngày → Nội dung (tên, giấy, khổ) → Tổ, công đoạn, việc →
- *  Số lượng → Người. Lệnh và quy cách lặp lại ở mỗi dòng mẻ (lưới phẳng, không gộp ô). Số lượng là
- *  coDinh: dòng Cộng đặt số ở đúng cột này, ẩn cột thì dòng Cộng mất số. */
-const COT_SL: CotSl[] = [
-  { key: "lenh", label: "Lệnh sản xuất", coDinh: true, w: 130 },
-  { key: "ngay", label: "Ngày làm", w: 104 },
-  { key: "gio", label: "Giờ làm", w: 130 },
-  { key: "ten", label: "Tên lệnh", w: 190 },
-  { key: "giay", label: "Giấy", w: 170 },
-  { key: "kn", label: "Khổ tờ nguyên (cm)", w: 135 },
-  { key: "ki", label: "Khổ tờ in (cm)", w: 120 },
-  { key: "kc", label: "Khổ con (cm)", w: 110 },
-  { key: "to", label: "Tổ", w: 130 },
-  { key: "cd", label: "Công đoạn", w: 150 },
-  { key: "viec", label: "Công việc", w: 190 },
-  { key: "ps", label: "Phát sinh", w: 170 },
-  { key: "sl", label: "Số lượng", coDinh: true, w: 100, n: true },
-  { key: "nguoi", label: "Người tham gia" },
-];
-
-function OSl({
-  cot, l, c, m,
-}: { cot: string; l: SxSlLenh; c: SxSlCongDoan; m: SxSlMe | null }) {
-  const kho = (k: SxSlKho | null | undefined) =>
-    k ? <td className="n">{cm(k.dai)}×{cm(k.rong)}</td> : <td className="n lds-mu3">—</td>;
-  const trong = <td className="lds-mu3">—</td>;
-  switch (cot) {
-    case "lenh":
-      return (
-        <td title={l.ten || undefined}>
-          {l.ma || "—"}
-          {l.nguon_loai === "bai_ghep" && <span className="lds-tag">Bài ghép</span>}
-        </td>
-      );
-    case "ngay":
-      return m ? <td>{khungMe(m).ngay}</td> : trong;
-    case "gio": {
-      const g = m ? khungMe(m).gio : null;
-      return g ? <td>{g}</td> : trong;
-    }
-    case "ten":
-      return l.ten ? <td title={l.ten}>{l.ten}</td> : trong;
-    case "giay": {
-      const qc = l.quy_cach;
-      if (!qc) return <td className="lds-mu3">Chưa có quy cách</td>;
-      const ten = qc.giay || "Chưa khai giấy";
-      return (
-        <td title={`${ten}${qc.dinh_luong ? ` ${num(qc.dinh_luong)} gsm` : ""}`}>
-          {qc.giay ? ten : <span className="lds-vang">{ten}</span>}
-          {qc.dinh_luong ? <span className="lds-u">{num(qc.dinh_luong)} gsm</span> : null}
-        </td>
-      );
-    }
-    case "kn":
-      return kho(l.quy_cach?.to_nguyen);
-    case "ki":
-      return kho(l.quy_cach?.to_in);
-    case "kc":
-      return kho(l.quy_cach?.con);
-    case "to":
-      return <td title={c.to_ten || undefined}>{c.to_ten || "—"}</td>;
-    case "cd":
-      return <td title={c.ten_cong_doan || undefined}>{c.ten_cong_doan || "—"}</td>;
-    case "viec":
-      if (!m) return trong;
-      return m.viec_khoan_ten
-        ? <td title={m.viec_khoan_ten}>{m.viec_khoan_ten}</td>
-        : <td><span className="lds-vang">Chưa khai việc khoán</span></td>;
-    case "ps": {
-      const ds = m?.phat_sinh;
-      if (!ds?.length) return trong;
-      const chu = (p: SxSlPhatSinh) =>
-        `${p.ten || "—"} ${num(p.so_luong)}${p.don_vi_ten || p.don_vi ? ` ${p.don_vi_ten || p.don_vi}` : ""}`;
-      return (
-        <td title={`Việc phát sinh, không cộng vào sản lượng\n${ds.map(chu).join("\n")}`}>
-          {ds.map((p, i) => <span key={i} className="lds-tag" style={i === 0 ? { marginLeft: 0 } : undefined}>{chu(p)}</span>)}
-        </td>
-      );
-    }
-    case "sl":
-      return m ? <td className="n">{num(m.tot)}</td> : <td className="n lds-mu3">—</td>;
-    case "nguoi": {
-      if (!m) return trong;
-      if (m.nguoi.length === 0) return <td className="lds-mu3">Chưa ai vào mẻ</td>;
-      return (
-        <td title={m.nguoi.map((n) => `${n.ho_ten}${n.to_ten ? ` (${n.to_ten})` : ""}`).join("\n")}>
-          {m.nguoi.map((n, i) => (
-            <span key={n.employee_id} className="lds-tag" style={i === 0 ? { marginLeft: 0 } : undefined}>
-              {n.ho_ten}
-              {n.to_ten && <span className="lds-u lds-cam">{n.to_ten}</span>}
-            </span>
-          ))}
-        </td>
-      );
-    }
-    default:
-      return <td />;
-  }
-}
-
-/** Lưới PHẲNG, mỗi dòng MỘT mẻ (lệnh và quy cách lặp lại ở mỗi dòng). Sau các dòng mẻ của một lệnh
- *  là dòng Cộng của lệnh đó — mỗi công đoạn một dòng, vì các bước khác đơn vị (tờ, con, cái) nên cộng
- *  chung một số là sai; tên công đoạn đã nói số nào của ai. */
-function BangMuc({
-  muc, ds, cot, luoi,
-}: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[]; cot: CotSl[]; luoi: CauHinhLuoi }) {
-  const viTriSl = cot.findIndex((c) => c.key === "sl");
+/** Bảng mỗi dòng MỘT mẻ: Lệnh, Giấy và quy cách, Tổ, Công đoạn, Mẻ, Việc phát sinh, Số lượng, Người tham gia.
+ *  Lệnh và công đoạn gộp ô theo số mẻ bên dưới (rowSpan) để đọc một lệnh liền một khối, không phải
+ *  bấm mở từng tầng. Không có dòng Cộng dưới lệnh (bỏ 10/10/2026). (Bảng gộp ô của 19/09/2026 — lưới
+ *  phẳng lặp lệnh ở từng dòng của 08/10 bị trả lại ngày 10/10/2026.) */
+function BangMuc({ muc, ds, luoi }: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[]; luoi: CauHinhLuoi }) {
+  // Người xem ẩn / đổi chỗ / kéo rộng cột qua nút "Cột". Ô gộp (rowSpan) vẫn đúng khi đổi chỗ: trình
+  // duyệt tự bỏ qua ô đã bị gộp từ dòng trên, ở bất kỳ vị trí cột nào.
+  const cot = apLuoi(luoi, xepCot(COT_SL, luoi.thuTu).filter((c) => !luoi.an.has(c.key)));
   return (
-    <div className="lds-sheet">
-      <CuonLuoi ghim={luoi.soGhim(cot)}>
-        <table className="lds-g" style={{ minWidth: rongLuoi(cot) }}>
-          <colgroup>
-            {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
-          </colgroup>
-          <thead>
-            <tr>
-              {cot.map((c) => (
-                <th key={c.key} className={c.n ? "n" : undefined}>
-                  {c.key === "to" && muc === "khach" ? "Tổ chủ mẻ" : c.label}
-                  {luoi.keo(c.key)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          {ds.map(({ l, cds }) => {
-            // Công đoạn không có mẻ trên trang vẫn chiếm một dòng để không mất khỏi bảng.
-            const dongCd = cds.map((c) => ({ c, me: c.me.length ? c.me : [null] }));
-            const congCd = gomTheoCd(cds);
-            const soMe = cds.reduce((a, c) => a + c.so_me, 0);
-            const dongCong: ((typeof congCd)[number] | null)[] = congCd.length ? congCd : [null];
-            return (
-              <tbody key={`${muc}:${khoaLenh(l)}`}>
-                {dongCd.map(({ c, me }) =>
-                  me.map((m) => (
-                    <tr key={`${c.cong_viec_id}:${m?.batch_id ?? "trong"}`} className="lds-dong">
-                      {cot.map((k) => <OSl key={k.key} cot={k.key} l={l} c={c} m={m} />)}
-                    </tr>
-                  )),
-                )}
-                {dongCong.map((x, i) => {
-                  const lead = (
-                    <>
-                      Cộng {l.ma || "lệnh"}{x && congCd.length > 1 ? ` ${x.ten}` : ""}
-                      {i === 0 && <span className="lds-u">{soMe} mẻ</span>}
-                      {i === 0 && muc === "khach" && <span className="lds-u">không cộng vào tổng của tổ</span>}
-                    </>
-                  );
+    <div className="thsx-sl__wrap">
+      <table className="thsx-sl__bang" style={{ minWidth: rongLuoi(cot, 180) }}>
+        <colgroup>
+          {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+        </colgroup>
+        <thead>
+          <tr>
+            {cot.map((c) => (
+              <th key={c.key} className={c.n ? "thsx-sl__r" : undefined}>
+                {c.key === "to" && muc === "khach" ? "Tổ ghi" : c.label}
+                {luoi.keo(c.key)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {ds.map(({ l, cds }) => {
+          // Công đoạn không có mẻ trên trang vẫn chiếm một dòng để không mất khỏi bảng.
+          const dongCd = cds.map((c) => ({ c, me: c.me.length ? c.me : [null] }));
+          const soDong = dongCd.reduce((a, x) => a + x.me.length, 0);
+          return (
+            <tbody key={`${muc}:${khoaLenh(l)}`} className="thsx-sl__khoi">
+              {dongCd.map(({ c, me }, ic) =>
+                me.map((m, im) => {
+                  const k = m ? khungMe(m) : null;
+                  const dauKhoi = ic === 0 && im === 0;
+                  const o = (key: string) => {
+                    switch (key) {
+                      case "lenh":
+                        return dauKhoi && (
+                          <td key={key} rowSpan={soDong} className="thsx-sl__o-lenh">
+                            <span className="thsx-num">{l.ma || "—"}</span>
+                            {l.nguon_loai === "bai_ghep" && <span className="thsx-sl__nhan">Bài ghép</span>}
+                            {l.ten && <span className="thsx-sl__phu-dong">{l.ten}</span>}
+                          </td>
+                        );
+                      case "qc":
+                        return dauKhoi && (
+                          <td key={key} rowSpan={soDong} className="thsx-sl__o-qc"><QuyCachLenh qc={l.quy_cach} /></td>
+                        );
+                      case "to":
+                        return im === 0 && <td key={key} rowSpan={me.length} className="thsx-sl__o-to">{c.to_ten || "—"}</td>;
+                      case "cd":
+                        return im === 0 && <td key={key} rowSpan={me.length} className="thsx-sl__o-cd">{c.ten_cong_doan || "—"}</td>;
+                      case "me":
+                        return (
+                          <td key={key} className="thsx-sl__o-me">
+                            {k ? (
+                              <>
+                                <span className="thsx-num">{k.ngay}</span>
+                                {k.gio && <span className="thsx-sl__phu-dong thsx-num">{k.gio}</span>}
+                              </>
+                            ) : <span className="thsx-sl__trong">—</span>}
+                          </td>
+                        );
+                      case "ps":
+                        return (
+                          <td key={key}>
+                            {m?.phat_sinh?.length ? <PhatSinhMe ds={m.phat_sinh} coTieu={false} />
+                              : <span className="thsx-sl__trong">—</span>}
+                          </td>
+                        );
+                      case "sl":
+                        return (
+                          <td key={key} className="thsx-sl__r">
+                            {m ? <span className="thsx-num">{num(m.tot)}</span> : <span className="thsx-sl__trong">—</span>}
+                          </td>
+                        );
+                      case "nguoi":
+                        return <td key={key}>{m ? <NguoiMe ds={m.nguoi} /> : <span className="thsx-sl__trong">—</span>}</td>;
+                      default:
+                        return null;
+                    }
+                  };
                   return (
-                    <tr key={x?.khoa ?? "trong"} className="lds-cong lds-nhom">
-                      <td className="lead" colSpan={viTriSl}><span className="lds-dinh-trai">{lead}</span></td>
-                      <td className="n">{x ? num(x.tot) : <span className="lds-mu3">—</span>}</td>
-                      {cot.length - viTriSl - 1 > 0 ? <td colSpan={cot.length - viTriSl - 1} /> : null}
+                    <tr key={`${c.cong_viec_id}:${m?.batch_id ?? "trong"}`}>
+                      {cot.map((x) => o(x.key))}
                     </tr>
                   );
-                })}
-              </tbody>
-            );
-          })}
-        </table>
-      </CuonLuoi>
+                }),
+              )}
+            </tbody>
+          );
+        })}
+      </table>
     </div>
   );
 }
 
 /** Điện thoại: mỗi lệnh MỘT thẻ — đầu thẻ là mã + quy cách, rồi từng công đoạn, mỗi mẻ một khối
- *  "ngày giờ … số lớn" + việc + người. Cùng dữ liệu, cùng cách cộng với bảng — chỉ đổi hình. */
+ *  "ngày giờ … số lớn" + việc phát sinh + người. Cùng dữ liệu, cùng cách cộng với bảng — chỉ đổi hình. */
 function TheMuc({ muc, ds }: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[] }) {
   return (
     <div className="thsx-sl__the-ds">
       {ds.map(({ l, cds }) => {
-        const congCd = gomTheoCd(cds);
-        const soMe = cds.reduce((a, c) => a + c.so_me, 0);
         return (
           <article key={`${muc}:${khoaLenh(l)}`} className="thsx-sl__the">
             <header className="thsx-sl__the-dau">
@@ -358,7 +279,7 @@ function TheMuc({ muc, ds }: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] 
                   {c.to_ten && <span className="thsx-sl__the-to">{c.to_ten}</span>}
                 </h4>
                 {c.me.length === 0 ? (
-                  <p className="thsx-sl__trong thsx-sl__the-trong">Không có mẻ trong khoảng này</p>
+                  <p className="thsx-sl__trong thsx-sl__the-trong">Không có sản lượng trong khoảng này</p>
                 ) : (
                   <ul className="thsx-sl__the-me">
                     {c.me.map((m) => {
@@ -372,9 +293,6 @@ function TheMuc({ muc, ds }: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] 
                             </span>
                             <b className="thsx-num thsx-sl__the-so">{num(m.tot)}</b>
                           </div>
-                          <div className="thsx-sl__the-viec">
-                            {m.viec_khoan_ten ?? <span className="thsx-sl__canh">Chưa khai việc khoán</span>}
-                          </div>
                           <PhatSinhMe ds={m.phat_sinh} />
                           <NguoiMe ds={m.nguoi} />
                         </li>
@@ -384,17 +302,6 @@ function TheMuc({ muc, ds }: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] 
                 )}
               </section>
             ))}
-            <footer className="thsx-sl__the-cong">
-              <span className="thsx-sl__the-cong-nhan">
-                Cộng <span className="lds-u">{soMe} mẻ</span>
-                {muc === "khach" && <span className="thsx-sl__trong thsx-sl__the-cong-ghi">không cộng vào tổng của tổ</span>}
-              </span>
-              {congCd.map((x) => (
-                <span key={x.khoa} className="thsx-sl__the-cong-cd">
-                  {x.ten} <b className="thsx-num">{num(x.tot)}</b>
-                </span>
-              ))}
-            </footer>
           </article>
         );
       })}
@@ -404,9 +311,10 @@ function TheMuc({ muc, ds }: { muc: Muc; ds: { l: SxSlLenh; cds: SxSlCongDoan[] 
 
 export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTick?: number }) {
   const { token } = useAuth();
-  const [tu, setTu] = useState(() => dauThang(new Date()));
-  const [den, setDen] = useState(() => ymd(new Date()));
-  const [toId, setToId] = useState<number | null>(null);
+  // Kỳ + điều kiện "Đơn vị" theo thanh lọc chung (khuôn view Bảng của bàn): [Tìm] [Kỳ ▾] [Lọc] … [Cột].
+  const [ky, setKy] = useState<KyDS>(KY_MAC_DINH);
+  const [loc, setLoc] = useState<LocSl>(LOC_TRONG);
+  const toId = loc.toId ?? null;
   const [tim, setTim] = useState("");
   const timD = useDebounced(tim, 250);
   const [trang, setTrang] = useState(1);
@@ -415,26 +323,30 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
   const [err, setErr] = useState<string | null>(null);
   const [dangNap, setDangNap] = useState(false);
   const [lanNap, setLanNap] = useState(0); // bấm "Tải lại"
-  const hep = useManDienThoai();
-  // Điện thoại: ngày + đơn vị THU vào nút "Lọc" — bày hết ra thì bảng chỉ còn 1/4 màn hình.
-  const [moLoc, setMoLoc] = useState(false);
-  // Cột của lưới: ẩn / đổi chỗ nhớ theo máy người xem; hai lưới (của tổ, tổ khác) dùng chung.
   const luoi = useCauHinhLuoi("thsx-sl");
-  const cotHien = luoi.rongHien(luoi.xep(COT_SL).filter((c) => !luoi.an.has(c.key)));
+  // Màn điện thoại (≤640px) ⇒ bảng 8 cột đổi sang THẺ mỗi lệnh một thẻ. Chỉ vẽ MỘT bố cục, không
+  // vẽ cả hai rồi ẩn bằng CSS (chữ nhân đôi, test bắt trùng). jsdom không có matchMedia ⇒ coi là rộng.
+  const hep = useHep();
 
-  const ngaySai = !!tu && !!den && tu > den;
+  // Tuỳ chọn gõ dở / ngày ngược thì nút Kỳ giữ kỳ cũ (không gọi `onKy`), nên luôn có khoảng ngày.
+  const khoang = khoangKy(ky);
+  const tu = khoang?.tu ?? "";
+  const den = khoang?.den ?? "";
 
-  // Đổi bàn ⇒ ô Đơn vị của bàn cũ không còn nghĩa.
-  useEffect(() => { setToId(null); }, [teamId]);
+  // Đổi bàn ⇒ điều kiện Đơn vị của bàn cũ không còn nghĩa.
+  useEffect(() => { setLoc(LOC_TRONG); }, [teamId]);
+  // Khoá ổn định của điều kiện máy chủ (trừ Đơn vị) — mảng mới mỗi lần vẽ không làm nạp lại.
+  const khoaLoc = JSON.stringify([loc.congDoan, loc.nguoi, loc.phatSinh, loc.loai, loc.gap]);
   // Đổi bộ lọc ⇒ về trang 1. SSE (`eventTick`) thì GIỮ trang đang đứng.
-  useEffect(() => { setTrang(1); }, [teamId, tu, den, toId, timD]);
+  useEffect(() => { setTrang(1); }, [teamId, tu, den, toId, timD, khoaLoc]);
 
   useEffect(() => {
-    if (!token || ngaySai || !tu || !den) return;
+    if (!token || !tu || !den) return;
     let huy = false;
     setDangNap(true);
     api.sanXuat.sanLuongTo(token, {
       team_id: teamId, tu, den, to_id: toId, tim: timD, trang, co_trang: coTrang,
+      cong_doan: loc.congDoan, nguoi: loc.nguoi, phat_sinh: loc.phatSinh, loai: loc.loai, gap: loc.gap,
     })
       .then((r) => { if (!huy) { setData(r); setErr(null); } })
       .catch((e: unknown) => {
@@ -445,131 +357,105 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
       })
       .finally(() => { if (!huy) setDangNap(false); });
     return () => { huy = true; };
-  }, [token, teamId, tu, den, toId, timD, trang, coTrang, ngaySai, eventTick, lanNap]);
+    // `loc` đi qua `khoaLoc` — mảng mới mỗi lần vẽ không làm nạp lại.
+  }, [token, teamId, tu, den, toId, timD, khoaLoc, trang, coTrang, eventTick, lanNap]);
 
   const capGoc = useMemo(() => {
     const cap = (data?.cac_to ?? []).map((t) => t.cap);
     return cap.length ? Math.min(...cap) : 0;
   }, [data?.cac_to]);
-  const tron = !!data?.co_pham_vi_tron;
+  const dieuKien = useMemo<DieuKien<LocSl>[]>(() => [{
+    khoa: "to", nhan: "Đơn vị", icon: Building2, kieu: "mot", tim: true,
+    // Tổ con thụt vào theo cấp, như ô chọn cũ.
+    giaTri: (data?.cac_to ?? []).map((t) => ({
+      value: String(t.id), nhan: `${" ".repeat(Math.max(0, t.cap - capGoc))}${t.ten}`,
+    })),
+    doc: (l) => (l.toId == null ? undefined : String(l.toId)),
+    ghi: (l, v) => ({ ...l, toId: v ? Number(v) : undefined }),
+  }, {
+    // Công đoạn có mẻ trong kỳ đang xem (máy chủ gom, trước các điều kiện khác).
+    khoa: "cd", nhan: "Công đoạn", icon: Layers, kieu: "nhieu", tim: true,
+    giaTri: (data?.lua_chon?.cong_doan ?? []).map((c) => ({ value: c, nhan: c })),
+    doc: (l) => l.congDoan,
+    ghi: (l, v) => ({ ...l, congDoan: v }),
+  }, {
+    // Người của tổ — mẻ có người đó có mặt (kể cả sang giúp tổ khác).
+    khoa: "ng", nhan: "Người tham gia", icon: Users, kieu: "nhieu", tim: true,
+    giaTri: (data?.lua_chon?.nguoi ?? []).map((n) => ({ value: String(n.id), nhan: n.ten })),
+    doc: (l) => l.nguoi.map(String),
+    ghi: (l, v) => ({ ...l, nguoi: v.map(Number).filter((n) => Number.isInteger(n)) }),
+  }, {
+    khoa: "ps", nhan: "Việc phát sinh", icon: PackagePlus, kieu: "mot",
+    giaTri: [{ value: "co", nhan: "Có việc phát sinh" }, { value: "khong", nhan: "Không có việc phát sinh" }],
+    doc: (l) => l.phatSinh,
+    ghi: (l, v) => ({ ...l, phatSinh: laPhatSinh(v) }),
+  }, {
+    khoa: "loai", nhan: "Loại lệnh", icon: FileStack, kieu: "mot",
+    giaTri: [{ value: "lsx", nhan: "Lệnh sản xuất" }, { value: "bai_ghep", nhan: "Bài ghép" }],
+    doc: (l) => l.loai,
+    ghi: (l, v) => ({ ...l, loai: laLoai(v) }),
+  }, {
+    khoa: "gap", nhan: "Lệnh gấp", icon: Flame, kieu: "mot",
+    giaTri: [{ value: "gap", nhan: "Lệnh gấp" }, { value: "thuong", nhan: "Lệnh thường" }],
+    doc: (l) => l.gap,
+    ghi: (l, v) => ({ ...l, gap: laGap(v) }),
+  }], [data?.cac_to, data?.lua_chon, capGoc]);
   const dsChu = useMemo(() => theoMuc(data?.lenh ?? [], "chu"), [data?.lenh]);
   const dsKhach = useMemo(() => theoMuc(data?.lenh ?? [], "khach"), [data?.lenh]);
-  const tenTo = toId == null ? "Cả bàn này" : (data?.cac_to ?? []).find((t) => t.id === toId)?.ten ?? "Một tổ";
   const veMuc = (muc: Muc, ds: { l: SxSlLenh; cds: SxSlCongDoan[] }[]) =>
-    hep ? <TheMuc muc={muc} ds={ds} /> : <BangMuc muc={muc} ds={ds} cot={cotHien} luoi={luoi} />;
-  // Điện thoại giữ ô tìm cũ (thanh dính trên đầu); máy bàn dùng ô tìm của khuôn lưới.
-  const oTimHep = (
-    <div className="thsx-search">
-      <Icon name="search" size={15} className="thsx-search__ic" />
-      <input type="search" className="thsx-search__in" value={tim}
-        onChange={(e) => setTim(e.target.value)}
-        placeholder="Tìm mã / tên lệnh…" aria-label="Tìm lệnh" />
-      {tim && (
-        <button type="button" className="thsx-search__clear" aria-label="Xoá tìm" onClick={() => setTim("")}>
-          <Icon name="x" size={13} />
-        </button>
-      )}
-    </div>
-  );
-  const truongLoc = (
-    <>
-      <label className="thsx-sl__f">
-        <span>Từ ngày</span>
-        <ChonNgay value={tu} max={den || undefined} min="2000-01-01" aria-label="Từ ngày"
-          onChange={(v) => setTu(v)} />
-      </label>
-      <label className="thsx-sl__f">
-        <span>Đến ngày</span>
-        <ChonNgay value={den} min={tu || undefined} max="2200-12-31" aria-label="Đến ngày"
-          onChange={(v) => setDen(v)} />
-      </label>
-      <button type="button" className="thsx-trang__nut"
-        onClick={() => { const nay = new Date(); setTu(dauThang(nay)); setDen(ymd(nay)); }}>
-        Tháng này
-      </button>
-      <label className="thsx-sl__f">
-        <span>Đơn vị</span>
-        <select value={toId ?? ""} onChange={(e) => setToId(e.target.value ? Number(e.target.value) : null)}>
-          <option value="">Cả bàn này</option>
-          {(data?.cac_to ?? []).map((t) => (
-            <option key={t.id} value={t.id}>
-              {"   ".repeat(Math.max(0, t.cap - capGoc))}{t.ten}
-            </option>
-          ))}
-        </select>
-      </label>
-    </>
+    hep ? <TheMuc muc={muc} ds={ds} /> : <BangMuc muc={muc} ds={ds} luoi={luoi} />;
+  const thanhLoc = (
+    <ThanhLoc ky={ky} moc={MOC_SL} onKy={setKy} boLoaiKy={["tat_ca"]}
+      dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
   );
 
   return (
     <section className={`thsx-sl${hep ? " thsx-sl--hep" : " lds"}`} aria-label="Sản lượng của tổ">
       {hep ? (
         <>
-          <div className="thsx-subbar thsx-sl__loc-gon">
-            {oTimHep}
-            <button type="button" className={`thsx-sl__nut-loc${moLoc ? " is-mo" : ""}`}
-              aria-expanded={moLoc} onClick={() => setMoLoc((v) => !v)}>
-              <Icon name="calendar" size={14} />
-              <span className="thsx-num">{ngayNgan(tu)} → {ngayNgan(den)}</span>
-              {toId != null && <span className="thsx-sl__nut-loc-to" title={tenTo}>{tenTo}</span>}
-              <Icon name="chevron" size={13} className="thsx-sl__nut-loc-mui" />
-            </button>
+          {/* Điện thoại giữ ô tìm cũ (thanh dính trên đầu); kỳ và Lọc mở thành tấm sát đáy màn. */}
+          <div className="thsx-subbar thsx-sl__loc-gon tl-thanh">
+            <div className="thsx-search">
+              <Icon name="search" size={15} className="thsx-search__ic" />
+              <input type="search" className="thsx-search__in" value={tim}
+                onChange={(e) => setTim(e.target.value)}
+                placeholder="Tìm mã / tên lệnh…" aria-label="Tìm lệnh" />
+              {tim && (
+                <button type="button" className="thsx-search__clear" aria-label="Xoá tìm" onClick={() => setTim("")}>
+                  <Icon name="x" size={13} />
+                </button>
+              )}
+            </div>
+            {thanhLoc}
           </div>
-          {moLoc && <div className="thsx-subbar thsx-sl__loc">{truongLoc}</div>}
         </>
       ) : (
+        // Một khối đầu bảng như view Bảng: [Tìm] [Kỳ ▾] [Lọc] … [Cột].
         <section className="lds-loc">
           <div className="lds-loc__thanh tl-thanh" role="search">
             <OTim value={tim} onChange={setTim} placeholder="Tìm mã / tên lệnh…" ariaLabel="Tìm lệnh" />
-            {truongLoc}
-            <ChonCot cot={COT_SL} {...luoi.chonCot} />
+            {thanhLoc}
+            <ChonCot cot={COT_SL} an={luoi.chonCot.an} onAn={luoi.chonCot.onAn}
+              thuTu={luoi.chonCot.thuTu} onThuTu={luoi.chonCot.onThuTu}
+              rong={luoi.chonCot.rong} onRong={luoi.chonCot.onRong} />
           </div>
         </section>
       )}
 
-      {data && !ngaySai && (
-        <div className="thsx-sl__tong" aria-label="Tổng theo bộ lọc">
-          {tron ? (data.tong.length === 0 ? (
-            <span className="thsx-sl__trong">Tổ không có mẻ nào trong khoảng này.</span>
-          ) : (
-            // MỘT dòng cho cả tổ — mỗi đơn vị một cụm số (tờ không cộng với cái), số mẻ cộng chung
-            // ở cuối. Trước đây mỗi đơn vị một dòng "Mẻ của tổ · làm được…" lặp lại, chiếm nửa màn điện thoại.
-            <p className="thsx-sl__tong-dong">
-              <span className="thsx-sl__tong-nhan">Tổ làm được</span>
-              {data.tong.map((t) => (
-                <span key={t.don_vi ?? "—"} className="thsx-sl__chip">
-                  <b className="thsx-num">{num(t.tot)}</b>{dv(t.don_vi)}
-                  {t.hong > 0 && <span className="thsx-sl__hong-cum"> (hỏng <b className="thsx-num">{num(t.hong)}</b>)</span>}
-                </span>
-              ))}
-              <span className="thsx-sl__phu">
-                {num(data.tong.reduce((a, t) => a + t.so_me, 0))} mẻ
-              </span>
-            </p>
-          )) : (
-            // Quyền chỉ "Của tôi": không có tổng của tổ — thấy đúng các mẻ mình có mặt (§12.3).
-            <span className="thsx-sl__phu">Bạn thấy các mẻ mình có mặt — không có dòng tổng của tổ.</span>
-          )}
-          {dangNap && <span className="thsx-sl__phu">Đang cập nhật…</span>}
-        </div>
-      )}
-
       <div className="thsx-ds__scroll">
-        {ngaySai ? (
-          <BangLoi text="Từ ngày phải trước hoặc bằng đến ngày." />
-        ) : err ? (
+        {err ? (
           <BangLoi text={err} onRetry={() => setLanNap((n) => n + 1)} />
         ) : data == null ? (
           <EmptyStateChung trangThai="dang-tai" inline nhanTai="Đang nạp…" />
         ) : data.lenh.length === 0 ? (
           <EmptyState icon={timD ? "search" : "clipboard"}
             title={timD ? "Không có lệnh khớp tìm kiếm" : "Chưa có sản lượng"}
-            sub={`Không có mẻ nào bắt đầu từ ${ngay(data.tu)} đến ${ngay(data.den)} trong phạm vi của bạn.`} />
+            sub={`Không có sản lượng nào ghi từ ${ngay(data.tu)} đến ${ngay(data.den)} trong phạm vi của bạn.`} />
         ) : (
           <>
-            <h3 className="thsx-sl__muc">Mẻ của tổ</h3>
+            <h3 className="thsx-sl__muc">Sản lượng của tổ</h3>
             {dsChu.length === 0
-              ? <p className="thsx-sl__trong thsx-sl__muc-trong">Trang này không có mẻ nào của tổ.</p>
+              ? <p className="thsx-sl__trong thsx-sl__muc-trong">Trang này không có sản lượng nào của tổ.</p>
               : veMuc("chu", dsChu)}
             {dsKhach.length > 0 && (
               <>
@@ -583,7 +469,7 @@ export function ThsxSanLuongTab({ teamId, eventTick }: { teamId: number; eventTi
         )}
       </div>
       {/* Chân phân trang theo LỆNH (máy chủ cắt trang), nằm sau các lưới của trang. */}
-      {data && !ngaySai && !err && data.tong_lenh > 0 && (
+      {data && !err && data.tong_lenh > 0 && (
         <div className={hep ? undefined : "lds-sheet"}>
           <PhanTrangDayDu trang={trang} size={coTrang} tong={data.tong_lenh} soDong={data.lenh.length}
             onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }} loading={dangNap}

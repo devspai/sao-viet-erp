@@ -226,6 +226,7 @@ export function LsxPreviewDrawer({
                             <span className="khsx-prev__nhomSub">
                               {node.members.length} phần · {node.members.length} lệnh riêng
                             </span>
+                            <KhoDangCo line={node.members[0]} />
                           </td>
                         </tr>,
                         ...node.members.map((m, i) => dong(m, true, i === node.members.length - 1)),
@@ -358,6 +359,7 @@ function PreviewRow({
       </td>
       <td className="khsx-num khsx-num--val">
         <O v={line.so_luong_dat} dv={line.don_vi_tinh} />
+        {!con && <KhoDangCo line={line} />}
         {line.sl_ptg != null && (
           <span className="khsx-num__ptg-warn">
             <CanhBaoMem
@@ -397,4 +399,13 @@ function PreviewRow({
   );
 }
 
-
+/** Kho đang có bao nhiêu SẢN PHẨM BÁN này của khách (11/10/2026): đơn trước làm dư thì đơn này chỉ
+ *  cần làm phần thiếu. Đã trừ phần đơn khác của khách đang giữ. Không có thì không hiện. */
+function KhoDangCo({ line }: { line: LsxPreviewLine }) {
+  if (!line.ton_san || line.ton_san <= 0) return null;
+  return (
+    <span className="khsx-prev__kho-co">
+      kho đang có {num(line.ton_san)} {line.ton_dvt ?? line.don_vi_tinh}
+    </span>
+  );
+}

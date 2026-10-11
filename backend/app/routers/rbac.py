@@ -308,7 +308,6 @@ def create_department(
             has_piece_work=payload.has_piece_work,
             la_san_xuat=payload.la_san_xuat,
             la_kinh_doanh=payload.la_kinh_doanh,
-            is_kcs=payload.is_kcs,
             la_giao_hang=payload.la_giao_hang,
             la_to_in=payload.la_to_in,
             la_to_cat=payload.la_to_cat,
@@ -356,12 +355,6 @@ def update_department(
             if "la_kinh_doanh" in payload.model_fields_set
             else {}
         )
-        # Cờ KCS: cùng luật "KHÔNG gửi = giữ nguyên".
-        kcs_kw = (
-            {"is_kcs": payload.is_kcs}
-            if "is_kcs" in payload.model_fields_set
-            else {}
-        )
         # Cờ bộ phận Giao hàng: cùng luật "không gửi = giữ nguyên" như cờ Kinh doanh ngay trên.
         gh_kw = (
             {"la_giao_hang": payload.la_giao_hang}
@@ -392,7 +385,6 @@ def update_department(
             **parent_kw,
             **salary_kw,
             **kd_kw,
-            **kcs_kw,
             **gh_kw,
         )
     except (SetHeadForbidden, ReparentForbidden) as e:

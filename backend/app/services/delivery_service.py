@@ -252,33 +252,66 @@ class DeliveryService:
             for lid, so in dat.items()
         }
 
+    def kha_dung_theo_ma(self, tp_ids) -> dict[int, dict]:
+        """Tồn của mã thành phẩm và phần các yêu cầu giao (MỌI đơn) đang giữ mà kho CHƯA xuất.
+
+        `{tp_id: {"ton_kho": {kho_id: sl}, "ton": tổng, "giu": {order_id: sl}}}`. Thành phẩm thuộc
+        về khách (11/10/2026), nên tồn của mã là hàng của khách — đơn nào của khách cũng dùng được,
+        trừ phần đơn khác đã lập yêu cầu giao giữ. Phần giữ = SL dòng − max(đã xuất kho, đã giao): đã
+        xuất thì tồn đã giảm (đang trên xe), đã giao thẳng thì chưa từng vào kho — trừ lần nữa là
+        đếm hai lần."""
+        from ..repositories.stock_lot_repo import StockLotRepository
+
+        ids = sorted({int(i) for i in tp_ids if i})
+        if not ids:
+            return {}
+        ton = StockLotRepository(self.deliveries.db).on_hand_by_kho([("vat_tu", i) for i in ids])
+        ra = {i: {"ton_kho": dict(ton.get(("vat_tu", i), {})), "giu": {}} for i in ids}
+        for i in ids:
+            ra[i]["ton"] = float(sum(ra[i]["ton_kho"].values()))
+        dong = self.deliveries.dong_giu_theo_ma(ids)
+        reqs = {req.id: req for req, _ln in dong}
+        giu = {rid for rid, req in reqs.items() if self.dang_giu_hang(req)}
+        xuat = self.deliveries.da_xuat_theo_yeu_cau_giao(giu)
+        da_giao = {rid: self.deliveries.da_giao_cua_yeu_cau(rid) for rid in giu}
+        for req, ln in dong:
+            if req.id not in giu:
+                continue
+            ra_khoi = max(xuat.get((req.id, int(ln.hang_id)), 0.0),
+                          float(da_giao[req.id].get(ln.order_line_id, 0)))
+            con = max(0.0, float(ln.qty) - ra_khoi)
+            if con > 0:
+                g = ra[int(ln.hang_id)]["giu"]
+                g[req.order_id] = g.get(req.order_id, 0.0) + con
+        return ra
+
     def nguon_giao_theo_cum(self, order) -> list[dict]:
         """Mỗi cụm bán: đặt · đã giao · đang giữ · kho đã nhận · tồn thật · GIAO ĐƯỢC (19/09/2026).
 
-        Luật chủ chốt: "không được giao phần chưa nhập kho". Giao được =
-          · cụm CÓ lệnh: kho ĐÃ NHẬN từ yêu cầu nhập của lệnh CHÍNH ĐƠN NÀY − đã giao − đang giữ.
-            Không đọc tồn chung của mã: hai đơn trùng tên hàng dùng chung một mã Thành phẩm, đọc tồn
-            chung là đơn này giao lấn hàng của đơn kia;
-          · cụm KHÔNG có lệnh (hàng có sẵn, không qua xưởng): tồn thật của mã − đang giữ;
-        rồi kẹp bởi còn phải giao và tồn thật của mã. Hai cụm cùng một mã dùng CHUNG phần kho — số
-        `giao_duoc` của từng cụm là trần riêng, `tao_yeu_cau` kiểm tổng theo mã.
+        Luật chủ chốt: "không được giao phần chưa nhập kho". Từ 11/10/2026 (mg 0394) thành phẩm
+        THUỘC VỀ KHÁCH, nên giao được đọc TỒN CỦA MÃ chứ không đọc "đơn nguồn" của lô nữa:
+          giao được = min(còn phải giao, tồn thật của mã − phần mọi yêu cầu giao đang giữ chưa xuất).
+        Đơn sau của cùng khách dùng được hàng làm dư của đơn trước (đơn 1.000 làm 1.500 ⇒ 500 dư là
+        tồn của sản phẩm). Hai khách trùng tên hàng là hai mã nên không lấn nhau. Hai cụm cùng một
+        mã dùng CHUNG phần kho — `giao_duoc` của từng cụm là trần riêng, `tao_yeu_cau` kiểm tổng.
+        `kho_de_nghi` / `kho_da_nhan` vẫn đếm theo lệnh CỦA ĐƠN — đó là tiến độ sản xuất, không
+        phải nguồn giao.
         """
         from ..models.stock_request import REQ_CANCELLED, REQ_REJECTED
-        from ..repositories.stock_lot_repo import StockLotRepository
-        from .thanh_pham_khai_bao import tim_theo_ten
+        from ..repositories.kho_hang_repo import KhoHangRepository
+        from .thanh_pham_khai_bao import thanh_pham_cua_cum
 
         db = self.deliveries.db
         cums = cum_ban(order)
         dat, da_giao, dang_giu = self._so_giao(order)
         # Phần nhà gia công GIAO THẲNG cho khách: đã tới tay khách nhưng không qua KCS trên phần mềm,
-        # không qua kho ⇒ là hàng ĐÃ CÓ của cụm, và không được trừ vào phần kho đã nhận.
+        # không qua kho ⇒ là hàng ĐÃ CÓ của cụm.
         giao_thang = self.deliveries.giao_thang_theo_dong(order.id)
         lenh = self.deliveries.lenh_theo_dong_don(order.id)
 
-        tp_cua_cum = {c.khoa: tim_theo_ten(db, c.ten) for c in cums}
-        tp_ids = {tp.id for tp in tp_cua_cum.values() if tp is not None}
-        ton_kho = StockLotRepository(db).on_hand_by_kho([("vat_tu", i) for i in tp_ids])
-        ton = {i: sum(ton_kho.get(("vat_tu", i), {}).values()) for i in tp_ids}
+        tp_cua_cum = {c.khoa: thanh_pham_cua_cum(db, order, c) for c in cums}
+        kd = self.kha_dung_theo_ma({tp.id for tp in tp_cua_cum.values() if tp is not None})
+        ten_kho = KhoHangRepository(db).ten_theo_ids({k for v in kd.values() for k in v["ton_kho"]})
 
         lsx_ids = [s for ds in lenh.values() for s in ds]
         de_nghi: dict[int, float] = {}
@@ -290,39 +323,24 @@ class DeliveryService:
                 StockRequestService.muc_tieu_hieu_luc(ln) if song else nhan)
             da_nhan[ln.hang_id] = da_nhan.get(ln.hang_id, 0.0) + nhan
 
-        # Phần kho CÒN DÙNG ĐƯỢC của mỗi mã = nguồn − Σ(đã giao + đang giữ) mọi cụm dùng mã đó.
-        dung: dict[int, float] = {}
-        co_lenh_theo_tp: dict[int, bool] = {}
-        for c in cums:
-            tp = tp_cua_cum[c.khoa]
-            if tp is None:
-                continue
-            d = c.dong_dau.id
-            dung[tp.id] = (dung.get(tp.id, 0.0) + da_giao.get(d, 0) - giao_thang.get(d, 0)
-                           + dang_giu.get(d, 0))
-            co_lenh_theo_tp[tp.id] = co_lenh_theo_tp.get(tp.id, False) or any(
-                lenh.get(od.id) for od in c.dong)
-        con_kho: dict[int, float] = {}
-        for i in tp_ids:
-            if co_lenh_theo_tp.get(i):
-                nguon = da_nhan.get(i, 0.0) - dung.get(i, 0.0)
-                con_kho[i] = max(0.0, min(nguon, ton[i]))
-            else:
-                # Hàng có sẵn: tồn thật đã trừ phần xuất rồi, chỉ trừ phần đang giữ chưa xuất.
-                giu = sum(dang_giu.get(c.dong_dau.id, 0) for c in cums
-                          if tp_cua_cum[c.khoa] is not None and tp_cua_cum[c.khoa].id == i)
-                con_kho[i] = max(0.0, ton[i] - giu)
+        con_kho = {i: max(0.0, v["ton"] - sum(v["giu"].values())) for i, v in kd.items()}
 
         ra: list[dict] = []
         for c in cums:
             tp = tp_cua_cum[c.khoa]
             d = c.dong_dau.id
+            v = kd.get(tp.id) if tp is not None else None
             con = min(max(0, dat[od.id] - da_giao.get(od.id, 0) - dang_giu.get(od.id, 0))
                       for od in c.dong)
+            ton_kho = sorted(
+                ({"kho_id": k, "kho_ten": ten_kho.get(k, f"Kho #{k}"), "so_luong": round(sl, 3)}
+                 for k, sl in (v["ton_kho"].items() if v else []) if sl > 1e-9),
+                key=lambda r: r["kho_ten"])
             ra.append({
                 "cum": c,
                 "tp_id": tp.id if tp is not None else None,
                 "co_lenh": any(lenh.get(od.id) for od in c.dong),
+                "ton_kho": ton_kho,
                 "lsx_ids": sorted({s for od in c.dong for s in lenh.get(od.id, [])}),
                 "dat": int(c.so_luong),
                 "da_giao": int(da_giao.get(d, 0)),
@@ -335,7 +353,10 @@ class DeliveryService:
                 "khach_nhan_du": all(da_giao.get(od.id, 0) >= dat[od.id] for od in c.dong),
                 "kho_de_nghi": de_nghi.get(tp.id, 0.0) if tp is not None else 0.0,
                 "kho_da_nhan": da_nhan.get(tp.id, 0.0) if tp is not None else 0.0,
-                "ton_that": ton.get(tp.id, 0.0) if tp is not None else 0.0,
+                "ton_that": v["ton"] if v else 0.0,
+                # Đơn KHÁC của khách đang giữ (chưa xuất) — hiện cho Kinh doanh biết vì sao tồn có
+                # mà giao được ít hơn.
+                "giu_don_khac": round(sum(sl for o, sl in v["giu"].items() if o != order.id), 3) if v else 0.0,
                 "con_kho": con_kho.get(tp.id, 0.0) if tp is not None else 0.0,
                 "giao_duoc": int(min(con, con_kho.get(tp.id, 0.0))) if tp is not None else 0,
             })
@@ -504,8 +525,9 @@ class DeliveryService:
         for cum, qty in cum_qty:
             n = nguon[cum.khoa]
             if qty > n["giao_duoc"]:
-                goc = (f"kho đã nhận {n['kho_da_nhan']:g} từ sản xuất" if n["co_lenh"]
-                       else f"tồn kho {n['ton_that']:g}")
+                goc = f"tồn kho {n['ton_that']:g}"
+                if n["giu_don_khac"] > 0:
+                    goc += f", đơn khác đang giữ {n['giu_don_khac']:g}"
                 raise DeliveryError(
                     f"«{cum.ten}» mới giao được {n['giao_duoc']} ({goc}, đã giao {n['da_giao']}, "
                     f"đang chờ giao {n['dang_giu']}) — đang yêu cầu {qty}. "

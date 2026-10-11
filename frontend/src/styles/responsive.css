@@ -424,6 +424,12 @@
   .shell__content :is(:has(> h1), :has(> * > h1)) {
     flex-wrap: wrap;
   }
+  /* Khung màn danh sách `.lds` là CỘT flex có `header.lds-dau > h1` bên trong nên cũng dính luật trên.
+     Cột flex mà xuống hàng thì mỗi con giãn theo con rộng nhất (bảng 1676px ở KCS, 09/10/2026):
+     đầu trang, thanh lọc, hàng số đều bị kéo ra, cả trang cuộn ngang. Cột thì không cần xuống hàng. */
+  .shell__content .lds {
+    flex-wrap: nowrap;
+  }
 }
 
 /* ---- 16. Sáu màn kế toán kéo ngang CẢ TRANG ------------------------------- */
@@ -821,43 +827,6 @@
   }
   .ktm-anh__btn-view {
     background: rgba(15, 23, 42, 0.62);
-  }
-
-  /* InfoHint — chữ "i" tròn. Bong bóng chỉ hiện ở :hover / :focus-visible, mà chạm ngón
-     tay lên <button> thì trình duyệt KHÔNG tính là focus-visible ⇒ trên điện thoại không
-     cách nào đọc được lời giải thích. Cho :focus thường mở bong bóng. */
-  .hint-tip__btn:focus + .hint-tip__bubble {
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
-  }
-  /* Ô chạm 15px → nới ra 33px bằng lớp giả, không đổi chỗ chữ "i" trong dòng. */
-  .hint-tip__btn {
-    position: relative;
-  }
-  .hint-tip__btn::before {
-    content: "";
-    position: absolute;
-    inset: -9px;
-  }
-  /* Bong bóng rộng 280px neo vào chính chữ "i". Chữ "i" nằm giữa dòng (x≈175 ở khung 375px)
-     nên bong bóng chạy tới x=449 — cụt mất nửa câu. Neo phải cũng không cứu được: 280px
-     không lọt vào bên nào của một điểm giữa màn. Nên trên điện thoại bỏ neo theo chữ, dán
-     bong bóng thành một dải sát đáy màn, rộng bằng màn trừ hai bên 12px. Mũi nhọn tắt đi vì
-     không còn trỏ vào đâu. */
-  .hint-tip__bubble {
-    /* !important ở đây là PHÒNG XA, KHÔNG do thứ tự chèn: info-hint.css:36 (0-1-0) nạp TRƯỚC file này. */
-    position: fixed !important;
-    left: 12px !important;
-    right: 12px !important;
-    top: auto !important;
-    bottom: 16px !important;
-    width: auto !important;
-    max-width: none !important;
-    transform: none !important;
-  }
-  .hint-tip__bubble::after {
-    display: none !important;
   }
 }
 
@@ -1705,28 +1674,21 @@
 }
 
 /* ===== §54. "VÒNG ĐỜI ĐƠN" — THANH CHẶNG Ở MÀN HẸP ============================
-   Thanh 5 chặng mũi tên (05/10/2026) chia đều bề ngang; ở 375px lòng khối ~278px ⇒ mỗi ô ~55px, chỉ
-   chưa vừa hẳn tên ("Sản xuất" ~52px). Ẩn chữ phụ (ngày, "kho đủ 2/3 món"…) — nó vẫn có ở câu "việc
-   tiếp theo" và ở khung chặng bên dưới; giữ thì bị cắt "…" vô nghĩa. Tên được xuống dòng ở khoảng
-   trắng ("Sản / xuất") thay vì cắt, mũi tên thu hẹp cho chữ thêm chỗ. */
+   Trục năm chấm (phương án 2, 10/10/2026) chia đều bề ngang; ở 375px mỗi chặng ~55px. Ẩn chữ phụ
+   (ngày, "chưa có hàng"…) — nó vẫn có ở thẻ tóm tắt và khung chặng bên dưới; tên chặng được xuống
+   dòng ("Sản / xuất") thay vì bị cắt "…". Thẻ tóm tắt: hạn giao xuống dưới, canh trái. */
 /* Bộ chọn có tiền tố `.dhb__path`: don-hang-ban.css nạp SAU file này (theo trang),
-   cùng độ đặc hiệu thì nó thắng — đã thấy tên chặng vẫn bị cắt "Sả…" vì thế. */
+   cùng độ đặc hiệu thì nó thắng. */
 @media screen and (max-width: 768px) {
   .dhb__path .dhb__path-o small { display: none; }
-  .dhb__path .dhb__path-o {
-    height: 100%;
-    align-content: center;
-    padding: 6px 2px 6px 10px;
-    clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%, 6px 50%);
-  }
-  .dhb__path .dhb__path-buoc:first-child .dhb__path-o {
-    padding-left: 6px;
-    clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%);
-  }
-  .dhb__path .dhb__path-buoc:last-child .dhb__path-o {
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 6px 50%);
-  }
+  .dhb__path .dhb__path-o { padding: 2px 2px 4px; }
   .dhb__path .dhb__path-o b { white-space: normal; text-overflow: clip; font-size: 12px; line-height: 1.25; }
+  .dhb__viec .dhb__viec-han { white-space: normal; flex-wrap: wrap; }
+  .dhb__so4 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+  .dhb__so4 .dhb__so4-o span { font-size: 18px; }
+  .dhb__td-cum .dhb__td-kho td:first-child { white-space: normal; }
+  .dhb__td-cum .dhb__td-kho th:nth-child(2), .dhb__td-cum .dhb__td-kho td:nth-child(2) { padding-right: 12px; }
+  .dhb__td-cum .dhb__td-kho .dhb__lifecycle-badge { white-space: normal; }
 }
 
 /* ===== §55. THẺ CHI TIẾT BƯỚC VÒNG ĐỜI — TIÊU ĐỀ BỊ BÓP CẠNH NHÃN DÀI =======

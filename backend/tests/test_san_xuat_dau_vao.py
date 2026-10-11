@@ -6,7 +6,7 @@
     bàn giao — hàng chưa rời tổ thì không có dòng bàn giao nào để đếm;
   · Σ số làm được các mẻ ≤ số đã nhận × hệ số quy đổi — cùng đơn vị hệ số 1, tờ → con nhân hệ số;
     nguồn giao khác đơn vị vào (bản kẽm vào bước in tờ) thì không làm trần;
-  · điều chỉnh giảm bàn giao không được kéo trần xuống dưới số đã ghi;
+  · sửa giảm số mẻ đã giao không được kéo trần bước sau xuống dưới số nó đã ghi;
   · drawer bày công đoạn trước + trần bằng đúng các hàm đó.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from app.models.san_xuat_san_luong import BG_DE_XUAT
 from app.repositories.rbac_repo import RoleRepository
 from app.repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from app.services.rbac_service import AuthorizationService
-from app.services.san_xuat import ban_giao, board, thuc_thi
+from app.services.san_xuat import ban_giao, board, san_luong, thuc_thi
 
 from tests.test_san_xuat_ban_giao import (  # noqa: F401
     _T0,
@@ -141,7 +141,7 @@ def test_cung_to_tran_bam_san_luong_buoc_truoc(db, orders, lsx_svc, admin, custo
         _batch(db, admin, cv2, tot=50, t0=_T0 + timedelta(hours=3))
     assert str(loi.value) == (
         f"Vượt sản lượng công đoạn trước: đã làm được ở {cv1.ten_cong_doan} 100 tờ, "
-        f"đã ghi 60 tờ — mẻ này ghi tối đa 40 tờ."
+        f"đã ghi 60 tờ — lần này ghi tối đa 40 tờ."
     )
     _batch(db, admin, cv2, tot=40, t0=_T0 + timedelta(hours=3))              # chạm trần: được
 
@@ -171,7 +171,7 @@ def test_cung_don_vi_ghi_toi_da_bang_so_da_nhan(db, orders, lsx_svc, admin, cust
         _batch(db, u_b, cv2, tot=50, t0=_T0 + timedelta(hours=3))
     assert str(loi.value) == (
         f"Vượt số nhận từ công đoạn trước: đã nhận từ {cv1.ten_cong_doan} 100 tờ, "
-        f"đã ghi 60 tờ — mẻ này ghi tối đa 40 tờ."
+        f"đã ghi 60 tờ — lần này ghi tối đa 40 tờ."
     )
     _batch(db, u_b, cv2, tot=40, t0=_T0 + timedelta(hours=3))                    # chạm trần: được
 
@@ -186,7 +186,7 @@ def test_doi_don_vi_nhan_he_so(db, orders, lsx_svc, admin, customer):
         _batch(db, u_b, cv2, tot=600, t0=_T0 + timedelta(hours=3))
     assert str(loi.value) == (
         f"Vượt số nhận từ công đoạn trước: đã nhận từ {cv1.ten_cong_doan} 1.000 tờ × 2 = tối đa "
-        f"2.000 con, đã ghi 1.500 con — mẻ này ghi tối đa 500 con."
+        f"2.000 con, đã ghi 1.500 con — lần này ghi tối đa 500 con."
     )
     _batch(db, u_b, cv2, tot=500, t0=_T0 + timedelta(hours=3))
 
@@ -207,19 +207,28 @@ def test_nguon_khac_don_vi_vao_thi_khong_tran(db, orders, lsx_svc, admin, custom
     _batch(db, admin, k2, tot=5000, t0=_T0 + timedelta(hours=2))
 
 
-def test_dieu_chinh_giam_khong_duoc_duoi_so_da_ghi(db, orders, lsx_svc, admin, customer):
+def test_sua_giam_so_me_khong_duoc_duoi_so_buoc_sau_da_ghi(db, orders, lsx_svc, admin, customer):
+    """Luật 3 (10/10/2026 đi qua SỬA SỐ MẺ, thay điều chỉnh bàn giao): giảm mẻ đã giao kéo số
+    nhận của bước sau xuống dưới số nó đã ghi ⇒ chặn, không đổi gì."""
+    from app.models.san_xuat_san_luong import SanXuatBanGiao, SanXuatBatch
+
     _to, _tb, u_b, cv1, cv2 = _khac_to(db, orders, lsx_svc, admin, customer, ma="TO-DC")
     r = _giao_nhan(db, admin, u_b, cv1, cv2, 100)
+    bg_id = r["ban_giao_id"]
+    batch_id = SanXuatSanLuongRepository(db).me_cua_ban_giao_nhieu([bg_id])[bg_id][0]
     _batch(db, u_b, cv2, tot=80, t0=_T0 + timedelta(hours=2))
 
     with pytest.raises(ValueError) as loi:
-        ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=70)
+        san_luong.sua_so_me(db, user=admin, batch_id=batch_id, tot=70)
     assert str(loi.value) == (
-        f"Không giảm xuống 70 được: {cv2.ten_cong_doan} đã ghi mẻ 80 tờ, "
+        f"Không giảm được: {cv2.ten_cong_doan} đã ghi 80 tờ, "
         f"giảm thế thì số nhận chỉ đủ cho 70 tờ."
     )
-    assert ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"],
-                               so_luong_sau=80)["so_luong"] == 80
+    db.expire_all()
+    assert float(db.get(SanXuatBatch, batch_id).tot) == 100
+    assert float(db.get(SanXuatBanGiao, bg_id).so_luong) == 100
+    san_luong.sua_so_me(db, user=admin, batch_id=batch_id, tot=80)
+    assert float(db.get(SanXuatBanGiao, bg_id).so_luong) == 80
 
 
 def test_drawer_bay_cong_doan_truoc_va_tran(db, orders, lsx_svc, admin, customer):
@@ -227,7 +236,8 @@ def test_drawer_bay_cong_doan_truoc_va_tran(db, orders, lsx_svc, admin, customer
 
     _to, _tb, u_b, cv1, cv2 = _khac_to(db, orders, lsx_svc, admin, customer,
                                        he_so=2, dv_ra="con", ma="TO-DR")
-    cv1.so_luong_ra = 1200
+    # cv1 đầu chuỗi: trần theo số vào kế hoạch (10/10/2026) — đủ chỗ cho 1.150 tờ ghi bên dưới.
+    cv1.so_luong_vao = cv1.so_luong_ra = 1200
     db.commit()
     az = AuthorizationService(RoleRepository(db))
 
@@ -268,3 +278,57 @@ def test_drawer_danh_dau_buoc_truoc_cung_to(db, orders, lsx_svc, admin, customer
         cv1.id, True, 250, 0)
     assert {k: ct["tran_ghi"][k] for k in ("toi_da", "da_nhan", "cung_to", "con_ghi_duoc")} == {
         "toi_da": 250, "da_nhan": 250, "cung_to": True, "con_ghi_duoc": 250}
+
+
+# --- Lỗi KCS trừ khỏi trần + bước đầu chuỗi theo kế hoạch (10/10/2026) -------------------------
+def _loi_kcs(db, cv, so):
+    from app.models.san_xuat_kcs import SanXuatKcsBatch
+
+    db.add(SanXuatKcsBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T0, so_luong_nhan=0,
+                           so_luong_dat=0, so_luong_khong_dat=so, don_vi=cv.don_vi_ra or "to"))
+    db.commit()
+
+
+def test_loi_kcs_tru_khoi_tran_ghi_me(db, orders, lsx_svc, admin, customer):
+    """*"Tổng nhận 1000 tờ in, KCS ghi lỗi 200 thì tổng các mẻ tối đa 800."*"""
+    from app.schemas.san_xuat import WorkItemChiTietOut
+
+    _to, _tb, u_b, cv1, cv2 = _khac_to(db, orders, lsx_svc, admin, customer, ma="TO-KCS")
+    _giao_nhan(db, admin, u_b, cv1, cv2, 1000)
+    _loi_kcs(db, cv2, 200)
+    _batch(db, u_b, cv2, tot=700, t0=_T0 + timedelta(hours=2))
+    with pytest.raises(ValueError) as loi:
+        _batch(db, u_b, cv2, tot=101, t0=_T0 + timedelta(hours=3))
+    assert str(loi.value) == (
+        f"Vượt số nhận từ công đoạn trước: đã nhận từ {cv1.ten_cong_doan} 1.000 tờ, KCS bắt lỗi "
+        f"200 tờ, còn tối đa 800 tờ, đã ghi 700 tờ — lần này ghi tối đa 100 tờ."
+    )
+    _batch(db, u_b, cv2, tot=100, t0=_T0 + timedelta(hours=3))                   # chạm trần: được
+
+    t = WorkItemChiTietOut.model_validate(board.chi_tiet_cong_viec(
+        db, u_b, AuthorizationService(RoleRepository(db)), cong_viec_id=cv2.id)).model_dump()["tran_ghi"]
+    assert {k: t[k] for k in ("toi_da", "toi_da_nhan", "loi_kcs", "da_ghi", "con_ghi_duoc")} == {
+        "toi_da": 800, "toi_da_nhan": 1000, "loi_kcs": 200, "da_ghi": 800, "con_ghi_duoc": 0}
+
+
+def test_buoc_dau_chuoi_tran_theo_ke_hoach_tru_loi_kcs(db, orders, lsx_svc, admin, customer):
+    """Cắt tờ đầu chuỗi: kế hoạch 175 tờ nguyên × 2 = 350 tờ in, KCS bắt 18 ⇒ mẻ tối đa 332."""
+    from app.schemas.san_xuat import WorkItemChiTietOut
+
+    _to, cv1, _cv2 = _cung_lenh(db, orders, lsx_svc, admin, customer, ma="TO-DAU")
+    cv1.so_luong_vao, cv1.so_luong_ra, cv1.he_so_quy_doi = 175, 350, 2
+    cv1.don_vi_vao, cv1.don_vi_ra = "to_nguyen", "tờ"
+    db.commit()
+    assert SanXuatSanLuongRepository(db).cong_viec_chang_truoc(cv1) == []
+    _batch(db, admin, cv1, tot=300)
+    _loi_kcs(db, cv1, 18)
+    with pytest.raises(ValueError, match=r"^Vượt số nhận theo kế hoạch: .*lần này ghi tối đa 32 tờ\.$"):
+        _batch(db, admin, cv1, tot=33, t0=_T0 + timedelta(hours=1))
+
+    t = WorkItemChiTietOut.model_validate(board.chi_tiet_cong_viec(
+        db, admin, AuthorizationService(RoleRepository(db)), cong_viec_id=cv1.id)).model_dump()["tran_ghi"]
+    assert {k: t[k] for k in ("dau_chuoi", "nguon_ten", "da_nhan", "he_so", "toi_da_nhan", "loi_kcs",
+                              "toi_da", "con_ghi_duoc")} == {
+        "dau_chuoi": True, "nguon_ten": None, "da_nhan": 175, "he_so": 2, "toi_da_nhan": 350,
+        "loi_kcs": 18, "toi_da": 332, "con_ghi_duoc": 32}
+    _batch(db, admin, cv1, tot=32, t0=_T0 + timedelta(hours=1))

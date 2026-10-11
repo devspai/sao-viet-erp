@@ -124,5 +124,3 @@ class PermissionsOut(BaseModel):
 
     modules: list[str]
     permissions: list[ModuleCapability] = []
-    # KCS theo lệnh (mg 0306): thành viên một phòng ban `is_kcs` — không phải ô quyền vai.
-    kcs: bool = False

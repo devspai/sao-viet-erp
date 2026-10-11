@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vòng đời đơn hiện đại</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-2:#e2580f;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss:#2f7d4a; --moss-soft:#dcfce7; --moss-deep:#166534;
+  --amber:#b45309; --amber-soft:#fef3c7;
+  --sky:#2563eb; --sky-soft:#dbeafe;
+  --violet:#6d28d9; --violet-soft:#ede9fe;
+  --steel:#64748b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:600;margin:0 0 6px}
+h2{font-size:19px;font-weight:600;margin:0}
+.lead{color:var(--ash);margin:0 0 18px;max-width:880px}
+.refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:0 0 56px}
+.ref{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.ref img{display:block;width:100%;height:150px;object-fit:contain;background:#fff;border-bottom:1px solid var(--rule-soft)}
+.ref p{margin:0;padding:10px 14px;font-size:13px;color:var(--ash)}
+.ref p span{color:var(--ink)}
+.sec{margin-bottom:72px}
+.sec-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 16px;max-width:900px}
+.nhan-mau{font-size:12px;font-weight:600;color:var(--ash-2);margin:22px 0 8px;letter-spacing:.02em}
+.muted{color:var(--ash-2)}
+.nho{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.ngan{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;padding:22px 26px}
+.sec-tieu{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ash-2);margin:0 0 16px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.the{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ash);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:999px;padding:2px 10px;white-space:nowrap}
+.tt{display:inline-flex;align-items:center;gap:6px;font-size:12px;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.tt::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tt--ok{background:var(--moss-soft);color:var(--moss-deep)}
+.tt--khac{background:var(--violet-soft);color:var(--violet)}
+.tt--xam{background:var(--rule-hair);color:var(--ash);border:1px solid var(--rule-soft)}
+.tt--xam::before{display:none}
+svg.ic{width:16px;height:16px;flex:none}
+
+/* Bảng kho (giữ nguyên như bản A đã duyệt, chỉ để làm bối cảnh) */
+.khung-bang{border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden;margin-top:18px}
+table.b{width:100%;border-collapse:collapse}
+.b th{font-size:11px;font-weight:500;color:var(--ash);text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:8px 12px;background:var(--paper);border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+.b td{padding:10px 12px;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.b tr:last-child td{border-bottom:0}
+.b .r{text-align:right}
+.b tr.mo td{color:var(--ash-2)}
+.b tfoot td{border-top:1px solid var(--rule-soft);background:var(--paper)}
+.chan{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.cuon{overflow-x:auto}
+
+/* ============ PHƯƠNG ÁN 1: Carbon ============ */
+.p1-path{display:grid;grid-template-columns:repeat(5,1fr);gap:0 6px;margin-bottom:20px}
+.p1-buoc{display:flex;flex-direction:column;gap:8px;cursor:pointer;padding-bottom:4px}
+.p1-vach{height:3px;border-radius:2px;background:var(--rule-soft)}
+.p1-buoc.xong .p1-vach{background:var(--moss)}
+.p1-buoc.dang .p1-vach{background:var(--rust)}
+.p1-ten{display:flex;align-items:center;gap:8px;font-size:14px}
+.p1-buoc small{display:block;padding-left:24px;font-size:12px;color:var(--ash-2);margin-top:-6px}
+.p1-buoc.dang .p1-ten{color:var(--rust)}
+.p1-buoc.chua .p1-ten{color:var(--ash)}
+.p1-buoc.chon{position:relative}
+.p1-buoc.chon .p1-ten span{text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
+.p1-viec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;border-radius:10px;background:var(--paper);margin-bottom:22px}
+.p1-viec .cham{width:8px;height:8px;border-radius:50%;background:var(--rust);box-shadow:0 0 0 4px rgba(197,64,10,.15)}
+.p1-giao-dau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.p1-giao-dau h4{margin:0;font-size:16px;font-weight:500}
+.p1-giao-dau .han{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--ash);font-size:13px}
+.p1-mon{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.p1-mon .ten{font-size:15px}
+.p1-so{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.p1-so > div{padding:14px 16px;border-right:1px solid var(--rule-soft)}
+.p1-so > div:last-child{border-right:0}
+.p1-so small{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ash-2)}
+.p1-so span{display:block;font-size:24px;line-height:1.3;margin-top:4px;font-variant-numeric:tabular-nums}
+.p1-so em{font-style:normal;font-size:12px;color:var(--ash-2)}
+.p1-so .nhan-manh{background:var(--paper)}
+.p1-so .nhan-manh span{color:var(--rust)}
+
+/* ============ PHƯƠNG ÁN 2: Atlassian ============ */
+.p2-path{position:relative;display:grid;grid-template-columns:repeat(5,1fr);margin:6px 0 22px}
+.p2-truc{position:absolute;left:10%;right:10%;top:9px;height:4px;border-radius:2px;background:var(--rule-soft)}
+.p2-truc i{position:absolute;left:0;top:0;bottom:0;width:50%;border-radius:2px;background:linear-gradient(90deg,var(--moss) 0 50%,var(--rust) 50% 100%)}
+.p2-buoc{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;cursor:pointer}
+.p2-dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--canvas);border:2px solid var(--rule)}
+.p2-buoc.xong .p2-dot{background:var(--moss);border-color:var(--moss);color:#fff}
+.p2-buoc.dang .p2-dot{border-color:var(--rust);box-shadow:0 0 0 5px rgba(197,64,10,.14)}
+.p2-buoc.dang .p2-dot::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--rust)}
+.p2-buoc b{font-weight:500;font-size:14px}
+.p2-buoc.dang b{color:var(--rust)}
+.p2-buoc.chua b{color:var(--ash)}
+.p2-buoc small{font-size:12px;color:var(--ash-2);margin-top:-4px}
+.p2-buoc.chon .p2-the{border-color:var(--ink)}
+.p2-the{border:1px solid transparent;border-radius:8px;padding:2px 10px 4px}
+.p2-tom{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;border:1px solid var(--rule-soft);border-radius:14px;padding:18px 20px}
+.p2-tom h4{margin:0 0 2px;font-size:16px;font-weight:500}
+.p2-trang{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.p2-han{text-align:right}
+.p2-han small{display:block;font-size:12px;color:var(--ash-2)}
+.p2-han span{font-size:20px}
+.p2-han em{display:block;font-style:normal;font-size:12px;color:var(--moss-deep)}
+.p2-mon{margin-top:22px}
+.p2-mon-dau{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.p2-mon-dau .ten{font-size:15px}
+.p2-so{display:flex;gap:12px;flex-wrap:wrap}
+.p2-o{flex:1 1 160px;border-radius:12px;padding:14px 16px;background:var(--paper)}
+.p2-o small{display:block;font-size:12px;color:var(--ash-2)}
+.p2-o span{display:block;font-size:26px;line-height:1.25;margin-top:2px;font-variant-numeric:tabular-nums}
+.p2-o em{font-style:normal;font-size:12px;color:var(--ash-2)}
+.p2-o.chu{background:var(--canvas);border:1px solid var(--rust)}
+.p2-o.chu span{color:var(--rust)}
+
+/* ============ PHƯƠNG ÁN 3: Primer ============ */
+.p3-path{display:flex;gap:4px;padding:4px;border-radius:12px;background:var(--rule-hair);margin-bottom:14px;flex-wrap:wrap}
+.p3-buoc{flex:1 1 120px;display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:9px;cursor:pointer;color:var(--ash)}
+.p3-buoc .so{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;border:1.5px solid var(--rule);flex:none;background:var(--canvas)}
+.p3-buoc.xong .so{background:var(--moss);border-color:var(--moss);color:#fff}
+.p3-buoc.dang .so{border-color:var(--rust);color:var(--rust)}
+.p3-buoc b{display:block;font-weight:500;font-size:13.5px;color:var(--ink)}
+.p3-buoc small{display:block;font-size:12px;color:var(--ash-2);line-height:1.3}
+.p3-buoc.chon{background:var(--canvas);box-shadow:0 1px 2px rgba(15,23,42,.08),0 0 0 1px var(--rule-soft)}
+.p3-viec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 22px;color:var(--ash)}
+.p3-viec .chu{color:var(--ink)}
+.p3-dau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.p3-dau h4{margin:0;font-size:16px;font-weight:500}
+.p3-dau .han{margin-left:auto;color:var(--ash);font-size:13px}
+.p3-mon{border:1px solid var(--rule-soft);border-radius:14px;padding:18px 20px;margin-top:14px}
+.p3-mon-dau{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.p3-mon-dau .ten{font-size:15px}
+.p3-mon-dau .tong{margin-left:auto;font-size:13px;color:var(--ash)}
+.p3-mon-dau .tong span{font-size:22px;color:var(--ink);font-variant-numeric:tabular-nums}
+.p3-thanh{display:flex;gap:2px;height:8px;margin:14px 0 10px;border-radius:999px;overflow:hidden;background:var(--rule-hair)}
+.p3-thanh i{display:block;height:100%}
+.k-giao{background:var(--moss)} .k-kho{background:var(--sky)} .k-lam{background:#f59e0b} .k-chua{background:var(--rule)}
+.p3-chu{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}
+.p3-chu span{display:inline-flex;align-items:center;gap:6px}
+.p3-chu i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.p3-chu b{font-weight:500;font-variant-numeric:tabular-nums}
+.p3-chu .tat{color:var(--ash-3)}
+
+@media (max-width:760px){
+  .ngan{padding:16px}
+  .p1-path{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .p1-buoc small{display:none}
+  .p1-ten{font-size:12.5px}
+  .p1-ten svg{display:none}
+  .p1-so,.p2-so{grid-template-columns:1fr 1fr}
+  .p1-so > div:nth-child(2){border-right:0}
+  .p1-so > div:nth-child(-n+2){border-bottom:1px solid var(--rule-soft)}
+  .p2-buoc small{display:none}
+  .p2-buoc b{font-size:12px}
+  .p2-tom{grid-template-columns:1fr}
+  .p2-han{text-align:left}
+  .p3-buoc{flex:1 1 30%}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Phương án A: làm mới thanh chặng và phần đầu khối Giao</h1>
+<p class="lead">Giữ nguyên bố cục A đã chọn: thanh chặng, câu việc tiếp theo, khối Giao hàng, dải số, bảng kho. Chỉ làm lại phần trong khung đỏ cho hiện đại hơn. Bảng kho bên dưới để nguyên, chỉ đặt vào cho đủ bối cảnh. Dữ liệu theo DH002, số tồn kho là giả định.</p>
+
+<h2 style="margin-bottom:10px">Tham khảo đã mở</h2>
+<div class="refs">
+  <div class="ref">
+    <img src="tham-khao-giao-ton-kho/ref-carbon-progress-indicator.png" alt="Carbon progress indicator">
+    <p><span>IBM Carbon, Progress indicator.</span> Mỗi bước gồm một vạch mảnh phía trên, biểu tượng trạng thái (dấu tích, nửa vòng, vòng nét đứt) và tên bước, không đóng hộp. Dùng cho phương án 1.</p>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-giao-ton-kho/ref-atlassian-progress-tracker.png" alt="Atlassian progress tracker">
+    <p><span>Atlassian, Progress tracker.</span> Một trục ngang liền, phần đã đi tô màu, bước hiện tại đổi màu chữ, bước chưa tới chỉ là chấm. Dùng cho phương án 2.</p>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-giao-ton-kho/ref-primer-progress-nhieu-khuc.png" alt="Primer progress bar nhiều khúc">
+    <p><span>GitHub Primer, ProgressBar nhiều khúc.</span> Thanh mảnh chia khúc, chú thích nằm ngay dưới thanh và chỉ liệt kê các khúc đang có. Dùng cho dải số của phương án 3.</p>
+  </div>
+</div>
+
+<!-- ==================== 1 ==================== -->
+<section class="sec">
+  <div class="sec-head"><h2>Phương án 1: vạch mảnh và biểu tượng, số trong một thẻ chia ô</h2><span class="src">khuôn Carbon</span></div>
+  <p class="why">Bỏ năm hộp tô nền. Mỗi chặng chỉ còn một vạch mảnh phía trên: xanh là đã xong, cam là đang ở chặng này, xám là chưa tới. Chặng đang xem thì tên được gạch chân. Câu việc tiếp theo nằm trên nền nhạt, đầu câu có chấm cam. Bốn con số nằm trong một thẻ chia bốn ô, ô "Giao được ngay" được nhấn màu.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="p1-path">
+      <div class="p1-buoc xong"><div class="p1-vach"></div><div class="p1-ten"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="#2f7d4a" stroke-width="1.6"><circle cx="8" cy="8" r="7"/><path d="M5 8.2l2 2 4-4.2"/></svg><span>Chốt</span></div><small>6/10</small></div>
+      <div class="p1-buoc xong"><div class="p1-vach"></div><div class="p1-ten"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="#2f7d4a" stroke-width="1.6"><circle cx="8" cy="8" r="7"/><path d="M5 8.2l2 2 4-4.2"/></svg><span>Cọc</span></div><small>không cần</small></div>
+      <div class="p1-buoc dang"><div class="p1-vach"></div><div class="p1-ten"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="#c5400a" stroke-width="1.6" stroke-dasharray="2.4 2"/><path d="M8 1a7 7 0 0 1 0 14z" fill="#c5400a"/></svg><span>Sản xuất</span></div><small>chưa có hàng</small></div>
+      <div class="p1-buoc chua chon"><div class="p1-vach"></div><div class="p1-ten"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="2.4 2"><circle cx="8" cy="8" r="7"/></svg><span>Giao</span></div><small>hạn 6/11</small></div>
+      <div class="p1-buoc xong"><div class="p1-vach"></div><div class="p1-ten"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="#2f7d4a" stroke-width="1.6"><circle cx="8" cy="8" r="7"/><path d="M5 8.2l2 2 4-4.2"/></svg><span>Hóa đơn</span></div><small>đã ghi đủ</small></div>
+    </div>
+
+    <div class="p1-viec"><span class="cham"></span><span>Xưởng đang chạy 2 lệnh</span><span class="the">chưa ước được ngày xong</span><span class="the">còn 27 ngày tới hạn giao</span></div>
+
+    <div class="p1-giao-dau">
+      <h4>Giao hàng</h4><span class="tt tt--xam">Chưa giao</span>
+      <span class="han"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Hạn giao cam kết 6/11/2026</span>
+    </div>
+    <div class="p1-mon"><span class="ten">Sách A5 64 trang</span><span class="muted">khách đặt 1.000 cuốn</span></div>
+    <div class="p1-so">
+      <div><small>Đã giao</small><span>0</span><em>cuốn</em></div>
+      <div><small>Còn phải giao</small><span>1.000</span><em>cuốn</em></div>
+      <div class="nhan-manh"><small>Giao được ngay</small><span>0</span><em>chưa kho nào nhận hàng của đơn</em></div>
+      <div><small>Đang làm ở xưởng</small><span>1.000</span><em>Cắt tờ 3%</em></div>
+    </div>
+
+    <div class="khung-bang cuon"><table class="b">
+      <thead><tr><th>Kho</th><th class="r">Đang có</th><th class="r">Đã giữ cho yêu cầu giao</th><th class="r">Giao được</th><th>Của ai</th></tr></thead>
+      <tbody>
+        <tr class="mo"><td>Kho thành phẩm</td><td class="r num">300</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">hàng của DH001</span></td></tr>
+        <tr class="mo"><td>Kho Bình Dương</td><td class="r num">120</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">tồn chung, không thuộc đơn nào</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="chan"><button class="btn btn--chinh" disabled>Tạo yêu cầu giao hàng</button><span class="muted">Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ LSX26-0003, LSX26-0004 xong là giao được.</span></div>
+  </div>
+</section>
+
+<!-- ==================== 2 ==================== -->
+<section class="sec">
+  <div class="sec-head"><h2>Phương án 2: trục chấm nối liền, thẻ tóm tắt có hạn giao bên phải</h2><span class="src">khuôn Atlassian</span></div>
+  <p class="why">Năm chặng nằm trên một trục ngang. Đoạn đã đi tô xanh, đoạn đang chạy tô cam, chặng đang chạy có vòng sáng quanh chấm. Câu việc tiếp theo và hạn giao gộp vào một thẻ tóm tắt: trái là đơn đang ở đâu, phải là hạn giao lớn kèm số ngày còn lại. Vì vậy dòng "Hạn giao cam kết" và thẻ "còn 27 ngày" không còn phải nói hai lần. Bốn con số là bốn ô nền nhạt, ô giao được có viền cam.</p>
+
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="p2-path">
+      <div class="p2-truc"><i></i></div>
+      <div class="p2-buoc xong"><span class="p2-dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="p2-the"><b>Chốt</b><br><small>6/10</small></span></div>
+      <div class="p2-buoc xong"><span class="p2-dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="p2-the"><b>Cọc</b><br><small>không cần</small></span></div>
+      <div class="p2-buoc dang"><span class="p2-dot"></span><span class="p2-the"><b>Sản xuất</b><br><small>chưa có hàng</small></span></div>
+      <div class="p2-buoc chua chon"><span class="p2-dot"></span><span class="p2-the"><b>Giao</b><br><small>chưa giao</small></span></div>
+      <div class="p2-buoc xong"><span class="p2-dot"><svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="#fff" stroke-width="2"><path d="M2.5 6.3l2.2 2.2 4.8-5"/></svg></span><span class="p2-the"><b>Hóa đơn</b><br><small>đã ghi đủ</small></span></div>
+    </div>
+
+    <div class="p2-tom">
+      <div>
+        <h4>Xưởng đang chạy 2 lệnh</h4>
+        <span class="muted">Giao hàng chưa bắt đầu</span>
+        <div class="p2-trang"><span class="the">chưa ước được ngày xong</span></div>
+      </div>
+      <div class="p2-han"><small>Hạn giao cam kết</small><span>6/11/2026</span><em>còn 27 ngày</em></div>
+    </div>
+
+    <div class="p2-mon">
+      <div class="p2-mon-dau"><span class="ten">Sách A5 64 trang</span><span class="muted">khách đặt 1.000 cuốn</span></div>
+      <div class="p2-so">
+        <div class="p2-o"><small>Đã giao</small><span>0</span><em>cuốn</em></div>
+        <div class="p2-o"><small>Còn phải giao</small><span>1.000</span><em>cuốn</em></div>
+        <div class="p2-o chu"><small>Giao được ngay</small><span>0</span><em>chưa kho nào nhận</em></div>
+        <div class="p2-o"><small>Đang làm ở xưởng</small><span>1.000</span><em>Cắt tờ 3%</em></div>
+      </div>
+    </div>
+
+    <div class="khung-bang cuon"><table class="b">
+      <thead><tr><th>Kho</th><th class="r">Đang có</th><th class="r">Đã giữ cho yêu cầu giao</th><th class="r">Giao được</th><th>Của ai</th></tr></thead>
+      <tbody>
+        <tr class="mo"><td>Kho thành phẩm</td><td class="r num">300</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">hàng của DH001</span></td></tr>
+        <tr class="mo"><td>Kho Bình Dương</td><td class="r num">120</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">tồn chung, không thuộc đơn nào</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="chan"><button class="btn btn--chinh" disabled>Tạo yêu cầu giao hàng</button><span class="muted">Chưa có hàng của đơn này ở kho nào.</span></div>
+  </div>
+</section>
+
+<!-- ==================== 3 ==================== -->
+<section class="sec">
+  <div class="sec-head"><h2>Phương án 3: thanh chặng dạng nút chọn, một thanh nhiều khúc thay bốn ô số</h2><span class="src">khuôn Primer ProgressBar</span></div>
+  <p class="why">Thanh chặng là một dải nền xám chứa năm nút. Chặng đang xem nổi lên thành thẻ trắng, mỗi chặng có số thứ tự hoặc dấu tích. Câu việc tiếp theo thành một dòng chữ thường. Bốn ô số được thay bằng con số chính "giao được" ở bên phải, cộng một thanh mảnh nhiều khúc. Chú thích dưới thanh luôn kèm số, khúc nào bằng 0 thì chữ nhạt đi. Như vậy không còn chuyện chú thích năm màu mà thanh chỉ có một màu.</p>
+
+  <div class="nhan-mau">ĐƠN CHƯA CÓ HÀNG</div>
+  <div class="ngan">
+    <div class="sec-tieu">Vòng đời đơn</div>
+    <div class="p3-path">
+      <div class="p3-buoc xong"><span class="so">✓</span><span><b>Chốt</b><small>6/10</small></span></div>
+      <div class="p3-buoc xong"><span class="so">✓</span><span><b>Cọc</b><small>không cần</small></span></div>
+      <div class="p3-buoc dang"><span class="so">3</span><span><b>Sản xuất</b><small>chưa có hàng</small></span></div>
+      <div class="p3-buoc chon"><span class="so">4</span><span><b>Giao</b><small>hạn 6/11</small></span></div>
+      <div class="p3-buoc xong"><span class="so">✓</span><span><b>Hóa đơn</b><small>đã ghi đủ</small></span></div>
+    </div>
+    <div class="p3-viec"><span class="chu">Xưởng đang chạy 2 lệnh</span><span class="the">chưa ước được ngày xong</span><span class="the">còn 27 ngày tới hạn giao</span></div>
+
+    <div class="p3-dau"><h4>Giao hàng</h4><span class="tt tt--xam">Chưa giao</span><span class="han">Hạn giao cam kết 6/11/2026</span></div>
+    <div class="p3-mon">
+      <div class="p3-mon-dau"><span class="ten">Sách A5 64 trang</span><span class="muted">khách đặt 1.000 cuốn</span><span class="tong">giao được ngay <span>0</span> cuốn</span></div>
+      <div class="p3-thanh"><i class="k-lam" style="width:100%"></i></div>
+      <div class="p3-chu">
+        <span class="tat"><i class="k-giao"></i>Đã giao <b>0</b></span>
+        <span class="tat"><i class="k-kho"></i>Ở kho, của đơn <b>0</b></span>
+        <span><i class="k-lam"></i>Đang làm ở xưởng <b>1.000</b></span>
+        <span class="tat"><i class="k-chua"></i>Chưa làm <b>0</b></span>
+      </div>
+    </div>
+
+    <div class="khung-bang cuon"><table class="b">
+      <thead><tr><th>Kho</th><th class="r">Đang có</th><th class="r">Đã giữ cho yêu cầu giao</th><th class="r">Giao được</th><th>Của ai</th></tr></thead>
+      <tbody>
+        <tr class="mo"><td>Kho thành phẩm</td><td class="r num">300</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">hàng của DH001</span></td></tr>
+        <tr class="mo"><td>Kho Bình Dương</td><td class="r num">120</td><td class="r num">0</td><td class="r">—</td><td><span class="tt tt--khac">tồn chung, không thuộc đơn nào</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="chan"><button class="btn btn--chinh" disabled>Tạo yêu cầu giao hàng</button><span class="muted">Chưa có hàng của đơn này ở kho nào.</span></div>
+  </div>
+
+  <div class="nhan-mau">CÙNG KHỐI, KHI ĐÃ GIAO 200 VÀ KHO ĐANG CÓ 400 CỦA ĐƠN</div>
+  <div class="ngan">
+    <div class="p3-mon" style="margin-top:0">
+      <div class="p3-mon-dau"><span class="ten">Sách A5 64 trang</span><span class="muted">khách đặt 1.000 cuốn</span><span class="tong">giao được ngay <span>400</span> cuốn</span></div>
+      <div class="p3-thanh"><i class="k-giao" style="width:20%"></i><i class="k-kho" style="width:40%"></i><i class="k-lam" style="width:40%"></i></div>
+      <div class="p3-chu">
+        <span><i class="k-giao"></i>Đã giao <b>200</b></span>
+        <span><i class="k-kho"></i>Ở kho, của đơn <b>400</b></span>
+        <span><i class="k-lam"></i>Đang làm ở xưởng <b>400</b></span>
+        <span class="tat"><i class="k-chua"></i>Chưa làm <b>0</b></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

@@ -41,12 +41,12 @@ from ..schemas.stock import (
     StockRequestReject,
     StockRequestUpdate,
 )
-from ..services.kho_giay import khoa_ton_cua
+from ..services.kho_giay import co_don_vi_goc, khoa_ton_cua
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
 from ..services.quyen_kho import xem_ton_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.san_xuat.kho import phat_su_kien_kho
-from ..services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
+from ..services.san_xuat.vat_tu_de_nghi import _can_luc_luu, _ngay_vn, can_luc_hien_thi
 from ..services.sequence_service import SequenceService
 from ..services.stock_request_service import (
     StockRequestConflict, StockRequestError, StockRequestService,
@@ -217,10 +217,10 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         try:
             dv = don_vi_map.get(key)
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
-            # Giấy có DẠNG: gốc theo dạng (tờ ⇒ tờ nguyên, cuộn ⇒ kg), không phải gốc của mã giấy.
-            if ln.hang_loai == "giay" and ln.dang_giay:
+            # Giấy / vật tư: gốc theo ĐƠN VỊ GỐC của dòng (đơn vị đã khai), không phải ĐVT chính.
+            if co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
                 qd = hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt, float(ln.sl_de_nghi),
-                                         dang=ln.dang_giay)
+                                         goc=ln.don_vi_goc)
             else:
                 qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
                       else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
@@ -241,8 +241,13 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             lsx_ma=lenh_map.get(("lsx", ln.lsx_id)),
             bai_ghep_ma=lenh_map.get(("bai_ghep", ln.bai_ghep_id)),
             dvt=ln.dvt,
-            dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
-            don_vi_goc=(qd or {}).get("don_vi_goc_ten"),
+            kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
+            # MÃ đơn vị gốc (FE đổi ra tên bằng danh mục đơn vị; khoá tồn giấy / vật tư đọc mã này).
+            don_vi_goc=((ln.don_vi_goc or None) if co_don_vi_goc(ln.hang_loai) else None)
+            or (qd or {}).get("don_vi_goc"),
+            # Tên để bày; quy đổi hỏng thì lùi về chính mã (giấy cũ chưa có tên trong danh mục).
+            don_vi_goc_ten=(qd or {}).get("don_vi_goc_ten")
+            or (((ln.don_vi_goc or None) if co_don_vi_goc(ln.hang_loai) else None)),
             sl_quy_doi=(qd or {}).get("sl_goc"),
             quy_doi_dien_giai=(qd or {}).get("dien_giai"),
             canh_bao_dv=canh_bao,
@@ -292,7 +297,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         dot_so=dot[2] if dot else None,
         # Gỡ nhãn UTC trước khi ra JSON: Postgres trả `can_luc` AWARE, còn FE (`fmtGioCan`,
         # `isOverdue`) đọc naive = giờ NHÀ MÁY — để nguyên là thủ kho thấy giờ cần lệch +7h.
-        can_luc=can_luc_hien_thi(bc.get("can_luc")),
+        can_luc=can_luc_hien_thi(getattr(req, "can_luc", None) or bc.get("can_luc")),
         san_xuat_cong_viec_id=bc.get("cong_viec_id"),
         san_xuat_cong_doan_ten=bc.get("cong_doan_ten"),
         created_at=req.created_at, updated_at=req.updated_at, lines=lines,
@@ -305,7 +310,7 @@ def _levels(svc: StockRequestService, req):
     `levels_and_on_hand` tính CẢ đèn lẫn tồn trong 1 lượt: đèn theo ngưỡng của kho (kho_id None thì
     chưa có ngưỡng → chỉ phân biệt hết/còn). UI đã bỏ cột đèn nên không nhiễu, nhưng GIỮ `muc_ton`
     cho API/test (bỏ hẳn làm vỡ test đèn + mất tín hiệu cho ai còn dùng)."""
-    # Giấy tờ đọc tồn ĐÚNG khổ, giấy cuộn theo mã (spec §3.2) — khoá của chính dòng.
+    # Giấy đọc tồn ĐÚNG khổ + đơn vị gốc của dòng — khoá của chính dòng.
     return svc.levels_and_on_hand([khoa_ton_cua(ln) for ln in req.lines], req.kho_id)
 
 
@@ -563,13 +568,16 @@ def create_request(
     payload: StockRequestCreate, svc: Service, db: Db, authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "request"))],
 ) -> StockRequestOut:
+    # Có GIỜ cần thì ngày cần là ngày của chính giờ đó (cùng khuôn đề nghị của tổ sản xuất).
+    can_luc = _can_luc_luu(payload.can_luc) if payload.can_luc else None
+    ngay_can = _ngay_vn(payload.can_luc) if payload.can_luc else payload.ngay_can
     try:
         req = svc.create(
             user=user, loai=payload.loai, kho_id=payload.kho_id, ma=payload.ma,
             lines=[ln.model_dump() for ln in payload.lines],
-            ngay_can=payload.ngay_can, uu_tien=payload.uu_tien, ghi_chu=payload.ghi_chu,
+            ngay_can=ngay_can, can_luc=can_luc, uu_tien=payload.uu_tien, ghi_chu=payload.ghi_chu,
             loai_kho=payload.loai_kho, purchase_delivery_id=payload.purchase_delivery_id,
-            chong_gui_lai=True,
+            chong_gui_lai=True, kho_to_bat_buoc=True,
         )
     except StockRequestError as e:
         raise _err(e) from None
@@ -591,6 +599,12 @@ def update_request(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Chỉ người tạo mới sửa được yêu cầu")
     data = payload.model_dump(exclude_unset=True, exclude={"lines"})
+    if "can_luc" in data:
+        # Đổi/xoá giờ cần: ngày cần đi theo giờ; xoá giờ (null) thì chỉ xoá giờ, ngày giữ nguyên.
+        gio = data["can_luc"]
+        data["can_luc"] = _can_luc_luu(gio) if gio else None
+        if gio:
+            data["ngay_can"] = _ngay_vn(gio)
     lines = [ln.model_dump() for ln in payload.lines] if payload.lines is not None else None
     if lines is not None and not authz.can(user, MODULE, "view_cost"):
         # Không thấy giá thì form gửi lên không có giá — ghi thẳng là xoá mất giá đang có.
@@ -599,7 +613,7 @@ def update_request(
             ln["don_gia"] = cu.get((ln["hang_loai"], ln["hang_id"], ln.get("lsx_id"),
                                     ln.get("bai_ghep_id")))
     try:
-        req = svc.update(req, lines=lines, **data)
+        req = svc.update(req, lines=lines, kho_to_bat_buoc=True, **data)
     except StockRequestError as e:
         raise _err(e) from None
     return _serialize(req, db=db, can_view_stock=xem_ton_kho(db, authz, user, req.kho_id),

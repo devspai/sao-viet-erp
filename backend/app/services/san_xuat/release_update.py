@@ -22,7 +22,12 @@ dải phút chạy · dặn dò của kế hoạch · thẻ quy cách rút gọn
 `docs/superpowers/specs/2026-09-10-ban-to-du-thong-tin-design.md` §8: lệnh phát hành TRƯỚC ngày có
 mấy khoá ấy lấy đủ thông tin bằng đúng cửa này (migration cố ý không backfill).
 
-Vẫn KHÔNG đụng: số lượng vào/ra · khoán · định mức vật tư · con dao · checklist KCS · tuyến. Đó là
+**Tiêu chí KCS** (09/10/2026): cũng tái chụp theo danh mục Tiêu chí KCS hiện tại — khai thêm tiêu
+chí cho công đoạn thì lệnh đang chạy nhận được qua cửa này, chỉ ở việc CHƯA bắt đầu. Trừ việc mà tiêu
+chí đã có kết quả ở một lần kiểm (bước cuối xét gộp cả nhóm): kết quả khoá theo `thu_tu` của bản
+chụp, chụp lại là kết quả cũ trỏ nhầm câu.
+
+Vẫn KHÔNG đụng: số lượng vào/ra · khoán · định mức vật tư · con dao · tuyến. Đó là
 CAM KẾT đã đóng băng (§4.2) — chúng chảy thẳng vào lương, kho và bàn giao, đọc-sống lại là xê dịch
 việc thợ đang làm dở. Hành lý ở trên thì ngược lại: nó chỉ để ĐỌC, mà giữ bản cũ nghĩa là thợ đọc
 một câu dặn dò đã bị kế hoạch sửa từ lâu.
@@ -36,6 +41,7 @@ from sqlalchemy.orm import Session
 
 from ...models.san_xuat import (
     CV_PHAT_HANH,
+    NHOM_DONG,
     GOI_DA_THU_HOI,
     GOI_DANG_PHAT_HANH,
     PB_CAP_NHAT,
@@ -46,12 +52,12 @@ from ...models.san_xuat import (
 )
 from ...models.san_xuat_thuc_thi import PC_DA_RUT
 from ...repositories.audit_repo import AuditLogRepository
+from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
 from ..dong_giay import ban_do_tram
 from ..gio_xuong import thuc_te_hien_thi
-from . import ho_tro
-from .snapshot import _dinh_muc, _hanh_ly, _SoPhatHanh
+from .snapshot import _checklist, _dinh_muc, _hanh_ly, _SoPhatHanh
 
 _LY_DO_RUT = "Phát hành cập nhật — phân công cần xác nhận lại."
 
@@ -159,20 +165,17 @@ def _tai_chup_hanh_ly(db: Session, cv: SanXuatCongViec, so, tram: dict[str, str]
     return True
 
 
-def _huy_phan_cong_ho_tro(
-    db: Session, thuc: SanXuatThucThiRepository, cv: SanXuatCongViec, actor_uid: int | None
-) -> tuple[int, int]:
-    """Huỷ phân công + thỏa thuận hỗ trợ của một việc chưa bắt đầu. Trả (số PC, số HT) đã huỷ.
-    Việc chưa bắt đầu không có khoảng tham gia mở, nên chỉ cần rút dòng roster."""
+def _huy_phan_cong(thuc: SanXuatThucThiRepository, cv: SanXuatCongViec) -> int:
+    """Huỷ phân công của một việc chưa bắt đầu. Trả số phân công đã huỷ. Việc chưa bắt đầu không có
+    khoảng tham gia mở, nên chỉ cần rút dòng roster."""
     n_pc = 0
     for pc in thuc.phan_cong_hoat_dong(cv.id):
         pc.trang_thai = PC_DA_RUT
         pc.ly_do_rut = _LY_DO_RUT
         pc.version += 1
         n_pc += 1
-    n_ht = ho_tro.huy_ho_tro_phat_hanh_lai(db, cong_viec_id=cv.id, actor_user_id=actor_uid)
     cv.version += 1
-    return n_pc, n_ht
+    return n_pc
 
 
 # --- Đọc: thông tin gói (cho UI quyết nút Cập nhật / Thu hồi) --------------------------------
@@ -216,6 +219,90 @@ def thong_tin_goi(db: Session, *, nguon: str, id: int) -> dict:
     }
 
 
+# --- Tiêu chí KCS của lệnh đang chạy: soi cũ → mới, rồi cập nhật riêng ----------------------
+def _soi_tieu_chi(db: Session, lsx_id: int) -> list[tuple]:
+    """`[(công việc, bản chụp mới)]` của lệnh mà bộ tiêu chí đang giữ khác danh mục hiện tại.
+
+    Khác "Phát hành cập nhật": soi CẢ việc đã bắt đầu. Tiêu chí không phải cam kết với tổ (không
+    vào lương, kho, bàn giao) — nó chỉ là thứ bước KCS cuối xét, nên việc đang chạy vẫn lấy bộ mới
+    được. Hai chỗ KHÔNG đụng: việc mà tiêu chí đã có KẾT QUẢ ở một lần kiểm (kết quả khoá theo
+    `thu_tu` của bản chụp, chụp lại là kết quả cũ trỏ nhầm câu), và nhóm đã đóng."""
+    repo = SanXuatRepository(db)
+    goi = repo.goi_hien_tai_cua({lsx_id}, set())
+    if goi is None or goi.trang_thai != GOI_DANG_PHAT_HANH:
+        return []
+    cvs = [cv for cv in repo.cong_viec_cua_goi(goi.id) if cv.lsx_id == lsx_id]
+    if not cvs:
+        return []
+    kcs = SanXuatKcsRepository(db)
+    dong = set()
+    for n in {cv.nhom_id for cv in cvs}:
+        nh = kcs.nhom(n)
+        if nh is not None and nh.trang_thai == NHOM_DONG:
+            dong.add(n)
+    cd_cua = {cv.id: _cd_nguon(db, cv) for cv in cvs}
+    tieu_chi_theo_cd = repo.checklist_theo_cong_doan(
+        {cd.cong_doan_id for cd in cd_cua.values() if cd is not None and cd.cong_doan_id})
+    da_xet = kcs.cong_viec_da_xet_tieu_chi({cv.nhom_id for cv in cvs})
+    ra: list[tuple] = []
+    for cv in sorted(cvs, key=lambda c: c.id):
+        cd = cd_cua[cv.id]
+        if cd is None or cv.id in da_xet or cv.nhom_id in dong:
+            continue
+        moi = _checklist(cd, tieu_chi_theo_cd)
+        if _ten_tc(cv.kcs_tieu_chi_json) != _ten_tc(moi):
+            ra.append((cv, moi))
+    return ra
+
+
+def _ten_tc(ds) -> list[str]:
+    return [x.get("ten") or "" for x in (ds or []) if isinstance(x, dict)]
+
+
+def tieu_chi_kcs_lech(db: Session, lsx_id: int) -> list[dict]:
+    """Bảng cũ → mới cho băng "Tiêu chí KCS đã đổi" ở hồ sơ lệnh. Rỗng khi khớp hết. Chỉ đọc.
+
+    Mỗi phần tử `{cong_viec_id, ten, cu: [câu], moi: [câu], them, bo, doi_thu_tu, da_bat_dau}` —
+    so theo CÂU CHỮ, vì người lập kế hoạch đọc câu chứ không đọc id."""
+    soi = _soi_tieu_chi(db, lsx_id)
+    if not soi:
+        return []
+    da_bat_dau = _da_bat_dau_ids(SanXuatThucThiRepository(db), [cv for cv, _ in soi])
+    ra: list[dict] = []
+    for cv, moi_json in soi:
+        cu, moi = _ten_tc(cv.kcs_tieu_chi_json), _ten_tc(moi_json)
+        ra.append({
+            "cong_viec_id": cv.id,
+            "ten": cv.ten_cong_doan,
+            "cu": cu,
+            "moi": moi,
+            "them": [x for x in moi if x not in cu],
+            "bo": [x for x in cu if x not in moi],
+            "doi_thu_tu": sorted(cu) == sorted(moi),
+            "da_bat_dau": cv.id in da_bat_dau,
+        })
+    return ra
+
+
+def cap_nhat_tieu_chi_kcs(db: Session, *, lsx_id: int, actor) -> int:
+    """Nút "Cập nhật tiêu chí" của băng: chụp lại tiêu chí KCS theo danh mục cho đúng các việc băng
+    liệt kê (cùng `_soi_tieu_chi`). KHÔNG đụng lịch, phân công, phiên bản gói — tổ không phải xác
+    nhận lại gì. Tự commit. Trả số công việc đã cập nhật."""
+    soi = _soi_tieu_chi(db, lsx_id)
+    if not soi:
+        raise ValueError("Tiêu chí KCS của lệnh đã khớp danh mục, không có gì để cập nhật.")
+    for cv, moi in soi:
+        cv.kcs_tieu_chi_json = moi
+    AuditLogRepository(db).create(
+        actor_user_id=getattr(actor, "id", None),
+        action="san_xuat.cap_nhat_tieu_chi_kcs",
+        target=f"lsx:{lsx_id}",
+        detail="Cập nhật tiêu chí KCS theo danh mục: " + "; ".join(cv.ten_cong_doan for cv, _ in soi),
+    )
+    SanXuatRepository(db).commit()
+    return len(soi)
+
+
 # --- Ghi: phát hành cập nhật (chủ giao dịch) ------------------------------------------------
 def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -> dict:
     """Tái chụp các việc CHƯA bắt đầu theo lịch hiện tại → phiên bản mới (§4.3). Tự commit.
@@ -252,12 +339,17 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
     goi.version_hien_tai = new_ver
     goi.version += 1
 
-    so_huy_pc = so_huy_ht = 0
+    so_huy_pc = 0
     so_lech_phan_doan = 0
     # Hộp số dẫn xuất dùng CHUNG cho cả vòng: nó cache quy cách theo lệnh / theo bài, dựng mới mỗi
     # việc là chạy lại `quy_cach_bien` (bài ghép còn phải `tinh_so_to`) cho từng thẻ.
     so = _SoPhatHanh(db)
     tram = ban_do_tram(db)
+    # Tiêu chí KCS: tra danh mục MỘT lần cho cả vòng; bỏ qua việc đã có kết quả xét tiêu chí.
+    cd_cua = {cv.id: _cd_nguon(db, cv) for cv in chua}
+    tieu_chi_theo_cd = repo.checklist_theo_cong_doan(
+        {cd.cong_doan_id for cd in cd_cua.values() if cd is not None and cd.cong_doan_id})
+    da_xet = SanXuatKcsRepository(db).cong_viec_da_xet_tieu_chi({cv.nhom_id for cv in chua})
     for cv in chua:
         moc = _thoi_gian_nguon(repo, cv)
         if moc is None:                 # lịch đã tách thêm/gộp lại — không còn lần chạy này
@@ -265,6 +357,8 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
             continue
         may_id, start, finish = moc
         _tai_chup_hanh_ly(db, cv, so, tram)
+        if cd_cua[cv.id] is not None and cv.id not in da_xet:
+            cv.kcs_tieu_chi_json = _checklist(cd_cua[cv.id], tieu_chi_theo_cd)
         # CHỤP BẢN CŨ TRƯỚC KHI ĐÈ. Ba dòng dưới sửa đè tại chỗ (cố ý — `cv.id` bị phụ thuộc,
         # phân công, hỗ trợ, batch, bàn giao, KCS trỏ tới), nên không chụp ở đây là bản cũ biến
         # mất vĩnh viễn và không ai trả lời được "v3 hứa bước này chạy lúc mấy giờ".
@@ -279,9 +373,7 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish
         cv.phien_ban_so = new_ver
-        n_pc, n_ht = _huy_phan_cong_ho_tro(db, thuc, cv, actor_uid)
-        so_huy_pc += n_pc
-        so_huy_ht += n_ht
+        so_huy_pc += _huy_phan_cong(thuc, cv)
     so_cap_nhat = len(chua) - so_lech_phan_doan
 
     # GIA CÔNG NGOÀI (spec 2026-09-26, Fix round 1): "Phát hành cập nhật" cũng tạo/giữ lần gia
@@ -298,8 +390,7 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         action="san_xuat.phat_hanh_cap_nhat",
         target=f"san_xuat_goi:{goi.id}",
         detail=(f"Cập nhật lịch → phiên bản {new_ver}: tái chụp {so_cap_nhat} việc chưa bắt đầu, "
-                f"giữ nguyên {len(da_bat_dau)} việc đã bắt đầu; huỷ {so_huy_pc} phân công + "
-                f"{so_huy_ht} hỗ trợ"
+                f"giữ nguyên {len(da_bat_dau)} việc đã bắt đầu; huỷ {so_huy_pc} phân công"
                 + (f"; {so_lech_phan_doan} việc lệch lần chạy (lịch đã tách/gộp lại) giữ nguyên"
                    if so_lech_phan_doan else "")
                 + f". Lý do: {ly_do[:200]}"),
@@ -312,7 +403,6 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         "so_cong_viec_cap_nhat": so_cap_nhat,
         "so_giu_nguyen": len(da_bat_dau),
         "so_huy_phan_cong": so_huy_pc,
-        "so_huy_ho_tro": so_huy_ht,
         # >0 ⇒ số lần chạy đã đổi sau phát hành; những việc đó KHÔNG được cập nhật, UI phải nói ra.
         "so_lech_phan_doan": so_lech_phan_doan,
     }
@@ -349,7 +439,7 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
     all_cv = repo.cong_viec_cua_goi(goi.id)
     actor_uid = getattr(actor, "id", None)
     for cv in all_cv:
-        _huy_phan_cong_ho_tro(db, thuc, cv, actor_uid)
+        _huy_phan_cong(thuc, cv)
     from ..gia_cong_ngoai.lan import huy_lan_cua_goi
 
     huy_lan_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
@@ -360,6 +450,7 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
         action="san_xuat.thu_hoi_goi",
         target=f"san_xuat_goi:{goi.id}",
         detail=f"Thu hồi gói phát hành {goi.ma} ({len(all_cv)} công việc) — gỡ phát hành khi chưa việc nào bắt đầu.",
+        commit=False,
     )
     repo.flush()
     return len(all_cv)

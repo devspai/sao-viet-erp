@@ -26,9 +26,9 @@ describe("Quy trình kinh doanh", () => {
     expect(new Set(o).size).toBe(o.length);
   });
 
-  it("mọi bước trỏ tới màn có thật trên menu (KCS là mục động theo phòng ban)", () => {
+  it("mọi bước trỏ tới màn có thật trên menu", () => {
     const man = BUOC.map((b) => b.man).filter(Boolean) as string[];
-    expect(man.filter((m) => m !== "kcs" && !MOI_MAN_MENU.has(m))).toEqual([]);
+    expect(man.filter((m) => !MOI_MAN_MENU.has(m))).toEqual([]);
   });
 
   it("trên sơ đồ không có mô tả; bấm ô mới hiện chi tiết và nút mở đúng màn", async () => {

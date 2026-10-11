@@ -125,7 +125,7 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000) -> PhieuTinhGia:
     # constraint, giống `cd_in` ngay dưới.
     giay = db.query(GiayNguyen).filter(GiayNguyen.ma == "G-IV350X").first()
     if giay is None:
-        giay = GiayNguyen(
+        giay = GiayNguyen(don_vi_them=["to"], 
             ma="G-IV350X", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
             cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000",
         )
@@ -210,7 +210,7 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
         db.add(StockLot(hang_loai=loai, hang_id=hid, kho_id=kho.id, ma_lo=ma_lo,
                         sl_ban_dau=1_000_000, sl_con_lai=1_000_000,
                         ngay_nhap=date.today(), trang_thai=LOT_AVAILABLE,
-                        dang_giay="to" if loai == "giay" else None, kho_rong=kr, kho_dai=kd))
+                        don_vi_goc="to" if loai == "giay" else "", kho_rong=kr, kho_dai=kd))
 
     for mh in db.query(VatTuInAn).all():
         _lo("vat_tu", mh.id)

@@ -158,7 +158,8 @@ def _cot_nhieu_to(field: str = "department_ids", nhan: str = "Mã tổ", nhan_te
 
 
 def _tach_danh_sach(gt: Any, _ctx: NguCanh) -> list[str]:
-    """Ô "a, b, c" đời cũ → danh sách. Chỉ dùng cho cột `chi_nhap` (nay đã tách thành sheet con)."""
+    """Ô "a, b, c" → danh sách: cột `chi_nhap` đời cũ (nay là sheet con) và cột "ĐVT thêm" (mã/tên đơn
+    vị, service quy tên về mã)."""
     return [t.strip() for t in str(gt or "").split(",") if t.strip()]
 
 
@@ -358,6 +359,8 @@ GIAY = CatalogExcelSpec(
         Cot("Tên", "ten", rong=32),
         Cot("Định lượng (gsm)", "gsm", kieu="nguyen", rong=16),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
+        Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_tach_danh_sach,
+            ghi=lambda gt, _ctx: ", ".join(gt or [])),
         Cot("Đơn giá", "don_gia", kieu="so", rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         Cot("Công thức giá", "cong_thuc_gia", rong=36),
@@ -378,6 +381,8 @@ VAT_TU = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
+        Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_tach_danh_sach,
+            ghi=lambda gt, _ctx: ", ".join(gt or [])),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),

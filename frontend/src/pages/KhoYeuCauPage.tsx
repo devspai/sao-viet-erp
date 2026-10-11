@@ -66,7 +66,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
-import { chuanKho, nhanDangKho } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, nhanKhoGiay } from "../lib/khoGiay";
 import { khoaTonKho } from "../auth/quyenKho";
 import {
   LOC_MAN_YCK_TRONG,
@@ -95,6 +95,7 @@ import {
   TheNguonHang,
   TienDoA,
   canLucCua,
+  tuKcs,
   dongDu,
   lapVaGhiSoCungLuc,
   lichSuYeuCau,
@@ -102,6 +103,7 @@ import {
   type MucLichSu,
 } from "./khoNganA";
 import { OMuaCho } from "./mua-hang/mua-cho/OMuaCho";
+import { khopGanDung } from "../utils/timGanDung";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 import "./ke-toan/ke-toan.css";
@@ -920,8 +922,8 @@ export function TransferDrawer({
                               <td>
                                 <div>{l.hang_ten ?? "—"}</div>
                                 <div className="kho-lines__code" style={{ fontSize: 12, color: "var(--ash-2)" }}>{l.hang_ma ?? ""}</div>
-                                {l.dang_giay && (
-                                  <div className="kho-lines__code" style={{ fontSize: 12 }}>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</div>
+                                {nhanKhoGiay(l) && (
+                                  <div className="kho-lines__code" style={{ fontSize: 12 }}>{nhanKhoGiay(l)}</div>
                                 )}
                               </td>
                               <td className="n">
@@ -1143,12 +1145,18 @@ export function InboxRequestDrawer({
   const dongYc = req?.lines ?? [];
   // Giá bán (tham khảo) — CỘT RIÊNG, chỉ dựng khi có dòng thành phẩm mang giá bán.
   const hienGiaBan = canViewCost && dongYc.some((l) => l.don_gia_ban != null);
+  // Một đơn bán thì thẻ Nguồn hàng đã ghi — ô Giá bán khỏi lặp mã đơn; nhiều đơn mới ghi từng dòng.
+  const nhieuDonBan = new Set(dongYc.map((l) => l.don_ban_ma).filter(Boolean)).size > 1;
+  // Thành phẩm KCS chưa có giá gốc hiện chip "Chưa có giá gốc" — cột phải đủ rộng cho chip, khỏi cắt chữ.
+  const rongGia = dongYc.some((l) => l.tu_kcs) ? 96 : 90;
   // Cột tiền chỉ dựng khi máy chủ THẬT SỰ trả số (yêu cầu xuất không mang đơn giá — giá vốn nằm ở phiếu).
   const hienTien = canViewCost && dongYc.some((l) => l.don_gia != null || l.tu_kcs);
   // Yêu cầu nhập từ đợt giao đơn mua: dòng mang "Mua cho" (tồn kho / theo yêu cầu / lệnh nào) suy
   // từ yêu cầu mua gốc (08/10/2026). Yêu cầu xuất vẫn là cột "Cho lệnh" như cũ.
   const hienMuaCho = dongYc.some((l) => (l.loai_mua_cac?.length ?? 0) > 0);
-  const hienLenh = hienMuaCho || dongYc.some((l) => l.lsx_ma || l.bai_ghep_ma);
+  // Yêu cầu từ KCS chỉ một lệnh: thẻ Nguồn hàng đã ghi lệnh ⇒ bỏ cột, nhường chỗ cho bảng khỏi cuộn ngang.
+  const motLenhKcs = dongYc.some((l) => l.tu_kcs) && new Set(dongYc.map((l) => l.lsx_ma)).size === 1;
+  const hienLenh = hienMuaCho || (!motLenhKcs && dongYc.some((l) => l.lsx_ma || l.bai_ghep_ma));
   // Cột tồn chỉ cho yêu cầu XUẤT: kho đang nhận hàng thì tồn không phải câu hỏi.
   const hienTon = xemTon && !nhap;
   const dongMo = req != null && FULFILLABLE.includes(req.trang_thai);
@@ -1238,17 +1246,18 @@ export function InboxRequestDrawer({
                       ? `${soDu}/${dongYc.length} mặt hàng đã ${nhap ? "nhập" : "cấp"} đủ` : undefined}>
                     <div className="lds-bang">
                       {/* Cột cố định cộng lại + 160 cho cột Vật tư: chật hơn bề ngang ngăn thì khung tự cuộn ngang. */}
-                      <table className="lds-g" style={{ minWidth: 160 + 276 + (hienLenh ? 130 : 0) + (hienTon ? 110 : 0) + (hienTien ? 200 : 0) + (hienGiaBan ? 100 : 0) }}>
+                      {/* Ngăn rộng 1180px để bảng còn ~727px: cột hẹp vừa đủ chữ, Vật tư giữ tối thiểu 150px. */}
+                      <table className="lds-g" style={{ minWidth: 150 + 244 + (hienLenh ? 120 : 0) + (hienTon ? 110 : 0) + (hienTien ? 104 + rongGia : 0) + (hienGiaBan ? 116 : 0) }}>
                         <colgroup>
                           <col />
-                          {hienLenh && <col style={{ width: 130 }} />}
-                          <col style={{ width: 90 }} />
-                          <col style={{ width: 96 }} />
-                          <col style={{ width: 90 }} />
+                          {hienLenh && <col style={{ width: 120 }} />}
+                          <col style={{ width: 84 }} />
+                          <col style={{ width: 76 }} />
+                          <col style={{ width: 84 }} />
                           {hienTon && <col style={{ width: 110 }} />}
-                          {hienTien && <col style={{ width: 90 }} />}
-                          {hienTien && <col style={{ width: 110 }} />}
-                          {hienGiaBan && <col style={{ width: 100 }} />}
+                          {hienTien && <col style={{ width: rongGia }} />}
+                          {hienTien && <col style={{ width: 104 }} />}
+                          {hienGiaBan && <col style={{ width: 116 }} />}
                         </colgroup>
                         <thead>
                           <tr>
@@ -1282,7 +1291,7 @@ export function InboxRequestDrawer({
                                     <HangA ten={l.hang_ten ?? "—"} anh={l.hang_anh ? anhNho(l.hang_anh) : null}
                                       phu={<>
                                         {l.hang_ma && <span className="kna-tag kna-tag--ma">{l.hang_ma}</span>}
-                                        {l.dang_giay && <span>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</span>}
+                                        {nhanKhoGiay(l) && <span>{nhanKhoGiay(l)}</span>}
                                       </>} />
                                   </td>
                                   {hienLenh && (
@@ -1353,7 +1362,7 @@ export function InboxRequestDrawer({
                                   )}
                                   {hienGiaBan && (
                                     <td className="n kna-so">
-                                      <GiaBanDong gia={l.don_gia_ban} dvt={l.dvt} donMa={l.don_ban_ma} />
+                                      <GiaBanDong gia={l.don_gia_ban} dvt={l.dvt} donMa={nhieuDonBan ? l.don_ban_ma : null} />
                                     </td>
                                   )}
                                 </tr>
@@ -1498,8 +1507,8 @@ interface LotPick {
   /** Tồn còn lại CỦA LÔ. */
   sl_con_lai: number;
   so_luong: number;
-  /** Giấy: dạng + khổ của lô (hàng khác: null · 0 · 0). */
-  dang_giay: "to" | "cuon" | null;
+  /** Giấy: khổ + đơn vị gốc của lô (hàng khác: "" · 0 · 0). */
+  don_vi_goc: string;
   kho_rong: number;
   kho_dai: number;
   don_gia_nhap: number | null;
@@ -1536,8 +1545,8 @@ interface AllocBlock {
   /** Phiếu NHẬP: HẠN SỬ DỤNG của đợt nhập này (tuỳ chọn, ISO). Một đợt = 1 lô = 1 hạn; nhiều hạn
    *  của cùng vật tư là do NHIỀU đợt nhập, tồn/báo cáo tự gom. */
   hsd: string;
-  /** Phiếu NHẬP giấy: dạng + khổ của lô sắp tạo — mặc định chép từ dòng đề nghị, kho sửa được. */
-  dang: "to" | "cuon" | null;
+  /** Phiếu NHẬP giấy: khổ của lô sắp tạo — mặc định chép từ dòng đề nghị, kho sửa được. Đơn vị gốc
+   *  theo ĐVT dòng đề nghị (máy chủ suy), kho không chọn. */
   khoRong: number;
   khoDai: number;
   /** Phiếu NHẬP: đơn vị đang gõ ở ô SL nhập — "ton" (đơn vị tồn) hoặc "phu" (đơn vị quy đổi). */
@@ -1546,6 +1555,14 @@ interface AllocBlock {
   warn: string | null;
   /** Lô vừa bị chặn trần — để tô viền rust ĐÚNG ô đang sai, không tô cả khối. */
   warnLotId: number | null;
+}
+
+/** Bộ lọc lô của một dòng yêu cầu: đơn vị gốc (`don_vi_goc`, máy chủ suy từ ĐVT dòng) + khổ (giấy).
+ *  Vật tư khác chỉ lọc đơn vị gốc (kg và thùng không lấy lẫn). Hàng khác ⇒ rỗng. */
+function locGiayDong(l: StockRequestLine): { goc?: string | null; kho_rong?: number; kho_dai?: number } {
+  if (!coDonViGoc(l.hang_loai)) return {};
+  if (l.hang_loai !== "giay") return { goc: l.don_vi_goc || null };
+  return { goc: l.don_vi_goc || null, kho_rong: l.kho_rong, kho_dai: l.kho_dai };
 }
 
 function toLotPick(a: StockAllocationLine, catalog: StockLot[]): LotPick {
@@ -1559,7 +1576,7 @@ function toLotPick(a: StockAllocationLine, catalog: StockLot[]): LotPick {
     vi_tri: full?.vi_tri ?? null,
     sl_con_lai: a.sl_con_lai,
     so_luong: a.so_luong,
-    dang_giay: a.dang_giay ?? full?.dang_giay ?? null,
+    don_vi_goc: a.don_vi_goc ?? full?.don_vi_goc ?? "",
     kho_rong: a.kho_rong ?? full?.kho_rong ?? 0,
     kho_dai: a.kho_dai ?? full?.kho_dai ?? 0,
     don_gia_nhap: a.don_gia_nhap,
@@ -1567,6 +1584,26 @@ function toLotPick(a: StockAllocationLine, catalog: StockLot[]): LotPick {
     khach_hang: a.khach_hang ?? null,
     canh_bao: a.canh_bao ?? null,
   };
+}
+
+/** XUẤT: rót `canGoc` (ĐƠN VỊ GỐC) vào các lô theo đúng thứ tự máy đã gợi ý (hết hạn trước) cho tới
+ *  đủ số hoặc hết lô. Dùng cho "Cấp tối đa theo tồn" và khi kho gõ thẳng tổng ở ô Cấp lần này. */
+function rotLo(b: AllocBlock, canGoc: number): AllocBlock {
+  let con = canGoc;
+  const lots = b.lots.map((x) => {
+    const lay = Math.max(0, Math.min(x.sl_con_lai, con));
+    con -= lay;
+    return { ...x, so_luong: lay };
+  });
+  return { ...b, touched: true, warn: null, warnLotId: null, lots };
+}
+
+/** Dòng XUẤT cần kho để mắt: cấp chưa đủ (kho thiếu hoặc kho tự giảm), vừa bị chặn trần, hoặc đang
+ *  lấy lô có cảnh báo. Dòng này tự bung bảng lô và nằm lên đầu; nút "Cần xem" lọc riêng chúng. */
+function canXemDong(b: AllocBlock): boolean {
+  if (b.line.sl_con_lai <= 0) return false;
+  const lay = b.lots.reduce((s, x) => s + x.so_luong, 0) / (b.heSoVeGoc || 1);
+  return lay < b.line.sl_con_lai - 1e-9 || !!b.warn || b.lots.some((x) => x.so_luong > 0 && !!x.canh_bao);
 }
 
 function VoucherCreateDrawer({
@@ -1610,6 +1647,11 @@ function VoucherCreateDrawer({
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [askPost, setAskPost] = useState(false);
+  // XUẤT nhiều mặt hàng: lọc "Cần xem" + tìm theo tên/mã. `uuTien` = dòng cần xem LÚC NẠP lô — chốt
+  // thứ tự một lần để dòng không nhảy chỗ khi kho đang gõ số.
+  const [locCanXem, setLocCanXem] = useState(false);
+  const [timVt, setTimVt] = useState("");
+  const [uuTien, setUuTien] = useState<Set<number>>(() => new Set());
   // Gợi ý VỊ TRÍ cất (kệ/ô) đã khai của kho ĐÍCH — chỉ phiếu NHẬP mới ghi vị trí lô. Chỉ để GỢI Ý
   // (datalist), thủ kho vẫn gõ tự do được nếu vị trí chưa khai trong danh mục.
   const [viTriOptions, setViTriOptions] = useState<string[]>([]);
@@ -1664,7 +1706,6 @@ function VoucherCreateDrawer({
       ghiChu: "",
       viTri: "",
       hsd: "",
-      dang: l.dang_giay,
       khoRong: l.kho_rong,
       khoDai: l.kho_dai,
       unit: "ton",
@@ -1688,8 +1729,8 @@ function VoucherCreateDrawer({
           api.kho.phieu
             .danhSachLo(token, {
               hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
-              // Giấy: chỉ lô đúng dạng/khổ dòng xin.
-              dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+              // Giấy: chỉ lô đúng khổ + đơn vị gốc dòng xin (tờ và kg không lấy lẫn).
+              ...locGiayDong(l),
               man: "yeu_cau",
             })
             .catch(() => [] as StockLot[]),
@@ -1697,7 +1738,7 @@ function VoucherCreateDrawer({
             .goiYLo(token, {
               hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId,
               so_luong: l.sl_con_lai * hs,
-              dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+              ...locGiayDong(l),
               // Xuất cho Giao hàng: máy chủ ưu tiên lô của đúng đơn, bỏ lô của khách khác.
               request_id: request.id,
             })
@@ -1717,6 +1758,7 @@ function VoucherCreateDrawer({
           }
         }
         setBlocks(base);
+        setUuTien(new Set(base.filter(canXemDong).map((b) => b.line.id)));
       })
       .catch(() => {
         if (!cancelled) setBlocks(base);
@@ -1789,11 +1831,10 @@ function VoucherCreateDrawer({
           don_gia: canViewCost ? Math.round(Number(b.donGia) || 0) : undefined,
           vi_tri: b.viTri.trim() || undefined,
           hsd: b.hsd || undefined,
-          ...(b.line.hang_loai === "giay" && b.dang
+          ...(b.line.hang_loai === "giay" && b.khoRong
             ? {
-                dang_giay: b.dang,
                 kho_rong: chuanKho(b.khoRong, b.khoDai)[0],
-                kho_dai: b.dang === "to" ? chuanKho(b.khoRong, b.khoDai)[1] : 0,
+                kho_dai: chuanKho(b.khoRong, b.khoDai)[1],
               }
             : {}),
           ly_do: ly,
@@ -1909,15 +1950,14 @@ function VoucherCreateDrawer({
       prev.map((b) => {
         if (b.line.sl_con_lai <= 0) return b;
         if (isNhap) return { ...b, touched: true, cap: b.line.sl_con_lai };
-        let con = b.line.sl_con_lai * (b.heSoVeGoc || 1);
-        const lots = b.lots.map((x) => {
-          const lay = Math.max(0, Math.min(x.sl_con_lai, con));
-          con -= lay;
-          return { ...x, so_luong: lay };
-        });
-        return { ...b, touched: true, warn: null, warnLotId: null, lots };
+        return rotLo(b, b.line.sl_con_lai * (b.heSoVeGoc || 1));
       }),
     );
+  }
+
+  // XUẤT: kho gõ thẳng tổng ở ô "Cấp lần này" (đơn vị yêu cầu) — máy chia lại vào lô, không quá số duyệt.
+  function capXuat(lineId: number, v: number) {
+    patch(lineId, (b) => rotLo(b, Math.max(0, Math.min(v, b.line.sl_con_lai)) * (b.heSoVeGoc || 1)));
   }
 
   const dongCan = blocks.filter((b) => b.line.sl_con_lai > 0);
@@ -1925,9 +1965,15 @@ function VoucherCreateDrawer({
     const lay = isNhap ? b.cap : b.lots.reduce((s, x) => s + x.so_luong, 0) / (b.heSoVeGoc || 1);
     return lay >= b.line.sl_con_lai - 1e-9;
   }).length;
-  // NHẬP: Vị trí + Hạn dùng (+ Dạng và khổ khi có dòng giấy) là cột của lưới, mỗi mặt hàng MỘT dòng.
+  // NHẬP: Vị trí + Hạn dùng (+ Khổ khi có dòng giấy) là cột của lưới, mỗi mặt hàng MỘT dòng.
   const coGiay = isNhap && blocks.some((b) => b.line.hang_loai === "giay" && b.line.sl_con_lai > 0);
-  const soCot = (isNhap ? 8 + (coGiay ? 1 : 0) : 5) + (hienGiaBan ? 1 : 0);
+  const soCot = (isNhap ? 8 + (coGiay ? 1 : 0) : 7) + (hienGiaBan ? 1 : 0);
+  const soCanXem = isNhap ? 0 : blocks.filter(canXemDong).length;
+  const dongHien = isNhap
+    ? blocks
+    : blocks
+        .filter((b) => (!locCanXem || canXemDong(b)) && khopGanDung(`${b.matLabel} ${b.matCode ?? ""}`, timVt))
+        .sort((a, b) => Number(uuTien.has(b.line.id)) - Number(uuTien.has(a.line.id)));
 
   function bamGhiSo() {
     // Báo NGAY khi bấm (ứng vượt / cấp thiếu chưa nêu lý do) — không mở popup rồi mới báo.
@@ -1970,9 +2016,27 @@ function VoucherCreateDrawer({
             <div className="kna-cot">
               <TheA cat tieuDe={isNhap ? "Vật tư nhập" : "Vật tư cấp"}
                 phai={!loading && dongCan.length > 0 ? (
-                  <button type="button" className="kna-lien" onClick={lamDay}>
-                    {isNhap ? "Nhập đủ theo yêu cầu" : "Cấp tối đa theo tồn"}
-                  </button>
+                  <>
+                    {!isNhap && (
+                      <span className="kna-loc" role="group" aria-label="Lọc vật tư cấp">
+                        <button type="button" className={locCanXem ? undefined : "on"} aria-pressed={!locCanXem}
+                          onClick={() => setLocCanXem(false)}>
+                          Tất cả<span>{blocks.length}</span>
+                        </button>
+                        <button type="button" className={locCanXem ? "on" : undefined} aria-pressed={locCanXem}
+                          onClick={() => setLocCanXem(true)}>
+                          Cần xem<span>{soCanXem}</span>
+                        </button>
+                      </span>
+                    )}
+                    {!isNhap && (
+                      <input className="kna-o kna-o--nho kna-tim" value={timVt} placeholder="Tìm vật tư"
+                        aria-label="Tìm vật tư trong phiếu" onChange={(e) => setTimVt(e.target.value)} />
+                    )}
+                    <button type="button" className="kna-lien" onClick={lamDay}>
+                      {isNhap ? "Nhập đủ theo yêu cầu" : "Cấp tối đa theo tồn"}
+                    </button>
+                  </>
                 ) : undefined}>
                 {loading ? (
                   <div className="kna-the__than" style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
@@ -1990,16 +2054,18 @@ function VoucherCreateDrawer({
                     )}
                     {/* Cột cố định cộng lại + 200 cho cột Vật tư (tên, mã, ảnh, khổ giấy): đủ rộng thì vừa khung, chật hơn
                         (đủ cột Đơn giá + Giá bán ở cột chính ~760px) thì khung tự cuộn ngang thay vì bóp cột Vật tư. */}
-                    <table className={`lds-g${isNhap ? " kna-luoi-nhap" : ""}`} style={{
+                    <table className={`lds-g ${isNhap ? "kna-luoi-nhap" : "kna-luoi-xuat"}`} style={{
                       minWidth: isNhap
                         ? 176 + 76 + 64 + 88 + 96 + 132 + (coGiay ? 220 : 0) + 76 + 84 + (hienGiaBan ? 84 : 0)
-                        : 200 + 84 + 84 + 112 + 96 + (hienGiaBan ? 84 : 0),
+                        : 32 + 200 + 84 + 84 + 104 + 188 + 96 + (hienGiaBan ? 84 : 0),
                     }}>
                       <colgroup>
+                        {!isNhap && <col style={{ width: 32 }} />}
                         <col />
                         <col style={{ width: isNhap ? 76 : 84 }} />
                         <col style={{ width: isNhap ? 64 : 84 }} />
-                        <col style={{ width: isNhap ? 88 : 112 }} />
+                        <col style={{ width: isNhap ? 88 : 104 }} />
+                        {!isNhap && <col style={{ width: 188 }} />}
                         {isNhap && <col style={{ width: 96 }} />}
                         {isNhap && <col style={{ width: 132 }} />}
                         {coGiay && <col style={{ width: 220 }} />}
@@ -2009,20 +2075,29 @@ function VoucherCreateDrawer({
                       </colgroup>
                       <thead>
                         <tr>
+                          {!isNhap && <th aria-label="Mở bảng lô" />}
                           <th>Vật tư</th>
                           <th className="n">Yêu cầu</th>
                           <th className="n">{isNhap ? "Tồn" : "Tồn kho"}</th>
                           <th className="n">{isNhap ? "Nhập" : "Cấp lần này"}</th>
+                          {!isNhap && <th>Lấy từ</th>}
                           {isNhap && <th>Vị trí cất</th>}
                           {isNhap && <th>Hạn dùng</th>}
-                          {coGiay && <th>Dạng và khổ thực nhận</th>}
+                          {coGiay && <th>Khổ thực nhận</th>}
                           {isNhap && <th className="n">{blocks.some((b) => b.line.tu_kcs) ? "Giá gốc" : "Đơn giá"}</th>}
                           <th className="n">Thành tiền</th>
                           {hienGiaBan && <th className="n">Giá bán</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {blocks.map((b) => (
+                        {dongHien.length === 0 && (
+                          <tr>
+                            <td colSpan={soCot} className="lds-trong">
+                              {timVt.trim() ? "Không có vật tư nào khớp." : "Không còn vật tư nào cần xem."}
+                            </td>
+                          </tr>
+                        )}
+                        {dongHien.map((b) => (
                           <AllocRow
                             key={b.line.id}
                             token={token}
@@ -2034,12 +2109,14 @@ function VoucherCreateDrawer({
                             soCot={soCot}
                             coGiay={coGiay}
                             viTriListId={isNhap && viTriOptions.length > 0 ? "kho-vitri-suggest" : undefined}
-                            onCap={(v) => patch(b.line.id, (cur) => ({ ...cur, touched: true, cap: v }))}
+                            onCap={(v) =>
+                              isNhap ? patch(b.line.id, (cur) => ({ ...cur, touched: true, cap: v })) : capXuat(b.line.id, v)
+                            }
                             onLyDo={(v) => patch(b.line.id, (cur) => ({ ...cur, lyDo: v }))}
                             onLotQty={(lotId, v) => setLotQty(b.line.id, lotId, v)}
                             onViTri={(v) => patch(b.line.id, (cur) => ({ ...cur, touched: true, viTri: v }))}
                             onHsd={(v) => patch(b.line.id, (cur) => ({ ...cur, touched: true, hsd: v }))}
-                            onDangKho={(p) => patch(b.line.id, (cur) => ({ ...cur, touched: true, ...p }))}
+                            onKho={(p) => patch(b.line.id, (cur) => ({ ...cur, touched: true, ...p }))}
                             onAnhPick={(file) =>
                               patch(b.line.id, (cur) => ({ ...cur, anhFile: file, anhRemove: false }))
                             }
@@ -2211,7 +2288,7 @@ function AllocRow({
   onLotQty,
   onViTri,
   onHsd,
-  onDangKho,
+  onKho,
   onAnhPick,
   onAnhClear,
 }: {
@@ -2224,7 +2301,7 @@ function AllocRow({
   hienGiaBan: boolean;
   /** Số cột của bảng — hàng phụ (lô / cất hàng / lý do) trải hết bề ngang. */
   soCot: number;
-  /** Lưới NHẬP có cột "Dạng và khổ thực nhận" (có ít nhất một dòng giấy còn phải nhập). */
+  /** Lưới NHẬP có cột "Khổ thực nhận" (có ít nhất một dòng giấy còn phải nhập). */
   coGiay: boolean;
   /** id của <datalist> gợi ý vị trí (kệ/ô) đã khai của kho; undefined = không gợi ý (vẫn gõ tự do). */
   viTriListId?: string;
@@ -2233,8 +2310,8 @@ function AllocRow({
   onLotQty: (lotId: number, v: number) => void;
   onViTri: (v: string) => void;
   onHsd: (v: string) => void;
-  /** Phiếu NHẬP giấy: sửa dạng/khổ của lô sắp tạo. */
-  onDangKho: (p: { dang?: "to" | "cuon" | null; khoRong?: number; khoDai?: number }) => void;
+  /** Phiếu NHẬP giấy: sửa khổ của lô sắp tạo. */
+  onKho: (p: { khoRong?: number; khoDai?: number }) => void;
   /** Chọn/đổi ảnh mặt hàng — GIỮ file client-side, chỉ lưu khi LẬP PHIẾU. */
   onAnhPick: (file: File) => void;
   /** Bỏ ảnh: có file đang chờ thì huỷ chọn; không thì đánh dấu gỡ ảnh cũ (áp khi lập phiếu). */
@@ -2262,7 +2339,7 @@ function AllocRow({
     api.kho.phieu
       .danhSachLo(token, {
         hang_loai: l.hang_loai, hang_id: l.hang_id, kho_id: khoId, con_hang: true,
-        dang_giay: l.dang_giay, kho_rong: l.kho_rong, kho_dai: l.kho_dai,
+        ...locGiayDong(l),
         man: "yeu_cau",
       })
       .then((lots) => {
@@ -2275,7 +2352,7 @@ function AllocRow({
     return () => {
       cancelled = true;
     };
-  }, [l.hang_loai, l.hang_id, l.dang_giay, l.kho_rong, l.kho_dai, khoId, token]);
+  }, [l.hang_loai, l.hang_id, l.don_vi_goc, l.kho_rong, l.kho_dai, khoId, token]);
 
   const chosen = block.lots.reduce((s, x) => s + x.so_luong, 0);   // tổng đã lấy — ĐƠN VỊ GỐC (lô)
   // Mốc cần (đơn vị yêu cầu) quy về GỐC để so cho khớp bảng lô.
@@ -2288,6 +2365,11 @@ function AllocRow({
   const tonCo = block.lots.reduce((s, x) => s + x.sl_con_lai, 0) / (block.heSoVeGoc || 1);
   const isShort = l.sl_con_lai > 0 && cappedTon > 0 && cappedTon < l.sl_con_lai - 1e-9;
   const settled = l.sl_con_lai <= 0;
+  // XUẤT: bảng lô chỉ bung khi cần — dòng cần xem tự bung; kho bấm mũi tên để mở/đóng (bấm rồi thì giữ ý kho).
+  const canXem = !isNhap && canXemDong(block);
+  const [moLo, setMoLo] = useState<boolean | null>(null);
+  const moThat = !isNhap && !settled && (moLo ?? canXem);
+  const dangLay = block.lots.filter((x) => x.so_luong > 1e-9);
   // SL yêu cầu theo đơn vị NGƯỜI YÊU CẦU (`l.dvt`); tồn theo đơn vị GỐC lưu kho — hai đơn vị khác
   // nhau nên luôn kèm nhãn để khỏi lẫn (70 tờ vs 1 ram).
   const dvtYc = tenDv(l.dvt);
@@ -2342,50 +2424,61 @@ function AllocRow({
   );
   const khoGiayO = (
     <div className="kna-kho-giay">
-      <select className="kna-o kna-o--nho" aria-label="Dạng giấy" value={block.dang ?? ""}
-        onChange={(e) => {
-          const d = (e.target.value || null) as "to" | "cuon" | null;
-          onDangKho({ dang: d, ...(d === "cuon" ? { khoDai: 0 } : {}) });
-        }}>
-        <option value="">Dạng</option>
-        <option value="to">Tờ</option>
-        <option value="cuon">Cuộn</option>
-      </select>
-      {block.dang && (
-        <>
-          <DecimalInput
-            className="kna-o kna-o--nho kna-o--so"
-            value={block.khoRong || null}
-            onChange={(n) => onDangKho({ khoRong: n ?? 0 })}
-            aria-label={block.dang === "to" ? "Khổ giấy, cạnh thứ nhất (mm)" : "Khổ rộng cuộn (mm)"}
-            placeholder={block.dang === "to" ? "Rộng" : "Khổ"}
-          />
-          {block.dang === "to" && (
-            <>
-              <span aria-hidden="true">×</span>
-              <DecimalInput
-                className="kna-o kna-o--nho kna-o--so"
-                value={block.khoDai || null}
-                onChange={(n) => onDangKho({ khoDai: n ?? 0 })}
-                aria-label="Khổ giấy, cạnh thứ hai (mm)"
-                placeholder="Dài"
-              />
-            </>
-          )}
-          <span className="kna-dv">mm</span>
-        </>
-      )}
+      <DecimalInput
+        className="kna-o kna-o--nho kna-o--so"
+        value={block.khoRong || null}
+        onChange={(n) => onKho({ khoRong: n ?? 0 })}
+        aria-label="Khổ giấy, cạnh rộng (mm)"
+        placeholder="Rộng"
+      />
+      <span aria-hidden="true">×</span>
+      {/* Để trống ô Dài = khổ chỉ rộng (giấy khổ rộng chưa cắt). */}
+      <DecimalInput
+        className="kna-o kna-o--nho kna-o--so"
+        value={block.khoDai || null}
+        onChange={(n) => onKho({ khoDai: n ?? 0 })}
+        aria-label="Khổ giấy, cạnh dài (mm), để trống nếu chỉ có khổ rộng"
+        placeholder="Dài"
+      />
+      <span className="kna-dv">mm</span>
     </div>
   );
+
+  // Ghi chú ngắn dưới "Lấy từ": vì sao dòng này cần xem — thiếu hàng hay lô có cảnh báo.
+  const loCanh = dangLay.find((x) => x.canh_bao);
+  const thieuLanNay = l.sl_con_lai - cappedTon;
+  const ghiXuat: { chu: string; sai: boolean } | null = isNhap || settled
+    ? null
+    : thieuLanNay > 1e-9
+      ? cappedTon <= 1e-9
+        ? { chu: tonCo <= 1e-9 ? "Hết hàng, chưa cấp lần này" : "Không cấp lần này", sai: false }
+        : {
+            chu: `${tonCo < l.sl_con_lai - 1e-9 ? "Kho thiếu" : "Cấp thiếu"} ${fmtQty(thieuLanNay)} ${dvtYc}${block.lyDo.trim() ? "" : ", chưa ghi lý do"}`,
+            sai: !block.lyDo.trim(),
+          }
+      : loCanh
+        ? { chu: loCanh.canh_bao ?? "", sai: false }
+        : null;
 
   return (
     <>
       <tr>
+        {!isNhap && (
+          <td>
+            {!settled && (
+              <button type="button" className={`kna-mui${moThat ? " kna-mui--mo" : ""}`} aria-expanded={moThat}
+                aria-label={`${moThat ? "Đóng" : "Mở"} bảng lô ${block.matLabel}`} title="Chọn lô"
+                onClick={() => setMoLo(!moThat)}>
+                <ChevronRight size={14} aria-hidden="true" />
+              </button>
+            )}
+          </td>
+        )}
         <td>
           <HangA ten={block.matLabel} anhNut={anhNut}
             phu={<>
               {block.matCode && <span className="kna-tag kna-tag--ma">{block.matCode}</span>}
-              {!(isNhap && l.hang_loai === "giay") && l.dang_giay && <span>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</span>}
+              {!(isNhap && l.hang_loai === "giay") && nhanKhoGiay(l) && <span>{nhanKhoGiay(l)}</span>}
               {(l.lsx_ma || l.bai_ghep_ma) && <span>{l.lsx_ma ?? l.bai_ghep_ma}</span>}
             </>} />
         </td>
@@ -2422,13 +2515,35 @@ function AllocRow({
               aria-label={`Số lượng nhập ${block.matLabel}, còn phải nhập ${fmtQty(l.sl_con_lai)} ${dvtYc}`}
             />
           ) : (
-            // XUẤT: số cấp lần này = TỔNG ô "Lấy" ở bảng lô bên dưới (quy về đơn vị dòng yêu cầu).
-            <span>
-              <span className={`kna-sl__lon${isShort ? " kna-so--thieu" : ""}`}>{fmtQty(cappedTon)}</span>
-              <span className="kna-dv">/ {fmtQty(l.sl_con_lai)}</span>
-            </span>
+            // XUẤT: ô = TỔNG ô "Lấy" ở bảng lô (quy về đơn vị dòng yêu cầu). Gõ thẳng tổng thì máy chia
+            // lại vào lô theo hạn dùng; muốn chỉ định lô thì mở bảng lô.
+            <DecimalInput
+              id={`cap-${l.id}`}
+              className={`kna-o kna-o--nho kna-o--so${thieuLanNay > 1e-9 ? " kna-o--thieu" : ""}`}
+              value={Math.round(cappedTon * 1000) / 1000}
+              onChange={(n) => onCap(n ?? 0)}
+              aria-label={`Số lượng cấp ${block.matLabel}, còn phải cấp ${fmtQty(l.sl_con_lai)} ${dvtYc}`}
+            />
           )}
         </td>
+        {!isNhap && (
+          <td>
+            {!settled && (
+              <div className="kna-lay">
+                {dangLay.length === 0 ? (
+                  <span className="kna-mo">Chưa lấy lô nào</span>
+                ) : (
+                  <>
+                    <span className="kna-tag kna-tag--ma">{dangLay[0].voucher_ma ?? dangLay[0].ma_lo}</span>
+                    {dangLay[0].vi_tri && <span className="kna-tag">{dangLay[0].vi_tri}</span>}
+                    {dangLay.length > 1 && <span className="kna-tag">+{dangLay.length - 1} lô</span>}
+                  </>
+                )}
+              </div>
+            )}
+            {ghiXuat && <div className={`kna-lay__ghi${ghiXuat.sai ? " kna-lay__ghi--sai" : ""}`}>{ghiXuat.chu}</div>}
+          </td>
+        )}
         {isNhap && (
           <td>
             {!settled && (
@@ -2477,10 +2592,10 @@ function AllocRow({
         )}
       </tr>
 
-      {!settled && (!isNhap || quyDoiHint || lyDoBox) && (
+      {!settled && (isNhap ? quyDoiHint || lyDoBox : moThat) && (
         <tr className="kna-bang__phu">
           <td colSpan={soCot}>
-            <div className="kna-phu">
+            <div className={`kna-phu${isNhap ? "" : " kna-phu--lui"}`}>
               {isNhap ? (
                 <>
                   {quyDoiHint}
@@ -2530,7 +2645,7 @@ function AllocRow({
                               <td>
                                 <span className="kna-nguon">
                                   <span className="kna-tag kna-tag--ma">{lot.voucher_ma ?? lot.ma_lo}</span>
-                                  {lot.dang_giay && <span>{nhanDangKho(lot.dang_giay, lot.kho_rong, lot.kho_dai)}</span>}
+                                  {l.hang_loai === "giay" && <span>{nhanKhoGiay({ hang_loai: "giay", kho_rong: lot.kho_rong, kho_dai: lot.kho_dai })}</span>}
                                   {lot.order_ma && <span className="kna-tag">{lot.order_ma}</span>}
                                   {lot.khach_hang && <span>{lot.khach_hang}</span>}
                                   {lot.canh_bao && <span className="kna-tag kna-tag--canh">{lot.canh_bao}</span>}
@@ -2769,6 +2884,13 @@ export function VoucherDrawer({
   // Còn dòng thành phẩm KCS chưa có giá gốc ⇒ tổng giá vốn chưa trọn, đừng in như một con số chốt.
   const thieuGiaGoc = !!v?.lines.some((l) => l.chua_gia_goc);
   const nhap = v?.loai === "NHAP";
+  // Phiếu nhập thành phẩm KCS: đơn, lệnh, khách đã ở thẻ Nguồn hàng ⇒ ô Vật tư khỏi lặp lại (chỉ khi
+  // cả phiếu chung MỘT đơn / lệnh / khách — trộn nhiều nguồn thì dòng nào ghi nguồn dòng đó).
+  const laKcs = !!req && tuKcs(req);
+  const motGiaTri = (ds: (string | null | undefined)[]) => new Set(ds.filter(Boolean)).size <= 1;
+  const nguonOThe = laKcs && !!v && motGiaTri(v.lines.map((l) => l.order_ma))
+    && motGiaTri(v.lines.map((l) => l.lsx_ma)) && motGiaTri(v.lines.map((l) => l.khach_hang));
+  const khachThe = nguonOThe ? v?.lines.find((l) => l.khach_hang)?.khach_hang ?? null : null;
   const hienLo = !!v?.lines.some((l) => l.ma_lo);
   // Phiếu nhập: lô vừa tạo cất ở đâu, hạn dùng bao giờ — thứ kho cần khi đi tìm hàng.
   const hienCat = nhap && !!v?.lines.some((l) => l.vi_tri || l.hsd);
@@ -2827,7 +2949,7 @@ export function VoucherDrawer({
       return;
     }
     if (!adjLyDo.trim()) {
-      setError("Phải nhập lý do điều chỉnh.");
+      setError("Phải nhập lý do sửa.");
       return;
     }
     setBusy(true);
@@ -2858,7 +2980,7 @@ export function VoucherDrawer({
     for (const h of dcHistory) {
       lichSu.push({
         kieu: "canh", luc: h.thoi_diem,
-        tieuDe: <><b>{h.nguoi_ten ?? "—"}</b> điều chỉnh dùng ít hơn</>,
+        tieuDe: <><b>{h.nguoi_ten ?? "—"}</b> sửa số xuất nhầm</>,
         phu: h.bo_phan_ten ?? undefined,
         trich: (h.chi_tiet || h.ly_do) ? <>{h.chi_tiet && <div>{h.chi_tiet}</div>}{h.ly_do && <div>Lý do: {h.ly_do}</div>}</> : undefined,
       });
@@ -2884,7 +3006,7 @@ export function VoucherDrawer({
                   Hủy sửa
                 </button>
                 <button type="button" className="kna-nut kna-nut--chinh" onClick={saveAdjust} disabled={busy}>
-                  {busy ? "Đang lưu…" : "Lưu điều chỉnh"}
+                  {busy ? "Đang lưu…" : "Lưu số đã sửa"}
                 </button>
               </>
             ) : (
@@ -2896,11 +3018,12 @@ export function VoucherDrawer({
                     Hủy phiếu
                   </button>
                 )}
-                {/* Điều chỉnh phiếu XUẤT ĐÃ ghi sổ khi SX dùng ít hơn — KHÔNG cho phiếu điều chuyển (vế
+                {/* Sửa số xuất nhầm trên phiếu XUẤT ĐÃ ghi sổ (11/10/2026: hàng SX dùng thừa thì tổ trả
+                    bằng Yêu cầu nhập kho, không qua đây) — KHÔNG cho phiếu điều chuyển (vế
                     nội bộ cặp đôi, sửa lệch vỡ cân đối 2 kho; muốn khác thì điều chuyển ngược lại). */}
                 {canCreate && v.loai === "XUAT" && v.trang_thai === "posted" && !v.dieu_chuyen && (
                   <button type="button" className="kna-nut" onClick={startAdjust}>
-                    <Pencil size={15} aria-hidden="true" />Điều chỉnh dùng ít hơn
+                    <Pencil size={15} aria-hidden="true" />Sửa số xuất nhầm
                   </button>
                 )}
                 {/* In được ở mọi trạng thái (kể cả chờ ghi sổ và đã hủy). */}
@@ -2989,10 +3112,10 @@ export function VoucherDrawer({
                   {adjusting && (
                     <div className="kna-the__than" style={{ paddingBottom: 0 }}>
                       <div className="kna-canh kna-canh--xanh" style={{ marginBottom: 10 }}>
-                        <span>Sản xuất dùng ít hơn? Sửa <b>giảm</b> ô Số lượng từng dòng. Phần dư trả về lô nguồn, yêu cầu tính lại phần còn thiếu.</span>
+                        <span>Xuất nhầm số? Sửa <b>giảm</b> ô Số lượng từng dòng. Phần dư trả về lô nguồn, yêu cầu tính lại phần còn thiếu. Hàng sản xuất dùng thừa thì để tổ trả bằng Yêu cầu nhập kho.</span>
                       </div>
                       <label className="kna-o-truong">
-                        <span>Lý do điều chỉnh <em>*</em></span>
+                        <span>Lý do sửa <em>*</em></span>
                         <input className={`kna-o${adjLyDo.trim() ? "" : " kna-o--loi"}`} value={adjLyDo}
                           onChange={(e) => setAdjLyDo(e.target.value)}
                           placeholder="Ví dụ: sản xuất chỉ dùng 7, trả 3 về kho" />
@@ -3001,15 +3124,15 @@ export function VoucherDrawer({
                   )}
                   <div className="lds-bang">
                     {/* Cột cố định cộng lại + 160 cho cột Vật tư: chật hơn bề ngang ngăn thì khung tự cuộn ngang. */}
-                    <table className="lds-g" style={{ minWidth: 160 + (adjusting ? 190 : 120) + (cotLo ? 130 : 0) + (hienCat ? 100 : 0) + (hienGia ? 220 : 0) + (hienGiaBan ? 100 : 0) }}>
+                    <table className="lds-g" style={{ minWidth: 160 + (adjusting ? 190 : 96) + (cotLo ? 130 : 0) + (hienCat ? 100 : 0) + (hienGia ? 206 : 0) + (hienGiaBan ? 124 : 0) }}>
                       <colgroup>
                         <col />
                         {cotLo && <col style={{ width: 130 }} />}
                         {hienCat && <col style={{ width: 100 }} />}
-                        <col style={{ width: adjusting ? 190 : 120 }} />
-                        {hienGia && <col style={{ width: 90 }} />}
-                        {hienGia && <col style={{ width: 130 }} />}
-                        {hienGiaBan && <col style={{ width: 100 }} />}
+                        <col style={{ width: adjusting ? 190 : 96 }} />
+                        {hienGia && <col style={{ width: 96 }} />}
+                        {hienGia && <col style={{ width: 110 }} />}
+                        {hienGiaBan && <col style={{ width: 124 }} />}
                       </colgroup>
                       <thead>
                         <tr>
@@ -3017,7 +3140,7 @@ export function VoucherDrawer({
                           {cotLo && <th>{hienCat ? "Lô và vị trí" : nhap ? "Lô tạo ra" : "Lô"}</th>}
                           {hienCat && <th>Hạn dùng</th>}
                           <th className="n">Số lượng</th>
-                          {hienGia && <th className="n">Đơn giá</th>}
+                          {hienGia && <th className="n">{laKcs ? "Giá gốc" : "Đơn giá"}</th>}
                           {hienGia && <th className="n">Thành tiền</th>}
                           {hienGiaBan && <th className="n">Giá bán</th>}
                         </tr>
@@ -3030,13 +3153,13 @@ export function VoucherDrawer({
                                 <HangA ten={l.hang_ten ?? "—"}
                                   phu={<>
                                     {l.hang_ma && <span className="kna-tag kna-tag--ma">{l.hang_ma}</span>}
-                                    {l.dang_giay && <span>{nhanDangKho(l.dang_giay, l.kho_rong, l.kho_dai)}</span>}
-                                    <NguonDong l={l} />
+                                    {nhanKhoGiay(l) && <span>{nhanKhoGiay(l)}</span>}
+                                    {!nguonOThe && <NguonDong l={l} />}
                                   </>} />
                               </td>
                             )}
                             {cotLo && (
-                              <td>
+                              <td className="kna-o-lo">
                                 {l.ma_lo ? <span className="kna-tag kna-tag--ma">{l.ma_lo}</span> : <span className="kna-mo">—</span>}
                                 {hienCat && (
                                   <div className={l.vi_tri ? "kna-tl__m" : "kna-tl__m kna-mo"}>{l.vi_tri ?? "Chưa xếp"}</div>
@@ -3082,7 +3205,8 @@ export function VoucherDrawer({
                               {nhap ? "Tổng tiền nhập" : "Tổng giá vốn"}
                               {thieuGiaGoc && v.gia_von > 0 && <span className="kna-dv">chưa gồm hàng chưa có giá gốc</span>}
                             </td>
-                            <td className="n kna-so">{thieuGiaGoc && v.gia_von === 0 ? "Chưa có giá gốc" : money(v.gia_von)}</td>
+                            {/* Cùng chữ với ô Thành tiền của dòng — câu dài tràn sang ô Giá bán. */}
+                            <td className="n kna-so">{thieuGiaGoc && v.gia_von === 0 ? <span className="kna-mo">Chưa tính</span> : money(v.gia_von)}</td>
                             {hienGiaBan && <td />}
                           </tr>
                         )}
@@ -3113,7 +3237,7 @@ export function VoucherDrawer({
                     ]} />
                   </div>
                 </TheA>
-                {req && <TheNguonHang r={req} />}
+                {req && <TheNguonHang r={req} khach={khachThe} />}
                 {v.ghi_chu && (
                   <TheA tieuDe="Ghi chú">
                     <div className="kna-the__than kna-ghi">{v.ghi_chu}</div>

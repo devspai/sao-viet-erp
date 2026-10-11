@@ -161,17 +161,19 @@ _HD += _dong("san_xuat", "xep_lich", {
 # (`to_sx_<id>`), không có một `module_key` nào đại diện. Để `None` = hiện cho mọi người mở được
 # màn Nhật ký; các dòng này cũng không mang số tiền.
 _HD += _dong("san_xuat", None, {
-    "san_xuat_tao_batch": "Tạo mẻ sản xuất",
-    "san_xuat_me_cap_nhat_danh_muc": "Cập nhật mẻ theo danh mục",
+    "san_xuat_tao_batch": "Ghi sản lượng",
+    "san_xuat_me_cap_nhat_danh_muc": "Cập nhật sản lượng theo danh mục",
+    "san_xuat_sua_batch": "Sửa số sản lượng",
+    "san_xuat_sua_nguoi_batch": "Sửa người làm sản lượng",
     "san_xuat_de_nghi_vat_tu": "Đề nghị cấp vật tư",
     "san_xuat_nhap_lai_vat_tu": "Yêu cầu nhập lại vật tư thừa vào kho",
     "san_xuat_sua_de_nghi_vat_tu": "Sửa đề nghị cấp vật tư",
-    "san_xuat_xac_nhan_vat_tu": "Xác nhận nhận vật tư",
     "san_xuat_kho_yeu_cau_nhap": "Yêu cầu kho nhập hàng",
     "san_xuat_ban_giao_de_xuat": "Đề xuất bàn giao",
     "san_xuat_ban_giao_sua": "Sửa đề xuất bàn giao",
     "san_xuat_ban_giao_xac_nhan": "Xác nhận bàn giao",
     "san_xuat_ban_giao_dieu_chinh": "Điều chỉnh bàn giao",
+    "san_xuat_ban_giao_theo_me": "Lần giao đổi theo số sản lượng",
     "san_xuat_kcs_kiem": "KCS kiểm hàng",
     "san_xuat_kcs_dieu_chinh": "KCS điều chỉnh kết quả kiểm",
     "san_xuat_kcs_da_xem_loi": "KCS đánh dấu đã xem lỗi",
@@ -180,6 +182,7 @@ _HD += _dong("san_xuat", None, {
     "san_xuat_dong_nhom_du": "Đóng nhóm đủ số",
     "san_xuat_dong_nhom_thieu": "Đóng nhóm thiếu số",
     "san_xuat.phat_hanh_cap_nhat": "Phát hành cập nhật xuống xưởng",
+    "san_xuat.cap_nhat_tieu_chi_kcs": "Cập nhật tiêu chí KCS theo danh mục",
     "san_xuat.thu_hoi_goi": "Thu hồi gói phát hành",
     "san_xuat.ho_tro.huy_phat_hanh_lai": "Huỷ phát hành lại",
     # Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6).
@@ -215,7 +218,7 @@ _HD += _dong("kho", "bao_cao_kho", {
 })
 _HD += _dong("kho", "kho", {
     "kho_xuat_dieu_chinh": "Điều chỉnh phiếu xuất kho",
-    "kho_bo_sung_dang_kho_lo": "Bổ sung dạng/khổ giấy cho lô cũ",
+    "kho_bo_sung_kho_lo": "Bổ sung khổ giấy cho lô cũ",
 })
 _HD += _dong("kho", "dm_kho_hang", {
     "kho_vi_tri_create": "Tạo vị trí trong kho",

@@ -87,10 +87,11 @@ class StockLot(Base):
     )
     vi_tri: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    # GIẤY mang DẠNG (`to` | `cuon`) + KHỔ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0) — spec
-    # 2026-10-01-giay-dem-to-theo-kho §3.1, mg 0349. Vật tư khác: NULL · 0 · 0. Chuẩn hoá qua
-    # `services/kho_giay.chuan_kho`. NOT NULL default 0 để khoá so sánh không vướng NULL.
-    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # GIẤY mang KHỔ mm (cạnh ngắn × cạnh dài; khổ chỉ-rộng: rộng × 0) + ĐƠN VỊ GỐC của lô (một đơn
+    # vị đã khai ở danh mục, `kho_giay.GocMatHang`) — bỏ dạng cuộn/tờ 10/10/2026, mg 0388. Vật tư
+    # khác: ĐƠN VỊ GỐC · 0 · 0 (mg 0390 — keo kg và keo thùng là hai dòng tồn).
+    # Chuẩn hoá qua `services/kho_giay`. NOT NULL default để khoá so sánh không vướng NULL.
+    don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     ngay_nhap: Mapped[date] = mapped_column(Date, nullable=False)
@@ -132,8 +133,8 @@ class StockLot(Base):
         CheckConstraint("sl_con_lai <= sl_ban_dau", name="chk_stock_lots_con_lai"),
         # Mọi câu hỏi về tồn đều lọc/gộp theo cặp này — không có index thì quét cả bảng lô.
         Index("ix_stock_lots_hang", "hang_loai", "hang_id"),
-        # Giấy: lọc lô theo (mã, dạng, khổ) — gợi ý xuất, tồn theo khổ. mg 0349.
-        Index("ix_stock_lots_giay_kho", "hang_loai", "hang_id", "dang_giay", "kho_rong", "kho_dai"),
+        # Giấy: lọc lô theo (mã, khổ, đơn vị gốc) — gợi ý xuất, tồn theo khổ. mg 0388.
+        Index("ix_stock_lots_giay_kho", "hang_loai", "hang_id", "kho_rong", "kho_dai", "don_vi_goc"),
     )
 
 
@@ -154,10 +155,11 @@ class StockThreshold(Base):
     kho_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("kho_hang.id", ondelete="CASCADE"), index=True, nullable=False
     )
-    # Khổ giấy TỜ (mm, cạnh ngắn × cạnh dài) — ngưỡng tờ đặt riêng từng khổ, đếm tờ nguyên. Giấy cuộn
-    # và hàng khác: 0 · 0 (gom theo mã). Cùng khoá tồn `kho_giay.khoa_ton`. mg 0350.
+    # Khổ giấy (mm, cạnh ngắn × cạnh dài) + đơn vị gốc — ngưỡng giấy đặt riêng từng khổ + đơn vị,
+    # cùng khoá tồn `kho_giay.khoa_ton` (mg 0350, 0388). Vật tư: 0 · 0 · đơn vị gốc (mg 0390).
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     # Dưới mức này = 🟠 phải mua ngay.
     nguong_ton: Mapped[float] = mapped_column(
         Numeric(14, 2), CheckConstraint("nguong_ton >= 0"), nullable=False
@@ -183,6 +185,6 @@ class StockThreshold(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("hang_loai", "hang_id", "kho_id", "kho_rong", "kho_dai",
+        UniqueConstraint("hang_loai", "hang_id", "kho_id", "kho_rong", "kho_dai", "don_vi_goc",
                          name="uq_stock_thresholds_hang_kho"),
     )

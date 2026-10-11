@@ -268,8 +268,10 @@ export function LenhSanXuatPage({
             dieuKien={dkDu}
             loc={locMan.loc}
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
+            onXoaHet={xoaLoc}
           />
-          {(dangLoc || tab !== "tat_ca") && (
+          {/* Có khối điều kiện thì "Xoá bộ lọc" nằm cuối hàng khối (ThanhLoc); chỉ lọc bằng ô tìm/kỳ/khâu thì ở đây. */}
+          {(dangLoc || tab !== "tat_ca") && !dieuKien.some((d) => daAp(d, locMan.loc) && !d.anKhoi) && (
             <button type="button" className="lds-lk" onClick={xoaLoc}>
               Xoá bộ lọc
             </button>

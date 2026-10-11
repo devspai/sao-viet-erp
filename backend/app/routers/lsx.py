@@ -20,7 +20,7 @@ from ..deps import get_authorization_service, require_permission
 from ..models.lsx import Lsx
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
-from ..doi_tuong_nhan import BAN_TO, NGHE_LENH
+from ..doi_tuong_nhan import BAN_TO, KCS, MAN_THEO_LENH, NGHE_LENH
 from ..realtime import hub
 from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
@@ -55,8 +55,7 @@ from ..schemas.lsx import (
     XemTruocRoutingIn,
     XemTruocRoutingOut,
 )
-from ..services import lsx_tong_quan
-from ..services.actor_display import actor_labels
+from ..services import lsx_nhat_ky, lsx_tong_quan
 from ..services.lsx_dinh_kem import MAX_BYTES as DINH_KEM_MAX_BYTES
 from ..tai_len import doc_gioi_han
 from ..services.lsx_dinh_kem import LsxDinhKemService, TepBiChan, TepQuaLon, don_kho
@@ -78,9 +77,10 @@ Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 # `lsx_changed` ở router này đi `NGHE_LENH` (không bàn tổ): mọi cửa ghi dưới đây — tạo, sửa, routing,
 # đồng bộ danh mục, đổi trạng thái, xoá — đều chặn lệnh đã phát hành, bàn tổ chưa có gì để bày.
 #
-# Tệp đính kèm: hai nơi đọc (AppShell gác `san_xuat` hoặc có Bàn tổ) — tab Tệp của Kế hoạch SX và thẻ
-# "Tệp của lệnh" trong drawer bàn tổ. Không biết tổ nào đang giữ việc của lệnh ⇒ mọi người có Bàn tổ.
-_NGHE_DINH_KEM = ("san_xuat", BAN_TO)
+# Tệp đính kèm: ba nơi đọc (AppShell gác `san_xuat`, có Bàn tổ, hoặc Xem KCS) — tab Tệp của Kế hoạch
+# SX, thẻ "Tệp của lệnh" trong drawer bàn tổ, và màn KCS (nút Tệp của lệnh + hộp Ghi lỗi, 09/10/2026).
+# Không biết tổ nào đang giữ việc của lệnh ⇒ mọi người có Bàn tổ.
+_NGHE_DINH_KEM = ("san_xuat", BAN_TO, KCS)
 
 
 def _svc(db: Session) -> LsxService:
@@ -571,6 +571,33 @@ def dong_bo_danh_muc(
     return _out(svc, lsx)
 
 
+@router.post("/{lsx_id}/cap-nhat-tieu-chi-kcs", response_model=LsxOut)
+def cap_nhat_tieu_chi_kcs(
+    lsx_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> LsxOut:
+    """Nút "Cập nhật tiêu chí" của băng "Tiêu chí KCS đã đổi": thẻ việc của lệnh đã phát hành lấy bộ
+    tiêu chí mới của danh mục. Cùng quyền với "Cập nhật theo danh mục"; ghi AuditLog. Báo màn KCS
+    ngay (sơ đồ nhóm + form kiểm đọc tiêu chí từ thẻ việc)."""
+    from ..services.san_xuat.release_update import cap_nhat_tieu_chi_kcs as _cap_nhat
+
+    svc = _svc(db)
+    try:
+        lsx = svc.get(lsx_id)
+        _guard_scope(db, lsx, user, authz)
+        _cap_nhat(db, lsx_id=lsx_id, actor=user)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    except Exception as exc:
+        raise _map(exc)
+    db.refresh(lsx)
+    hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
+    hub.gui({"type": "san_xuat_kcs_changed", "lsx_id": lsx_id}, quyen=MAN_THEO_LENH)
+    return _out(svc, lsx)
+
+
 @router.get("/{lsx_id}/tinh-nguoc", response_model=TinhNguocOut)
 def tinh_nguoc(
     lsx_id: int,
@@ -672,23 +699,13 @@ def activity(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> LsxActivityOut:
-    """Nhật ký của 1 lệnh (ai sửa gì, khi nào) — đọc audit theo target `lsx:{id}`, mới→cũ."""
+    """Nhật ký của 1 lệnh — gom mọi đối tượng gắn với lệnh (`services/lsx_nhat_ky.py`), mới→cũ."""
     svc = _svc(db)
     try:
         _guard_scope(db, svc.get(lsx_id), user, authz)
     except Exception as exc:
         raise _map(exc)
-    rows = AuditLogRepository(db).list_by_target(f"lsx:{lsx_id}")
-    names = actor_labels(db, {r.actor_user_id for r in rows if r.actor_user_id is not None})
-    return LsxActivityOut(items=[
-        LsxActivityItem(
-            action=r.action,
-            actor_name=names.get(r.actor_user_id) if r.actor_user_id else None,
-            detail=r.detail,
-            at=r.created_at,
-        )
-        for r in rows
-    ])
+    return LsxActivityOut(items=[LsxActivityItem(**x) for x in lsx_nhat_ky.nhat_ky(db, lsx_id)])
 
 
 # --- Tệp đính kèm -------------------------------------------------------------

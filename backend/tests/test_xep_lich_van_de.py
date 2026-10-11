@@ -253,7 +253,7 @@ def test_phat_hanh_gate_ngoai_le_revert(db, orders, lsx_svc, xl_svc, vd_svc, adm
     # đây là ứng viên DUY NHẤT bị phát hành trong test này (`b` không đụng tới).
     # Công đoạn cuối của nhóm suy TỰ ĐỘNG từ bước CUỐI routing (thu_tu=999 cao nhất) — tổ nào làm
     # cũng được (KCS theo lệnh, mg 0306).
-    kcs_dept = Department(name="KCS Xưởng", code="KCS-XL-VD", is_kcs=True)
+    kcs_dept = Department(name="KCS Xưởng", code="KCS-XL-VD")
     db.add(kcs_dept)
     db.flush()
     db.add(LsxCongDoan(lsx_id=a.id, thu_tu=999, ten="KCS cuối", nhom="finishing",

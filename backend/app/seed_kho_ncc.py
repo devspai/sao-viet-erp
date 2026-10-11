@@ -223,6 +223,7 @@ def _ensure_lots(db: Session, khos: dict[str, KhoHang],
             gia = _round_price(anchor * (0.9 + _jit(item.ma, seq, "g") % 20 / 100))
             db.add(StockLot(
                 ma_lo=ma_lo, hang_loai=hang_loai, hang_id=item.id, kho_id=kho.id,
+                don_vi_goc=(unit or "").lower(),
                 ngay_nhap=ngay, ncc=nccs[_jit(item.ma, seq) % len(nccs)],
                 don_gia_nhap=gia, sl_ban_dau=sl, sl_con_lai=con, trang_thai=LOT_AVAILABLE,
             ))
@@ -235,6 +236,7 @@ def _ensure_lots(db: Session, khos: dict[str, KhoHang],
                 sl_qc = round((nen * 0.3) / buoc) * buoc or buoc
                 db.add(StockLot(
                     ma_lo=ma_qc, hang_loai=hang_loai, hang_id=item.id, kho_id=kho.id,
+                    don_vi_goc=(unit or "").lower(),
                     ngay_nhap=hom_nay - timedelta(days=1), ncc=nccs[0],
                     don_gia_nhap=_round_price(anchor), sl_ban_dau=sl_qc, sl_con_lai=sl_qc,
                     trang_thai=LOT_QC_WAIT,

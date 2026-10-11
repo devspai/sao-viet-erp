@@ -1,7 +1,10 @@
-"""Kho SẢN PHẨM TÁI BẢN — tra cứu theo tên để nạp lại cấu hình kỹ thuật đã từng chốt đơn.
+"""SẢN PHẨM TÁI BẢN — thành phẩm CỦA KHÁCH, nạp lại cấu hình kỹ thuật đã từng chốt đơn.
 
-Nguồn ghi DUY NHẤT là `OrderService.confirm()` (gọi `snapshot_tu_thanh_phan` cùng transaction với
-chốt đơn) — module này không có API tạo/sửa tay. Xem docs/spec-san-pham-tai-ban.md.
+Từ 11/10/2026 (mg 0394) nguồn là chính mã thành phẩm (`vat_tu_in_an`, `la_thanh_pham`) của khách
+đầu phiếu: `cau_hinh_tai_ban` = list cấu hình từng thành phần (ruột + bìa…) chụp lúc chốt đơn
+(`thanh_pham_khai_bao.khai_cho_don` gọi `cau_hinh_tu_thanh_phan`). Chọn ở ô tái bản là chọn MÃ —
+chốt đơn gắn cụm vào đúng mã đó. Bảng cũ `san_pham_tai_ban` (khoá theo tên, chung mọi khách) thôi
+ghi/đọc.
 """
 from __future__ import annotations
 
@@ -10,7 +13,7 @@ import unicodedata
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models.phieu_tinh_gia import PhieuThanhPhan, SanPhamTaiBan
+from ..models.phieu_tinh_gia import PhieuThanhPhan
 from ..schemas.phieu_tinh_gia import BuocVatTuIn, ChiPhiKhacIn, ThanhPhamIn, ThanhPhanIn
 
 _DAU_MAP = str.maketrans({"đ": "d", "Đ": "D"})
@@ -25,7 +28,7 @@ def chuan_hoa_ten(s: str | None) -> str:
     return s.lower()
 
 
-def _cau_hinh_tu_thanh_phan(tp: PhieuThanhPhan) -> dict:
+def cau_hinh_tu_thanh_phan(tp: PhieuThanhPhan) -> dict:
     """Ảnh chụp CẤU HÌNH KỸ THUẬT dạng `ThanhPhanIn` — CỐ Ý bỏ qua `so_luong` (số lượng của đơn
     cũ), `so_to_per_sp`/`so_mau_a`/`so_mau_b`/`so_mau_pha` (dẫn xuất, engine tự tính lại khi nạp),
     và `gia_von_tp` (giá vốn đã tính, không thuộc `ThanhPhanIn`)."""
@@ -93,35 +96,40 @@ def _cau_hinh_tu_thanh_phan(tp: PhieuThanhPhan) -> dict:
             for c in sorted(tp.chi_phi_khacs, key=lambda x: x.thu_tu)
         ],
     )
-    return data.model_dump(mode="json")
+    # Không mang dấu tái bản của thẻ nguồn: cấu hình là KỸ THUẬT, mã gắn là việc của thẻ nhận.
+    return data.model_dump(mode="json", exclude={"tai_ban_thanh_pham_id"})
 
 
-def snapshot_tu_thanh_phan(db: Session, nguon: PhieuThanhPhan, actor_id: int | None) -> None:
-    """Upsert 1 mẫu tái bản từ `nguon` (khoá = tên chuẩn hoá). Không tự `commit` — chạy trong
-    transaction của người gọi (`OrderService.confirm()`). Tên rỗng thì bỏ qua — không có gì để
-    tra cứu."""
-    ten = (nguon.ten or "").strip()
-    if not ten:
-        return
-    ten_chuan_hoa = chuan_hoa_ten(ten)
-    cau_hinh = _cau_hinh_tu_thanh_phan(nguon)
-    row = db.scalar(select(SanPhamTaiBan).where(SanPhamTaiBan.ten_chuan_hoa == ten_chuan_hoa))
-    if row is None:
-        row = SanPhamTaiBan(ten_chuan_hoa=ten_chuan_hoa)
-        db.add(row)
-    row.ten = ten
-    row.cau_hinh_json = cau_hinh
-    row.updated_by = actor_id
+def tim_kiem(db: Session, customer_id: int, q: str = "", size: int = 20) -> list[dict]:
+    """Thành phẩm CỦA KHÁCH để chọn tái bản — gồm cả mã chưa có cấu hình (khai tay / nhập Excel:
+    chọn được, chỉ gắn mã). Gõ `q` thì lọc theo tên hoặc mã, bỏ dấu, không phân biệt hoa thường.
+    Mã mới chốt trước, rồi tới mã chưa từng chốt."""
+    from ..models.vat_lieu_kho import VatTuInAn
+    from ..repositories.don_vi_do_repo import DonViDoRepository
+
+    rows = list(db.scalars(
+        select(VatTuInAn).where(VatTuInAn.la_thanh_pham.is_(True), VatTuInAn.active.is_(True),
+                                VatTuInAn.customer_id == customer_id)
+    ).all())
+    khoa = chuan_hoa_ten(q)
+    if khoa:
+        rows = [r for r in rows if khoa in chuan_hoa_ten(r.ten) or khoa in chuan_hoa_ten(r.ma)]
+    rows.sort(key=lambda r: (r.tai_ban_luc is None, -(r.tai_ban_luc.timestamp() if r.tai_ban_luc else 0),
+                             r.ma))
+    ten_dv = DonViDoRepository(db).ten_theo_ma()
+    return [{
+        "id": r.id, "ma": r.ma, "ten": r.ten,
+        "don_vi": ten_dv.get((r.don_vi_gia or "").lower(), r.don_vi_gia) if r.don_vi_gia else None,
+        "so_thanh_phan": len(r.cau_hinh_tai_ban or []),
+        "tai_ban_luc": r.tai_ban_luc,
+    } for r in rows[:size]]
 
 
-def tim_kiem(db: Session, q: str, size: int = 20) -> list[SanPhamTaiBan]:
-    """Gợi ý theo tên — bỏ dấu, không phân biệt hoa/thường. Rỗng `q` → mới cập nhật trước."""
-    stmt = select(SanPhamTaiBan).order_by(SanPhamTaiBan.updated_at.desc()).limit(size)
-    q = (q or "").strip()
-    if q:
-        stmt = stmt.where(SanPhamTaiBan.ten_chuan_hoa.contains(chuan_hoa_ten(q)))
-    return list(db.scalars(stmt).all())
+def lay_chi_tiet(db: Session, customer_id: int, tp_id: int) -> dict | None:
+    """Mã + cấu hình từng thành phần để nạp vào thẻ. None khi không phải thành phẩm của khách."""
+    from ..models.vat_lieu_kho import VatTuInAn
 
-
-def lay_chi_tiet(db: Session, id: int) -> SanPhamTaiBan | None:
-    return db.get(SanPhamTaiBan, id)
+    r = db.get(VatTuInAn, tp_id)
+    if r is None or not r.la_thanh_pham or r.customer_id != customer_id:
+        return None
+    return {"id": r.id, "ma": r.ma, "ten": r.ten, "thanh_phans": list(r.cau_hinh_tai_ban or [])}

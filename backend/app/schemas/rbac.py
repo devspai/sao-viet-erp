@@ -20,7 +20,6 @@ class ModuleOut(BaseModel):
     #: (ma trận thụt lề theo cây). Module tĩnh để trống.
     department_id: int | None = None
     cap: int = 0
-    la_kcs: bool = False
     #: Dòng quyền THEO KHO (`ton_kho_<id>`, 05/10/2026): kho của dòng. Module tĩnh để trống.
     kho_id: int | None = None
 
@@ -58,8 +57,6 @@ class DepartmentSummaryOut(BaseModel):
     # Đánh dấu khối KINH DOANH — cùng luật kế thừa cây con. Nền cho danh sách "NV phụ trách" ở
     # màn Khách hàng (chip KHỐI KD trên danh sách phòng ban dùng "effective" y như khối SX).
     la_kinh_doanh: bool = False
-    # Tổ KIỂM TRA CHẤT LƯỢNG (KCS) — cờ ĐÍCH DANH, không kế thừa cây con (module Thực hiện SX §3.1).
-    is_kcs: bool = False
     la_giao_hang: bool = False
     # TỔ IN (mg 0304) — cờ ĐÍCH DANH, không kế thừa cây con. Thợ in ăn khoán: ngày CN / lễ đi làm
     # không có công gốc, trả hết ở phần thêm (2 / 3 / 5 công).
@@ -120,8 +117,6 @@ class DepartmentCreate(BaseModel):
     la_san_xuat: bool = False
     # Khối KINH DOANH — mặc định không phải kinh doanh.
     la_kinh_doanh: bool = False
-    # Tổ KCS — mặc định không phải KCS.
-    is_kcs: bool = False
     la_giao_hang: bool = False
     # TỔ IN (mg 0304) — cờ ĐÍCH DANH, không kế thừa cây con. Thợ in ăn khoán: ngày CN / lễ đi làm
     # không có công gốc, trả hết ở phần thêm (2 / 3 / 5 công).
@@ -151,9 +146,6 @@ class DepartmentUpdate(BaseModel):
     # Khối KINH DOANH. KHÔNG gửi = giữ nguyên (router lọc theo `model_fields_set`): màn Phòng ban
     # có nhiều luồng sửa chỉ đụng tên/trưởng phòng, ghi đè mặc định ở đó là âm thầm gỡ cờ khối.
     la_kinh_doanh: bool = False
-    # Tổ KCS. KHÔNG gửi = giữ nguyên (router lọc theo `model_fields_set`) — cùng lý do như
-    # `la_kinh_doanh`: nhiều luồng sửa chỉ đụng tên/trưởng phòng, ghi đè mặc định là âm thầm gỡ cờ.
-    is_kcs: bool = False
     la_giao_hang: bool = False
     # TỔ IN (mg 0304) — cờ ĐÍCH DANH, không kế thừa cây con. Thợ in ăn khoán: ngày CN / lễ đi làm
     # không có công gốc, trả hết ở phần thêm (2 / 3 / 5 công).

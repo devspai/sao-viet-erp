@@ -33,11 +33,11 @@ from ..models.stock_voucher import (
     StockVoucherAttachment,
 )
 
-from ..models.vat_lieu_kho import GiayNguyen
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
+from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from ..repositories.stock_lot_repo import goc_cua
-from .kho_giay import DANG_CUON, DANG_TO, chuan_kho, khoa_dong, khoa_ton, nhan_kho
+from .kho_giay import chuan_kho, co_don_vi_goc, khoa_dong, khoa_ton, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
@@ -99,13 +99,30 @@ class StockVoucherService:
                 f"không thao tác được phiếu này."
             )
 
-    def _quy_doi(self, rl, qty: float, dang: str | None = None) -> dict:
+    def _assert_chua_tinh_gia(self, kho_id, ngay, *, viec: str, them: str = "") -> None:
+        """Chặn thao tác vào kỳ đã bấm "Tính giá kỳ" (chưa khoá) — 11/10/2026. N-X-T kỳ sau đọc đầu
+        kỳ từ số đã chốt và BỎ QUA phiếu có ngày nằm trong kỳ đó: ghi sổ lùi ngày hay sửa số ở đây là
+        tồn đầu kỳ sau lệch ngầm. Lối thoát: khoá rồi mở lại kỳ (mở sổ xoá số đã tính)."""
+        if kho_id is None or ngay is None:
+            return
+        ky = KhoKyTonRepository(self.vouchers.db).ky_da_tinh_tu(kho_id, ngay)
+        if ky is not None:
+            raise StockVoucherError(
+                f"Phiếu ngày {ngay.strftime('%d/%m/%Y')} nằm trong kỳ đã tính giá "
+                f"({ky[0].strftime('%d/%m/%Y')}–{ky[1].strftime('%d/%m/%Y')}) — {viec} lúc này làm lệch "
+                f"số đã chốt. Đổi ngày phiếu sang sau kỳ đó, hoặc nhờ kế toán khoá rồi mở lại kỳ để bỏ "
+                f"số đã tính, xong thì tính giá lại.{them}"
+            )
+
+    def _quy_doi(self, rl, qty: float) -> dict:
         """Số trên phiếu (theo `dvt` của dòng đề nghị) → số theo ĐƠN VỊ GỐC để ghi vào lô.
-        `dang`: dạng giấy hiệu lực của dòng phiếu (tờ ⇒ gốc tờ nguyên, cuộn ⇒ gốc kg)."""
+        Giấy + vật tư: gốc của CHÍNH dòng đề nghị (`rl.don_vi_goc` — một đơn vị đã khai ở danh mục);
+        dòng cũ chưa có thì suy từ ĐVT (`don_vi_goc` trong kết quả nói gốc nào)."""
         from .vat_lieu_kho_service import VatLieuKhoError
 
+        goc = (rl.don_vi_goc or None) if co_don_vi_goc(rl.hang_loai) else None
         try:
-            return self.hang.quy_ve_goc(rl.hang_loai, rl.hang_id, rl.dvt, qty, dang=dang)
+            return self.hang.quy_ve_goc(rl.hang_loai, rl.hang_id, rl.dvt, qty, goc=goc)
         except VatLieuKhoError as e:
             raise StockVoucherError(str(e)) from None
 
@@ -161,11 +178,13 @@ class StockVoucherService:
             # Mặt hàng KẾ THỪA từ dòng đề nghị, kho không đổi được: đề nghị đã duyệt là khoá, đổi
             # mặt hàng ở phiếu tức là cấp thứ khác với thứ người ta duyệt.
             hang = (rl.hang_loai, rl.hang_id)
-            # GIẤY: dạng + khổ của dòng phiếu — NHẬP được khai lại, mặc định kế thừa dòng yêu cầu;
-            # XUẤT luôn theo dòng yêu cầu (lô chọn phải khớp, xem `_require_lot`).
-            dang_g, kr, kd = self._dang_kho_cua_dong(rl, ln, loai)
+            # GIẤY: khổ của dòng phiếu — NHẬP được khai lại, mặc định kế thừa dòng yêu cầu; XUẤT luôn
+            # theo dòng yêu cầu (lô chọn phải khớp, xem `_require_lot`). Đơn vị gốc LUÔN theo dòng yêu
+            # cầu (ĐVT dòng đã chốt ở yêu cầu — phiếu không đổi được đơn vị).
+            kr, kd = self._kho_cua_dong(rl, ln, loai)
             # Chốt hệ số quy đổi NGAY LÚC NÀY (xem `StockVoucherLine.sl_goc`).
-            qd = self._quy_doi(rl, qty, dang_g)
+            qd = self._quy_doi(rl, qty)
+            dv_goc = (qd.get("don_vi_goc") or "").lower() if co_don_vi_goc(rl.hang_loai) else ""
 
             item = {
                 "request_line_id": rl.id,
@@ -174,7 +193,7 @@ class StockVoucherService:
                 "so_luong": qty,
                 "sl_goc": qd["sl_goc"],
                 "ghi_chu": ln.get("ghi_chu"),
-                "dang_giay": dang_g, "kho_rong": kr, "kho_dai": kd,
+                "don_vi_goc": dv_goc, "kho_rong": kr, "kho_dai": kd,
                 # Vị trí cất lô — CHỈ phiếu NHẬP; ghi sổ chép sang lô. XUẤT không tạo lô → None.
                 "vi_tri": ((ln.get("vi_tri") or "").strip() or None) if loai == VOUCHER_NHAP else None,
             }
@@ -184,8 +203,9 @@ class StockVoucherService:
                     # lô nguồn (đích danh, KHÔNG bình quân) để kho đích chạy FEFO/giá vốn như nguồn.
                     item["don_gia"] = int(ln.get("don_gia") or 0)
                     item["hsd"] = ln.get("hsd")
-                    # Điều chuyển giấy: lô mới ở kho đích mang dạng + khổ ĐÚNG lô nguồn.
-                    item["dang_giay"] = ln.get("dang_giay") or dang_g
+                    # Điều chuyển giấy / vật tư: lô mới ở kho đích mang đơn vị gốc + khổ ĐÚNG lô nguồn.
+                    if co_don_vi_goc(rl.hang_loai):
+                        item["don_vi_goc"] = (ln.get("don_vi_goc") or dv_goc).strip().lower()
                     item["kho_rong"] = int(ln.get("kho_rong") or 0) or kr
                     item["kho_dai"] = int(ln.get("kho_dai") or 0) or kd
                     # Lô GỐC đi theo hàng: lô mới ở kho đích vẫn đọc được đơn / khách / giá bán và nhận
@@ -269,14 +289,16 @@ class StockVoucherService:
                 )
 
     @staticmethod
-    def _dang_kho_cua_dong(rl, ln: dict, loai: str) -> tuple[str | None, int, int]:
-        """Dạng + khổ hiệu lực của dòng phiếu. Hàng không phải giấy: NULL · 0 · 0."""
+    def _kho_cua_dong(rl, ln: dict, loai: str) -> tuple[int, int]:
+        """Khổ hiệu lực của dòng phiếu. Phiếu NHẬP giấy khai khổ thì lấy khổ đó, bỏ trống ⇒ kế thừa dòng
+        yêu cầu. Hàng không phải giấy: 0 · 0."""
         if rl.hang_loai != "giay":
-            return None, 0, 0
-        if loai == VOUCHER_NHAP and ln.get("dang_giay"):
+            return 0, 0
+        if loai == VOUCHER_NHAP:
             kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
-            return ln["dang_giay"], kr, kd
-        return rl.dang_giay, int(rl.kho_rong or 0), int(rl.kho_dai or 0)
+            if kr:
+                return kr, kd
+        return int(rl.kho_rong or 0), int(rl.kho_dai or 0)
 
     def _require_lot(self, lot_id, hang: tuple[str, int], kho_id: int, rl=None):
         if not lot_id:
@@ -290,21 +312,52 @@ class StockVoucherService:
             raise StockVoucherError("Lô đã chọn không thuộc mặt hàng của dòng đề nghị.")
         if lot.kho_id != kho_id:
             raise StockVoucherError("Lô đã chọn không nằm trong kho xuất.")
-        # GIẤY: dòng xin dạng/khổ nào thì chỉ lấy lô đúng dạng/khổ đó (cuộn: chỉ dạng — gom theo mã).
-        if rl is not None and rl.hang_loai == "giay" and rl.dang_giay:
-            if lot.dang_giay != rl.dang_giay:
+        # GIẤY + VẬT TƯ: dòng xin đơn vị gốc nào thì chỉ lấy lô đếm đúng đơn vị đó (tờ và kg, thùng
+        # và kg không quy đổi). GIẤY: dòng có khổ thì lô phải đúng khổ (khổ chỉ-rộng không khớp khổ hai
+        # cạnh). Dòng chưa có khổ ⇒ không xét khổ — cùng luật lọc gợi ý lô (`StockLotRepository._loc_kho`).
+        if rl is not None and co_don_vi_goc(rl.hang_loai):
+            goc_dong = (rl.don_vi_goc or "").strip().lower()
+            if goc_dong and (lot.don_vi_goc or "") != goc_dong:
                 raise StockVoucherError(
-                    f"Lô {lot.ma_lo} là giấy {self._ten_dang(lot.dang_giay)}, "
-                    f"dòng xin giấy {self._ten_dang(rl.dang_giay)}.")
-            if rl.dang_giay == "to" and (lot.kho_rong, lot.kho_dai) != (rl.kho_rong, rl.kho_dai):
+                    f"Lô {lot.ma_lo} đếm theo {self._ten_dv(lot.don_vi_goc)}, "
+                    f"dòng xin theo {self._ten_dv(goc_dong)}.")
+        if rl is not None and rl.hang_loai == "giay":
+            kr, kd = chuan_kho(rl.kho_rong, rl.kho_dai)
+            if kr and (int(lot.kho_rong or 0), int(lot.kho_dai or 0)) != (kr, kd):
                 raise StockVoucherError(
-                    f"Lô {lot.ma_lo} là khổ {nhan_kho(lot.kho_rong, lot.kho_dai)}, "
-                    f"dòng xin khổ {nhan_kho(rl.kho_rong, rl.kho_dai)}.")
+                    f"Lô {lot.ma_lo} là {nhan_kho(lot.kho_rong, lot.kho_dai)}, "
+                    f"dòng xin {nhan_kho(kr, kd)}.")
         return lot
 
-    @staticmethod
-    def _ten_dang(dang: str | None) -> str:
-        return {"to": "tờ", "cuon": "cuộn"}.get(dang or "", "chưa có dạng")
+    def _ten_dv(self, ma: str | None) -> str:
+        """Tên hiển thị của mã đơn vị ("to" ⇒ "tờ") cho câu lỗi; tra không được thì trả chính mã."""
+        from ..repositories.don_vi_do_repo import nhan_don_vi
+
+        bang: dict = {}
+        try:
+            bang = self.hang.don_vi.ten_theo_ma()
+        except AttributeError:
+            pass
+        return "“" + (nhan_don_vi(bang, ma) if ma else "chưa rõ đơn vị") + "”"
+
+    def _goc_dieu_chuyen(self, hang_loai: str, hang_id: int, kho_nguon_id: int, it: dict,
+                         kr: int, kd: int) -> str:
+        """Đơn vị gốc của dòng điều chuyển giấy / vật tư: lấy `don_vi_goc` người gửi (dòng tồn đã có
+        sẵn); bỏ trống thì suy từ lô còn hàng ở kho nguồn đúng khổ — chỉ khi chúng cùng MỘT đơn vị gốc.
+        Hai đơn vị (lô tờ + lô kg cùng khổ, lô thùng + lô kg) ⇒ chặn: cộng lẫn là cộng tờ với kg."""
+        goc = (it.get("don_vi_goc") or "").strip().lower()
+        if goc:
+            return goc
+        gocs = {(lo.don_vi_goc or "") for lo in self.lots.list_lots(
+            hang=(hang_loai, hang_id), kho_id=kho_nguon_id, con_hang=True, goc=None)
+            if not kr or (int(lo.kho_rong or 0), int(lo.kho_dai or 0)) == (kr, kd)}
+        if len(gocs) == 1:
+            return gocs.pop()
+        if hang_loai == "giay":
+            raise StockVoucherError(
+                "Điều chuyển giấy phải chọn đúng dòng tồn (khổ + đơn vị) — mỗi khổ, mỗi đơn vị một dòng.")
+        raise StockVoucherError(
+            "Điều chuyển phải chọn đúng dòng tồn theo đơn vị — mỗi đơn vị một dòng.")
 
     # --- Ghi sổ -------------------------------------------------------------
 
@@ -318,6 +371,7 @@ class StockVoucherService:
         # hôm nay. Nhập kho lùi ngày vào kỳ đã khóa → chặn; ngược lại phiếu ngày cũ (kỳ còn mở) vẫn
         # ghi sổ được dù hôm nay rơi vào kỳ đã khóa.
         self._assert_period_open(v.kho_id, v.ngay or date.today())
+        self._assert_chua_tinh_gia(v.kho_id, v.ngay or date.today(), viec="ghi sổ")
 
         req = self.requests.get_with_lines(v.request_id)
         if req is None:
@@ -397,7 +451,8 @@ class StockVoucherService:
                     vi_tri=ln.vi_tri,
                     hsd=ln.hsd,
                     lo_goc_id=ln.lo_goc_id,
-                    dang_giay=ln.dang_giay,
+                    # Lô mang ĐƠN VỊ GỐC của dòng phiếu (đơn vị đã khai) — khoá tồn tách theo nó.
+                    don_vi_goc=(ln.don_vi_goc or "") if co_don_vi_goc(ln.hang_loai) else "",
                     kho_rong=int(ln.kho_rong or 0),
                     kho_dai=int(ln.kho_dai or 0),
                 )
@@ -496,7 +551,9 @@ class StockVoucherService:
         return v
 
     def dieu_chinh_xuat(self, voucher_id: int, so_luong_moi: dict[int, float], user=None):
-        """ĐIỀU CHỈNH phiếu XUẤT đã ghi sổ khi SX dùng ÍT hơn số đã xuất (xuất 10 → dùng 7).
+        """SỬA SỐ XUẤT NHẦM trên phiếu XUẤT đã ghi sổ (xuất 10 → đúng ra 7). Từ 11/10/2026 hàng sản
+        xuất dùng thừa trả về bằng YÊU CẦU NHẬP KHO của tổ (phiếu nhập, giá bình quân lô đã xuất) —
+        nút này chỉ để kho sửa khi xuất nhầm số.
 
         Sửa THẲNG dòng phiếu (giảm `so_luong`/`sl_goc`), TRẢ phần dư về LÔ nguồn (`sl_con_lai +=`),
         và GIẢM `sl_da_ung` của dòng yêu cầu tương ứng → yêu cầu quay lại 'còn N chưa cấp'
@@ -527,6 +584,9 @@ class StockVoucherService:
         # Điều chỉnh SỬA THẲNG dòng phiếu → chặn nếu KỲ CỦA PHIẾU đã khóa sổ. Mốc = NGÀY NHẬP/XUẤT
         # KHO trên phiếu (`v.ngay`) — cùng mốc với lúc ghi sổ, không phải ngày ghi sổ hay hôm nay.
         self._assert_period_open(v.kho_id, v.ngay or date.today())
+        self._assert_chua_tinh_gia(
+            v.kho_id, v.ngay or date.today(), viec="sửa số",
+            them=" Hàng sản xuất dùng thừa thì để tổ trả bằng Yêu cầu nhập kho.")
 
         lines_by_vid = {ln.id: ln for ln in v.lines}
         rlines = {rl.id: rl for rl in req.lines}
@@ -623,17 +683,17 @@ class StockVoucherService:
 
     @staticmethod
     def _gom_theo_hang_nhap(v) -> dict[tuple, float]:
-        """`{khoá tồn: Σ sl_goc}` của MỘT phiếu NHẬP — vào kho bao nhiêu, theo mặt hàng (giấy tờ:
-        mã + khổ), không cần biết chủ thể (nhập kho không gắn lệnh nào)."""
+        """`{khoá tồn: Σ sl_goc}` của MỘT phiếu NHẬP — vào kho bao nhiêu, theo mặt hàng (giấy: mã +
+        khổ + đơn vị gốc), không cần biết chủ thể (nhập kho không gắn lệnh nào)."""
         ra: dict[tuple, float] = {}
         for ln in v.lines:
-            h = khoa_ton(ln.hang_loai, ln.hang_id, dang=ln.dang_giay,
+            h = khoa_ton(ln.hang_loai, ln.hang_id, goc=ln.don_vi_goc,
                          kho_rong=ln.kho_rong or 0, kho_dai=ln.kho_dai or 0)
             ra[h] = ra.get(h, 0.0) + float(ln.sl_goc)
         return ra
 
     def _gom_theo_hang_va_chu_the(self, v, lines_by_id: dict) -> dict[tuple, float]:
-        """`{(khoá tồn, (lsx_id, bai_ghep_id)): Σ sl_goc}` của phiếu — giấy tờ khoá theo mã + khổ.
+        """`{(khoá tồn, (lsx_id, bai_ghep_id)): Σ sl_goc}` của phiếu — giấy khoá theo mã + khổ + đơn vị gốc.
 
         Gộp theo ĐƠN VỊ GỐC (`sl_goc`) vì giữ chỗ đếm bằng đơn vị gốc — so `so_luong` (đơn vị người
         khai) với chỗ giữ là so hai thang khác nhau, đúng bẫy mà cửa kiểm lô ngay trên đã dặn.
@@ -678,7 +738,7 @@ class StockVoucherService:
             rl = lines_by_id.get(ln.request_line_id)
             lsx_id = getattr(rl, "lsx_id", None)
             bg_id = getattr(rl, "bai_ghep_id", None)
-            hang = khoa_ton(ln.hang_loai, ln.hang_id, dang=ln.dang_giay,
+            hang = khoa_ton(ln.hang_loai, ln.hang_id, goc=ln.don_vi_goc,
                             kho_rong=ln.kho_rong or 0, kho_dai=ln.kho_dai or 0)
             if nhu_cau is not None and lsx_id is not None and bg_id is None and lsx_id in ghep_cua:
                 if hang not in nhu_cau.get((lsx_id, None), {}):
@@ -733,17 +793,13 @@ class StockVoucherService:
         for it in items:
             hang_loai, hang_id = it["hang_loai"], int(it["hang_id"])
             key = (hang_loai, hang_id)
-            # GIẤY chuyển theo NHÓM LÔ (dạng, khổ): mỗi nhóm một dòng, đơn vị gốc theo dạng.
-            dang_g = it.get("dang_giay") if hang_loai == "giay" else None
-            if hang_loai == "giay" and not dang_g:
-                # Không biết dạng thì lô tờ (đếm tờ) và lô cuộn (đếm kg) bị cộng lẫn — chặn.
-                raise StockVoucherError(
-                    "Điều chuyển giấy phải chọn dạng (tờ/cuộn) và khổ — mỗi khổ một dòng.")
+            # GIẤY chuyển theo NHÓM LÔ (khổ, đơn vị gốc), VẬT TƯ theo đơn vị gốc: mỗi nhóm một dòng,
+            # số theo đơn vị gốc đó.
             kr, kd = (chuan_kho(it.get("kho_rong"), it.get("kho_dai"))
                       if hang_loai == "giay" else (0, 0))
-            if dang_g == "cuon":
-                kd = 0
-            kd_key = khoa_dong(hang_loai, hang_id, dang_g, kr, kd) if dang_g else key
+            dv_goc = (self._goc_dieu_chuyen(hang_loai, hang_id, kho_nguon_id, it, kr, kd)
+                      if co_don_vi_goc(hang_loai) else None)
+            kd_key = khoa_dong(hang_loai, hang_id, dv_goc, kr, kd)
             if kd_key in seen:
                 raise StockVoucherError("Một mặt hàng chỉ được điều chuyển 1 dòng — gộp số lượng lại.")
             seen.add(kd_key)
@@ -752,7 +808,7 @@ class StockVoucherService:
                 raise StockVoucherError("Số lượng điều chuyển phải lớn hơn 0.")
             from .vat_lieu_kho_service import VatLieuKhoError
             try:
-                dv = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang_g)
+                dv = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id, goc=dv_goc)
             except VatLieuKhoError as e:
                 raise StockVoucherError(str(e)) from None
             dvt_goc = dv.get("don_vi_goc")
@@ -760,7 +816,7 @@ class StockVoucherService:
             if not dvt_goc:
                 raise StockVoucherError(f"“{ten}” chưa khai đơn vị tính — không điều chuyển được.")
             alloc, thieu = self.suggest_allocation(
-                key, kho_nguon_id, qty, dang=dang_g, kho_rong=kr, kho_dai=kd)
+                key, kho_nguon_id, qty, goc=dv_goc, kho_rong=kr, kho_dai=kd)
             if thieu > 1e-9:
                 raise StockVoucherError(
                     f"“{ten}”: kho nguồn không đủ tồn để điều chuyển (thiếu {thieu:g} {dvt_goc})."
@@ -768,7 +824,7 @@ class StockVoucherService:
             tong_tien = sum(float(a["so_luong"]) * int(a["don_gia_nhap"] or 0) for a in alloc)
             prepared.append({
                 "hang_loai": hang_loai, "hang_id": hang_id, "dvt_goc": dvt_goc,
-                "dang_giay": dang_g, "kho_rong": kr, "kho_dai": kd, "khoa": kd_key,
+                "kho_rong": kr, "kho_dai": kd, "khoa": kd_key,
                 "qty": qty, "alloc": alloc, "gia_von": int(round(tong_tien / qty)) if qty else 0,
                 # Vị trí kho đích khai lúc ấn (tuỳ chọn) — áp cho MỌI lô của mặt hàng này.
                 "vi_tri": (str(it.get("vi_tri") or "").strip() or None),
@@ -784,15 +840,15 @@ class StockVoucherService:
             user=user, loai=VOUCHER_XUAT, kho_id=kho_nguon_id, ghi_chu=ghi_chu, notify=False,
             lines=[
                 {"hang_loai": p["hang_loai"], "hang_id": p["hang_id"],
-                 "dang_giay": p["dang_giay"], "kho_rong": p["kho_rong"], "kho_dai": p["kho_dai"],
+                 "kho_rong": p["kho_rong"], "kho_dai": p["kho_dai"],
                  "dvt": p["dvt_goc"], "sl_de_nghi": p["qty"]}
                 for p in prepared
             ],
         )
-        # Nối dòng yêu cầu ↔ mặt hàng theo khoá dòng (mã [+ dạng/khổ với giấy]) — không dựa thứ tự.
+        # Nối dòng yêu cầu ↔ mặt hàng theo khoá dòng (mã [+ khổ + đơn vị gốc với giấy]) — không dựa
+        # thứ tự. Dòng yêu cầu lấy ĐVT = đơn vị gốc nên `_validate_lines` suy lại đúng gốc đó.
         def khoa_rl(rl):
-            return (khoa_dong(rl.hang_loai, rl.hang_id, rl.dang_giay, rl.kho_rong, rl.kho_dai)
-                    if rl.dang_giay else (rl.hang_loai, rl.hang_id))
+            return khoa_dong(rl.hang_loai, rl.hang_id, rl.don_vi_goc, rl.kho_rong, rl.kho_dai)
 
         src_by_hang = {khoa_rl(rl): rl for rl in src_req.lines}
         xuat_lines: list[dict] = []
@@ -817,7 +873,7 @@ class StockVoucherService:
             doc_type=SEQ_DOC_TYPE_STOCK_TRANSFER,   # số phiếu điều chuyển DC… (đầu mối mặt tiền)
             lines=[
                 {"hang_loai": p["hang_loai"], "hang_id": p["hang_id"], "dvt": p["dvt_goc"],
-                 "dang_giay": p["dang_giay"], "kho_rong": p["kho_rong"], "kho_dai": p["kho_dai"],
+                 "kho_rong": p["kho_rong"], "kho_dai": p["kho_dai"],
                  "sl_de_nghi": p["qty"], "don_gia": p["gia_von"]}
                 for p in prepared
             ],
@@ -837,8 +893,8 @@ class StockVoucherService:
                     "hsd": a.get("hsd"),                      # HSD đi theo lô
                     "vi_tri": p.get("vi_tri"),                # vị trí kho đích (khai lúc ấn, nếu có)
                     "lo_goc_id": a["lo_goc_id"],              # A → B → C vẫn trỏ về MỘT lô gốc
-                    # Giấy: dạng + khổ đi theo lô nguồn sang lô mới ở kho đích.
-                    "dang_giay": a.get("dang_giay"), "kho_rong": a.get("kho_rong"),
+                    # Giấy: đơn vị gốc + khổ đi theo lô nguồn sang lô mới ở kho đích.
+                    "don_vi_goc": a.get("don_vi_goc"), "kho_rong": a.get("kho_rong"),
                     "kho_dai": a.get("kho_dai"),
                 })
         nhap = self.create(
@@ -930,73 +986,29 @@ class StockVoucherService:
             raise StockVoucherError("Không tìm thấy lô.")
         return lot
 
-    def bo_sung_dang_kho_lo(self, lot_id: int, *, user, dang_giay: str, kho_rong: int,
-                            kho_dai: int):
-        """Kho bổ sung DẠNG + KHỔ cho lô giấy CŨ (nhập trước khi có dạng/khổ, `dang_giay` NULL, đang
-        đếm theo đơn vị của mã — thường kg). Spec 2026-10-01 §6.
-
-        Cuộn: giữ số lượng, `kho_rong` = rộng, `kho_dai` = 0. Tờ: đổi khối lượng → TỜ NGUYÊN theo
-        khổ + gsm của mã (quy về kg qua module Đơn vị nếu mã không đếm bằng kg), làm tròn XUỐNG cho
-        cả `sl_ban_dau` lẫn `sl_con_lai` với CÙNG hệ số. Thiếu đường quy đổi ⇒ báo lỗi, không đoán.
-        """
-        from .vat_lieu_kho_service import VatLieuKhoError   # import vòng với service này
-
-        lot = self.lots.get_for_update(lot_id)   # khoá dòng rồi mới kiểm lại dạng
+    def bo_sung_kho_lo(self, lot_id: int, *, user, kho_rong: int, kho_dai: int = 0):
+        """Kho bổ sung KHỔ cho lô giấy CŨ chưa có khổ (`kho_rong == 0`). Giấy không còn dạng cuộn/tờ
+        (10/10/2026) nên CHỈ ghi khổ: số lượng, đơn vị gốc và đơn giá nhập giữ NGUYÊN — tờ và kg không
+        quy đổi với nhau, máy không tự đổi khối lượng ra tờ. Khổ một cạnh ⇒ khổ chỉ-rộng `(r, 0)`."""
+        lot = self.lots.get_for_update(lot_id)   # khoá dòng rồi mới kiểm lại khổ
         if lot is None:
             raise StockVoucherError("Không tìm thấy lô.")
         if lot.hang_loai != "giay":
-            raise StockVoucherError("Chỉ lô giấy mới có dạng/khổ.")
-        if lot.dang_giay:
-            raise StockVoucherError("Lô đã có dạng/khổ.")
+            raise StockVoucherError("Chỉ lô giấy mới có khổ.")
+        if int(lot.kho_rong or 0):
+            raise StockVoucherError("Lô đã có khổ.")
+        kr, kd = chuan_kho(kho_rong, kho_dai)
+        if not kr:
+            raise StockVoucherError("Nhập khổ (mm) — ít nhất cạnh rộng.")
         ma_nhap = self.lots.ma_phieu_xuat_nhap_tro_vao(lot.id)
         if ma_nhap:
             raise StockVoucherError(
                 f"Lô đang nằm trong phiếu xuất nháp {ma_nhap}, hoàn tất hoặc huỷ phiếu trước.")
-        if dang_giay not in (DANG_TO, DANG_CUON):
-            raise StockVoucherError("Dạng giấy phải là tờ hoặc cuộn.")
-        truoc = (float(lot.sl_ban_dau or 0), float(lot.sl_con_lai or 0))
-        if dang_giay == DANG_CUON:
-            kr, kd = chuan_kho(kho_rong, 0)[0], 0
-            if not kr:
-                raise StockVoucherError("Cuộn cần nhập khổ rộng (mm).")
-            sl0, sl1 = lot.sl_ban_dau, lot.sl_con_lai
-            sau_txt = f"cuộn khổ {kr} mm · SL giữ nguyên"
-        else:
-            kr, kd = chuan_kho(kho_rong, kho_dai)
-            if not (kr and kd):
-                raise StockVoucherError("Giấy tờ cần đủ hai cạnh khổ (mm).")
-            giay = self.lots.db.get(GiayNguyen, lot.hang_id)
-            gsm = float(getattr(giay, "gsm", 0) or 0)
-            if gsm <= 0:
-                raise StockVoucherError("Mã giấy chưa khai định lượng (gsm) nên không đổi ra tờ được.")
-            try:
-                # Hệ số kg → đơn vị của mã; kg_của_lô = sl ÷ hệ số.
-                he_so = self.hang.quy_ve_goc(
-                    "giay", lot.hang_id, "kg", 1, dang=DANG_CUON)["sl_goc"]
-            except VatLieuKhoError as e:
-                raise StockVoucherError(
-                    f"Không quy được đơn vị của mã về kg để đổi ra tờ: {e}") from None
-            if not he_so or he_so <= 0:
-                raise StockVoucherError("Không quy được đơn vị của mã về kg để đổi ra tờ.")
-            kg_moi_to = (kr / 1000.0) * (kd / 1000.0) * gsm / 1000.0
-            # Làm tròn XUỐNG cả hai số, cùng một hệ số; 1e-9 chống sai số nhị phân (1000 → 999,9999).
-            def _to(sl):
-                return int(((float(sl or 0) / he_so) / kg_moi_to) + 1e-9)
-            sl0, sl1 = _to(lot.sl_ban_dau), _to(lot.sl_con_lai)
-            if sl0 < 1:
-                raise StockVoucherError("Lô quá nhẹ so với khổ này — đổi ra chưa tới một tờ.")
-            sau_txt = f"tờ {kr}×{kd} mm · SL {sl0} / {sl1} tờ"
-        gia_cu = int(lot.don_gia_nhap or 0)
-        gia_moi = gia_cu
-        if dang_giay == DANG_TO and gia_cu:
-            # Giá vốn theo đơn vị CŨ (đ/kg) ⇒ quy sang đ/tờ, GIỮ tổng giá trị lô (SL đầu × giá).
-            gia_moi = int(round(gia_cu * truoc[0] / sl0))
-            sau_txt += f" · đơn giá nhập {gia_cu:,} → {gia_moi:,} đ".replace(",", ".")
-        self.lots.ghi_dang_kho(lot, dang=dang_giay, kho_rong=kr, kho_dai=kd,
-                               sl_ban_dau=sl0, sl_con_lai=sl1, don_gia_nhap=gia_moi)
+        self.lots.ghi_kho_goc(lot, goc=lot.don_vi_goc or "", kho_rong=kr, kho_dai=kd,
+                              sl_ban_dau=lot.sl_ban_dau, sl_con_lai=lot.sl_con_lai)
         AuditLogRepository(self.lots.db).create(
-            actor_user_id=user.id, action="kho_bo_sung_dang_kho_lo", target=f"stock_lot:{lot.id}",
-            detail=(f"{lot.ma_lo}: chưa rõ dạng/khổ (SL {truoc[0]:g} / {truoc[1]:g}) → {sau_txt}"),
+            actor_user_id=user.id, action="kho_bo_sung_kho_lo", target=f"stock_lot:{lot.id}",
+            detail=f"{lot.ma_lo}: chưa có khổ → {nhan_kho(kr, kd)} · số lượng, đơn vị, đơn giá giữ nguyên",
             commit=False,
         )
         self.lots.db.commit()
@@ -1025,7 +1037,7 @@ class StockVoucherService:
 
     def suggest_allocation(
         self, hang: tuple[str, int], kho_id: int, qty: float, *, request_id: int | None = None,
-        dang: str | None = None, kho_rong: int = 0, kho_dai: int = 0,
+        goc: str | None = None, kho_rong: int = 0, kho_dai: int = 0,
     ) -> tuple[list[dict], float]:
         """Gợi ý lấy `qty` (ĐƠN VỊ GỐC) từ những lô nào (FEFO → FIFO): `(dòng phân bổ, còn thiếu)`.
 
@@ -1036,8 +1048,10 @@ class StockVoucherService:
         `request_id` là yêu cầu XUẤT do Giao hàng gửi (đơn X): lô của chính đơn X trước → lô không nguồn
         → lô đơn khác cùng khách (kèm `canh_bao`); lô của khách khác bị bỏ. Trong mỗi nhóm giữ FEFO →
         FIFO (design nhập kho thành phẩm §6). Không có đơn ⇒ thứ tự như cũ.
+
+        `goc` (giấy / vật tư): chỉ lô đếm đúng đơn vị gốc đó (+ đúng khổ khi có khổ); None ⇒ không lọc.
         """
-        lots = self.lots.issuable_lots(hang, kho_id, dang=dang, kho_rong=kho_rong, kho_dai=kho_dai)
+        lots = self.lots.issuable_lots(hang, kho_id, goc=goc, kho_rong=kho_rong, kho_dai=kho_dai)
         nguon = self.lots.nguon_lo([l.id for l in lots])
         dich = self.requests.don_giao_cua_yeu_cau(request_id) if request_id else None
         canh_bao: dict[int, str] = {}
@@ -1069,7 +1083,7 @@ class StockVoucherService:
                 "so_luong": take,
                 "don_gia_nhap": int(lot.don_gia_nhap or 0),
                 "lo_goc_id": goc_cua(lot),
-                "dang_giay": lot.dang_giay, "kho_rong": lot.kho_rong, "kho_dai": lot.kho_dai,
+                "don_vi_goc": lot.don_vi_goc or "", "kho_rong": lot.kho_rong, "kho_dai": lot.kho_dai,
                 "order_ma": n.get("order_ma"),
                 "khach_hang": n.get("khach_hang"),
                 "canh_bao": canh_bao.get(lot.id),

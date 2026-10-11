@@ -1,12 +1,13 @@
 """Thực hiện sản xuất — BÀN GIAO công đoạn (Giai đoạn 3, §11.2 · §11.3).
 
 Một số lượng THỐNG NHẤT mỗi lần giao — không lưu hai con số cạnh tranh. Cùng tổ + cùng LSX thì
-tự `confirmed`; khác tổ/khác LSX thì `proposed` → bên NHẬN xác nhận đúng con số cuối. Điều chỉnh
-KHÔNG xoá cứng: đẻ dòng lịch sử trước/sau; giảm dưới lượng công đoạn sau đã dùng ⇒ cờ không nhất quán.
+tự `confirmed`; khác tổ/khác LSX thì `proposed` → bên NHẬN xác nhận đúng con số cuối.
+
+Số lần giao ĐI THEO MẺ: "Điều chỉnh số" trên lần giao GỠ 10/10/2026 — bên giao sửa số ở chính mẻ
+(`san_luong.sua_so_me`), lần giao chứa mẻ đổi theo; khác tổ thì bên nhận xác nhận lại.
 
 Quyền (dòng quyền theo tổ, mg 0302): ĐỀ XUẤT/SỬA đòi Xác nhận sản lượng ở tổ NGUỒN; XÁC NHẬN đòi
-Xác nhận sản lượng trọn tổ ĐÍCH; ĐIỀU CHỈNH chỉ bên GIAO (27/09/2026) — khác tổ thì số mới quay
-về chờ bên nhận xác nhận lại. Tất cả siết ở service, router chỉ gác coarse.
+Xác nhận sản lượng trọn tổ ĐÍCH. Tất cả siết ở service, router chỉ gác coarse.
 """
 from __future__ import annotations
 
@@ -14,19 +15,17 @@ from sqlalchemy.orm import Session
 
 from ...models.san_xuat_san_luong import (
     BG_DE_XUAT,
-    BG_DIEU_CHINH,
     BG_XAC_NHAN,
     SanXuatBanGiao,
     SanXuatBanGiaoBatch,
-    SanXuatBanGiaoDieuChinh,
 )
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..quyen_to import VIEC_XAC_NHAN, nguoi_co_quyen
-from .dau_vao import cung_to_cung_lsx, kiem_giam_ban_giao
+from .dau_vao import cung_to_cung_lsx
 from .thuc_thi import _gate, _kiem_version, _moc
-from .san_luong import _EPS, _so_khong_am
+from .san_luong import _EPS
 
 
 def _nguoi_nhan(db: Session, user, *department_ids: int | None) -> list[int]:
@@ -40,9 +39,9 @@ def _nguoi_nhan(db: Session, user, *department_ids: int | None) -> list[int]:
 
 
 def cho_xac_nhan_lai(bg: SanXuatBanGiao) -> bool:
-    """Bên giao đã điều chỉnh, bên nhận CHƯA xác nhận lại số mới (27/09/2026). Số mới vẫn có hiệu
-    lực — cờ này chỉ lái nút Xác nhận và hộp việc chờ của tổ nhận."""
-    return bg.trang_thai == BG_DIEU_CHINH and bg.xac_nhan_luc is None and not bg.cung_to
+    """Bên giao sửa số mẻ của lần giao đã xác nhận, bên nhận CHƯA xác nhận lại số mới (10/10/2026).
+    Số mới vẫn có hiệu lực — cờ này chỉ lái nút Xác nhận và hộp việc chờ của tổ nhận."""
+    return bg.trang_thai == BG_XAC_NHAN and bg.xac_nhan_luc is None and not bg.cung_to
 
 
 # Tự xác nhận ⇔ cùng tổ VÀ cùng LSX (§11.2). Luật này nay nằm ở `dau_vao.cung_to_cung_lsx` vì
@@ -58,7 +57,6 @@ def _ket_qua(
         "ban_giao_id": bg.id,
         "trang_thai_ban_giao": bg.trang_thai,
         "so_luong": float(bg.so_luong),
-        "khong_nhat_quan": bg.khong_nhat_quan,
         "version": bg.version,
         "nguon_cong_viec_id": bg.nguon_cong_viec_id,
         "dich_cong_viec_id": bg.dich_cong_viec_id,
@@ -154,7 +152,7 @@ def _so_theo_me(
     """Chọn mẻ ⇒ ra số lượng giao (14/09/2026). Tổ KHÔNG gõ số: số = tổng TỐT của các mẻ chọn.
 
     Còn mẻ chưa giao thì phải chọn ít nhất một; mẻ đã đi theo lần giao KHÁC thì không chọn lại được.
-    Hết mẻ chưa giao mà vẫn còn lẻ (điều chỉnh giảm sau xác nhận) thì giao nốt phần lẻ, không mẻ.
+    Hết mẻ chưa giao mà vẫn còn lẻ (số cũ trước khi giao theo mẻ) thì giao nốt phần lẻ, không mẻ.
     Số không vượt phần còn chưa giao: bàn giao tạo trước khi có giao-theo-mẻ không gắn mẻ nào, nên
     mẻ cũ vẫn hiện "chưa giao" dù số đã đi rồi.
 
@@ -172,10 +170,10 @@ def _so_theo_me(
     chon = list(dict.fromkeys(batch_ids or []))
     if chon:
         if any(i not in chua_giao for i in chon):
-            raise ValueError("Có mẻ không thuộc bước này, không có sản lượng tốt hoặc đã giao rồi.")
+            raise ValueError("Có lần ghi không thuộc bước này, không có sản lượng tốt hoặc đã giao rồi.")
         sl = min(sum(float(chua_giao[i].tot) for i in chon), con_lai)
     elif chua_giao:
-        raise ValueError("Chọn mẻ cần giao.")
+        raise ValueError("Chọn sản lượng cần giao.")
     else:
         sl = con_lai
     if sl <= _EPS:
@@ -202,7 +200,7 @@ def de_xuat(
     không ai xác nhận được, treo mãi ở `proposed`.
 
     GIAO THEO MẺ: số lượng suy ra từ mẻ chọn (`_so_theo_me`), không nhận số gõ tay. Đếm thực tế lệch
-    thì bên nhận xác nhận xong rồi ĐIỀU CHỈNH (§11.3)."""
+    thì bên giao sửa số ở mẻ (`san_luong.sua_so_me`), lần giao đổi theo."""
     repo = SanXuatSanLuongRepository(db)
     nguon_cv = repo.cong_viec(nguon_cong_viec_id)
     if nguon_cv is None:
@@ -244,7 +242,7 @@ def sua_de_xuat(
     expected_version: int | None = None,
 ) -> dict:
     """Bên NGUỒN sửa lại MẺ đi theo lần giao khi còn `proposed` (§11.2) — tick nhầm thì gỡ ra, sót
-    thì thêm vào; số lượng tính lại theo mẻ. Đã xác nhận thì không sửa mẻ nữa, chỉ điều chỉnh số."""
+    thì thêm vào; số lượng tính lại theo mẻ. Đã xác nhận thì không đổi mẻ nữa, chỉ sửa số mẻ."""
     repo = SanXuatSanLuongRepository(db)
     bg = repo.ban_giao(ban_giao_id)
     if bg is None:
@@ -292,8 +290,7 @@ def xac_nhan(
 ) -> dict:
     """Bên ĐÍCH xác nhận đúng con số cuối (§11.2). Số này thành đầu ra được chấp nhận + đầu vào khả dụng.
 
-    Cũng là nút XÁC NHẬN LẠI sau khi bên giao điều chỉnh (`cho_xac_nhan_lai`): trạng thái giữ
-    "đã điều chỉnh" để còn lịch sử, chỉ ghi lại ai nhận, lúc nào."""
+    Cũng là nút XÁC NHẬN LẠI sau khi bên giao sửa số mẻ (`cho_xac_nhan_lai`): ghi lại ai nhận, lúc nào."""
     repo = SanXuatSanLuongRepository(db)
     bg = repo.ban_giao(ban_giao_id)
     if bg is None:
@@ -316,82 +313,5 @@ def xac_nhan(
     _kiem_version(bg, expected_version)
 
     ghi_xac_nhan(db, bg=bg, user=user)
-    if nhan_lai:
-        bg.trang_thai = BG_DIEU_CHINH
     db.commit()
     return ket_qua_da_nhan(db, user=user, bg=bg, nguon_cv=nguon_cv, dich_cv=dich_cv)
-
-
-def dieu_chinh(
-    db: Session,
-    *,
-    user,
-    ban_giao_id: int,
-    so_luong_sau,
-    mo_ta: str | None = None,
-    expected_version: int | None = None,
-) -> dict:
-    """Điều chỉnh số lượng đã xác nhận (§11.3): đẻ dòng lịch sử trước/sau, cập nhật bàn giao.
-
-    CHỈ BÊN GIAO điều chỉnh (27/09/2026). Bên nhận chỉ có Xác nhận: đếm thiếu/thừa là chuyện hai tổ
-    nói với nhau ngoài xưởng, rồi bên giao sửa số. Số mới CÓ HIỆU LỰC NGAY (tổ nhận chạy tiếp trên
-    số đó); khác tổ thì bên nhận bấm xác nhận lại — xoá "ai nhận, lúc nào" để hiện chờ xác nhận lại.
-    Cùng tổ + cùng lệnh không có ai khác để xác nhận ⇒ giữ nguyên.
-
-    Giảm dưới lượng công đoạn sau ĐÃ DÙNG ⇒ đánh dấu không nhất quán (chặn chốt phân bổ/đóng nhóm).
-    Giảm tới mức số nhận × hệ số không còn đủ cho số công đoạn sau ĐÃ GHI MẺ ⇒ chặn hẳn (`dau_vao`).
-    Ghi chú tự do (`mo_ta`) tuỳ chọn — danh mục lý do/lỗi ĐÃ GỠ."""
-    repo = SanXuatSanLuongRepository(db)
-    bg = repo.ban_giao(ban_giao_id)
-    if bg is None:
-        raise ValueError("Không tìm thấy bàn giao.")
-    if bg.trang_thai not in (BG_XAC_NHAN, BG_DIEU_CHINH):
-        raise ValueError("Chỉ điều chỉnh bàn giao đã xác nhận.")
-    nguon_cv = repo.cong_viec(bg.nguon_cong_viec_id)
-    dich_cv = repo.cong_viec(bg.dich_cong_viec_id) if bg.dich_cong_viec_id else None
-    _gate(db, user, nguon_cv, VIEC_XAC_NHAN)
-    _kiem_version(bg, expected_version)
-
-    sl_sau = _so_khong_am(so_luong_sau, "Số lượng sau điều chỉnh")
-    sl_truoc = float(bg.so_luong)
-    # Giảm mà kéo trần ghi mẻ của bên nhận xuống dưới số nó đã ghi ⇒ chặn (19/09/2026, `dau_vao`).
-    kiem_giam_ban_giao(db, repo, bg, dich_cv, sl_sau)
-    # Bên nhận phải xác nhận lại — trừ cùng tổ, và trừ bước gia công ngoài (không tổ nào nhận).
-    cho_nhan_lai = (not bg.cung_to and dich_cv is not None
-                    and dich_cv.gia_cong_ngoai_id is None)
-
-    # Không nhất quán nếu giảm dưới lượng công đoạn sau đã tiêu thụ (truy vết qua lot đầu vào).
-    da_dung = 0.0
-    if dich_cv is not None:
-        da_dung = repo.da_dung_tu_nguon(bg.nguon_cong_viec_id, bg.dich_cong_viec_id)
-    khong_nhat_quan = sl_sau < da_dung - _EPS
-
-    repo.add(
-        SanXuatBanGiaoDieuChinh(
-            ban_giao_id=bg.id,
-            so_luong_truoc=sl_truoc,
-            so_luong_sau=sl_sau,
-            mo_ta=(mo_ta or "").strip() or None,
-            khong_nhat_quan=khong_nhat_quan,
-            created_by=getattr(user, "id", None),
-        )
-    )
-    bg.so_luong = sl_sau
-    bg.khong_nhat_quan = khong_nhat_quan
-    bg.trang_thai = BG_DIEU_CHINH
-    if cho_nhan_lai:
-        bg.xac_nhan_by_id = None
-        bg.xac_nhan_luc = None
-    bg.version += 1
-    AuditLogRepository(db).create(
-        actor_user_id=getattr(user, "id", None),
-        action="san_xuat_ban_giao_dieu_chinh",
-        target=f"san_xuat_ban_giao:{bg.id}",
-        detail=(f"{sl_truoc} -> {sl_sau}{' KHONG_NHAT_QUAN' if khong_nhat_quan else ''}"
-                f"{' CHO_NHAN_LAI' if cho_nhan_lai else ''}"),
-    )
-    db.commit()
-    # Báo cả hai bên (trừ chính người vừa điều chỉnh) — bên nhận phải xác nhận lại số mới.
-    notify = _nguoi_nhan(db, user, nguon_cv.department_id if nguon_cv else None,
-                         dich_cv.department_id if dich_cv else None)
-    return _ket_qua(bg, nguon_cv, dich_cv, notify_user_ids=notify, su_kien="dieu_chinh")

@@ -74,6 +74,7 @@ NHAN: dict[str, str] = {
     "tho": "Thớ",
     "don_gia": "Đơn giá",
     "don_vi_gia": "ĐVT",
+    "don_vi_them": "Đơn vị thêm",
     "don_vi_dong_goi": "Đơn vị đóng gói",
     "quy_cach": "Quy cách",
     "so_luong_dong_goi": "SL đóng gói",
@@ -271,7 +272,7 @@ TIEN = frozenset({"don_gia", "gia", "don_gia_kg", "don_gia_to", "đon_gia", "uni
 # Cột giữ MÃ đơn vị của danh mục Đơn vị & quy đổi — nhật ký in TÊN ("tờ", "bản kẽm"), không in mã
 # ("to", "kem"): người đọc hiểu "đ/to" là chữ "to". `don_vi_toc_do` lưu `<mã>_gio`, xem `_ten_don_vi`.
 DON_VI_MA = frozenset({"unit", "don_vi_gia", "don_vi_vao", "don_vi_ra", "don_vi_san_luong",
-                       "don_vi_toc_do"})
+                       "don_vi_toc_do", "don_vi_them"})
 
 # Ô CHỌN lưu MÃ → chữ đang hiện trong ô chọn trên màn (`rebuildCatalogConfigs.tsx`). Không có bảng
 # này thì tổ bế tích nhận khuôn xong, Nhật ký ra "Tình trạng dang_dat_lam → dang_dung". Khoá theo
@@ -428,7 +429,10 @@ def _chu(v: Any) -> str:
 
 def _ten_don_vi(truong: str, ma: Any, bang: dict[str, str]) -> Any:
     """Mã đơn vị → tên theo danh mục; mã lạ giữ nguyên (luật của `nhan_don_vi`). Tốc độ máy lưu
-    `to_gio` mà danh mục khoá theo `to`, nên cắt hậu tố rồi đọc "tờ/h" như cột Tốc độ của bảng máy."""
+    `to_gio` mà danh mục khoá theo `to`, nên cắt hậu tố rồi đọc "tờ/h" như cột Tốc độ của bảng máy.
+    Danh sách mã (`don_vi_them`) ⇒ danh sách tên."""
+    if isinstance(ma, (list, tuple)):
+        return [_ten_don_vi(truong, x, bang) for x in ma]
     if not isinstance(ma, str) or not ma.strip():
         return ma
     if truong == "don_vi_toc_do":

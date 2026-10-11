@@ -161,10 +161,11 @@ describe("BuocVatTu — định mức", () => {
     expect(luong[0].querySelector(".tg-bvt__luong-so")?.textContent).toBe("0,0012");
     expect(luong[0].querySelector(".tg-bvt__dv")?.textContent).toBe("milimét");
     expect(luong[1].querySelector(".tg-bvt__luong-so")?.textContent).toBe("—");
-    expect(luong[1].querySelector("[role=tooltip]")?.textContent).toMatch(/chưa khai công thức định mức/);
+    fireEvent.mouseEnter(luong[1]);
+    expect(screen.getByRole("tooltip").textContent).toMatch(/chưa khai công thức định mức/);
   });
 
-  it("tooltip hai dòng: công thức bằng chữ, rồi '= thế số = kết quả'; công thức một biến thì chỉ '= số'", () => {
+  it("bong bóng: thẻ Công thức bằng chữ, thẻ Thế số '= thế số = kết quả'; công thức một biến thì chỉ '= số'", () => {
     const dinhMuc = new Map([
       [1, { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
             thaySo: "3 milimét × 4 milimét ÷ 10000" }],
@@ -172,12 +173,14 @@ describe("BuocVatTu — định mức", () => {
     ]);
     const { container } = render(<BuocVatTu {...props({ dinhMuc, dong: [
       { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
-    const tip = Array.from(container.querySelectorAll("[role=tooltip]"));
-    expect(tip[0].querySelector(".tg-bvt__tip-goc")?.textContent).toBe("Dài support × Rộng support ÷ 10000");
-    expect(tip[0].querySelector(".tg-bvt__tip-so")?.textContent).toBe("= 3 milimét × 4 milimét ÷ 10000 = 0,0012 milimét");
-    expect(tip[1].querySelector(".tg-bvt__tip-goc")?.textContent).toBe("Số bản kẽm");
-    expect(tip[1].querySelector(".tg-bvt__tip-so")?.textContent).toBe("= 32 bản");
-    // Ô lượng nhận focus để chạm / bàn phím cũng mở được tooltip.
-    expect(tip[0].parentElement?.getAttribute("tabindex")).toBe("0");
+    const luong = container.querySelectorAll(".tg-bvt__luong");
+    const dd = () => Array.from(screen.getByRole("tooltip").querySelectorAll("dd")).map((x) => x.textContent);
+    fireEvent.mouseEnter(luong[0]);
+    expect(dd()).toEqual(["Dài support × Rộng support ÷ 10000", "= 3 milimét × 4 milimét ÷ 10000 = 0,0012 milimét"]);
+    fireEvent.mouseLeave(luong[0]);
+    fireEvent.mouseEnter(luong[1]);
+    expect(dd()).toEqual(["Số bản kẽm", "= 32 bản"]);
+    // Ô lượng nhận focus để chạm / bàn phím cũng mở được bong bóng.
+    expect(luong[0].getAttribute("tabindex")).toBe("0");
   });
 });

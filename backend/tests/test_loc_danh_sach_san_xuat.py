@@ -177,15 +177,41 @@ def test_kcs_loc_ngay_tao_khach_nhom_va_lan_kcs(db, orders, lsx_svc, admin, cust
 
     assert lsx_id in ids(khach_id=customer.id)
     assert lsx_id not in ids(khach_id=customer.id + 999)
-    # Nhóm còn mở ⇒ "chỉ nhóm đã đóng" không có nó, "gồm cả nhóm đã đóng" vẫn có.
-    assert lsx_id not in ids(chi_da_dong=True)
-    assert lsx_id in ids(gom_da_dong=True)
+    # Nhóm còn mở ⇒ nút "Đã đóng" không có nó, "Tất cả" có.
+    assert lsx_id not in ids(nhanh="da_dong")
+    assert lsx_id in ids(nhanh="tat_ca")
 
     # Cảnh dựng phát hành cả cặp lệnh của đơn ⇒ `so` = số lệnh trong nhóm của khách, khớp bảng.
     khach = {k["id"]: k for k in kcs.khach_loc_kcs(db, nguoi)}
     assert khach[customer.id]["ten"] == customer.name
     assert khach[customer.id]["so"] == kcs.danh_sach_lenh_kcs(
-        db, nguoi, khach_id=customer.id, gom_da_dong=True)["tong"]
+        db, nguoi, khach_id=customer.id)["tong"]
+
+
+def test_kcs_loc_to_cong_doan_co_loi_loai_nguoi_kiem(db, orders, lsx_svc, admin, customer):
+    """Thanh lọc thêm 11/10/2026: lệnh có lỗi do tổ / công đoạn gây, có lỗi hay không, lệnh chính /
+    đi kèm, người kiểm — lọc bằng SQL; ô giá trị đếm số lệnh khớp với bảng."""
+    to, cv, res = _batch(db, orders, lsx_svc, admin, customer, dat=10, khong_dat=5)
+    nguoi = res["nguoi_kcs"]
+    lsx_id = cv.lsx_id
+
+    def ids(**loc):
+        return {i["lsx_id"] for i in kcs.danh_sach_lenh_kcs(db, nguoi, **loc)["items"]}
+
+    tat_ca = ids()
+    assert lsx_id in ids(to_id=to.id) and lsx_id not in ids(to_id=to.id + 999)
+    assert lsx_id in ids(cong_doan=cv.ten_cong_doan) and not ids(cong_doan="Không có công đoạn này")
+    assert lsx_id in ids(co_loi="co") and lsx_id not in ids(co_loi="khong")
+    assert ids(co_loi="co") | ids(co_loi="khong") == tat_ca
+    assert ids(loai="chinh") | ids(loai="phu") == tat_ca and not ids(loai="chinh") & ids(loai="phu")
+    assert lsx_id in ids(nguoi_kiem_id=nguoi.id) and not ids(nguoi_kiem_id=nguoi.id + 999)
+
+    gt = kcs.gia_tri_loc_kcs(db, nguoi)
+    to_ = {o["id"]: o for o in gt["to"]}
+    assert to_[to.id]["so"] == len(ids(to_id=to.id))
+    assert {"ten": cv.ten_cong_doan, "so": len(ids(cong_doan=cv.ten_cong_doan))} in gt["cong_doan"]
+    nk = {o["id"]: o for o in gt["nguoi_kiem"]}
+    assert nk[nguoi.id]["so"] == len(ids(nguoi_kiem_id=nguoi.id))
 
 
 # --- Đường đi HTTP ------------------------------------------------------------------------------
@@ -205,9 +231,14 @@ def test_http_nhan_tham_so_ky_va_duong_tinh(client, seed_credentials):
         assert r.status_code == 200, (url, r.text)
     assert client.get("/api/lsx?moc=la", headers=h).status_code == 422
     assert client.get("/api/lenh-san-xuat?moc=kcs", headers=h).status_code == 422
-    # admin không đứng trong tổ KCS ⇒ 403 — tức đường tĩnh tới được service, không bị
+    # admin (Giám đốc, có dòng `kcs`) ⇒ 200 — tức đường tĩnh tới được service, không bị
     # `/kcs/lenh/{lsx_id}` nuốt thành 422.
-    assert client.get("/api/san-xuat/kcs/lenh/khach-loc", headers=h).status_code == 403
+    assert client.get("/api/san-xuat/kcs/lenh/khach-loc", headers=h).status_code == 200
+    assert client.get("/api/san-xuat/kcs/lenh/gia-tri-loc", headers=h).status_code == 200
     assert client.get(
-        "/api/san-xuat/kcs/lenh?moc=kcs&nhom=da_dong&khach_id=1", headers=h
-    ).status_code == 403
+        "/api/san-xuat/kcs/lenh?to_id=1&cong_doan=In&co_loi=khong&loai=phu&nguoi_kiem_id=1", headers=h
+    ).status_code == 200
+    assert client.get("/api/san-xuat/kcs/lenh?co_loi=x", headers=h).status_code == 422
+    assert client.get(
+        "/api/san-xuat/kcs/lenh?moc=kcs&nhanh=da_dong&khach_id=1", headers=h
+    ).status_code == 200

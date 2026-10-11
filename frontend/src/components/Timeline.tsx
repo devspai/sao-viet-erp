@@ -8,6 +8,8 @@ export interface TimelineEntry {
   accent?: boolean;
   /** Màu chấm theo loại sự kiện: rust (mốc đầu) / moss (tích cực) / steel / signal (kết thúc). */
   tone?: "rust" | "moss" | "steel" | "signal";
+  /** Mẩu phụ vẽ thành thẻ nhỏ dưới câu (tên công đoạn, mã phiếu, lý do). */
+  tags?: string[];
 }
 
 export function Timeline({ items, emptyText }: { items: TimelineEntry[]; emptyText?: string }) {
@@ -23,6 +25,11 @@ export function Timeline({ items, emptyText }: { items: TimelineEntry[]; emptyTe
         >
           <span className="tline__dot" aria-hidden="true" />
           <div className="tline__title">{it.title}</div>
+          {it.tags && it.tags.length > 0 && (
+            <div className="tline__tags">
+              {it.tags.map((t, i) => <span key={i} className="tline__tag">{t}</span>)}
+            </div>
+          )}
           {it.meta && <div className="tline__meta">{it.meta}</div>}
         </li>
       ))}

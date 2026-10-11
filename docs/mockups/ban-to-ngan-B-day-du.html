@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ngăn tổ B đầy đủ</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f5; --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a; --link:#1d4ed8;
+  --chay:#16a34a; --chay-bg:#dcfce7; --chay-fg:#15803d;
+  --cho:#3b82f6; --cho-bg:#dbeafe; --cho-fg:#1d4ed8;
+  --dung:#f59e0b; --dung-bg:#fef3c7; --dung-fg:#b45309;
+  --xong-bg:#e5e7eb; --xong-fg:#374151;
+  --ngoai:#7c3aed; --do:#dc2626; --do-bg:#fee2e2; --do-fg:#b91c1c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrapx{max-width:1320px;margin:0 auto;padding:28px 16px 120px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.intro{color:var(--ash);font-size:13.5px;max-width:1040px}
+.ctl{display:flex;gap:14px;align-items:center;margin:16px 0 14px;flex-wrap:wrap;font-size:13px;color:var(--ash-2)}
+.sw{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:var(--canvas);border:1px solid var(--rule-soft)}
+.sw button{border:0;background:transparent;font:inherit;font-size:13px;color:var(--ash);padding:5px 12px;border-radius:8px;cursor:pointer}
+.sw button.on{background:var(--ink);color:#fff}
+.lbl{font-size:12.5px;color:var(--ash-2);margin:26px 0 8px}
+
+.num{font-variant-numeric:tabular-nums}
+.mut{color:var(--ash-2)} .mut3{color:var(--ash-3)} .ok{color:var(--chay-fg)} .warn{color:var(--dung-fg)} .bad{color:var(--do-fg)}
+.d{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-radius:999px;font-size:12.5px;white-space:nowrap;height:24px}
+.chip.chay{background:var(--chay-bg);color:var(--chay-fg)} .chip.chay .d{background:var(--chay)}
+.chip.cho{background:var(--cho-bg);color:var(--cho-fg)} .chip.cho .d{background:var(--cho)}
+.chip.dung{background:var(--dung-bg);color:var(--dung-fg)} .chip.dung .d{background:var(--dung)}
+.chip.xong{background:var(--xong-bg);color:var(--xong-fg)} .chip.xong .d{background:#6b7280}
+.lab{display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+.lab.ok{background:var(--chay-bg);color:var(--chay-fg)} .lab.cho{background:var(--dung-bg);color:var(--dung-fg)} .lab.xam{background:var(--rule-hair);color:var(--ash)} .lab.do{background:var(--do-bg);color:var(--do-fg)} .lab.xanh{background:var(--cho-bg);color:var(--cho-fg)}
+.btn{height:34px;border:1px solid var(--rule-soft);border-radius:9px;background:var(--canvas);padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font:inherit;font-size:13px;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.sm{height:30px;font-size:12.5px;padding:0 11px}
+.btn.ic{width:34px;padding:0}
+.btn.lg{height:44px;font-size:14px;border-radius:11px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.lk{color:var(--link);font-size:12.5px;cursor:pointer;white-space:nowrap;background:none;border:0;padding:0;font-family:inherit}
+.lk:hover{text-decoration:underline}
+.av{width:22px;height:22px;border-radius:50%;display:inline-grid;place-items:center;font-size:10.5px;color:#fff;background:#0e7490;flex:none}
+.cham{width:7px;height:7px;border-radius:50%;background:var(--do);display:inline-block}
+.crumb{font-size:12.5px;color:var(--ash-2);display:flex;gap:8px;align-items:center;white-space:nowrap;overflow:hidden}
+.crumb i{font-style:normal;color:var(--ash-3)}
+.ttl{margin:2px 0 0;font-size:22px;font-weight:500;display:flex;align-items:center;gap:10px;letter-spacing:-.015em;flex-wrap:wrap}
+.ttl .loai{font-size:12.5px;color:var(--ash-2);font-weight:400;letter-spacing:0}
+.menu{position:relative}
+.menu .pop{position:absolute;right:0;top:40px;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;box-shadow:0 12px 32px -12px rgba(15,23,42,.25);padding:4px;min-width:180px;display:none;z-index:9}
+.menu:hover .pop{display:block}
+.pop div{padding:7px 10px;border-radius:7px;font-size:13px}
+.pop div:hover{background:var(--rule-hair)}
+
+/* khung */
+.desk{background:rgba(15,23,42,.28);border-radius:16px;padding:0 0 0 70px;height:820px;display:flex;overflow:hidden}
+.dr{background:var(--canvas);width:1180px;max-width:100%;display:flex;flex-direction:column;box-shadow:-16px 0 40px -20px rgba(15,23,42,.35);overflow:hidden;container-type:inline-size}
+.hd{padding:16px 24px 12px;display:flex;gap:14px;align-items:flex-start;border-bottom:1px solid var(--rule-hair)}
+.hd .acts{margin-left:auto;display:flex;gap:8px;align-items:center}
+.split{display:grid;grid-template-columns:1fr 330px;flex:1;min-height:0}
+.left{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--rule-soft)}
+.tabs{display:flex;gap:22px;padding:0 24px;border-bottom:1px solid var(--rule-soft);background:var(--canvas);flex:none;overflow-x:auto;scrollbar-width:none}
+.tabs button{border:0;background:none;font:inherit;font-size:13.5px;color:var(--ash);padding:11px 0;border-bottom:2px solid transparent;display:inline-flex;gap:6px;align-items:center;white-space:nowrap;cursor:pointer}
+.tabs button.on{color:var(--ink);border-color:var(--ink)}
+.tabs .c{color:var(--ash-3);font-size:12px}
+.tabs .tq{display:none}
+.body{padding:18px 24px 28px;overflow:auto;flex:1;min-height:0}
+.pane{display:none}.pane.on{display:block}
+.side{padding:16px 20px 24px;overflow:auto;background:var(--paper)}
+.side h5{margin:0 0 8px;font-size:12px;font-weight:400;color:var(--ash-2)}
+.blk{margin-bottom:20px}
+
+/* nội dung */
+.sec{margin-bottom:24px}
+.sec-h{display:flex;align-items:center;gap:10px;min-height:30px;margin-bottom:8px;flex-wrap:wrap}
+.sec-h h4{margin:0;font-size:14px;font-weight:500}
+.sec-h .c{font-size:12.5px;color:var(--ash-3)}
+.sec-h .r{margin-left:auto;display:flex;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.box{border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px}
+.trong{font-size:13px;color:var(--ash-2)}
+.trong small{display:block;font-size:12px;color:var(--ash-3);margin-top:2px}
+.tw{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{font-weight:400;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);font-size:12px;white-space:nowrap}
+.t td{padding:10px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+.t .r{text-align:right}
+.t .act{text-align:right;white-space:nowrap;width:1%}
+.t .act .btn+.btn{margin-left:6px}
+.t tr.mo td{background:var(--paper)}
+.t tr.ct td{background:var(--paper);padding:4px 14px 14px}
+.t .tg{cursor:pointer;color:var(--ash-3);width:18px}
+.kv{display:grid;grid-template-columns:130px 1fr;row-gap:7px;font-size:13px}
+.kv dt{color:var(--ash-2)} .kv dd{margin:0}
+.kv.hep{grid-template-columns:70px 1fr}
+.kv dd small{display:block;font-size:12px;color:var(--ash-2)}
+.spec{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.spec > div{padding:11px 14px;border-right:1px solid var(--rule-hair);border-bottom:1px solid var(--rule-hair)}
+.spec > div:nth-child(4n){border-right:0}
+.spec .l{font-size:12px;color:var(--ash-2)}
+.spec .v{font-size:14px;margin-top:2px}
+.spec .w2{grid-column:span 2}
+.muc{display:inline-flex;gap:4px;align-items:center}
+.muc i{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10.5px;font-style:normal}
+.note{border:1px solid #fde68a;background:#fffbeb;border-radius:10px;padding:9px 12px;font-size:13px;color:#92400e;margin-bottom:12px}
+.note.xanh{border-color:#bfdbfe;background:#eff6ff;color:#1e40af}
+.so3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.so3 div{border:1px solid var(--rule-soft);border-radius:10px;padding:9px 12px}
+.so3 small{display:block;font-size:12px;color:var(--ash-2)}
+.so3 b{font-weight:500;font-size:17px}
+.bg{border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.bg .h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bg .h .so{font-size:16px}
+.bg .h .r{margin-left:auto;display:flex;gap:6px}
+.bg .rt{display:grid;grid-template-columns:1fr 20px 1fr;gap:8px;margin-top:10px;font-size:12.5px;align-items:center}
+.bg .rt > div{background:var(--paper);border-radius:8px;padding:7px 10px}
+.bg .rt small{display:block;color:var(--ash-3);font-size:11.5px}
+.bg .rt .ar{text-align:center;color:var(--ash-3)}
+.tl .ev{display:grid;grid-template-columns:22px 1fr auto;gap:12px;padding:10px 0;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.tl .ev .o{width:10px;height:10px;border-radius:50%;margin:5px 0 0 6px;background:var(--rule)}
+.tl .ev .o.g{background:var(--chay)} .tl .ev .o.b{background:var(--cho)} .tl .ev .o.r{background:var(--do)}
+.tl .ct{display:flex;gap:10px;flex-wrap:wrap;margin-top:3px;font-size:12.5px;color:var(--ash-2)}
+.tl .gio{color:var(--ash-2);font-size:12.5px}
+.lydo{margin-top:6px;background:var(--paper);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--ash)}
+.seg{display:flex;gap:2px;padding:3px;border-radius:9px;background:var(--rule-hair);flex-wrap:wrap}
+.seg span{font-size:12.5px;color:var(--ash);padding:3px 10px;border-radius:7px;cursor:pointer}
+.seg span.on{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.loi{border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;margin-bottom:10px}
+.loi .lph{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--ash-2)}
+.loi .anh{display:flex;gap:6px;grid-column:1/3;margin-top:6px}
+.loi .anh i{width:56px;height:42px;border-radius:7px;background:linear-gradient(135deg,#e2e8f0,#cbd5e1)}
+.files .f{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.files .f .ic{width:30px;height:36px;border-radius:6px;background:var(--rule-hair);display:grid;place-items:center;font-size:10px;color:var(--ash-2)}
+.files .f .r{margin-left:auto;display:flex;gap:10px}
+.files .f small{display:block;font-size:12px;color:var(--ash-3)}
+
+/* cột phải */
+.cau{display:inline-flex;align-items:center;gap:7px;color:var(--ink);font-size:13.5px}
+.cau i{width:8px;height:8px;border-radius:50%;background:var(--chay)}
+.cau.sap i{background:var(--cho)}
+.vlist{display:flex;flex-direction:column;margin-top:8px}
+.vs{display:grid;grid-template-columns:18px 1fr;gap:10px;position:relative;padding-bottom:10px;font-size:13px}
+.vs::before{content:"";position:absolute;left:8px;top:16px;bottom:-2px;width:2px;background:var(--rule-soft)}
+.vs:last-child::before{display:none}
+.vs .o{width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);background:#fff;margin:3px 0 0 3px;position:relative;z-index:1}
+.vs.x .o{background:#94a3b8;border-color:#94a3b8} .vs.g .o{background:var(--chay);border-color:var(--chay)}
+.vs.me .o{width:16px;height:16px;margin:1px 0 0 1px;border:3px solid var(--ink-2)}
+.vs.me.g .o{border-color:var(--chay-fg)}
+.vs.ng .o{border-color:var(--ngoai)}
+.vs .to{font-size:12px;color:var(--ash-3)}
+.vs.me .nm{color:var(--ink)} .vs.me .to{color:var(--chay-fg)}
+.pg{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:12px 14px}
+.pg .big{font-size:26px;font-weight:500;color:var(--chay-fg);line-height:1.1}
+.pg .bar{height:6px;border-radius:999px;background:var(--rule-hair);overflow:hidden;margin-top:8px}
+.pg .bar i{display:block;height:100%;background:var(--chay)}
+.pg dl{display:grid;grid-template-columns:1fr auto;row-gap:4px;margin:8px 0 0;font-size:12.5px}
+.pg dt{color:var(--ash-2)} .pg dd{margin:0;text-align:right}
+.vuong{border:1px solid #fde68a;background:#fffbeb;border-radius:12px;padding:10px 12px;font-size:13px;color:#92400e;margin-bottom:16px}
+.vuong ul{margin:6px 0 0;padding-left:18px;display:grid;gap:2px}
+.vuong:empty{display:none}
+
+/* điện thoại */
+.phones{display:flex;gap:28px;flex-wrap:wrap}
+.ph{width:390px;height:820px;border-radius:44px;background:#0f172a;padding:12px;flex:none}
+.scr{width:100%;height:100%;border-radius:34px;background:var(--canvas);overflow:hidden;position:relative;display:flex;flex-direction:column;container-type:inline-size}
+.sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:13px;flex:none}
+.ab{display:flex;align-items:center;gap:10px;padding:4px 14px 8px;flex:none}
+.ab .bk{font-size:22px;color:var(--ash);width:24px}
+.ab .tt{flex:1;min-width:0}
+.ab .tt .s{font-size:12px;color:var(--ash-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab .tt .t{font-size:18px;font-weight:500;display:flex;gap:8px;align-items:center}
+.pfoot{flex:none;display:flex;gap:8px;padding:10px 14px 22px;border-top:1px solid var(--rule-soft);background:var(--canvas)}
+.pfoot .btn{flex:1}
+.pc{font-size:12.5px;color:var(--ash-2);margin-top:8px;width:390px}
+
+@container (max-width:520px){
+  .tabs{padding:0 16px;gap:18px}
+  .tabs .tq{display:inline-flex}
+  .body{padding:14px 16px 20px}
+  .two{grid-template-columns:1fr}
+  .spec{grid-template-columns:1fr 1fr}
+  .spec > div:nth-child(4n){border-right:1px solid var(--rule-hair)}
+  .spec > div:nth-child(2n){border-right:0}
+  .spec .w2{grid-column:span 2}
+  .so3 b{font-size:15px}
+  .kv{grid-template-columns:110px 1fr}
+  .bg .rt{grid-template-columns:1fr}
+  .bg .rt .ar{display:none}
+  .t .an{display:none}
+  .sec-h .r{margin-left:0;width:100%}
+}
+</style>
+</head>
+<body>
+<div class="wrapx">
+<h1>Ngăn công việc ở Bàn tổ, phương án B đầy đủ</h1>
+<div class="intro">Tab làm việc ở cột lớn bên trái, thông tin việc ghim ở cột phải. Đủ 6 tab, mọi ô và nút của ngăn hiện tại. Số liệu dựa trên việc Cắt tờ của LSX26-0004, thêm một mẻ, một lần giao, một lỗi KCS và một lần đề nghị vật tư để tab nào cũng có nội dung. Điện thoại dùng chung nội dung: cột phải thành tab Tổng quan, hai cột thành một, bảng cuộn ngang được.</div>
+<div class="ctl">Trạng thái việc
+  <span class="sw" id="sw"><button data-s="chay" class="on">Đang chạy</button><button data-s="cho">Chờ làm</button><button data-s="dung">Tạm dừng</button><button data-s="xong">Hoàn thành</button></span>
+  Bước của tổ
+  <span class="sw" id="sw2"><button data-v="dau" class="on">Bước đầu</button><button data-v="giua">Bước giữa</button></span>
+</div>
+
+<div class="lbl">Máy tính, ngăn rộng 1180px</div>
+<div class="desk"><div class="dr" id="D">
+  <div class="hd">
+    <div><div class="crumb">LSX26-0004 Bìa sách A5<i>›</i>Công ty Cổ phần Bibica</div><div class="ttl">Cắt tờ <span class="loai">việc máy</span><span data-chip></span></div></div>
+    <div class="acts"><span data-acts style="display:flex;gap:8px"></span><span class="menu"><span class="btn ic">⋯</span><span class="pop"><div>Đổi máy</div><div>Báo sự cố</div></span></span><span class="btn ic">✕</span></div>
+  </div>
+  <div class="split">
+    <div class="left"><div class="tabs" data-tabs></div><div class="body" data-body></div></div>
+    <div class="side" data-side></div>
+  </div>
+</div></div>
+
+<div class="lbl">Điện thoại</div>
+<div class="phones">
+  <div>
+    <div class="ph"><div class="scr" id="P">
+      <div class="sb"><span>11:58</span><span>●●● ▮</span></div>
+      <div class="ab"><span class="bk">‹</span><div class="tt"><div class="s">LSX26-0004 Bìa sách A5</div><div class="t">Cắt tờ <span data-chip></span></div></div><span class="menu"><span class="btn ic">⋯</span><span class="pop"><div>Đổi máy</div><div>Báo sự cố</div></span></span></div>
+      <div class="tabs" data-tabs></div>
+      <div class="body" data-body></div>
+      <div class="pfoot" data-acts></div>
+    </div></div>
+    <div class="pc">Bấm các tab trên điện thoại. Tab đầu là Tổng quan, cùng nội dung với cột phải bản máy tính.</div>
+  </div>
+</div>
+</div>
+
+<script>
+const S={trang:'chay'};
+const CHIP={chay:'<span class="chip chay"><i class="d"></i>Đang chạy từ 11:41</span>',cho:'<span class="chip cho"><i class="d"></i>Chờ làm</span>',dung:'<span class="chip dung"><i class="d"></i>Tạm dừng từ 12:10</span>',xong:'<span class="chip xong"><i class="d"></i>Hoàn thành 12:40</span>'};
+const ACTS={chay:'<span class="btn">Tạm dừng</span><span class="btn pri">Kết thúc</span>',cho:'<span class="btn pri" disabled>Bắt đầu</span>',dung:'<span class="btn">Kết thúc</span><span class="btn pri">Tiếp tục</span>',xong:''};
+const VUONG={cho:'<div class="vuong">Chưa bắt đầu được vì<ul><li>Chưa giao thợ nào <button class="lk">Giao người</button></li><li>Chưa nhận khuôn K-012 ở kệ B3</li><li>Giấy chưa chốt cắt</li><li>Chưa nhận giấy từ kho</li></ul></div>',dung:'<div class="vuong">Tạm dừng lúc 12:10<div class="lydo">Thay dao cắt khoảng 20 phút</div></div>'};
+const NHAN={dau:`<div class="trong">Bước đầu nên nhận giấy từ kho theo phiếu xuất.</div>
+<div class="tw" style="margin-top:8px"><table class="t"><tbody><tr><td><button class="lk">PX26-0012</button></td><td class="num">175 tờ nguyên</td><td class="act"><span class="lab ok">Đã nhận 11:15</span></td></tr></tbody></table></div>`,
+giua:`<div class="tw"><table class="t"><tbody>
+<tr><td><span class="num">150</span> tờ in<div class="mut3" style="font-size:12px">từ Cắt tờ của Cắt 2</div></td><td class="mut num">09/10 11:40</td><td class="act"><span class="btn sm pri">Xác nhận</span></td></tr>
+<tr><td><span class="num">120</span> tờ in<div class="mut3" style="font-size:12px">từ Cắt tờ của Cắt 2</div></td><td class="mut num">09/10 10:52</td><td class="act"><span class="lab ok">Đã nhận</span></td></tr>
+</tbody></table></div>
+<div class="mut3" style="font-size:12px;margin-top:8px">Giao trong cùng tổ thì tự nhận, không cần bấm.</div>
+<div class="mut3" style="font-size:12px">Người không có quyền xác nhận thấy dòng "Nhờ tổ trưởng xác nhận" thay cho nút.</div>`};
+S.vitri='dau';
+const TABS=[['tq','Tổng quan'],['qc','Quy cách'],['sl','Sản lượng','2 mẻ'],['gn','Giao và nhận','',true],['vt','Vật tư'],['kcs','KCS','',true],['ls','Lịch sử']];
+let tabD='gn',tabP='tq';
+
+function side(){return `
+${VUONG[S.trang]||''}
+<div class="blk"><h5>Hàng đang tới đâu</h5><span class="cau"><i></i>Hàng đã tới tổ mình</span><span class="mut3" style="font-size:12.5px;margin-left:8px">bước 1 trên 4</span>
+<div class="vlist">
+<div class="vs me ${S.trang==='chay'?'g':''}"><i class="o"></i><div><div class="nm">Cắt tờ</div><div class="to">Cắt 2, tổ mình</div></div></div>
+<div class="vs"><i class="o"></i><div><div class="nm">Bài in 3 màu 4 màu (CMYK)</div><div class="to">Nhóm thợ in máy 4 màu</div></div></div>
+<div class="vs"><i class="o"></i><div><div class="nm">Cán màng</div><div class="to">Tổ Cán màng</div></div></div>
+<div class="vs ng"><i class="o"></i><div><div class="nm">Cắt thành phẩm</div><div class="to">Thuê ngoài Thành Công</div></div></div>
+</div></div>
+<div class="blk"><h5>Tiến độ</h5><div class="pg"><div><span class="big num">200</span> <span class="mut" style="font-size:12.5px">trên 350 tờ in tốt</span><span class="mut3" style="float:right;font-size:12.5px">57%</span></div><div class="bar"><i style="width:57%"></i></div>
+<dl><dt>Nhận vào</dt><dd class="num">175 tờ nguyên</dd><dt>Lỗi</dt><dd class="num">6 tờ in</dd><dt>Đã giao đi</dt><dd class="num">120 tờ in</dd><dt>Chờ giao</dt><dd class="num warn">80 tờ in</dd><dt>Còn phải làm</dt><dd class="num">150 tờ in</dd></dl></div></div>
+<div class="blk"><h5>Việc</h5><dl class="kv hep">
+<dt>Máy</dt><dd>Máy cắt tờ ITO 100<small>Dự kiến 6/10 18:45 đến 19:06</small><small>Chạy máy 2 phút, có thể 2 đến 4</small></dd>
+<dt>Thợ</dt><dd>${S.trang==='cho'?'<span class="mut3">chưa giao ai</span>':'<span class="av">Đ</span> Đào Văn Hoan <span class="mut3" title="Rút khỏi công việc" style="cursor:pointer">✕</span>'}<small><button class="lk">+ Giao người</button></small></dd>
+<dt>Khuôn</dt><dd>K-012 Khuôn bế hộp 300×210<small>Lấy ở kệ B3</small><small>${S.trang==='cho'?'<button class="lk">Đã nhận khuôn</button>':'<span class="lab ok">Đã nhận 11:38</span> <button class="lk">Trả khuôn về kệ</button>'}</small></dd>
+<dt>Nguồn</dt><dd>LSX26-0004 Bìa sách A5<small>Công ty Cổ phần Bibica</small></dd>
+</dl></div>
+<div class="blk"><h5>Dặn dò</h5><div class="mut3" style="font-size:13px">Không có dặn dò riêng</div></div>
+<div class="blk"><h5>Tệp của lệnh <span class="mut3">2</span></h5><div class="files">
+<div class="f"><span class="ic">PDF</span><div>Maket bia A5.pdf<small>2,4 MB</small></div><span class="r"><button class="lk">Xem</button><button class="lk">Tải</button></span></div>
+<div class="f"><span class="ic">JPG</span><div>Mau mau duyet.jpg<small>850 KB</small></div><span class="r"><button class="lk">Xem</button><button class="lk">Tải</button></span></div>
+</div></div>`;}
+
+const P={
+qc:()=>`<div class="sec"><div class="spec">
+<div class="w2"><div class="l">Giấy</div><div class="v">GIẤY IVORY 210-230-250GSM</div></div>
+<div><div class="l">Định lượng</div><div class="v">210 gsm</div></div>
+<div><div class="l">SL đặt của đơn</div><div class="v num">1.000</div></div>
+<div><div class="l">Khổ giấy nguyên</div><div class="v num">1090 × 790 mm</div></div>
+<div><div class="l">Khổ tờ in</div><div class="v num">790 × 540 mm</div></div>
+<div><div class="l">Khổ thành phẩm</div><div class="v num">300 × 210 mm</div></div>
+<div><div class="l">Con trên một tờ</div><div class="v num">4</div></div>
+<div><div class="l">Cách in</div><div class="v">1 mặt</div></div>
+<div><div class="l">Số màu</div><div class="v num">4</div></div>
+<div><div class="l">Số kẽm</div><div class="v num">4 bản</div></div>
+<div><div class="l">Mực in mặt A</div><div class="v"><span class="muc"><i style="background:#06b6d4">C</i><i style="background:#ec4899">M</i><i style="background:#eab308">Y</i><i style="background:#111">K</i></span></div></div>
+</div></div>
+<div class="sec"><div class="sec-h"><h4>Kế hoạch</h4></div><dl class="kv"><dt>Khối lượng</dt><dd class="num">175 tờ nguyên → 350 tờ in</dd><dt>Dự kiến</dt><dd>6/10/2026 18:45 đến 6/10/2026 19:06</dd><dt>Chạy máy</dt><dd>2 phút, có thể 2 đến 4</dd></dl></div>
+<div class="sec"><div class="sec-h"><h4>Ghi chú kỹ thuật</h4></div><div class="trong">Không có</div></div>`,
+
+sl:()=>`<div class="sec"><div class="sec-h"><h4>Các mẻ đã ghi</h4><span class="c">2 mẻ</span><span class="r"><span class="btn pri sm"${S.trang==='xong'?' disabled':''}>+ Ghi mẻ</span></span></div>
+${S.vitri==='giua'?'<div class="note xanh">Việc này là bài ghép, mỗi mẻ tự chia sang LSX26-0003 và LSX26-0004 theo số con trên tờ.</div>':''}
+<div class="tw"><table class="t"><thead><tr><th></th><th>Lúc</th><th>Việc khoán</th><th class="an">Người</th><th class="r">Tốt</th><th class="r">Hỏng</th></tr></thead><tbody>
+<tr class="mo"><td class="tg">▾</td><td class="num">09/10 11:41 → 11:58</td><td>Cắt tờ khổ lớn <span class="lab cho">danh mục đổi</span></td><td class="an">Đào Văn Hoan</td><td class="r num ok">80</td><td class="r num">0</td></tr>
+<tr class="ct"><td></td><td colspan="5">
+<div class="note" style="margin:6px 0 10px">Đơn giá khoán của "Cắt tờ khổ lớn" đã đổi sau khi ghi mẻ. <button class="lk">Cập nhật theo danh mục</button> <button class="lk" style="margin-left:8px">Giữ số cũ</button></div>
+<dl class="kv"><dt>Công việc khoán</dt><dd>Cắt tờ khổ lớn</dd><dt>Việc phát sinh</dt><dd class="mut3">không có</dd><dt>Số lượng làm được</dt><dd class="num">80 tờ in</dd><dt>Máy</dt><dd>Máy cắt tờ ITO 100</dd><dt>Ca</dt><dd>Ca 1</dd><dt>Người tham gia</dt><dd>Đào Văn Hoan</dd><dt>Dừng máy</dt><dd class="mut3">không</dd><dt>Lô vào</dt><dd>PX26-0012</dd><dt>Ghi chú</dt><dd class="mut3">không</dd></dl>
+<div style="margin-top:10px"><button class="lk">Sửa mẻ</button></div></td></tr>
+<tr><td class="tg">▸</td><td class="num">09/10 11:20 → 11:38</td><td>Cắt tờ khổ lớn</td><td class="an">Đào Văn Hoan</td><td class="r num ok">120</td><td class="r num">0</td></tr>
+</tbody></table></div></div>
+<div class="sec"><div class="sec-h"><h4>Phiên chạy</h4><span class="c">1</span></div>
+<div class="tw"><table class="t"><thead><tr><th>Phiên</th><th>Từ</th><th>Đến</th><th class="an">Máy</th><th>Cách đóng</th></tr></thead><tbody>
+<tr><td>1</td><td class="num">09/10 11:15</td><td>${S.trang==='chay'?'<span class="chip chay"><i class="d"></i>Đang chạy</span>':'<span class="num">12:10</span>'}</td><td class="an">Máy cắt tờ ITO 100</td><td class="mut">${S.trang==='chay'?'chưa đóng':'tạm dừng'}</td></tr></tbody></table></div>
+<div style="margin-top:8px"><button class="lk">▸ Khoảng tham gia (1)</button></div></div>`,
+
+gn:()=>`<div class="two sec">
+<div class="box"><div class="sec-h"><h4>Nhận vào</h4><span class="c">${S.vitri==='dau'?'từ kho':'từ bước trước'}</span></div>
+${NHAN[S.vitri]}</div>
+<div class="box"><div class="sec-h"><h4>Giao đi</h4><span class="c">sang Bài in 3 màu 4 màu</span><span class="r"><span class="btn sm">Đề xuất giao</span></span></div>
+<div class="trong">Còn 80 tờ in tốt chưa giao.<small>Mỗi lần giao chọn các mẻ muốn giao, bên nhận bấm xác nhận.</small></div></div>
+</div>
+<div class="sec"><div class="sec-h"><h4>Các lần giao</h4><span class="c">1 lần</span></div>
+<div class="bg"><div class="h"><span class="so num">120</span><span class="mut">tờ in</span><span class="mut3">1 mẻ</span><span class="lab cho">chờ xác nhận</span><span class="r"><span class="btn sm">Sửa mẻ</span><span class="btn sm">Điều chỉnh số</span></span></div>
+<div class="rt"><div>Giao từ Cắt tờ<small>Đào Văn Hoan lúc 09/10 11:40</small></div><span class="ar">→</span><div>Nhận ở Bài in 3 màu 4 màu<small>Nhóm thợ in máy 4 màu</small></div></div>
+<div style="margin-top:8px;font-size:12.5px"><button class="lk">Đã điều chỉnh 1 lần</button><span class="warn" style="margin-left:14px">Bên nhận đếm 118 tờ in, lệch 2</span></div></div>
+<div class="mut3" style="font-size:12px">${S.vitri==='dau'?'':'Bước cuối không có Giao đi, thay bằng dòng "Bước cuối, hàng tốt đề nghị nhập kho ở tab KCS".'}</div></div>
+<div class="sec"><div class="sec-h"><h4>Hỗ trợ chéo</h4><span class="c">mượn thợ tổ khác</span><span class="r"><span class="btn sm">+ Đề xuất hỗ trợ</span></span></div>
+<div class="tw"><table class="t"><thead><tr><th>Thợ</th><th>Từ tổ</th><th>Sang tổ</th><th class="an">Ngày làm</th><th>Tổ gốc</th><th>Tổ làm</th><th></th></tr></thead><tbody>
+<tr><td style="white-space:nowrap"><span class="av" style="background:#6d28d9">L</span> Lê Minh Tú</td><td>Cắt 1</td><td>Cắt 2</td><td class="an num">09/10</td><td><span class="lab ok">Đã đồng ý</span></td><td><span class="lab cho">Chờ tổ mình</span></td><td class="act"><span class="btn sm">Huỷ</span><span class="btn sm pri">Xác nhận</span></td></tr></tbody></table></div></div>`,
+
+vt:()=>`<div class="sec"><div class="sec-h"><h4>Vật tư theo kế hoạch</h4><span class="r"><span class="btn sm">Yêu cầu nhập kho</span><span class="btn sm pri">Yêu cầu bổ sung</span></span></div>
+<div class="note">Đề nghị này lập trước khi kế hoạch vật tư đổi. Số kế hoạch dưới đây là số mới. <button class="lk">Sửa đề nghị</button></div>
+<div class="so3"><div><small>Tổng mặt hàng</small><b class="num">1</b></div><div><small>Tiến độ yêu cầu</small><b class="num">1 / 1</b></div><div><small>Trạng thái kho</small><b>Đã xuất đủ</b></div></div>
+<div class="tw"><table class="t"><thead><tr><th>Vật tư</th><th class="r">Kế hoạch</th><th class="r">Đã yêu cầu</th><th class="r">Thực dùng</th><th>Chênh lệch</th></tr></thead><tbody>
+<tr><td>Ivory 210 tờ 1090×790</td><td class="r num">175</td><td class="r num">175</td><td class="r num">175</td><td class="ok">Khớp</td></tr></tbody></table></div></div>
+<div class="sec"><div class="sec-h"><h4>Các lần đề nghị</h4><span class="c">1 lần</span></div>
+<div class="bg"><div class="h"><span>Lần 1</span><span class="lab xanh">Lần đầu</span><span class="lab ok">Kho đã xuất</span><span class="r"><button class="lk">Sửa đề nghị</button></span></div>
+<dl class="kv" style="margin-top:8px"><dt>Mã yêu cầu kho</dt><dd>YC26-0031</dd><dt>Người tạo</dt><dd>Đào Văn Hoan lúc 09/10 10:05</dd><dt>Người sửa cuối</dt><dd class="mut3">chưa sửa</dd></dl>
+<div class="tw" style="margin-top:8px"><table class="t"><thead><tr><th>Vật tư</th><th class="r">Số lượng</th><th>Đơn vị</th></tr></thead><tbody><tr><td>Ivory 210 tờ 1090×790</td><td class="r num">175</td><td>tờ</td></tr></tbody></table></div></div></div>
+<div class="sec"><div class="sec-h"><h4>Phiếu xuất kho</h4><span class="c">1 phiếu, đã nhận 1</span></div>
+<div class="tw"><table class="t"><thead><tr><th>Mã phiếu</th><th>Trạng thái</th><th>Nhận lúc</th><th></th></tr></thead><tbody>
+<tr><td><button class="lk">PX26-0012</button></td><td><span class="lab ok">Đã nhận</span></td><td class="num">09/10 11:15</td><td class="act mut3">đã xác nhận</td></tr></tbody></table></div></div>`,
+
+kcs:()=>`<div class="sec"><div class="sec-h"><h4>Lỗi KCS</h4><span class="c">6 tờ in</span></div>
+<div class="loi"><div>Lệch dao 2 mm mép phải</div><span class="num bad">6 tờ in</span>
+<div class="lph"><span>Bắt ở Bài in 3 màu 4 màu</span><span>Nguyễn Thị Kiểm lúc 09/10 12:20</span><span class="lab cho">chưa xem</span></div>
+<div class="anh"><i></i><i></i></div></div>
+<div class="mut3" style="font-size:12px">Mở tab này là đánh dấu tổ đã xem các lỗi đang chờ. Bước cuối có thêm dòng "KCS đạt X trên tổ ghi tốt Y, đã đề nghị nhập kho Z".</div></div>`,
+
+ls:()=>`<div class="sec-h"><h4>Lịch sử</h4><span class="c">8 việc</span><span class="r"><span class="seg"><span class="on">Tất cả</span><span>Chạy máy</span><span>Người và khuôn</span><span>Sản lượng</span><span>Bàn giao</span><span>Vật tư</span><span>KCS</span></span></span></div>
+<div class="tl">
+<div class="ev"><i class="o r"></i><div>KCS ghi lỗi 6 tờ in<div class="ct"><span>Lệch dao 2 mm</span><span>Nguyễn Thị Kiểm</span></div></div><span class="gio num">09/10 12:20</span></div>
+<div class="ev"><i class="o g"></i><div>Ghi mẻ 80 tờ in tốt<div class="ct"><span>Đào Văn Hoan</span></div></div><span class="gio num">09/10 11:58</span></div>
+<div class="ev"><i class="o b"></i><div>Đề xuất giao 120 tờ in sang Bài in 3 màu 4 màu<div class="ct"><span>Đào Văn Hoan</span></div></div><span class="gio num">09/10 11:40</span></div>
+<div class="ev"><i class="o g"></i><div>Ghi mẻ 120 tờ in tốt<div class="ct"><span>Đào Văn Hoan</span></div></div><span class="gio num">09/10 11:38</span></div>
+<div class="ev"><i class="o g"></i><div>Bắt đầu phiên 1<div class="ct"><span>Máy cắt tờ ITO 100</span><span>Đào Văn Hoan</span></div></div><span class="gio num">09/10 11:15</span></div>
+<div class="ev"><i class="o"></i><div>Xác nhận nhận vật tư PX26-0012<div class="ct"><span>Đào Văn Hoan</span></div></div><span class="gio num">09/10 11:15</span></div>
+<div class="ev"><i class="o"></i><div>Rút thợ Phạm Văn Long<div class="ct"><span>Trần Tổ Trưởng</span></div><div class="lydo">Chuyển sang máy Kyodo cho kịp lệnh 0003</div></div><span class="gio num">09/10 10:01</span></div>
+<div class="ev"><i class="o"></i><div>Tổ nhận lệnh<div class="ct"><span>Gói phát hành 1</span></div></div><span class="gio num">09/10 09:57</span></div>
+</div>`,
+tq:()=>side()
+};
+
+function ve(root,isPhone){
+  const tab=isPhone?tabP:tabD;
+  root.querySelectorAll('[data-chip]').forEach(e=>e.innerHTML=CHIP[S.trang]);
+  root.querySelectorAll('[data-acts]').forEach(e=>{e.innerHTML=ACTS[S.trang]||'';if(isPhone){e.style.display=ACTS[S.trang]?'flex':'none';e.querySelectorAll('.btn').forEach(b=>b.classList.add('lg'));}});
+  root.querySelector('[data-tabs]').innerHTML=TABS.filter(t=>isPhone||t[0]!=='tq').map(([k,n,c,dot])=>`<button data-t="${k}" class="${k==='tq'?'tq ':''}${k===tab?'on':''}">${n}${c?` <span class="c">${c}</span>`:''}${dot?' <i class="cham"></i>':''}</button>`).join('');
+  root.querySelector('[data-body]').innerHTML=`<div class="pane on">${P[tab]()}</div>`;
+  const sd=root.querySelector('[data-side]');if(sd)sd.innerHTML=side();
+  root.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{if(isPhone)tabP=b.dataset.t;else tabD=b.dataset.t;ve(root,isPhone);});
+}
+function veHet(){ve(document.getElementById('D'),false);ve(document.getElementById('P'),true);}
+document.querySelectorAll('#sw button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#sw button').forEach(x=>x.classList.toggle('on',x===b));S.trang=b.dataset.s;veHet();});
+document.querySelectorAll('#sw2 button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#sw2 button').forEach(x=>x.classList.toggle('on',x===b));S.vitri=b.dataset.v;veHet();});
+veHet();
+</script>
+</body>
+</html>

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -34,25 +33,25 @@ class SupplierItemIn(BaseModel):
     unit_price: int = Field(gt=0)
     vat_percent: float = Field(default=0, ge=0, le=100)
     note: str | None = Field(default=None, max_length=2000)
-    # DẠNG BÁN giấy (07/10/2026): `to` + đủ hai cạnh khổ, hoặc `cuon` (khổ rộng tuỳ chọn, 0 = mọi
-    # khổ). Bắt buộc với dòng giấy; vật tư khác bị ép None · 0 · 0.
-    dang_ban: Literal["to", "cuon"] | None = None
+    # KHỔ giấy (mm): đủ hai cạnh, hoặc chỉ rộng (`r, 0`). Giấy KHÔNG còn dạng bán cuộn/tờ (chủ chốt
+    # 10/10/2026) — tờ hay kg là do ĐVT `unit`. Vật tư khác bị ép 0 · 0.
     kho_rong: int = Field(default=0, ge=0)
     kho_dai: int = Field(default=0, ge=0)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _bo_dang_ban(cls, data):
+        # FE cũ còn gửi `dang_ban` trong lúc chuyển — bỏ qua chứ đừng 422 (extra="forbid").
+        if isinstance(data, dict) and "dang_ban" in data:
+            data = {k: v for k, v in data.items() if k != "dang_ban"}
+        return data
+
     @model_validator(mode="after")
-    def _dang_giay(self):
+    def _kho_giay(self):
         if self.hang_loai == "giay":
-            if self.dang_ban is None:
-                raise ValueError("Dòng giá giấy phải chọn dạng bán: Tờ hoặc Cuộn.")
-            if self.dang_ban == "to":
-                if not (self.kho_rong and self.kho_dai):
-                    raise ValueError("Giấy bán tờ phải đủ hai cạnh khổ.")
-                self.kho_rong, self.kho_dai = chuan_kho(self.kho_rong, self.kho_dai)
-            else:
-                self.kho_rong, self.kho_dai = chuan_kho(self.kho_rong or self.kho_dai, 0)
+            self.kho_rong, self.kho_dai = chuan_kho(self.kho_rong, self.kho_dai)
         else:
-            self.dang_ban, self.kho_rong, self.kho_dai = None, 0, 0
+            self.kho_rong, self.kho_dai = 0, 0
         return self
 
 
@@ -60,7 +59,6 @@ class SupplierItemImportRow(BaseModel):
     """Một mặt hàng ĐỌC ĐƯỢC từ file — chưa vào DB, mới chỉ nạp vào form."""
 
     item_name: str
-    dang_ban: str | None = None
     kho_rong: int = 0
     kho_dai: int = 0
     unit: str
@@ -117,7 +115,6 @@ class SupplierItemRow(BaseModel):
     hang_loai: str | None = None
     hang_id: int | None = None
     item_name: str
-    dang_ban: str | None = None
     kho_rong: int = 0
     kho_dai: int = 0
     unit: str
@@ -134,6 +131,9 @@ class SupplierItemRow(BaseModel):
     #: ngang được giữa các NCC báo theo đơn vị khác nhau (1.020.000đ/ram vs 24.500đ/kg).
     #: `None` = chưa quy đổi được ⇒ màn hình phải xếp CUỐI kèm lý do, đừng lặng lẽ dùng giá thô.
     gia_quy_doi: int | None = None
+    #: Đơn vị gốc mà `gia_quy_doi` quy về — giấy: "to" (họ tờ) hoặc `don_vi_gia` của mã (kg…),
+    #: suy từ `unit` của CHÍNH dòng; vật tư: đơn vị gốc của mặt hàng. "" = không quy đổi được.
+    don_vi_goc: str = ""
     created_at: datetime
     updated_at: datetime
 
@@ -212,10 +212,17 @@ class SoGiaRow(BaseModel):
     supplier_id: int
     supplier_name: str
     supplier_item_id: int
-    dang_ban: str | None = None
     kho_rong: int = 0
     kho_dai: int = 0
-    unit: str                 # MÃ đơn vị NCC bán (ram, thung, cai…)
+    #: Đơn vị gốc của `unit` dòng này (giấy: "to" hoặc `don_vi_gia` của mã) — `gia_quy_doi` quy về đây.
+    don_vi_goc: str = ""
+    #: Cùng họ đơn vị với ĐVT dòng đang mua (`don_vi` gửi lên). Không gửi ⇒ True hết. Dòng khác họ
+    #: (tờ vs kg) không so giá ngang được — xếp sau, chọn thì dòng đơn đổi ĐVT + giá theo NCC.
+    cung_ho: bool = True
+    #: Đúng khổ đang hỏi. False = dòng khổ 0 · 0 (NCC bán mọi khổ) — xếp sau dòng đúng khổ cùng họ.
+    #: Không gửi khổ ⇒ True hết.
+    dung_kho: bool = True
+    unit: str                # MÃ đơn vị NCC bán (ram, thung, cai…)
     unit_ten: str | None = None  # TÊN có dấu để hiển thị ("thùng", "cái"); None = trùng mã / không tra được
     unit_price: int           # giá theo đơn vị đó
     vat_percent: float
@@ -234,7 +241,7 @@ class SoGiaOut(BaseModel):
     hang_ten: str | None = None
     don_vi_goc: str | None = None
     don_vi_goc_ten: str | None = None
-    # Sắp xếp tăng dần theo `gia_quy_doi`; dòng không quy đổi được xếp cuối.
+    # Sắp: dòng `cung_ho` trước, rồi `gia_quy_doi` tăng dần; dòng không quy đổi được xếp cuối nhóm.
     items: list[SoGiaRow] = []
 
 
@@ -295,6 +302,9 @@ class YeuCauMuaNguonLenhIn(BaseModel):
     #: Khổ của dòng giấy (0 · 0 với vật tư khác) — `_khoa_dong` mang khổ từ spec giấy tờ × khổ.
     kho_rong: int = Field(default=0, ge=0)
     kho_dai: int = Field(default=0, ge=0)
+    #: MÃ đơn vị gốc của ô (phần thứ năm của khoá, mg 0391) — giấy tờ vs kg, keo kg vs thùng là hai
+    #: ô. Xem-trước trả về trong `nguon`, form gửi lại nguyên văn. Rỗng = liên kết cũ, khớp mọi gốc.
+    don_vi_goc: str = Field(default="", max_length=16)
     lsx_id: int | None = Field(default=None, gt=0)
     bai_ghep_id: int | None = Field(default=None, gt=0)
     buoc_id: int | None = Field(default=None, gt=0)
@@ -631,6 +641,9 @@ class PurchaseDeliveryOut(BaseModel):
     da_nhap_kho: bool = False
     stock_request_id: int | None = None
     stock_request_ma: str | None = None
+    # Nấc kho (11/10/2026): cho_gui_kho | kho_chua_nhap | da_nhap_kho — yêu cầu nhập Hoàn tất mới là
+    # đã nhập; `da_nhap_kho` ở trên chỉ nghĩa là ĐÃ GỬI yêu cầu.
+    kho: str = "cho_gui_kho"
     delivery_date: date
     due_date: date | None = None
     # True = NCC chưa khai số ngày cho nợ ⇒ đợt này không bao giờ vào cột Quá hạn. Màn hình phải

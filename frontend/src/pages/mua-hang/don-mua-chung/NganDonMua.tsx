@@ -27,7 +27,8 @@ import { NganPhai } from "../../ke-toan/shared/NganPhai";
 import { tenDonVi } from "../../tenDonVi";
 import { lineTotal } from "../phieu-mua-hang/shared/helpers";
 import { OMuaCho, khoaMuaCho } from "../mua-cho/OMuaCho";
-import { ChipTT, TT_DON, TT_TIEN } from "../trang-thai-mua";
+import { ChipTT, TT_DON, TT_KHO, TT_TIEN, nhanHangDon } from "../trang-thai-mua";
+import { Icon } from "../../../components/Icons";
 import { hanGanNhat } from "./BangDonMua";
 import { SuaDieuKhoan } from "./SuaDieuKhoan";
 import "../../ke-toan/ke-toan.css";
@@ -41,8 +42,8 @@ const dv = (u: string) => tenDonVi(u) ?? u;
 /** Khổ của một dòng giấy bằng chữ; hàng khác không theo khổ. */
 function khoChu(hangLoai: string | null, rong: number, dai: number): ReactNode {
   if (hangLoai !== "giay") return <span className="mh-mo3">Không theo khổ</span>;
-  if (rong > 0 && dai > 0) return `Tờ ${rong} × ${dai}`;
-  if (rong > 0) return `Cuộn khổ ${rong}`;
+  if (rong > 0 && dai > 0) return `${rong} × ${dai} mm`;
+  if (rong > 0) return `khổ ${rong} mm`;
   return <span className="mh-mo3">Không ghi khổ</span>;
 }
 
@@ -175,7 +176,7 @@ export function NganDonMua({
         tieuDe={row.code}
         the={
           <span className="mh-hai-chip">
-            <ChipTT nhan={TT_DON[row.status]} />
+            <ChipTT nhan={nhanHangDon(row)} />
             {row.nhom_tien && <ChipTT nhan={TT_TIEN[row.nhom_tien]} />}
           </span>
         }
@@ -342,14 +343,14 @@ function CotPhai({
 
       <div className="mh-sb">
         <h4>Người</h4>
-        <div className="mh-r"><span>Người lập</span><span>{row.created_by_name || <span className="mh-mo3">Không rõ</span>}</span></div>
+        <div className="mh-r"><span>NV mua hàng</span><span>{row.created_by_name || <span className="mh-mo3">Không rõ</span>}</span></div>
         <div className="mh-r">
           <span>Gửi duyệt</span>
           <span>{row.submitted_at ? fmtDate(row.submitted_at) : <span className="mh-mo3">Chưa gửi</span>}</span>
         </div>
         {row.approved_by_name && (
           <>
-            <div className="mh-r"><span>Duyệt bởi</span><span>{row.approved_by_name}</span></div>
+            <div className="mh-r"><span>NV duyệt</span><span>{row.approved_by_name}</span></div>
             {row.approved_at && <div className="mh-r"><span>Duyệt lúc</span><span>{fmtDateTime(row.approved_at)}</span></div>}
           </>
         )}
@@ -513,7 +514,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
                       <td />
                       <td className="n">{so(x.quantity)}</td>
                       <td colSpan={4} className="lds-mu">
-                        {x.khac_kho_dat ? "Vào tồn theo khổ nhận" : d.da_nhap_kho ? `Đã gửi kho ${d.stock_request_ma ?? ""}` : "Chưa gửi kho"}
+                        {x.khac_kho_dat ? "Vào tồn theo khổ nhận" : d.da_nhap_kho ? `${TT_KHO[d.kho].label} ${d.stock_request_ma ?? ""}` : "Chưa gửi kho"}
                         {x.quantity_du > 0 && <span style={{ marginLeft: 8 }}>dư {so(x.quantity_du)} giá 0 đ</span>}
                       </td>
                     </tr>
@@ -561,7 +562,9 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
             <col style={{ width: 104 }} />
             <col style={{ width: 66 }} />
             <col style={{ width: 112 }} />
-            <col />
+            {/* Kho phải có độ rộng riêng: để `<col />` trống thì ngăn hẹp (bảng cố định cột) co cột này
+                về 0px và mất luôn nút Gửi kho — thà bảng cuộn ngang. */}
+            <col style={{ width: 300 }} />
           </colgroup>
           <thead>
             <tr>
@@ -600,7 +603,9 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                     <td onClick={(e) => e.stopPropagation()}>
                       {d.da_nhap_kho ? (
                         <>
-                          <ChipTT nhan={{ label: "Đã gửi kho", mau: "la" }} />
+                          {/* Gửi rồi thì nói KHO đã nhập xong chưa — trước 11/10/2026 chỉ ghi "Đã gửi kho"
+                              dù phiếu nhập đã ghi sổ, nhìn tưởng kho chưa làm gì. */}
+                          <ChipTT nhan={TT_KHO[d.kho]} />
                           {d.stock_request_ma && (
                             <button type="button" className="mh-lk" style={{ marginLeft: 8 }} disabled={!viecDot}
                               onClick={() => viecDot?.onXemNhap(d)}>
@@ -608,10 +613,17 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                             </button>
                           )}
                         </>
-                      ) : viecDot?.nhapKhoDuoc ? (
-                        <button type="button" className="mh-nut" onClick={() => viecDot.onNhapKho(d)}>Gửi kho</button>
                       ) : (
-                        <span className="mh-mo3">Chưa gửi kho</span>
+                        /* Chưa gửi: chip cùng chữ với đầu ngăn + nút việc tiếp theo tô màu — trước
+                           11/10/2026 chỉ là nút viền mờ cỡ chữ 12, nhìn không ra là việc phải làm. */
+                        <span className="mh-kho-cho">
+                          <ChipTT nhan={TT_KHO.cho_gui_kho} />
+                          {viecDot?.nhapKhoDuoc && (
+                            <button type="button" className="mh-nut mh-nut--chinh" onClick={() => viecDot.onNhapKho(d)}>
+                              <Icon name="warehouse" size={13} /> Gửi kho
+                            </button>
+                          )}
+                        </span>
                       )}
                       {viecDot?.ghiDuoc && !khoa && (
                         <>

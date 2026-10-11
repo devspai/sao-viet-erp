@@ -353,9 +353,6 @@ export function DepartmentsPage({
   const [editLaGiaoHang, setEditLaGiaoHang] = useState(false);
   // Khoán km giao hàng (đơn giá + %) ĐÃ DỜI sang Cấu hình lương → Cơ chế lương theo bộ phận
   // (chủ chốt 24/08/2026). Ở đây chỉ còn CỜ bật/tắt Bộ phận Giao hàng.
-  // Cờ tổ KCS đích danh (§3.1/§14 spec bài ghép) — KHÔNG kế thừa cây con (như cờ Giao hàng,
-  // khác hai cờ Sản xuất / Kinh doanh).
-  const [editIsKcs, setEditIsKcs] = useState(false);
   // Cờ TỔ IN (mg 0304, khách chốt 15/09/2026) — đích danh từng tổ, không kế thừa cây con.
   const [editLaToIn, setEditLaToIn] = useState(false);
   // Cờ TỔ CẮT (mg 0355) — đích danh, không kế thừa cây con: tổ chốt giấy sau phát hành.
@@ -655,7 +652,6 @@ export function DepartmentsPage({
     let sanXuat = 0;
     let kinhDoanh = 0;
     let giaoHang = 0;
-    let kcs = 0;
     let coTruong = 0;
     let noHead = 0;
     let noStaff = 0;
@@ -663,7 +659,6 @@ export function DepartmentsPage({
       if (khoiSanXuat.has(d.id)) sanXuat += 1;
       if (khoiKinhDoanh.has(d.id)) kinhDoanh += 1;
       if (d.la_giao_hang) giaoHang += 1;
-      if (d.is_kcs) kcs += 1;
       const st = deptStatus(d);
       if (st === "complete") coTruong += 1;
       else if (st === "no_head") noHead += 1;
@@ -674,7 +669,6 @@ export function DepartmentsPage({
       san_xuat: sanXuat,
       kinh_doanh: kinhDoanh,
       giao_hang: giaoHang,
-      kcs,
       ngoai_sx: departments.length - sanXuat,
       co_truong: coTruong,
       no_head: noHead,
@@ -849,7 +843,6 @@ export function DepartmentsPage({
     setEditLaSanXuat(dept?.la_san_xuat ?? false);
     setEditLaKinhDoanh(dept?.la_kinh_doanh ?? false);
     setEditLaGiaoHang(dept?.la_giao_hang ?? false);
-    setEditIsKcs(dept?.is_kcs ?? false);
     setEditLaToIn(dept?.la_to_in ?? false);
     setEditLaToCat(dept?.la_to_cat ?? false);
     if (!token || selectedId == null) {
@@ -954,7 +947,6 @@ export function DepartmentsPage({
     setEditLaSanXuat(currentDept?.la_san_xuat ?? false);
     setEditLaKinhDoanh(currentDept?.la_kinh_doanh ?? false);
     setEditLaGiaoHang(currentDept?.la_giao_hang ?? false);
-    setEditIsKcs(currentDept?.is_kcs ?? false);
     setEditLaToIn(currentDept?.la_to_in ?? false);
     setEditLaToCat(currentDept?.la_to_cat ?? false);
     setSaveError(null);
@@ -1143,7 +1135,6 @@ export function DepartmentsPage({
         editLaGiaoHang,
         // Khoán km (đơn giá + %) ĐÃ DỜI sang Cấu hình lương — không gửi từ đây nữa.
         undefined,
-        editIsKcs,
         editLaToIn,
         editLaToCat,
       );
@@ -1740,7 +1731,6 @@ export function DepartmentsPage({
     ngoai_sx: treeStats.ngoai_sx,
     kinh_doanh: treeStats.kinh_doanh,
     giao_hang: treeStats.giao_hang,
-    kcs: treeStats.kcs,
     co_truong: treeStats.co_truong,
     thieu_truong: treeStats.no_head,
     chua_co_nguoi: treeStats.no_staff,
@@ -2076,9 +2066,6 @@ export function DepartmentsPage({
                       )}
                       {currentDept.la_giao_hang && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Giao hàng</span>
-                      )}
-                      {currentDept.is_kcs && (
-                        <span className="rdx-drawer__pill rdx-drawer__pill--gh">KCS</span>
                       )}
                       {currentDept.la_to_cat && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Tổ Cắt</span>
@@ -2975,36 +2962,7 @@ export function DepartmentsPage({
               </div>
             </div>
 
-            {/* Switch Card "Tổ KCS đích danh" — KHÔNG kế thừa cây con (như cờ Giao hàng). Gate
-                phát hành bài ghép (spec §3.1/§14) yêu cầu bước KCS cuối nằm ở một phòng có cờ
-                này mới cho chốt nghiệm thu. */}
-            <div className="field depts__field--full">
-              <div
-                className={`rdx-switch-card${editIsKcs ? " is-checked" : ""}`}
-                onClick={() => {
-                  setEditIsKcs(!editIsKcs);
-                  setDirty(true);
-                }}
-              >
-                <div className="rdx-switch-card__left">
-                  <div className="rdx-switch-card__icon">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div className="rdx-switch-card__main">
-                    <span className="rdx-switch-card__title">
-                      Tổ KCS đích danh
-                      <InfoHint label="Đánh dấu ĐÍCH DANH phòng/tổ này là KCS — KHÔNG kế thừa cho cây con. Dùng để chốt bước kiểm tra chất lượng cuối trong routing sản xuất; bài ghép chỉ phát hành được khi có bước KCS cuối nằm ở một phòng có cờ này." />
-                    </span>
-                    <span className="rdx-switch-card__desc">
-                      Tổ kiểm hàng cuối chuyền — có tổ này thì lệnh sản xuất mới phát hành được
-                    </span>
-                  </div>
-                </div>
-                <div className="rdx-toggle-switch" aria-hidden="true" />
-              </div>
-            </div>
-
-            {/* Switch Card "Tổ in" — KHÔNG kế thừa cây con (như cờ Giao hàng / KCS). Khách chốt
+            {/* Switch Card "Tổ in" — KHÔNG kế thừa cây con (như cờ Giao hàng). Khách chốt
                 15/09/2026: thợ in ăn khoán thì ngày CN / lễ đi làm KHÔNG có công gốc — 2 / 3 / 5
                 công trả hết ở phần thêm, bù lỗ theo công không đếm ngày đó. */}
             <div className="field depts__field--full">

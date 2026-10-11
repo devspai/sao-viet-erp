@@ -21,7 +21,7 @@ Luật:
   · Giá gốc = 0 (kế toán kho nhập sau); giá bán = Σ thành tiền cụm ÷ SL cụm (`don_gia_ban`).
   · `lsx_id` của dòng = lệnh thân chính của nhóm.
 
-Gate: người thuộc tổ KCS (`kcs.gate_kcs`). Người KCS không cần ô quyền kho — service gọi thẳng
+Gate: ô Thao tác của dòng KCS (`kcs.gate_kcs`). Người KCS không cần ô quyền kho — service gọi thẳng
 `StockRequestService.create`, như Giao hàng.
 """
 from __future__ import annotations
@@ -30,10 +30,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, object_session
 
+from ...models.san_xuat import SanXuatCongViec
+from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+from ...models.don_vi_do import TRAM_CAI
 from ...models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_REJECTED
-from ...doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop
+from ...doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop, kem_ban_to
 from ...realtime import hub
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.delivery_repo import DeliveryRepository
@@ -45,8 +49,9 @@ from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.stock_lot_repo import StockLotRepository
 from ...repositories.stock_request_repo import StockRequestRepository
+from ..dong_giay import TRAM_MAC_DINH, tram_cua
 from ..stock_request_service import StockRequestError, StockRequestService
-from ..thanh_pham_khai_bao import CumBan, cum_ban, gia_ban_cum, khai_cum, tim_theo_ten
+from ..thanh_pham_khai_bao import CumBan, cum_ban, gia_ban_cum, khai_cum, thanh_pham_cua_cum
 from ..vat_lieu_kho_service import VatLieuKhoError
 from .kcs import _EPS, gate_kcs
 from .vat_tu_de_nghi import _hang_service, _req_service
@@ -124,6 +129,13 @@ class DongNhapKhoTp:
 
 
 # --- Quy đổi đơn vị KCS ⇄ đơn vị món ------------------------------------------------------------
+def la_chang_thanh_pham(don_vi: str | None) -> bool:
+    """Đơn vị ra nằm ở chặng Thành phẩm — chính là đơn vị tính của sản phẩm trên lệnh (bước cuối
+    của lệnh chính luôn ra chặng này, 11/10/2026), nên sang đơn vị món hay đơn vị dòng đơn đều 1:1.
+    Không cho nó đi đường quy đổi của món: mã `cai` ↔ `cuon` không có cặp quy đổi nào."""
+    return tram_cua((don_vi or "").strip(), TRAM_MAC_DINH) == TRAM_CAI
+
+
 def _he_so(hang, hang_id: int, tu_dv: str | None, sang_dv: str | None) -> float:
     """1 `tu_dv` = bao nhiêu `sang_dv` của món `hang_id`. Raise `VatLieuKhoError` nếu không đổi được."""
     tu = float(hang.quy_ve_goc("vat_tu", hang_id, tu_dv, 1)["he_so_ve_goc"])
@@ -160,6 +172,8 @@ def _he_so_cho_nhap(db: Session, hang, tp, don_vi_kcs: str, cv=None) -> float:
         )
     if not don_vi_kcs:
         raise ValueError("Công đoạn cuối chưa khai đơn vị ra nên chưa quy đổi được sang đơn vị kho.")
+    if la_chang_thanh_pham(don_vi_kcs):
+        return 1.0
     try:
         return _he_so(hang, tp.id, don_vi_kcs, tp.don_vi_gia)
     except VatLieuKhoError:
@@ -192,7 +206,7 @@ def dong_nhap_kho_cua_cong_viec(db: Session, cong_viec_ids) -> dict[int, list[Do
         dv_kcs = (nho["don_vi_ra"].get(cv_id) or "").strip()
         khoa = (hang_id, dv_kcs, dvt)
         if khoa not in nho:
-            if not dv_kcs:
+            if not dv_kcs or la_chang_thanh_pham(dv_kcs):
                 nho[khoa] = 1.0
             else:
                 nho.setdefault("hang", _hang_service(db))
@@ -341,7 +355,9 @@ def lap_yeu_cau_nhap_tp(
     try:
         req = req_svc.create(
             user=user, loai=REQ_NHAP, lines=lines, commit=False,
-            bo_phan_id=cv.department_id or user.department_id,
+            # Bộ phận = của NGƯỜI bấm gửi (người KCS), không phải tổ làm công đoạn — cùng luật với
+            # đề nghị cấp vật tư và nhập lại (11/10/2026; trước đó ghi tổ Cắt dưới tên Admin).
+            bo_phan_id=user.department_id,
             san_xuat_cong_viec_id=cv.id,
             ghi_chu=f"Nhập thành phẩm từ {nguon_ghi} · {nguon.than_chinh.ma} · {ten}"[:1000],
             **them,
@@ -400,10 +416,32 @@ def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> d
             "so_luong": round(con, 3), "don_vi": (cv.don_vi_ra or "").strip() or None, "dong": ra}
 
 
+def _bao_ban_to_yeu_cau(req) -> None:
+    """Yêu cầu kho thuộc một công việc của tổ (trả hàng thừa, hoặc lần đề nghị cấp vật tư) ⇒ đẩy
+    `san_xuat_cong_viec_changed` tới đúng tổ đó. Không thuộc việc nào thì im lặng."""
+    db = object_session(req)
+    if db is None:
+        return
+    cv_ids = {getattr(req, "vat_tu_tra_cong_viec_id", None)} | set(db.scalars(
+        select(SanXuatVatTuDeNghi.cong_viec_id).where(SanXuatVatTuDeNghi.stock_request_id == req.id)))
+    cv_ids.discard(None)
+    if not cv_ids:
+        return
+    teams = list(db.scalars(
+        select(SanXuatCongViec.department_id).where(SanXuatCongViec.id.in_(cv_ids))))
+    # Một sự kiện là đủ: bàn tổ nạp lại cả danh sách lẫn ngăn đang mở theo `eventTick`.
+    hub.gui({"type": "san_xuat_cong_viec_changed", "request_id": req.id},
+            **kem_ban_to(MAN_THEO_LENH, teams))
+
+
 def phat_su_kien_kho(req, *, bao_nguoi_tao: bool) -> None:
     """Yêu cầu nhập thành phẩm đổi (KCS vừa gửi / kho vừa ghi sổ phiếu nhập) → refresh màn KCS + hồ sơ
     lệnh; kho ghi sổ thì ĐẨY đích danh tới người KCS đã gửi (kho đã nhận tới đâu). Gọi SAU commit.
-    Yêu cầu không có nguồn công đoạn KCS thì im lặng."""
+    Yêu cầu không có nguồn công đoạn KCS thì im lặng.
+
+    Yêu cầu tổ GỬI KHO (đề nghị cấp vật tư / trả hàng thừa) thì báo bàn tổ của công việc đó: chip
+    trạng thái, phiếu xuất, cột Nhập lại trong ngăn phải đổi ngay khi kho làm (11/10/2026)."""
+    _bao_ban_to_yeu_cau(req)
     cv_id = getattr(req, "san_xuat_cong_viec_id", None)
     if not cv_id:
         return
@@ -443,7 +481,7 @@ def ton_thanh_pham_cua_nhom(db: Session, nhom_id: int) -> dict:
               if cv.la_kcs_cuoi]
     dong = [d for ds in dong_nhap_kho_cua_cong_viec(db, cv_ids).values() for d in ds]
 
-    tp_theo_cum = [(cum, tp) for cum in nguon.cums if (tp := tim_theo_ten(db, cum.ten)) is not None]
+    tp_theo_cum = [(cum, tp) for cum in nguon.cums if (tp := thanh_pham_cua_cum(db, order, cum)) is not None]
     ton = StockLotRepository(db).on_hand_by_kho(list({("vat_tu", tp.id) for _, tp in tp_theo_cum}))
     ten_kho = KhoHangRepository(db).ten_theo_ids({k for per in ton.values() for k in per})
     con_giao = DeliveryService(DeliveryRepository(db), OrderRepository(db), None, None, None) \

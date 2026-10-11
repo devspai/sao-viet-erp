@@ -52,6 +52,8 @@ from ..models.ky_thuat_may import (
     YeuCauSuaChua,
 )
 from ..models.may_thiet_bi import MayThietBi
+from ..doi_tuong_nhan import MAN_THEO_LENH, kem_ban_to
+from ..models.san_xuat import CV_HOAN_THANH, SanXuatCongViec
 from ..realtime import hub
 from .thong_bao_man import bao
 from ..repositories.employee_repo import EmployeeRepository
@@ -303,8 +305,8 @@ class KyThuatMayService:
     def _validate_sua_chua(self, data: dict) -> None:
         if not data.get("may_id"):
             raise KyThuatMayValidationError("Chưa chọn máy.")
-        if not (data.get("bo_phan_hong") or "").strip():
-            raise KyThuatMayValidationError("Chưa ghi bộ phận hỏng.")
+        # Chỗ hỏng KHÔNG bắt buộc (11/10/2026): lúc nhận báo tổ sửa chữa thường chưa biết hỏng chỗ
+        # nào, xuống máy xem rồi mới ghi.
         muc_do = data.get("muc_do")
         if muc_do and muc_do not in MUC_DO:
             raise KyThuatMayValidationError(f"Mức độ không hợp lệ: {muc_do}")
@@ -327,9 +329,11 @@ class KyThuatMayService:
         `nguoi_bao_id` trỏ `employees.id` ⇒ lấy hồ sơ nối với tài khoản; chưa nối thì chỉ giữ tên.
         """
         nv = EmployeeRepository(self.db).get_by_user_id(actor_id) if actor_id else None
-        return self._tao_sua_chua(data, actor_id=actor_id,
-                                  nguoi_bao_id=nv.id if nv else None,
-                                  nguoi_bao_ten=self._ten_user(actor_id))
+        phieu = self._tao_sua_chua(data, actor_id=actor_id,
+                                   nguoi_bao_id=nv.id if nv else None,
+                                   nguoi_bao_ten=self._ten_user(actor_id))
+        self.bao_ban_to_may(phieu.may_id)
+        return phieu
 
     def _tao_sua_chua(self, data: dict, *, actor_id: int | None, nguoi_bao_id: int | None,
                       nguoi_bao_ten: str | None) -> SuaChuaMay:
@@ -339,7 +343,7 @@ class KyThuatMayService:
         phieu = self.repo.create_sua_chua(data, ma=self.repo.next_ma_sua_chua(),
                                           nguoi_bao_id=nguoi_bao_id, nguoi_bao_ten=nguoi_bao_ten)
         self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "create",
-                  f"{phieu.ma} · {may.ma} · {phieu.bo_phan_hong}", actor_id)
+                  " · ".join(x for x in (phieu.ma, may.ma, phieu.bo_phan_hong) if x), actor_id)
         return phieu
 
     def sua_sua_chua(self, phieu_id: int, data: dict, *, actor_id: int | None = None) -> SuaChuaMay:
@@ -348,9 +352,9 @@ class KyThuatMayService:
             raise KyThuatMayValidationError("Phiếu đã đóng — không sửa được nữa.")
         # NGƯỜI BÁO không sửa được ở BẤT KỲ phiếu nào (14/09/2026) — `ASSIGNABLE_SUA_CHUA` không có
         # hai khoá người báo nên `update_sua_chua` bỏ qua dù client/người gọi có gửi lên.
-        # MÁY cũng không đổi được (`SUA_DUOC_SUA_CHUA` bỏ `may_id`) — kiểm bộ phận hỏng trên máy CŨ.
-        if "bo_phan_hong" in data:
-            self._validate_sua_chua({"may_id": phieu.may_id, "bo_phan_hong": data["bo_phan_hong"]})
+        # MÁY cũng không đổi được (`SUA_DUOC_SUA_CHUA` bỏ `may_id`).
+        if "bo_phan_hong" in data:      # để trống được, nhưng cột NOT NULL ⇒ null quy về ""
+            data = {**data, "bo_phan_hong": (data["bo_phan_hong"] or "").strip()}
         phieu = self.repo.update_sua_chua(phieu, data)
         self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "update", f"{phieu.ma} · sửa nội dung", actor_id)
         return phieu
@@ -375,6 +379,7 @@ class KyThuatMayService:
         self.db.refresh(phieu)
         self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "update",
                   f"{phieu.ma} · trạng thái → {trang_thai}", actor_id)
+        self.bao_ban_to_may(phieu.may_id)
         return phieu
 
 
@@ -412,12 +417,9 @@ class KyThuatMayService:
         return self.repo.yeu_cau_map(phieu_ids)
 
     def _validate_yeu_cau(self, data: dict) -> None:
+        # Chỗ hỏng KHÔNG bắt buộc (11/10/2026): người đứng máy thường không biết hỏng chỗ nào.
         if not data.get("may_id"):
             raise KyThuatMayValidationError("Chưa chọn máy.")
-        if not (data.get("bo_phan_hong") or "").strip():
-            raise KyThuatMayValidationError(
-                "Chưa ghi hỏng chỗ nào. Không chắc thì ghi cái nhìn thấy: “in ra bị sọc”."
-            )
         muc_do = data.get("muc_do")
         if muc_do and muc_do not in MUC_DO:
             raise KyThuatMayValidationError(f"Mức độ không hợp lệ: {muc_do}")
@@ -448,6 +450,27 @@ class KyThuatMayService:
                    User.is_active.is_(True))
         ).scalars()]
 
+    def bao_ban_to_may(self, may_id: int | None) -> None:
+        """Báo hỏng của một máy vừa đổi (gửi / nhận sửa / từ chối / sửa xong) ⇒ đẩy tới bàn của các
+        tổ đang có việc chưa xong trên máy đó, để dòng "Máy" ở ngăn chi tiết tự đổi (11/10/2026).
+
+        Gọi SAU commit. Dùng lại `san_xuat_cong_viec_changed` — loại bàn tổ vốn đã nghe để nạp lại.
+        Không tổ nào đang có việc trên máy thì thôi, khỏi phát cho cả xưởng.
+        """
+        if not may_id:
+            return
+        teams = [t for t in self.db.execute(
+            select(SanXuatCongViec.department_id).where(
+                SanXuatCongViec.may_id == may_id,
+                SanXuatCongViec.trang_thai != CV_HOAN_THANH,
+                SanXuatCongViec.department_id.is_not(None),
+            ).distinct()
+        ).scalars()]
+        if not teams:
+            return
+        hub.gui({"type": "san_xuat_cong_viec_changed", "may_id": may_id},
+                **kem_ban_to(MAN_THEO_LENH, teams))
+
     def bao_to_sua_chua(self, yc: YeuCauSuaChua) -> None:
         """Đẩy NGAY tới tổ sửa chữa. Máy hỏng mà chờ người ta bấm F5 mới thấy thì cái màn hình này
         vô nghĩa — báo hỏng là loại tin đúng nghĩa "biết sớm phút nào đỡ phút đó".
@@ -471,6 +494,7 @@ class KyThuatMayService:
             hub.publish(uid, su_kien)
         bao(self.db, kenh="ky_thuat_may", loai="bao_hong_moi", actor_id=yc.nguoi_bao_id,
             nguoi_nhan=nhan, ma=yc.ma)
+        self.bao_ban_to_may(yc.may_id)
 
     def _bao_nguoi_bao(self, yc: YeuCauSuaChua, ket_qua: str, *,
                        phieu_ma: str | None = None) -> None:
@@ -516,7 +540,8 @@ class KyThuatMayService:
             cong_viec_id=cong_viec_id, lsx_id=lsx_id, commit=commit,
         )
         self._ghi(NHAT_KY_LOAI_YEU_CAU, yc.id, "create",
-                  f"{yc.ma} · {may.ma} · {yc.bo_phan_hong}", actor_id, commit=commit)
+                  " · ".join(x for x in (yc.ma, may.ma, yc.bo_phan_hong) if x), actor_id,
+                  commit=commit)
         if commit:
             self.bao_to_sua_chua(yc)
         return yc
@@ -536,16 +561,19 @@ class KyThuatMayService:
                                        "muc_do": yc.muc_do}, **data})
         if data.get("may_id") and int(data["may_id"]) != yc.may_id:
             self._may(int(data["may_id"]))
+        if "bo_phan_hong" in data:      # để trống được, nhưng cột NOT NULL ⇒ null quy về ""
+            data = {**data, "bo_phan_hong": (data["bo_phan_hong"] or "").strip()}
         yc = self.repo.update_yeu_cau(yc, data)
         self._ghi(NHAT_KY_LOAI_YEU_CAU, yc.id, "update", f"{yc.ma} · sửa nội dung", actor_id)
+        self.bao_ban_to_may(yc.may_id)
         return yc
 
     def tao_phieu_tu_yeu_cau(self, yc_id: int, data: dict | None = None, *,
                              actor_id: int | None = None) -> tuple[SuaChuaMay, YeuCauSuaChua]:
         """Tổ sửa chữa tiếp nhận: yêu cầu → phiếu sửa chữa. Đây là CỬA DUY NHẤT nối hai bảng.
 
-        `data` là những gì tổ sửa chữa chỉnh lại lúc tiếp nhận (đặt lại mức độ, ghi rõ bộ phận
-        hỏng…) — để trống thì bê nguyên lời người báo.
+        Lời người báo (triệu chứng, mức độ, giờ hỏng) bê nguyên sang phiếu, không đè được (11/10/2026);
+        `data` chỉ nhận phần của tổ sửa chữa (`SUA_DUOC_SUA_CHUA`).
         """
         yc = self.get_yeu_cau(yc_id)
         if yc.trang_thai != TT_YC_CHO_TIEP_NHAN:
@@ -561,6 +589,10 @@ class KyThuatMayService:
             "mo_ta": yc.mo_ta,
             "muc_do": yc.muc_do,
         }
+        # Giờ hỏng = lúc NGƯỜI BÁO gửi, không phải lúc tổ sửa chữa nhận — thiếu dòng này thì phiếu
+        # mang giờ bấm nhận và "Đã kéo dài" đếm hụt cả quãng chờ tiếp nhận.
+        if yc.thoi_diem is not None:
+            goc["thoi_diem"] = yc.thoi_diem
         # MÁY lấy từ yêu cầu, không đè được: vòng lặp trước đây nhận MỌI khoá ⇒ gọi service kèm
         # `may_id` là phiếu sang máy khác với máy người ta báo (HTTP lọt không nổi chỉ nhờ
         # `TaoPhieuTuYeuCauIn` không khai field đó).
@@ -591,6 +623,7 @@ class KyThuatMayService:
                   f"{phieu.ma} · tạo từ yêu cầu {yc.ma}"
                   + (f" của {yc.nguoi_bao_ten}" if yc.nguoi_bao_ten else ""), actor_id)
         self._bao_nguoi_bao(yc, TT_YC_DA_TAO_PHIEU, phieu_ma=phieu.ma)
+        self.bao_ban_to_may(yc.may_id)
         return phieu, yc
 
     def tu_choi_yeu_cau(self, yc_id: int, ly_do: str, *,
@@ -614,6 +647,7 @@ class KyThuatMayService:
         self._ghi(NHAT_KY_LOAI_YEU_CAU, yc.id, "update",
                   f"{yc.ma} · từ chối: {yc.ly_do_tu_choi}", actor_id)
         self._bao_nguoi_bao(yc, TT_YC_TU_CHOI)
+        self.bao_ban_to_may(yc.may_id)
         return yc
 
     def _kiem_yeu_cau_con_mo(self, yc_id: int) -> None:

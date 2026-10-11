@@ -27,7 +27,7 @@ from ...repositories.stock_request_repo import StockRequestRepository
 from ...repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from ...repositories.xep_lich_repo import XepLichRepository
 from ..bien_cong_thuc import quy_cach_bien
-from ..kho_giay import DANG_TO, chuan_kho, don_vi_goc_to, goi_y_dong_giay, la_ma_to_giay, nhan_kho
+from ..kho_giay import chuan_kho, don_vi_goc_to, goi_y_dong_giay, la_ma_to_giay, nhan_kho
 from ..san_xuat.component import thanh_phan_lien_thong
 from ..san_xuat.nhom import dam_bao_nhom
 from ..san_xuat.release_update import thu_hoi_goi
@@ -246,7 +246,10 @@ def _de_xuat_giay(db: Session, lsx) -> dict:
     giá (`goi_y_dong_giay`, cùng luật điền sẵn dòng giấy của bước). Mã giấy luôn lấy ở máy chủ."""
     for vt in GiaCongNgoaiRepository(db).giay_cua_lenh(lsx.id):
         kr, kd = chuan_kho(vt.kho_rong, vt.kho_dai)
-        if vt.dang_giay in (None, DANG_TO) and kr and kd:
+        # Dòng đếm tờ (đơn vị gốc `to`; dòng cũ chưa ghi gốc thì nhìn mã chặng của ĐVT).
+        dem_to = ((vt.don_vi_goc or "") == don_vi_goc_to()
+                  or (not vt.don_vi_goc and la_ma_to_giay(vt.don_vi_snapshot)))
+        if dem_to and kr and kd:
             # Dòng giấy lệnh mang MÃ CHẶNG (`to_nguyen` / `to`); qua cửa kho mọi mã tờ là một "tờ".
             so = float(vt.so_luong) if la_ma_to_giay(vt.don_vi_snapshot) else None
             return {"giay_id": int(vt.vat_tu_id), "kho_rong": kr, "kho_dai": kd, "so_to": so,
@@ -345,8 +348,9 @@ def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int |
     if giay_id is None:
         raise ValueError("Lệnh chưa chọn loại giấy — chọn giấy ở Quy cách của lệnh rồi quay lại.")
 
+    # Đơn vị gốc của dòng máy chủ kho tự suy từ `dvt` (tờ ⇒ `to`) — không gửi.
     lines = [{"hang_loai": "giay", "hang_id": giay_id, "dvt": don_vi_goc_to(),
-              "dang_giay": DANG_TO, "kho_rong": kr, "kho_dai": kd,
+              "kho_rong": kr, "kho_dai": kd,
               "sl_de_nghi": so_to, "lsx_id": gcn.lsx_id}]
     req_svc = _req_service(db, _hang_service(db))
     try:

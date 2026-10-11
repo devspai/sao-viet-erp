@@ -165,3 +165,31 @@ def test_gantt_ban_to_cua_so_o_sql_khong_doi_ket_qua(
     )
     assert cu.id not in {r.id for r in rows}
     assert bien_phai.id in {r.id for r in rows}
+
+
+def test_lich_ban_to_tra_ngay_nghi_ngay_le_va_ca(db, admin):
+    """Lịch bàn tổ (10/10/2026) đọc Lịch làm việc như bàn Xếp lịch: ngày lễ tô nghỉ và ghi tên,
+    chủ nhật làm bù KHÔNG phải ngày nghỉ, ca xưởng có mặt cho dòng "Ca … đến …"."""
+    from app.models.work_calendar import KIND_OFF, KIND_WORK, SpecialDay
+
+    to = _to_moi(db, "Tổ lịch làm việc", "TO-LICH-LV")
+    db.add_all([
+        SpecialDay(day=date(2026, 9, 15), kind=KIND_OFF, name="Nghỉ lễ thử"),
+        SpecialDay(day=date(2026, 9, 20), kind=KIND_WORK, name="Làm bù chủ nhật"),
+    ])
+    db.commit()
+
+    r = board.work_items(db, admin, _authz(db), team_id=to.id, nhom="phang",
+                         tu_ngay=date(2026, 9, 14), den_ngay=date(2026, 9, 20))
+    assert date(2026, 9, 15) in r["ngay_nghi"]
+    assert date(2026, 9, 20) not in r["ngay_nghi"]
+    assert date(2026, 9, 14) not in r["ngay_nghi"]
+    assert {(n["ngay"], n["loai"], n["ten"]) for n in r["ngay_dac_biet"]} == {
+        (date(2026, 9, 15), KIND_OFF, "Nghỉ lễ thử"),
+        (date(2026, 9, 20), KIND_WORK, "Làm bù chủ nhật"),
+    }
+    assert isinstance(r["cac_ca"], list)
+
+    # Thiếu một mép cửa sổ ⇒ không dò ngày, chỉ còn ca.
+    r2 = board.work_items(db, admin, _authz(db), team_id=to.id, nhom="phang", tu_ngay=date(2026, 9, 14))
+    assert r2["ngay_nghi"] == [] and r2["ngay_dac_biet"] == []

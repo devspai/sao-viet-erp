@@ -33,7 +33,7 @@ from app.repositories.rbac_repo import RoleRepository
 from app.schemas.san_xuat import WorkItemChiTietOut
 from app.services.rbac_service import AuthorizationService
 from app.services.san_xuat import board, kcs, release
-from tests.quyen_to_fixtures import BON_VIEC, cap_quyen_to
+from tests.quyen_to_fixtures import BON_VIEC, cap_kcs, cap_quyen_to
 
 # Fixtures + helper dùng chung từ test xếp lịch.
 from tests.test_xep_lich_service import (  # noqa: F401
@@ -146,10 +146,10 @@ def test_teams_liet_ke_va_badge(db, orders, lsx_svc, admin, customer):
     assert to.id in by_id
     row = by_id[to.id]
     assert set(row) == {
-        "id", "ten", "ma", "cap", "la_kcs", "la_to_cat", "la_tho", "so_viec_cho", "quyen",
+        "id", "ten", "ma", "cap", "la_to_cat", "la_tho", "so_viec_cho", "quyen",
         "so_cho_xac_nhan",
     }
-    assert row["ten"] == "Tổ In Board" and row["ma"] == "TO-BOARD" and row["la_kcs"] is False
+    assert row["ten"] == "Tổ In Board" and row["ma"] == "TO-BOARD"
     assert row["la_to_cat"] is False
     # Tổ không có phòng cha → gốc cây, cấp 0; `_to_moi` bật Xem + 3 quyền chi tiết phạm vi all.
     assert row["cap"] == 0
@@ -269,6 +269,7 @@ def test_item_dict_gio_khong_lech_khi_db_tra_aware():
     moc_that = datetime(2026, 8, 20, 11, 34, tzinfo=timezone.utc)
     cv = SimpleNamespace(
         id=7, goi_id=1, phien_ban_so=1, nhom_id=None, lsx_id=None, bai_ghep_id=None,
+        step_key=None, bai_ghep_cong_doan_id=None,
         ten_cong_doan="In offset (lần 1/2)", nhom_cong_doan="print", loai_buoc="may",
         la_kcs_cuoi=False, may_id=None,
         du_kien_bat_dau=ke_hoach, du_kien_ket_thuc=ke_hoach + timedelta(hours=1),
@@ -501,13 +502,14 @@ def test_work_items_mang_dau_kcs_cua_cong_doan(db, orders, lsx_svc, admin, custo
     db.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=moc, ket_thuc=moc, tong=20, tot=20, hong=0,
                         don_vi=cv.don_vi_ra or "cái"))
     db.commit()
-    phong_kcs = Department(name="Tổ KCS Board", code="KCS-BOARD", is_kcs=True)
+    phong_kcs = Department(name="Tổ KCS Board", code="KCS-BOARD")
     db.add(phong_kcs)
     db.flush()
     nguoi_kcs = User(username="kcs_board", name="KCS Board", password_hash="x",
                      department_id=phong_kcs.id)
     db.add(nguoi_kcs)
-    db.commit()
+    db.flush()
+    cap_kcs(db, nguoi_kcs)
     anh = [{"file_name": "loi.jpg", "file_url": "/api/files/x/loi.jpg", "file_type": "image/jpeg"}]
     kcs.kiem_cong_doan(db, user=nguoi_kcs, cong_viec_id=cv.id, so_dat=8, so_loi=2,
                        loi_mo_ta="Lem mực", anh=anh)

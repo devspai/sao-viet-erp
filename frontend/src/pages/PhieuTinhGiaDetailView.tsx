@@ -5,7 +5,7 @@
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
 import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong, type DinhMuc } from "./BuocVatTu";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   api,
   ApiError,
@@ -17,6 +17,7 @@ import {
   type ThanhPhanOut,
   type ThanhPhamOut,
   type ChiPhiKhacOut,
+  type TaiBanNhan,
   type TinhGiaComponentMeta,
   type TinhGiaPreviewOut,
 } from "../api/client";
@@ -26,6 +27,7 @@ import { congDoan, giay, mayThietBi, vatTu, type Row } from "../api/rebuildCatal
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
+import { HoverTip } from "../components/HoverTip";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DiscardChangesDialog } from "../components/DiscardChangesDialog";
 import { EmptyState } from "../components/EmptyState";
@@ -42,6 +44,7 @@ import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
 import { HAM_TOAN, catToken, laSo, laToanTu } from "./danh-muc/formulaTokens";
 import { ngatDongIf } from "../lib/ngatDongCongThuc";
+import { boDau } from "../utils/timGanDung";
 import "./rebuild-catalog.css";
 import "./tinh-gia.css";
 
@@ -316,25 +319,60 @@ function dongCongDoan(groups: PhieuTinhGiaGroupOut[] | null): DongTien[] {
  *
  *  Một dòng thế số đứng trơ thì đọc lên là "5.200 × 2 × 350" — không biết 5.200 là tờ vào máy hay
  *  tờ nguyên, mà hai số đó khác nhau và đều có mặt trên màn. Có dòng tên biến ở trên mới kiểm được. */
-function HaiDongCongThuc({ d, tra }: { d: DongTien; tra: TraBien }) {
+//: Hai dòng này nằm trong bong bóng (?) cạnh tên khoản — rải thẳng dưới mỗi dòng thì khối Giá vốn
+//: dài gấp ba, con số bị đẩy khỏi tầm mắt. Cùng khuôn bong bóng giải thích của ma trận phân quyền.
+function HaiDongCongThuc({ ten, d, tra }: { ten: ReactNode; d: DongTien; tra: TraBien }) {
   const goc = dienGiaiFormula(d.congThucGoc, tra);
   const so = d.congThuc ? humanizeFormula(d.congThuc, tra) : "";
-  if (!goc && !so) return null;
+  if (!goc && !so) return <span>{ten}</span>;
   const dongGoc = goc ? ngatDongIf(goc) : [];
   return (
-    <>
-      {dongGoc.length > 1 ? (
-        <em className="tg-sheetrow__derive">
-          {dongGoc.map((l, i) => (
-            <span key={i} className="tg-sheetrow__if-dong"
-              style={{ "--sau": l.sau } as CSSProperties}>
-              {l.text}
-            </span>
-          ))}
-        </em>
-      ) : goc && <em className="tg-sheetrow__derive">{goc}</em>}
-      {so && <em className="tg-sheetrow__derive tg-sheetrow__derive--so">= {so}</em>}
-    </>
+    <span>
+      {ten}
+      <HoverTip tieuDe={typeof ten === "string" ? ten : d.ten} rong={640}>
+        <dl className="hover-tip__dong">
+          {goc && (
+            <div className="hover-tip__hang">
+              <dt>Công thức</dt>
+              <dd className="hover-tip__so">
+                {dongGoc.length > 1
+                  ? dongGoc.map((l, i) => (
+                    <span key={i} className="hover-tip__if-dong"
+                      style={{ "--sau": l.sau } as CSSProperties}>
+                      {l.text}
+                    </span>
+                  ))
+                  : goc}
+              </dd>
+            </div>
+          )}
+          {so && (
+            <div className="hover-tip__hang">
+              <dt>Thế số</dt>
+              <dd className="hover-tip__so">= {so}</dd>
+            </div>
+          )}
+        </dl>
+      </HoverTip>
+    </span>
+  );
+}
+
+//: Khoản chỉ có một chuỗi engine đã thế số (khuôn, giao hàng, chi phí khác) — chuỗi tự chứa "=".
+function CongThucMotDong({ ten, congThuc, tieuDe }: { ten: ReactNode; congThuc: string; tieuDe?: string }) {
+  if (!congThuc) return <span>{ten}</span>;
+  return (
+    <span>
+      {ten}
+      <HoverTip tieuDe={tieuDe ?? (typeof ten === "string" ? ten : undefined)} rong={640}>
+        <dl className="hover-tip__dong">
+          <div className="hover-tip__hang">
+            <dt>Thế số</dt>
+            <dd className="hover-tip__so">{congThuc}</dd>
+          </div>
+        </dl>
+      </HoverTip>
+    </span>
   );
 }
 
@@ -624,6 +662,9 @@ interface EditableComponent {
   chi_phi_khacs: EditableChiPhiKhac[];
   gia_von_tp: number; // read-only từ lần tính gần nhất
   thanh_phams: EditableFinishing[];
+  /** Mã thành phẩm CỦA KHÁCH đang gắn tái bản (11/10/2026). Null = sản phẩm mới: chốt đơn sẽ khai
+   *  mã mới cho khách. Món nhiều thành phần (ruột + bìa) thì mọi thẻ của món mang cùng mã. */
+  tai_ban: TaiBanNhan | null;
 }
 
 function blankFinishing(
@@ -690,6 +731,7 @@ function blankComponent(ten = ""): EditableComponent {
     chi_phi_khacs: [],
     gia_von_tp: 0,
     thanh_phams: [],
+    tai_ban: null,
   };
 }
 
@@ -757,6 +799,7 @@ function fromComponent(c: ThanhPhanOut): EditableComponent {
     chi_phi_khacs: (c.chi_phi_khacs ?? []).map(fromChiPhiKhac),
     gia_von_tp: c.gia_von_tp ?? 0,
     thanh_phams: (c.thanh_phams ?? []).map(fromFinishing),
+    tai_ban: c.tai_ban_thanh_pham ?? null,
   };
 }
 
@@ -821,13 +864,17 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
     chi_phi_khacs: c.chi_phi_khacs
       .filter((k) => k.ten.trim() !== "" || k.so_tien > 0)
       .map((k) => ({ ten: k.ten.trim(), so_tien: k.so_tien })),
+    // LUÔN gửi (kể cả null): server lưu theo field có mặt, thiếu là gỡ gắn không ăn.
+    tai_ban_thanh_pham_id: c.tai_ban?.id ?? null,
   };
 }
 
-/** Nạp cấu hình Sản phẩm tái bản (`cau_hinh_json`, dạng `ThanhPhanIn`) vào thẻ ĐANG SỬA — GIỮ
- *  `uid` + `so_luong` hiện tại của thẻ (SL đơn cũ KHÔNG được nạp lại, theo plan), điền lại mọi
- *  thứ khác (tên + toàn bộ kỹ thuật/công đoạn/vật tư). `gia_von_tp` luôn về 0 — chưa tính lại. */
-function fromThanhPhanIn(cfg: ThanhPhanIn, giu: { uid: string; so_luong: number }): EditableComponent {
+/** Nạp cấu hình MỘT thành phần của mã tái bản (dạng `ThanhPhanIn`) thành thẻ — GIỮ `uid` +
+ *  `so_luong` truyền vào (SL đơn cũ KHÔNG nạp lại), điền lại mọi thứ khác (tên + toàn bộ kỹ
+ *  thuật/công đoạn/vật tư) và gắn mã. `gia_von_tp` luôn về 0 — chưa tính lại. */
+function fromThanhPhanIn(
+  cfg: ThanhPhanIn, giu: { uid: string; so_luong: number; tai_ban: TaiBanNhan | null },
+): EditableComponent {
   const tapMuc = tapMucCuaComp({
     muc_a: cfg.muc_a ?? null, muc_b: cfg.muc_b ?? null,
     so_mau_a: cfg.so_mau_a ?? null, so_mau_b: cfg.so_mau_b ?? null, so_mau_pha: cfg.so_mau_pha ?? null,
@@ -893,6 +940,7 @@ function fromThanhPhanIn(cfg: ThanhPhanIn, giu: { uid: string; so_luong: number 
         uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
       })),
     })),
+    tai_ban: giu.tai_ban,
   };
 }
 
@@ -1451,6 +1499,22 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
   const removeComp = useCallback((uid: string) => {
     setComps((cs) => cs.filter((c) => c.uid !== uid));
   }, []);
+  // Thay MỘT thẻ bằng danh sách thẻ tại đúng chỗ — nạp tái bản món nhiều thành phần (ruột + bìa).
+  // Thẻ nằm trong nhóm gộp thì nhóm đó LÀ món bán: các thẻ khác cùng nhóm bị thay luôn, không thì
+  // chọn tái bản trên thẻ ruột của một cuốn đã có bìa sẽ đẻ thêm bìa thứ hai.
+  const thayComp = useCallback((uid: string, moi: EditableComponent[]) => {
+    setComps((cs) => {
+      const goc = cs.find((c) => c.uid === uid);
+      const nhom = goc?.nhom_bao_gia.trim() ?? "";
+      return cs.flatMap((c) => (c.uid === uid ? moi
+        : nhom && c.nhom_bao_gia.trim() === nhom ? [] : [c]));
+    });
+  }, []);
+  // "Tách thành sản phẩm mới": gỡ mã khỏi MỌI thẻ của món, giữ nguyên cấu hình đang có. Chốt đơn
+  // sẽ khai mã mới cho khách — hàng tồn của mã cũ không bị tính là hàng của sản phẩm đã đổi.
+  const tachTaiBan = useCallback((maId: number) => {
+    setComps((cs) => cs.map((c) => (c.tai_ban?.id === maId ? { ...c, tai_ban: null } : c)));
+  }, []);
   const addComp = useCallback(() => {
     const c = blankComponent("");
     setComps((cs) => [...cs, { ...c, ten: `Sản phẩm ${cs.length + 1}` }]);
@@ -1470,6 +1534,8 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
         uid: uidMoi,
         ten: `${goc.ten || "Sản phẩm"} (bản sao)`,
         nhom_bao_gia: "",
+        // Bản sao là sản phẩm KHÁC — không mang mã tái bản của dòng gốc.
+        tai_ban: null,
         muc_a: [...goc.muc_a],
         muc_b: [...goc.muc_b],
         thanh_phams: goc.thanh_phams.map((f) => ({
@@ -1701,6 +1767,11 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
   // phiếu CHƯA lưu thì giữ tạm, lần "Tính giá & lưu" đầu tiên gửi kèm.
   const doiKhach = useCallback((patch: DoiKhach) => {
     const { ghi_chu, customer_name, ...oKhach } = patch;
+    // Mã tái bản là thành phẩm CỦA KHÁCH — đổi khách thì gắn cũ thôi đúng (máy chủ cũng gỡ).
+    if (oKhach.customer_id !== undefined && oKhach.customer_id !== khach.customer_id) {
+      setComps((cs) => (cs.some((c) => c.tai_ban)
+        ? cs.map((c) => (c.tai_ban ? { ...c, tai_ban: null } : c)) : cs));
+    }
     setKhach((k) => ({ ...k, ...oKhach, ...(customer_name !== undefined ? { customer_name } : {}) }));
     if (ghi_chu !== undefined) setGhiChuPhieu(ghi_chu);
     if (!token || pid == null) return;
@@ -1717,7 +1788,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
       })
       .catch((e) => setErr(e instanceof ApiError ? e.message : "Không lưu được khách hàng của phiếu."))
       .finally(() => setLuuKhach(false));
-  }, [token, pid, loadActs]);
+  }, [token, pid, loadActs, khach.customer_id]);
 
   // #1 — Sửa sản phẩm XONG (đóng modal: Xong / X / bấm ra ngoài) mà CÓ thay đổi → tự tính lại
   // giá ngay, khỏi bấm "Tính giá" riêng. Chụp snapshot lúc mở để so khi đóng (chỉ tính khi dirty).
@@ -1930,6 +2001,9 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
 
   const editing = comps.find((c) => c.uid === editingUid) ?? null;
   const editingIdx = editing ? comps.findIndex((c) => c.uid === editingUid) : -1;
+  const editingCungNhom = editing && editing.nhom_bao_gia.trim()
+    ? comps.filter((c) => c.uid !== editing.uid && c.nhom_bao_gia.trim() === editing.nhom_bao_gia.trim()).length
+    : 0;
 
   // Rời phiếu: nháp đang có sản phẩm mà chưa lưu thì hỏi trước — thoát là mất trắng phần đã nhập
   // (phiếu chưa tồn tại trên server nên không có gì để mở lại).
@@ -2595,6 +2669,10 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
           onPickGiay={onPickGiay}
           addFin={addFin}
           removeFin={removeFin}
+          customerId={khach.customer_id}
+          cungNhom={editingCungNhom}
+          thayComp={thayComp}
+          tachTaiBan={tachTaiBan}
         />
       ) : null}
 
@@ -2631,6 +2709,10 @@ function ComponentModal({
   onPickGiay,
   addFin,
   removeFin,
+  customerId,
+  cungNhom,
+  thayComp,
+  tachTaiBan,
 }: {
   comp: EditableComponent;
   idx: number;
@@ -2651,6 +2733,12 @@ function ComponentModal({
   onPickGiay: (uid: string, gid: number | null) => void;
   addFin: (cuid: string, cong_doan_id?: number | null, ten?: string, insertIndex?: number | null, vat_tus?: BuocVatTuDong[]) => void;
   removeFin: (cuid: string, fuid: string) => void;
+  /** Khách đầu phiếu — ô tái bản chỉ liệt kê thành phẩm của khách này. */
+  customerId: number | null;
+  /** Số thẻ KHÁC cùng nhóm gộp — nạp tái bản sẽ thay cả chúng nên phải hỏi trước. */
+  cungNhom: number;
+  thayComp: (uid: string, moi: EditableComponent[]) => void;
+  tachTaiBan: (maId: number) => void;
 }) {
   // Lấy token tại chỗ thay vì luồn prop qua 16 tham số — ô gợi ý tên sản phẩm cần gọi API
   // danh mục Thành phẩm.
@@ -2666,28 +2754,63 @@ function ComponentModal({
   const [taiBanErr, setTaiBanErr] = useState<string | null>(null);
   const napTaiBan = useCallback(
     (id: number, dongXacNhanKhiXong: boolean) => {
-      if (!token) return;
+      if (!token || customerId == null) return;
       setTaiBanBusy(true);
       setTaiBanErr(null);
       api.phieuTinhGia
-        .chiTietSanPhamTaiBan(token, id)
-        .then((cfg) => {
-          // GIỮ so_luong hiện tại của thẻ — plan: KHÔNG nạp lại SL đơn cũ.
-          patchComp(c.uid, fromThanhPhanIn(cfg, { uid: c.uid, so_luong: c.so_luong }));
+        .chiTietSanPhamTaiBan(token, customerId, id)
+        .then((ct) => {
+          const taiBan = { id: ct.id, ma: ct.ma, ten: ct.ten };
+          if (ct.thanh_phans.length === 0) {
+            // Mã chưa từng chốt qua phiếu (khai tay, nhập Excel): không có cấu hình để nạp, chỉ gắn mã.
+            patchComp(c.uid, { tai_ban: taiBan, ten: ct.ten });
+          } else {
+            // Tái bản ở cấp MÓN BÁN: thẻ đang mở nhận thành phần đầu, các thành phần sau (bìa…)
+            // thêm thẻ ngay dưới. GIỮ so_luong của thẻ — không nạp lại SL đơn cũ.
+            thayComp(c.uid, ct.thanh_phans.map((cfg, i) => fromThanhPhanIn(cfg, {
+              uid: i === 0 ? c.uid : nextUid(), so_luong: c.so_luong, tai_ban: taiBan,
+            })));
+          }
           if (dongXacNhanKhiXong) setTaiBanXacNhan(null);
         })
         .catch((e) => setTaiBanErr(e instanceof ApiError ? e.message : "Không nạp được cấu hình tái bản. Thử lại."))
         .finally(() => setTaiBanBusy(false));
     },
-    [token, patchComp, c.uid, c.so_luong],
+    [token, customerId, patchComp, thayComp, c.uid, c.so_luong],
   );
+  // Khách đã có thành phẩm TRÙNG TÊN mà thẻ chưa gắn tái bản: nhắc, không tự gắn — danh tính do
+  // người lập phiếu chọn, đoán theo tên từng làm hàng hai sản phẩm khác nhau chung một mã.
+  const tenSoKhop = (c.nhom_bao_gia.trim() || c.ten).trim();
+  const [trungTen, setTrungTen] = useState<TaiBanNhan | null>(null);
+  useEffect(() => {
+    if (!token || customerId == null || c.tai_ban || !tenSoKhop) {
+      setTrungTen(null);
+      return;
+    }
+    let huy = false;
+    const t = window.setTimeout(() => {
+      api.phieuTinhGia
+        .timSanPhamTaiBan(token, customerId, tenSoKhop, 10)
+        .then((ds) => {
+          if (huy) return;
+          const k = boDau(tenSoKhop);
+          const r = ds.find((x) => boDau(x.ten) === k);
+          setTrungTen(r ? { id: r.id, ma: r.ma, ten: r.ten } : null);
+        })
+        .catch(() => {});
+    }, 300);
+    return () => {
+      huy = true;
+      window.clearTimeout(t);
+    };
+  }, [token, customerId, c.tai_ban, tenSoKhop]);
   const chonTaiBan = useCallback(
     (id: number) => {
       const dirty = JSON.stringify(toThanhPhanIn(c)) !== openSnapRef.current;
-      if (dirty) setTaiBanXacNhan(id);
+      if (dirty || cungNhom > 0) setTaiBanXacNhan(id);
       else napTaiBan(id, false);
     },
-    [c, napTaiBan],
+    [c, napTaiBan, cungNhom],
   );
 
   // uid của sản phẩm đang mở trợ lý "tính số khuôn từ số trang" (mỗi lúc chỉ 1 popover).
@@ -2978,17 +3101,36 @@ function ComponentModal({
                     onChange={(e) => patchComp(c.uid, { ten: e.target.value })}
                   />
                 </label>
-                <label className="tg-field tg-span-6">
+                <div className="tg-field tg-span-6">
                   <span className="tg-microlabel">
-                    Sản phẩm tái bản <span className="tg-microlabel__opt">nạp lại cấu hình đã chốt đơn</span>
+                    Sản phẩm tái bản <span className="tg-microlabel__opt">hàng của khách đã từng làm</span>
                   </span>
-                  {/* Chọn 1 kết quả nạp NGUYÊN giấy/in/màu/công đoạn/vật tư của lần chốt đơn gần
-                      nhất cùng tên — KHÔNG nạp số lượng/giá vốn (docs/spec-san-pham-tai-ban.md). */}
-                  <SanPhamTaiBanCombo token={token ?? ""} onChon={chonTaiBan} />
+                  {/* Chỉ thành phẩm CỦA KHÁCH đầu phiếu. Chọn là gắn mã + nạp NGUYÊN cấu hình lần
+                      chốt gần nhất (cả ruột lẫn bìa) — KHÔNG nạp số lượng/giá vốn. Chốt đơn dùng lại
+                      đúng mã đó nên tồn kho của mã giao được cho đơn này. */}
+                  <SanPhamTaiBanCombo token={token ?? ""} customerId={customerId} onChon={chonTaiBan} />
+                  {c.tai_ban ? (
+                    <div className="tg-taiban">
+                      <span className="tg-taiban__nhan">Tái bản {c.tai_ban.ma} {c.tai_ban.ten}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="tg-taiban__tach"
+                        onClick={() => c.tai_ban && tachTaiBan(c.tai_ban.id)}
+                      >
+                        Tách thành sản phẩm mới
+                      </Button>
+                    </div>
+                  ) : trungTen ? (
+                    <span className="tg-hint">
+                      Khách đã có {trungTen.ma} {trungTen.ten}. Nếu là in lại thì chọn ở ô này, không
+                      chọn thì chốt đơn sẽ tạo mã sản phẩm mới.
+                    </span>
+                  ) : null}
                   {taiBanErr && !taiBanXacNhan && (
                     <div className="banner banner--error" role="alert">{taiBanErr}</div>
                   )}
-                </label>
+                </div>
                 <div className="tg-span-3">
                   <NumField
                     label="Số lượng"
@@ -4005,8 +4147,7 @@ function ComponentModal({
                 {nvl.giay.map((d, i) => (
                   <div className="tg-sheetrow" key={`g${i}`}>
                     <span className="tg-sheetrow__stack">
-                      Giấy
-                      <HaiDongCongThuc d={d} tra={tra} />
+                      <HaiDongCongThuc ten="Giấy" d={d} tra={tra} />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>
@@ -4014,8 +4155,8 @@ function ComponentModal({
                 {nvl.vatTu.map((d, i) => (
                   <div className="tg-sheetrow" key={`v${i}`}>
                     <span className="tg-sheetrow__stack">
-                      {d.ten.split(" · ").pop()}
                       <HaiDongCongThuc
+                        ten={d.ten.split(" · ").pop() ?? ""}
                         d={d}
                         tra={traKemChip(tra, vatTuDm.find((v) => v.id === d.vatTuId))}
                       />
@@ -4030,13 +4171,12 @@ function ComponentModal({
                       <SoDv so={fmt(Math.round(tienCongDoan))} dv="đ" />
                     </div>
                     {/* Liệt kê ĐỦ từng bước, không gộp: người lập phiếu cần thấy bước nào ăn bao
-                        nhiêu để còn thương lượng, và để bắt được bước khai nhầm công thức. Dòng
-                        diễn giải là công thức ĐÃ THẾ SỐ — thứ cho phép kiểm lại con số bằng tay. */}
+                        nhiêu để còn thương lượng, và để bắt được bước khai nhầm công thức. Công
+                        thức ĐÃ THẾ SỐ nằm trong bong bóng (?) — thứ cho phép kiểm lại bằng tay. */}
                     {dsCongDoan.map((d, i) => (
                       <div className="tg-sheetrow tg-sheetrow--sub" key={`cd${i}`}>
                         <span className="tg-sheetrow__stack">
-                          {d.ten}
-                          <HaiDongCongThuc d={d} tra={tra} />
+                          <HaiDongCongThuc ten={d.ten} d={d} tra={tra} />
                         </span>
                         <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                       </div>
@@ -4055,13 +4195,10 @@ function ComponentModal({
                     {dsKhuon.map((d, i) => (
                       <div className="tg-sheetrow tg-sheetrow--sub" key={`k${i}`}>
                         <span className="tg-sheetrow__stack">
-                          {d.ten}
                           {/* Không dùng `HaiDongCongThuc`: dòng khuôn không có công thức gốc, và
                               chuỗi engine trả về đã tự chứa dấu "=" nên thêm "= " nữa là hai dấu
                               bằng trong một câu. Ở đây chỉ cần vế "÷ SL = đ/sp". */}
-                          {d.congThuc && (
-                            <em className="tg-sheetrow__derive tg-sheetrow__derive--so">{d.congThuc}</em>
-                          )}
+                          <CongThucMotDong ten={d.ten} congThuc={d.congThuc} />
                         </span>
                         <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                       </div>
@@ -4073,12 +4210,9 @@ function ComponentModal({
                 {dsGiaoHang.map((d, i) => (
                   <div className="tg-sheetrow tg-sheetrow--group" key={`gh${i}`}>
                     <span className="tg-sheetrow__stack">
-                      <span>Giao hàng <small>một lần</small></span>
                       {/* Không dùng `HaiDongCongThuc`: dòng này không có công thức gốc, chuỗi engine
                           trả về đã tự chứa dấu "=" — thêm "= " nữa là hai dấu bằng trong một câu. */}
-                      {d.congThuc && (
-                        <em className="tg-sheetrow__derive tg-sheetrow__derive--so">{d.congThuc}</em>
-                      )}
+                      <CongThucMotDong tieuDe="Giao hàng" ten={<>Giao hàng <small>một lần</small></>} congThuc={d.congThuc} />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>
@@ -4095,13 +4229,10 @@ function ComponentModal({
                     {dsChiPhiKhac.map((d, i) => (
                       <div className="tg-sheetrow tg-sheetrow--sub" key={`cpk${i}`}>
                         <span className="tg-sheetrow__stack">
-                          {d.ten}
                           {/* Không dùng `HaiDongCongThuc`: khoản này không có công thức gốc (máy
                               không biết nó tính bằng gì), và chuỗi engine trả về đã tự chứa dấu
                               "=" nên thêm "= " nữa là hai dấu bằng trong một câu. */}
-                          {d.congThuc && (
-                            <em className="tg-sheetrow__derive tg-sheetrow__derive--so">{d.congThuc}</em>
-                          )}
+                          <CongThucMotDong ten={d.ten} congThuc={d.congThuc} />
                         </span>
                         <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                       </div>
@@ -4153,7 +4284,9 @@ function ComponentModal({
     <ConfirmDialog
       open={taiBanXacNhan !== null}
       title="Nạp cấu hình tái bản?"
-      message="Sản phẩm này đang có thay đổi CHƯA lưu. Nạp cấu hình tái bản sẽ GHI ĐÈ toàn bộ giấy/in/màu/công đoạn/vật tư của thẻ (giữ nguyên số lượng)."
+      message={cungNhom > 0
+        ? `Thẻ này cùng nhóm «${c.nhom_bao_gia.trim()}» với ${cungNhom} thẻ khác. Tái bản chọn theo cả món nên cả ${cungNhom + 1} thẻ sẽ được THAY bằng cấu hình của sản phẩm tái bản (giữ nguyên số lượng).`
+        : "Sản phẩm này đang có thay đổi CHƯA lưu. Nạp cấu hình tái bản sẽ GHI ĐÈ toàn bộ giấy/in/màu/công đoạn/vật tư của thẻ (giữ nguyên số lượng). Món có nhiều thành phần thì các thành phần sau thêm thẻ ngay dưới."}
       confirmLabel="Ghi đè, nạp lại"
       danger
       busy={taiBanBusy}

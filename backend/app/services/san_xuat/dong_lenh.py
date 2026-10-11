@@ -5,9 +5,9 @@ giao dịch ghi cả `san_xuat_nhom.trang_thai` (in_production ⇄ closed) lẫn
 lệnh trong nhóm (da_phat_hanh ⇄ da_dong). KHÔNG có điều kiện chặn: phần còn dở chỉ là CẢNH BÁO để
 hộp xác nhận bày ra — người KCS quyết. Số lúc đóng chụp vào audit để tra "đóng thiếu" về sau.
 
-Quyền (08/10/2026, `docs/design-kcs-quy-trach-nhiem.md` §2.4): đóng ĐỦ (không còn cảnh báo) — mọi
-người KCS. Đóng khi còn cảnh báo, và MỞ LẠI — người KCS mà vai bật ô "Đóng lệnh thiếu"
-(`can_close_short`) trọn tổ trên dòng của chính phòng `is_kcs` họ đứng.
+Quyền (dòng `kcs` của ma trận vai, `docs/design-kcs-quy-trach-nhiem.md` §2.4): đóng ĐỦ (không còn
+cảnh báo) — ô Thao tác. Đóng khi còn cảnh báo, và MỞ LẠI — thêm ô chi tiết "Đóng lệnh thiếu"
+(`can_close_short`).
 """
 from __future__ import annotations
 
@@ -20,19 +20,17 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
-from ..quyen_to import VIEC_DONG_THIEU, quyen_to_cua
-from .kcs import _EPS, gate_kcs
+from .kcs import _EPS, _authz, gate_kcs
 
 CHAN_DA_DONG = "Lệnh đã đóng — KCS mở lại nếu cần ghi thêm."
 THIEU_QUYEN_DONG_THIEU = "Cần quyền Đóng lệnh thiếu"
 
 
 def duoc_dong_thieu(db: Session, user) -> bool:
-    """Vai của `user` bật "Đóng lệnh thiếu" trọn tổ trên dòng phòng ban của chính họ. Chỉ phòng
-    `is_kcs` mới có ô này trên ma trận; người gọi còn tự `gate_kcs`."""
-    if user is None or getattr(user, "role_id", None) is None:
+    """Vai của `user` bật ô chi tiết "Đóng lệnh thiếu" trên dòng KCS. Người gọi còn tự `gate_kcs`."""
+    if user is None:
         return False
-    return quyen_to_cua(db, user).co_tron(VIEC_DONG_THIEU, getattr(user, "department_id", None))
+    return _authz(db).can(user, "kcs", "close_short")
 
 
 def _so(v: float) -> str:

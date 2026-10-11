@@ -16,7 +16,7 @@ from ..models.cong_doan import CongDoan
 from ..models.employee import STATUS_RESIGNED, Employee
 from ..models.lsx import LsxCongDoan
 from ..models.may_thiet_bi import MayThietBi
-from ..models.san_xuat import CV_PHAT_HANH, CV_TAM_DUNG, SanXuatCongViec
+from ..models.san_xuat import CV_DANG_CHAY, CV_PHAT_HANH, CV_TAM_DUNG, SanXuatCongViec
 from ..models.san_xuat_thuc_thi import (
     PC_HOAT_DONG,
     SanXuatKhoangThamGia,
@@ -144,6 +144,31 @@ class SanXuatThucThiRepository:
             ra.setdefault(eid, []).append(cv)
         return ra
 
+    def viec_dang_lam_cua_nhieu(
+        self, employee_ids: set[int], tru_cong_viec_id: int
+    ) -> dict[int, list[SanXuatCongViec]]:
+        """{employee_id: các việc KHÁC người đó còn tên mà việc đã Bắt đầu, chưa Kết thúc} — đang
+        chạy hoặc tạm dừng. Việc mới phát hành không tính: phát hành là cả tổ được giao, ai cũng có
+        tên ở mọi việc chờ (10/10/2026). Nguồn của ghi chú "đang ở LSX… công đoạn…" ở hộp Ghi sản
+        lượng."""
+        if not employee_ids:
+            return {}
+        rows = self.db.execute(
+            select(SanXuatPhanCong.employee_id, SanXuatCongViec)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatPhanCong.cong_viec_id)
+            .where(
+                SanXuatPhanCong.employee_id.in_(employee_ids),
+                SanXuatPhanCong.trang_thai == PC_HOAT_DONG,
+                SanXuatCongViec.trang_thai.in_((CV_DANG_CHAY, CV_TAM_DUNG)),
+                SanXuatCongViec.id != tru_cong_viec_id,
+            )
+            .order_by(SanXuatCongViec.id)
+        ).all()
+        ra: dict[int, list[SanXuatCongViec]] = {}
+        for eid, cv in rows:
+            ra.setdefault(eid, []).append(cv)
+        return ra
+
     # --- Phân công (roster) -----------------------------------------------------------------
     def phan_cong_hoat_dong(self, cong_viec_id: int) -> list[SanXuatPhanCong]:
         return list(
@@ -194,6 +219,48 @@ class SanXuatThucThiRepository:
                 )
             )
         )
+
+    def nguoi_dang_giao_nhieu(self, cong_viec_ids: set[int]) -> dict[int, set[int]]:
+        """{cong_viec_id: {employee_id đang được giao}} — một truy vấn cho cả bàn (lọc "Người làm",
+        "Chưa giao thợ"). Việc chưa giao ai thì vắng khoá."""
+        if not cong_viec_ids:
+            return {}
+        ra: dict[int, set[int]] = {}
+        for cv_id, emp_id in self.db.execute(
+            select(SanXuatPhanCong.cong_viec_id, SanXuatPhanCong.employee_id).where(
+                SanXuatPhanCong.cong_viec_id.in_(cong_viec_ids),
+                SanXuatPhanCong.trang_thai == PC_HOAT_DONG,
+            )
+        ):
+            ra.setdefault(cv_id, set()).add(emp_id)
+        return ra
+
+    def ten_nhan_vien_nhieu(self, employee_ids) -> dict[int, str]:
+        """{employee_id: họ tên} — một truy vấn (tab Lịch sử: "Giao thợ …", "Hỗ trợ …")."""
+        ids = {i for i in employee_ids if i}
+        if not ids:
+            return {}
+        return {i: ten for i, ten in self.db.execute(
+            select(Employee.id, Employee.full_name).where(Employee.id.in_(ids))
+        ).all()}
+
+    def ten_nguoi_dang_giao_nhieu(self, cong_viec_ids: set[int]) -> dict[int, list[str]]:
+        """{cong_viec_id: [họ tên đang được giao, theo thứ tự giao]} — dòng phụ cột Trạng thái của
+        bàn tổ ("chưa giao thợ" khi vắng khoá). Một truy vấn cho cả trang."""
+        if not cong_viec_ids:
+            return {}
+        ra: dict[int, list[str]] = {}
+        for cv_id, ten in self.db.execute(
+            select(SanXuatPhanCong.cong_viec_id, Employee.full_name)
+            .join(Employee, Employee.id == SanXuatPhanCong.employee_id)
+            .where(
+                SanXuatPhanCong.cong_viec_id.in_(cong_viec_ids),
+                SanXuatPhanCong.trang_thai == PC_HOAT_DONG,
+            )
+            .order_by(SanXuatPhanCong.id)
+        ):
+            ra.setdefault(cv_id, []).append(ten)
+        return ra
 
     # --- Phiên chạy -------------------------------------------------------------------------
     def phien_dang_mo(self, cong_viec_id: int) -> SanXuatPhienChay | None:

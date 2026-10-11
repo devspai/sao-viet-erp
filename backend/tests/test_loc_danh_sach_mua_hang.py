@@ -170,3 +170,32 @@ def test_don_mua_loc_tong_tien_ncc_coc(client, auth_headers):
 
     ds = {o["id"]: o for o in client.get(f"{URL_PMH}/loc-ncc", headers=auth_headers).json()}
     assert ds[ncc1["id"]]["so"] == 1 and ds[ncc1["id"]]["ten"] == "NCC Tong Mot"
+
+
+def test_don_mua_loc_ba_vai_nguoi_va_o_chon(client, auth_headers):
+    """NV yêu cầu (người tạo yêu cầu nguồn) / NV mua hàng (người lập đơn) / NV duyệt — 10/10/2026.
+    Cùng bộ lọc ở màn Mua hàng và hộp Kế toán (hộp Kế toán không tính đơn nháp)."""
+    ncc = _supplier(client, auth_headers, name="NCC Loc Nguoi")
+    a = _create_purchase_request(client, auth_headers, ncc["id"])
+    b = _create_purchase_request(client, auth_headers, ncc["id"])
+    toi = a["created_by_user_id"]
+    # Đơn a: gửi duyệt rồi duyệt ⇒ có NV duyệt. Đơn b: bỏ trống người lập và người yêu cầu nguồn.
+    assert client.post(f"{URL_PMH}/{a['id']}/submit", headers=auth_headers).status_code == 200
+    assert client.post(f"{URL_PMH}/{a['id']}/approve", headers=auth_headers).status_code == 200
+    _dat(PurchaseRequest, b["id"], created_by_user_id=None)
+    _dat(DepartmentPurchaseRequest, b["sources"][0]["department_request_id"], requested_by_user_id=None)
+
+    def ma(url=URL_PMH, **p):
+        return _ma(client.get(url, params=p, headers=auth_headers))
+
+    for k in ("nv_yc_id", "nv_mua_id", "nv_duyet_id"):
+        assert ma(**{k: toi}) == [a["code"]]
+        assert ma(**{k: 999999}) == []
+        assert ma("/api/accounting/inbox", **{k: toi}) == [a["code"]]
+
+    for vai in ("yc", "mua", "duyet"):
+        ds = client.get(f"{URL_PMH}/loc-nguoi", params={"vai": vai}, headers=auth_headers).json()
+        assert [(o["id"], o["so"]) for o in ds] == [(toi, 1)]
+    assert client.get(f"{URL_PMH}/loc-nguoi", params={"vai": "xx"}, headers=auth_headers).status_code == 422
+    kt = client.get("/api/accounting/inbox/loc-nguoi", params={"vai": "mua"}, headers=auth_headers).json()
+    assert [(o["id"], o["so"]) for o in kt] == [(toi, 1)]

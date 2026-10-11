@@ -46,19 +46,26 @@ export function dongQuyCach(qc: SxQuyCachThe): [string, string, string][] {
   return out;
 }
 
-export function ThsxQuyCachThe({ qc }: { qc: SxQuyCachThe }) {
+/** `trongNgan` = ngăn công việc bàn tổ (phương án B): mục "Quy cách" khuôn `.thsx-b-sec`, nhãn
+ *  không dấu ":", không vẽ ghi chú kỹ thuật (ngăn để mục "Ghi chú kỹ thuật" riêng sau Kế hoạch).
+ *  Form kiểm KCS giữ thẻ cũ. */
+export function ThsxQuyCachThe({ qc, trongNgan = false }: { qc: SxQuyCachThe; trongNgan?: boolean }) {
   return (
-    <div className="thsx-card">
-      <div className="thsx-psec__h">
-        <Icon name="layers" size={14} />
-        <span className="thsx-psec__title" style={{ color: "var(--rust-deep)" }}>
-          Quy cách chạy máy
-        </span>
-      </div>
+    <div className={trongNgan ? "thsx-b-sec thsx-b-qc" : "thsx-card"}>
+      {trongNgan ? (
+        <h3 className="thsx-b-sec__h">Quy cách</h3>
+      ) : (
+        <div className="thsx-psec__h">
+          <Icon name="layers" size={14} />
+          <span className="thsx-psec__title" style={{ color: "var(--rust-deep)" }}>
+            Quy cách chạy máy
+          </span>
+        </div>
+      )}
       <div className="thsx-flat-spec-grid">
         {dongQuyCach(qc).map(([k, nhan, chu]) => (
           <div className="thsx-flat-spec-item" key={k}>
-            <span className="thsx-flat-spec-lbl">{nhan}:</span>
+            <span className="thsx-flat-spec-lbl">{trongNgan ? nhan : `${nhan}:`}</span>
             <span className="thsx-flat-spec-val">{chu}</span>
           </div>
         ))}
@@ -77,7 +84,7 @@ export function ThsxQuyCachThe({ qc }: { qc: SxQuyCachThe }) {
           />
         </div>
       ) : null}
-      {qc.ghi_chu_ky_thuat && (
+      {!trongNgan && qc.ghi_chu_ky_thuat && (
         <div style={{ marginTop: "8px", paddingTop: "6px", borderTop: "1px solid #f1f5f9" }}>
           <p className="thsx-dando" style={{ fontSize: "12px", color: "#475569" }}>
             {qc.ghi_chu_ky_thuat}

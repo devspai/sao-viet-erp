@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đề nghị và phiếu kho</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+  --tt-la-bg:#dcfce7;   --tt-la-fg:#15803d;   --tt-la-dot:#22c55e;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8; --tt-xanh-dot:#3b82f6;
+  --tt-slate-bg:#f1f5f9;--tt-slate-fg:#475569;--tt-slate-dot:#94a3b8;
+  --tt-tim-bg:#ede9fe;  --tt-tim-fg:#6d28d9;
+  --tt-cyan-bg:#cffafe; --tt-cyan-fg:#0e7490;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:32px 16px 120px}
+h1{font-size:24px;margin:0 0 6px;font-weight:600}
+.lead{color:var(--ash);margin:0 0 18px;max-width:900px}
+.box{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.box h2{font-size:15px;margin:0 0 8px;font-weight:600}
+.box ul{margin:0;padding-left:18px;color:var(--ash);display:grid;gap:4px}
+.optnav{position:sticky;top:0;z-index:5;background:rgba(233,237,242,.94);padding:12px 0;margin:24px 0;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.optnav button{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-weight:500;color:var(--ink-2);cursor:pointer}
+.optnav button.on{background:#0f172a;border-color:#0f172a;color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt h2{font-size:20px;margin:0 0 4px;font-weight:600}
+.opt .lead{margin-bottom:14px}
+.pane{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:20px 24px;overflow-x:auto}
+.sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 10px;flex-wrap:wrap}
+.sec-h h3{font-size:16px;margin:0;font-weight:500}
+.mo{color:var(--ash-3);font-size:13px}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th{font-size:13px;color:var(--ash-2);font-weight:400;text-align:left;padding:10px 10px;border-bottom:1px solid var(--rule-soft)}
+td{padding:11px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+.num{font-variant-numeric:tabular-nums}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:13px;white-space:nowrap}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.c-vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.c-la{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.c-slate{background:var(--tt-slate-bg);color:var(--tt-slate-fg)}
+.chieu{display:inline-block;border-radius:6px;padding:1px 8px;font-size:12.5px;white-space:nowrap}
+.ch-xin{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}
+.ch-tra{background:var(--tt-tim-bg);color:var(--tt-tim-fg)}
+.ma{font-variant-numeric:tabular-nums}
+.mui{color:var(--ash-3);display:inline-block;width:14px}
+.ic{color:var(--ash-2);display:inline-block;width:18px}
+/* A: cây */
+.a-con td{background:#fbfcfd;padding-top:8px;padding-bottom:8px;color:var(--ink-2)}
+.a-con td:first-child{padding-left:34px}
+.a-trong td{color:var(--ash-3);font-size:13px}
+.a-ct td{background:#fbfcfd;color:var(--ink-2);font-size:13.5px;padding-left:34px}
+/* B: cột phiếu */
+.pk{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule-soft);border-radius:8px;padding:2px 8px;margin:2px 6px 2px 0;font-size:13px;color:var(--ink-2);white-space:nowrap;cursor:pointer}
+.pk:hover{background:var(--rule-hair)}
+.pk small{color:var(--ash-3);font-size:12px}
+.trong{color:var(--ash-3);font-size:13px}
+/* C: hai khối */
+.c-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:900px){.c-grid{grid-template-columns:1fr}}
+.c-col h4{font-size:14px;font-weight:500;margin:0 0 6px;display:flex;gap:8px;align-items:baseline}
+.c-card{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.c-dau{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.c-dong{display:flex;gap:16px;color:var(--ash-2);font-size:13px;margin-top:4px;flex-wrap:wrap}
+.c-phieu{margin-top:10px;padding-top:8px;border-top:1px dashed var(--rule-soft);display:flex;gap:16px;align-items:center;font-size:13.5px;color:var(--ink-2);flex-wrap:wrap}
+.c-col table{min-width:0}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Đề nghị và phiếu kho, ba phương án</h1>
+  <p class="lead">Ngăn công việc, tab Vật tư. Dữ liệu thật của LSX26-0004 Cán màng: một lần xin cấp DNX00086 đã có phiếu xuất PXK00077, hai lần trả về kho DNN00073 (kho đã ghi sổ PNK00072) và DNN00072 (kho chưa làm).</p>
+
+  <div class="box">
+    <h2>Logic</h2>
+    <ul>
+      <li>Mỗi yêu cầu tổ gửi kho (xin cấp hoặc trả về) sinh ra phiếu kho của chính nó. Phiếu luôn thuộc đúng một yêu cầu, không có phiếu đứng một mình.</li>
+      <li>Vì vậy phiếu phải nằm cạnh yêu cầu sinh ra nó, không xếp thành nhóm riêng ở cuối bảng.</li>
+      <li>Một yêu cầu có thể ra nhiều phiếu nếu kho cấp làm nhiều lần. Yêu cầu chưa có phiếu thì ghi "kho chưa làm".</li>
+      <li>Chiều hàng phải nhìn ra ngay: xin cấp là kho xuất cho tổ, trả về là tổ nhập lại kho.</li>
+      <li>Bấm mã phiếu thì mở phiếu chỉ đọc như hiện nay. Chỉ có số lượng, không có giá.</li>
+    </ul>
+  </div>
+
+  <nav class="optnav">
+    <button class="on" data-o="a">A. Phiếu nằm dưới yêu cầu</button>
+    <button data-o="b">B. Một dòng, cột Phiếu kho</button>
+    <button data-o="c">C. Tách Xin cấp và Trả về</button>
+  </nav>
+
+  <!-- A -->
+  <section class="opt on" id="a">
+    <h2>A. Phiếu nằm ngay dưới yêu cầu</h2>
+    <p class="lead">Mỗi yêu cầu một dòng, các phiếu của nó thụt vào ngay bên dưới, luôn hiện, không phải bấm mở. Giống cách Odoo và Business Central để phiếu dưới chứng từ gốc. Bấm dòng yêu cầu vẫn bung ra danh sách món.</p>
+    <div class="pane">
+      <div class="sec-h"><h3>Đề nghị và phiếu kho</h3><span class="mo">1 lần xin cấp</span><span class="mo">2 lần trả về</span></div>
+      <table>
+        <thead><tr><th>Chứng từ</th><th>Nội dung</th><th>Thời điểm</th><th>Người</th><th>Trạng thái</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mui">›</span><span class="ma">DNN00073</span></td><td><span class="chieu ch-tra">Trả về kho</span> <span class="mo">1 món</span></td><td class="num">cần 11/10 08:54</td><td>Admin</td><td><span class="chip c-la">Hoàn tất</span></td></tr>
+          <tr class="a-con"><td><span class="ic">▤</span><span class="ma">PNK00072</span></td><td>Phiếu nhập kho</td><td class="num">nhập 11/10/2026</td><td>Admin</td><td></td></tr>
+
+          <tr><td><span class="mui">⌄</span><span class="ma">DNN00072</span></td><td><span class="chieu ch-tra">Trả về kho</span> <span class="mo">1 món</span></td><td class="num">cần 11/10 07:45</td><td>Admin</td><td><span class="chip c-vang">Chờ xử lý</span></td></tr>
+          <tr class="a-ct"><td colspan="5">Màng cán mờ <span class="num" style="margin-left:14px">5 m²</span> <span class="mo" style="margin-left:18px">gửi 11/10 07:45</span></td></tr>
+          <tr class="a-con a-trong"><td colspan="5">Kho chưa lập phiếu</td></tr>
+
+          <tr><td><span class="mui">›</span><span class="ma">DNX00086</span></td><td><span class="chieu ch-xin">Xin cấp</span> <span class="mo">Lần 1</span> <span class="mo">1 món</span></td><td class="num">cần 10/10 22:51</td><td>Admin</td><td><span class="chip c-la">Hoàn tất</span></td></tr>
+          <tr class="a-con"><td><span class="ic">▤</span><span class="ma">PXK00077</span></td><td>Phiếu xuất kho</td><td class="num">xuất 11/10 06:35</td><td>Admin</td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- B -->
+  <section class="opt" id="b">
+    <h2>B. Mỗi yêu cầu một dòng, phiếu là ô trong cột Phiếu kho</h2>
+    <p class="lead">Bảng gọn nhất: số dòng bằng số yêu cầu. Phiếu là thẻ nhỏ trong cột riêng (mã kèm ngày), có nhiều phiếu thì xếp cạnh nhau. Bấm thẻ thì mở phiếu.</p>
+    <div class="pane">
+      <div class="sec-h"><h3>Đề nghị và phiếu kho</h3><span class="mo">1 lần xin cấp</span><span class="mo">2 lần trả về</span></div>
+      <table>
+        <thead><tr><th>Yêu cầu</th><th>Chiều</th><th>Cần lúc</th><th>Người gửi</th><th>Trạng thái</th><th>Phiếu kho</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mui">›</span><span class="ma">DNN00073</span> <span class="mo">1 món</span></td><td><span class="chieu ch-tra">Trả về kho</span></td><td class="num">11/10 08:54</td><td>Admin</td><td><span class="chip c-la">Hoàn tất</span></td><td><span class="pk"><span class="ic">▤</span>PNK00072 <small>nhập 11/10/2026</small></span></td></tr>
+          <tr><td><span class="mui">›</span><span class="ma">DNN00072</span> <span class="mo">1 món</span></td><td><span class="chieu ch-tra">Trả về kho</span></td><td class="num">11/10 07:45</td><td>Admin</td><td><span class="chip c-vang">Chờ xử lý</span></td><td><span class="trong">Kho chưa lập phiếu</span></td></tr>
+          <tr><td><span class="mui">›</span><span class="ma">DNX00086</span> <span class="mo">Lần 1</span></td><td><span class="chieu ch-xin">Xin cấp</span></td><td class="num">10/10 22:51</td><td>Admin</td><td><span class="chip c-la">Hoàn tất</span></td><td><span class="pk"><span class="ic">▤</span>PXK00077 <small>xuất 11/10 06:35</small></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- C -->
+  <section class="opt" id="c">
+    <h2>C. Tách hai khối Xin cấp và Trả về kho</h2>
+    <p class="lead">Hai khối cạnh nhau theo chiều hàng. Mỗi yêu cầu là một thẻ, phiếu kho nằm ở chân thẻ. Nhìn ra ngay tổ đã xin gì và đã trả gì, nhưng tốn chỗ hơn khi việc có nhiều lần xin.</p>
+    <div class="pane">
+      <div class="sec-h"><h3>Đề nghị và phiếu kho</h3></div>
+      <div class="c-grid">
+        <div class="c-col">
+          <h4><span class="chieu ch-xin">Xin cấp</span><span class="mo">1 lần</span></h4>
+          <div class="c-card">
+            <div class="c-dau"><span><span class="ma">DNX00086</span> <span class="mo">Lần 1</span> <span class="mo">1 món</span></span><span class="chip c-la">Hoàn tất</span></div>
+            <div class="c-dong"><span>cần 10/10 22:51</span><span>Admin</span></div>
+            <div class="c-phieu"><span><span class="ic">▤</span>PXK00077</span><span class="mo">xuất 11/10 06:35</span><span class="mo">Admin</span></div>
+          </div>
+        </div>
+        <div class="c-col">
+          <h4><span class="chieu ch-tra">Trả về kho</span><span class="mo">2 lần</span></h4>
+          <div class="c-card">
+            <div class="c-dau"><span><span class="ma">DNN00073</span> <span class="mo">1 món</span></span><span class="chip c-la">Hoàn tất</span></div>
+            <div class="c-dong"><span>cần 11/10 08:54</span><span>Admin</span></div>
+            <div class="c-phieu"><span><span class="ic">▤</span>PNK00072</span><span class="mo">nhập 11/10/2026</span><span class="mo">Admin</span></div>
+          </div>
+          <div class="c-card">
+            <div class="c-dau"><span><span class="ma">DNN00072</span> <span class="mo">1 món</span></span><span class="chip c-vang">Chờ xử lý</span></div>
+            <div class="c-dong"><span>cần 11/10 07:45</span><span>Admin</span></div>
+            <div class="c-phieu"><span class="trong">Kho chưa lập phiếu</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<script>
+document.querySelectorAll('.optnav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.optnav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o.id===b.dataset.o));
+});
+</script>
+</body>
+</html>

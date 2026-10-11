@@ -66,13 +66,13 @@ export interface CotLuoi {
 }
 
 /** Đọc / ghi một danh sách khoá cột của màn trong localStorage (per-viewer — mất thì về mặc định). */
-function useDsLuu(khoa: string): [string[], (v: string[]) => void] {
+function useDsLuu(khoa: string, macDinh: string[] = []): [string[], (v: string[]) => void] {
   const [ds, setDs] = useState<string[]>(() => {
     try {
       const v = localStorage.getItem(khoa);
-      return v ? (JSON.parse(v) as string[]) : [];
+      return v ? (JSON.parse(v) as string[]) : macDinh;
     } catch {
-      return [];
+      return macDinh;
     }
   });
   const dat = (v: string[]) => {
@@ -86,9 +86,10 @@ function useDsLuu(khoa: string): [string[], (v: string[]) => void] {
   return [ds, dat];
 }
 
-/** Nhớ cột đang ẩn theo màn. */
-export function useCotAn(man: string): [Set<string>, (s: Set<string>) => void] {
-  const [ds, dat] = useDsLuu(`lds-cot-an:${man}`);
+/** Nhớ cột đang ẩn theo màn. `anMacDinh` = cột ẩn sẵn khi người xem chưa chỉnh lần nào (bảng nhiều
+ *  cột phụ: hiện đủ thì lưới quá rộng, ai cần thì bật ở nút Cột). */
+export function useCotAn(man: string, anMacDinh?: string[]): [Set<string>, (s: Set<string>) => void] {
+  const [ds, dat] = useDsLuu(`lds-cot-an:${man}`, anMacDinh);
   const an = useMemo(() => new Set(ds), [ds]);
   return [an, (s) => dat([...s])];
 }
@@ -257,8 +258,8 @@ export function apLuoi<T extends CotLuoi & { w?: number }>(luoi: CauHinhLuoi | u
   return luoi ? luoi.rongHien(apGhim(cot, luoi.ghim)) : cot;
 }
 
-export function useCauHinhLuoi(man: string): CauHinhLuoi {
-  const [an, datAn] = useCotAn(man);
+export function useCauHinhLuoi(man: string, anMacDinh?: string[]): CauHinhLuoi {
+  const [an, datAn] = useCotAn(man, anMacDinh);
   const [thuTu, datThuTu] = useThuTuCot(man);
   const [rong, datRong] = useRongCot(man);
   const [ghim, datGhim] = useCotGhim(man);
@@ -276,15 +277,18 @@ export function useCauHinhLuoi(man: string): CauHinhLuoi {
 }
 
 /** Xếp cột theo thứ tự người xem đã kéo. Cột cố định (mã, ô chọn, nút thao tác) đứng nguyên chỗ;
- *  cột mới thêm sau này (chưa có trong thứ tự đã lưu) đứng cuối nhóm cột đổi chỗ được. */
+ *  cột mới thêm sau này (chưa có trong thứ tự đã lưu) chen ngay sau cột đứng trước nó trong thứ tự
+ *  mặc định — không dồn xuống cuối, kẻo cột quan trọng mới thêm bị đẩy ra ngoài mép phải. */
 export function xepCot<T extends CotLuoi>(cot: T[], thuTu: string[]): T[] {
   if (thuTu.length === 0) return cot;
   const doi = cot.filter((c) => !c.coDinh);
-  const hang = (k: string) => {
-    const i = thuTu.indexOf(k);
-    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
-  };
-  const xep = [...doi].sort((a, b) => hang(a.key) - hang(b.key) || doi.indexOf(a) - doi.indexOf(b));
+  const hang = (k: string) => thuTu.indexOf(k);
+  const xep = doi.filter((c) => hang(c.key) >= 0).sort((a, b) => hang(a.key) - hang(b.key));
+  doi.forEach((c, k) => {
+    if (hang(c.key) >= 0) return;
+    const truoc = k === 0 ? -1 : xep.indexOf(doi[k - 1]);
+    xep.splice(truoc + 1, 0, c);
+  });
   let i = 0;
   return cot.map((c) => (c.coDinh ? c : xep[i++]));
 }

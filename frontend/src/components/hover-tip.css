@@ -139,3 +139,17 @@
 .hover-tip__hang dd p {
   margin: 0;
 }
+
+/* Công thức trong bong bóng (khối Giá vốn ở Tính giá): số thẳng cột; `if` mỗi khối một dòng,
+   thụt theo độ sâu. */
+.hover-tip__so {
+  font-variant-numeric: tabular-nums;
+}
+.hover-tip__if-dong {
+  display: block;
+  padding-left: calc(var(--sau, 0) * 1.6em);
+}
+/* Bị ép vào trong màn hình nên không còn nằm sát neo — mũi nhọn chỉ sai chỗ, bỏ đi. */
+.hover-tip--lech::before {
+  display: none;
+}

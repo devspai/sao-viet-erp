@@ -19,23 +19,24 @@ URL = "/api/kho/phieu/lo/ton-nhom"
 HOM_NAY = date.today()
 
 
-def _lo(kho_id, hang, *, con, ban_dau=None, gia=1000, ngay=None, hsd=None, ma_lo=None) -> None:
+def _lo(kho_id, hang, *, con, ban_dau=None, gia=1000, ngay=None, hsd=None, ma_lo=None, goc="") -> None:
     db = SessionLocal()
     try:
         so = db.query(StockLot).count()
         db.add(StockLot(
             ma_lo=ma_lo or f"LOT-T-{hang[1]}-{so}", hang_loai=hang[0], hang_id=hang[1], kho_id=kho_id,
             ngay_nhap=ngay or HOM_NAY, sl_ban_dau=ban_dau if ban_dau is not None else max(con, 1),
-            sl_con_lai=con, don_gia_nhap=gia, hsd=hsd, trang_thai="available" if con > 0 else "empty"))
+            sl_con_lai=con, don_gia_nhap=gia, hsd=hsd, trang_thai="available" if con > 0 else "empty",
+            don_vi_goc=goc))
         db.commit()
     finally:
         db.close()
 
 
-def _nguong(kho_id, hang, *, min_, max_=None) -> None:
+def _nguong(kho_id, hang, *, min_, max_=None, goc="") -> None:
     db = SessionLocal()
     try:
-        db.add(StockThreshold(hang_loai=hang[0], hang_id=hang[1], kho_id=kho_id,
+        db.add(StockThreshold(hang_loai=hang[0], hang_id=hang[1], kho_id=kho_id, don_vi_goc=goc,
                               nguong_ton=min_, nguong_toi_da=max_, canh_bao=True))
         db.commit()
     finally:
@@ -222,9 +223,10 @@ def test_lenh_chua_co_han_coi_nhu_linh_ngay(han_sx):
 # --- Phán quyết "Cần mua" + số dự báo do MÁY CHỦ trả (nguồn duy nhất), cache dự báo, các ca biên ----------
 
 def _du_bao_gia(m, *, can=None, ve=None):
-    """Dòng dự báo giả của DuBaoTonService cho mặt hàng `m` (khoá 4 phần, khổ 0 × 0)."""
+    """Dòng dự báo giả của DuBaoTonService cho mặt hàng `m` (khoá 5 phần, khổ 0 × 0, đơn vị gốc "")."""
     return {
-        "hang_loai": m[0], "hang_id": m[1], "kho_rong": 0, "kho_dai": 0, "ton_toan_xuong": None,
+        "hang_loai": m[0], "hang_id": m[1], "kho_rong": 0, "kho_dai": 0, "don_vi_goc": "",
+        "ton_toan_xuong": None,
         "can_lenh": sum(x[1] for x in (can or [])), "dang_ve": sum(x[1] for x in (ve or [])),
         "lenh": [{"ma": f"LSX-{i}", "han_sx": h, "can": c, "da_giu": 0} for i, (h, c) in enumerate(can or [])],
         "ve": [{"ma": f"PO-{i}", "ngay_ve": h, "sl": c, "mua_cho": [], "loai_mua_cac": []}
@@ -323,23 +325,23 @@ def test_du_bao_hong_van_tra_trang_va_khong_bi_cache(client, du_bao_gia):
     assert _get(client, kho_id)["du_bao_ok"] is True
 
 
-def test_giay_cu_chua_co_dang_khop_nguong_kho_0x0(client, du_bao_gia):
-    """Giấy nhập trước khi có dạng (không dang_giay) gom theo mã: khoá dòng `giay:<id>`, ngưỡng lưu ở
-    (giay, id, 0, 0). Phán quyết phải thấy ngưỡng đó — cả "đã khai" lẫn "Cần mua"."""
+def test_giay_cu_chua_co_kho_khop_nguong_kho_0x0(client, du_bao_gia):
+    """Giấy nhập trước khi có khổ: khoá dòng `giay:<id>:0:0:kg` (vẫn mang đơn vị gốc của lô), ngưỡng
+    lưu ở (giay, id, 0, 0, kg). Phán quyết phải thấy ngưỡng đó — cả "đã khai" lẫn "Cần mua"."""
     from tests.test_kho_lo_giay import _giay
 
     kho_id, _ = _dung_kho(client)
     g = ("giay", _giay("GC-CU"))
-    _lo(kho_id, g, con=8, ngay=HOM_NAY)
-    _nguong(kho_id, g, min_=10, max_=100)
+    _lo(kho_id, g, con=8, ngay=HOM_NAY, goc="kg")
+    _nguong(kho_id, g, min_=10, max_=100, goc="kg")
     body = _get(client, kho_id, q="GC-CU")
     (muc,) = body["nhom"]
-    assert muc["khoa"] == f"giay:{g[1]}"
+    assert muc["khoa"] == f"giay:{g[1]}:0:0:kg" and muc["don_vi_goc"] == "kg"
     assert muc["co_nguong"] is True and muc["can_mua"] is True and muc["tinh_trang"] == "can_mua"
     assert _get(client, kho_id, nhom="chuakhai", q="GC-CU")["total"] == 0
     # Chưa khai ngưỡng thì mới là "Chưa đặt mức".
     h = ("giay", _giay("GC-CU2"))
-    _lo(kho_id, h, con=8, ngay=HOM_NAY)
+    _lo(kho_id, h, con=8, ngay=HOM_NAY, goc="kg")
     (muc2,) = _get(client, kho_id, q="GC-CU2")["nhom"]
     assert muc2["co_nguong"] is False and muc2["tinh_trang"] == "chua" and muc2["can_mua"] is False
 
@@ -350,7 +352,7 @@ def test_ton_am_khong_du_bao_van_la_can_mua():
     ca này dựng bằng repo giả ở mức service."""
     from app.services.ton_kho_nhom_service import LocTon, TonKhoNhomService
 
-    dong = SimpleNamespace(hang_loai="vat_tu", hang_id=1, dang_giay=None, kho_rong=0, kho_dai=0,
+    dong = SimpleNamespace(hang_loai="vat_tu", hang_id=1, don_vi_goc="", kho_rong=0, kho_dai=0,
                            tong=-5.0, gia_tri=0.0, hsd_som=None)
     lots = SimpleNamespace(tong_hop_ton_theo_khoa=lambda kho_id: [dong], list_lots_gon=lambda **k: [],
                            khoa_co_lo_nhap_trong=lambda *a: set())

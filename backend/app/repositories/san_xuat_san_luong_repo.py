@@ -1,7 +1,7 @@
-"""Data-access cho lát SẢN LƯỢNG · BÀN GIAO · XÁC NHẬN VẬT TƯ (Giai đoạn 3, §10–§12.1).
+"""Data-access cho lát SẢN LƯỢNG · BÀN GIAO · PHIẾU XUẤT VẬT TƯ (Giai đoạn 3, §10–§12.1).
 
-Giữ đúng tầng: mọi truy vấn/ghi DB của batch · lot đầu vào · bàn giao · xác nhận vật tư gom ở
-đây; các service `services/san_xuat/san_luong.py` · `ban_giao.py` · `vat_tu_nhan.py` chỉ điều phối
+Giữ đúng tầng: mọi truy vấn/ghi DB của batch · lot đầu vào · bàn giao · phiếu xuất vật tư gom ở
+đây; các service `services/san_xuat/san_luong.py` · `ban_giao.py` chỉ điều phối
 + kiểm luật. Tách khỏi `san_xuat_thuc_thi_repo.py` (phân công/phiên chạy) để mỗi file một mối bận tâm.
 
 Số DẪN XUẤT (sản lượng tốt còn lại, lượng đã bàn giao, lượng công đoạn sau đã dùng) TÍNH LÚC ĐỌC
@@ -18,16 +18,13 @@ from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.san_xuat import SanXuatCongViec, SanXuatPhuThuoc
 from ..models.san_xuat_san_luong import (
     BG_DE_XUAT,
-    BG_DIEU_CHINH,
     BG_XAC_NHAN,
     SanXuatBanGiao,
     SanXuatBanGiaoBatch,
-    SanXuatBanGiaoDieuChinh,
     SanXuatBatch,
     SanXuatBatchLotVao,
     SanXuatBatchPhatSinh,
     SanXuatKetQuaNhanh,
-    SanXuatVatTuNhan,
 )
 from ..models.san_xuat_vat_tu import SanXuatVatTuDeNghi
 from ..models.stock_request import StockRequest, StockRequestLine
@@ -69,19 +66,25 @@ class SanXuatSanLuongRepository:
 
     def me_vua_ghi(self, *, cong_viec_id: int, created_by: int | None, bat_dau, ket_thuc,
                    tong: float, tot: float, hong: float, tu_luc) -> SanXuatBatch | None:
-        """Mẻ Y HỆT (cùng việc, cùng người, cùng cửa sổ giờ, cùng số) ghi từ `tu_luc` trở lại đây."""
+        """Mẻ Y HỆT (cùng việc, cùng người, cùng cửa sổ giờ, cùng số) ghi từ `tu_luc` trở lại đây.
+
+        `bat_dau`/`ket_thuc` = None ⇒ không so giờ: giờ do máy chủ lấy lúc bấm thì lượt gửi lại
+        mang giờ khác, chỉ còn số + người + việc để nhận ra."""
+        dk = [
+            SanXuatBatch.cong_viec_id == cong_viec_id,
+            SanXuatBatch.created_by == created_by if created_by is not None
+            else SanXuatBatch.created_by.is_(None),
+            SanXuatBatch.tong == tong,
+            SanXuatBatch.tot == tot,
+            SanXuatBatch.hong == hong,
+            SanXuatBatch.created_at >= tu_luc,
+        ]
+        if bat_dau is not None:
+            dk.append(SanXuatBatch.bat_dau == bat_dau)
+        if ket_thuc is not None:
+            dk.append(SanXuatBatch.ket_thuc == ket_thuc)
         return self.db.execute(
-            select(SanXuatBatch).where(
-                SanXuatBatch.cong_viec_id == cong_viec_id,
-                SanXuatBatch.created_by == created_by if created_by is not None
-                else SanXuatBatch.created_by.is_(None),
-                SanXuatBatch.bat_dau == bat_dau,
-                SanXuatBatch.ket_thuc == ket_thuc,
-                SanXuatBatch.tong == tong,
-                SanXuatBatch.tot == tot,
-                SanXuatBatch.hong == hong,
-                SanXuatBatch.created_at >= tu_luc,
-            ).order_by(SanXuatBatch.id.desc()).limit(1)
+            select(SanXuatBatch).where(*dk).order_by(SanXuatBatch.id.desc()).limit(1)
         ).scalars().first()
 
     def khoan_cua_cong_viec(self, cv: SanXuatCongViec) -> tuple[CongDoanKhoan | None, str | None]:
@@ -439,7 +442,7 @@ class SanXuatSanLuongRepository:
     def ban_giao_cho_nhan_cua_to(self, to_ids: set[int]) -> list[tuple[SanXuatBanGiao, int]]:
         """Bàn giao ĐANG CHỜ bên nhận xác nhận mà công việc đích thuộc `to_ids` — kèm tổ đích.
         Nguồn của hộp "Chờ tổ bạn xác nhận" trên Bàn tổ và badge menu. Gồm cả lần bên giao vừa
-        điều chỉnh mà bên nhận chưa xác nhận lại (`ban_giao.cho_xac_nhan_lai`)."""
+        sửa số mẻ mà bên nhận chưa xác nhận lại (`ban_giao.cho_xac_nhan_lai`)."""
         if not to_ids:
             return []
         rows = self.db.execute(
@@ -449,7 +452,7 @@ class SanXuatSanLuongRepository:
                 or_(
                     SanXuatBanGiao.trang_thai == BG_DE_XUAT,
                     and_(
-                        SanXuatBanGiao.trang_thai == BG_DIEU_CHINH,
+                        SanXuatBanGiao.trang_thai == BG_XAC_NHAN,
                         SanXuatBanGiao.xac_nhan_luc.is_(None),
                         SanXuatBanGiao.cung_to.is_(False),
                     ),
@@ -468,6 +471,14 @@ class SanXuatSanLuongRepository:
             .join(SanXuatBatch, SanXuatBatch.id == SanXuatBanGiaoBatch.batch_id)
             .where(SanXuatBatch.cong_viec_id == cong_viec_id)
         ))
+
+    def ban_giao_cua_me(self, batch_id: int) -> SanXuatBanGiao | None:
+        """Lần giao mà mẻ này đã đi theo — None là mẻ chưa giao (`batch_id` UNIQUE nên tối đa một)."""
+        return self.db.scalars(
+            select(SanXuatBanGiao)
+            .join(SanXuatBanGiaoBatch, SanXuatBanGiaoBatch.ban_giao_id == SanXuatBanGiao.id)
+            .where(SanXuatBanGiaoBatch.batch_id == batch_id)
+        ).first()
 
     def lien_ket_me(self, ban_giao_id: int) -> list[SanXuatBanGiaoBatch]:
         """Các dòng mẻ↔bàn giao của MỘT lần giao — để sửa lại danh sách mẻ khi còn `proposed`."""
@@ -495,7 +506,7 @@ class SanXuatSanLuongRepository:
     def tong_thuc_nhan_nhieu(self, cong_viec_ids) -> dict[int, dict[str, float]]:
         """{cong_viec_id: {đơn vị: tổng ĐÃ NHẬN về}} cho một TẬP công việc — MỘT truy vấn GỘP.
 
-        "Thực nhận" = bàn giao ĐẾN việc này ở trạng thái confirmed/adjusted; `proposed` chưa chốt
+        "Thực nhận" = bàn giao ĐẾN việc này ở trạng thái confirmed; `proposed` chưa chốt
         nên không tính (cùng luật với `san_xuat_kcs_repo.tong_ban_giao_xac_nhan`).
 
         Tách theo ĐƠN VỊ, không cộng gộp một cục: một bước ghép nhận "tờ" từ chỗ này và "cuốn" từ
@@ -513,7 +524,7 @@ class SanXuatSanLuongRepository:
             )
             .where(
                 SanXuatBanGiao.dich_cong_viec_id.in_(ids),
-                SanXuatBanGiao.trang_thai.in_((BG_XAC_NHAN, BG_DIEU_CHINH)),
+                SanXuatBanGiao.trang_thai == BG_XAC_NHAN,
             )
             .group_by(SanXuatBanGiao.dich_cong_viec_id, SanXuatBanGiao.don_vi)
         )
@@ -541,25 +552,11 @@ class SanXuatSanLuongRepository:
             select(SanXuatBanGiao.id).where(
                 SanXuatBanGiao.nguon_cong_viec_id == nguon_cong_viec_id,
                 SanXuatBanGiao.dich_cong_viec_id == dich_cong_viec_id,
-                SanXuatBanGiao.trang_thai.in_((BG_XAC_NHAN, BG_DIEU_CHINH)),
+                SanXuatBanGiao.trang_thai == BG_XAC_NHAN,
                 SanXuatBanGiao.so_luong > 0,
             ).limit(1)
         )
         return row is not None
-
-    def dieu_chinh_nhieu(self, ban_giao_ids) -> dict[int, list[SanXuatBanGiaoDieuChinh]]:
-        """`{ban_giao_id: [điều chỉnh cũ → mới]}` — lịch sử của cả tập bàn giao, MỘT truy vấn."""
-        ids = [i for i in set(ban_giao_ids) if i]
-        if not ids:
-            return {}
-        out: dict[int, list[SanXuatBanGiaoDieuChinh]] = {}
-        for dc in self.db.scalars(
-            select(SanXuatBanGiaoDieuChinh)
-            .where(SanXuatBanGiaoDieuChinh.ban_giao_id.in_(ids))
-            .order_by(SanXuatBanGiaoDieuChinh.id)
-        ):
-            out.setdefault(dc.ban_giao_id, []).append(dc)
-        return out
 
     # --- Phụ thuộc chéo (bước ghép) ----------------------------------------------------------
     def canh_phu_thuoc_toi(self, dich_cong_viec_id: int) -> list[SanXuatPhuThuoc]:
@@ -621,19 +618,14 @@ class SanXuatSanLuongRepository:
         )
         return float(tong or 0)
 
-    # --- Xác nhận vật tư (§10.1) -------------------------------------------------------------
+    # --- Phiếu xuất vật tư -------------------------------------------------------------
     def voucher(self, voucher_id: int) -> StockVoucher | None:
         return self.db.get(StockVoucher, voucher_id)
-
-    def vat_tu_nhan_cua_voucher(self, voucher_id: int) -> SanXuatVatTuNhan | None:
-        return self.db.scalars(
-            select(SanXuatVatTuNhan).where(SanXuatVatTuNhan.voucher_id == voucher_id)
-        ).first()
 
     def voucher_xuat_cua_lsx(self, lsx_id: int, *, tru_yeu_cau=None) -> list[StockVoucher]:
         """Phiếu XUẤT ĐÃ GHI SỔ cấp cho một LSX (join phiếu → dòng phiếu → dòng yêu cầu.lsx_id).
 
-        Đây là danh sách tổ trưởng thấy để XÁC NHẬN đã nhận (§10.1). DISTINCT vì một phiếu nhiều
+        DISTINCT vì một phiếu nhiều
         dòng cùng trỏ một LSX. `tru_yeu_cau` — truy vấn con trả `stock_request_id` cần loại (không
         chứa NULL, nếu không `NOT IN` loại sạch mọi dòng)."""
         if not lsx_id:
@@ -658,15 +650,6 @@ class SanXuatSanLuongRepository:
                 .order_by(StockVoucher.id)
             )
         )
-
-    def nhan_theo_voucher_ids(self, voucher_ids: list[int]) -> dict[int, SanXuatVatTuNhan]:
-        """{voucher_id: bản xác nhận} cho một tập phiếu — để đánh dấu phiếu nào tổ đã nhận."""
-        if not voucher_ids:
-            return {}
-        rows = self.db.scalars(
-            select(SanXuatVatTuNhan).where(SanXuatVatTuNhan.voucher_id.in_(voucher_ids))
-        )
-        return {r.voucher_id: r for r in rows}
 
     # --- Task 7: khối đối chiếu `vat_tu_cap` (spec-de-nghi-cap-vat-tu-cong-doan §6) -----------
     def voucher_xuat_cua_cong_viec(
@@ -707,11 +690,11 @@ class SanXuatSanLuongRepository:
 
     def thuc_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple, float]:
         """{`khoa_dong`: tổng `sl_goc`} của DÒNG phiếu XUẤT `posted` thuộc các yêu cầu này — giấy
-        tách theo dạng + khổ (spec giấy tờ × khổ). MỘT truy vấn GỘP cho cả danh sách, không theo
+        tách theo khổ + đơn vị gốc (spec giấy tờ × khổ; bỏ dạng 10/10/2026). MỘT truy vấn GỘP cho cả danh sách, không theo
         từng yêu cầu (ruling task-7 25). Danh sách rỗng trả `{}` mà KHÔNG chạm DB."""
         if not stock_request_ids:
             return {}
-        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.dang_giay,
+        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.don_vi_goc,
                StockVoucherLine.kho_rong, StockVoucherLine.kho_dai)
         rows = self.db.execute(
             select(*cot, func.sum(StockVoucherLine.sl_goc))
@@ -723,8 +706,8 @@ class SanXuatSanLuongRepository:
             .group_by(*cot)
         )
         ra: dict[tuple, float] = {}
-        for loai, hid, dang, kr, kd, tong in rows:
-            k = khoa_dong(loai, int(hid), dang, kr, kd)
+        for loai, hid, goc, kr, kd, tong in rows:
+            k = khoa_dong(loai, int(hid), goc, kr, kd)
             ra[k] = ra.get(k, 0.0) + float(tong or 0)
         return ra
 
@@ -732,7 +715,7 @@ class SanXuatSanLuongRepository:
         """{`khoa_dong`: tổng `sl_goc`} của DÒNG phiếu NHẬP `posted` thuộc các yêu cầu "nhập lại vật
         tư thừa" của công việc này (`stock_requests.vat_tu_tra_cong_viec_id`). Bảng đối chiếu trừ nó
         khỏi thực xuất để ra thực dùng. Yêu cầu chưa có phiếu ghi sổ thì chưa tính."""
-        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.dang_giay,
+        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.don_vi_goc,
                StockVoucherLine.kho_rong, StockVoucherLine.kho_dai)
         rows = self.db.execute(
             select(*cot, func.sum(StockVoucherLine.sl_goc))
@@ -745,10 +728,49 @@ class SanXuatSanLuongRepository:
             .group_by(*cot)
         )
         ra: dict[tuple, float] = {}
-        for loai, hid, dang, kr, kd, tong in rows:
-            k = khoa_dong(loai, int(hid), dang, kr, kd)
+        for loai, hid, goc, kr, kd, tong in rows:
+            k = khoa_dong(loai, int(hid), goc, kr, kd)
             ra[k] = ra.get(k, 0.0) + float(tong or 0)
         return ra
+
+    def kho_xuat_nhieu_nhat(self, stock_request_ids: list[int]) -> int | None:
+        """Kho đã xuất NHIỀU nhất (tổng `sl_goc`, phiếu XUẤT `posted`) cho các yêu cầu này — None nếu
+        chưa xuất gì. Tổ trả hàng thừa thì mặc định nhập về đúng kho đó."""
+        if not stock_request_ids:
+            return None
+        return self.db.scalars(
+            select(StockVoucher.kho_id)
+            .join(StockVoucherLine, StockVoucherLine.voucher_id == StockVoucher.id)
+            .where(StockVoucher.loai == VOUCHER_XUAT,
+                   StockVoucher.trang_thai == VOUCHER_POSTED,
+                   StockVoucher.request_id.in_(stock_request_ids),
+                   StockVoucher.kho_id.is_not(None))
+            .group_by(StockVoucher.kho_id)
+            .order_by(func.sum(StockVoucherLine.sl_goc).desc(), StockVoucher.kho_id)
+            .limit(1)
+        ).first()
+
+    def phieu_nhap_da_ghi_so(self, stock_request_ids: list[int]) -> list[StockVoucher]:
+        """Phiếu NHẬP `posted` của các yêu cầu này, cũ trước mới sau. Rỗng thì không chạm DB."""
+        if not stock_request_ids:
+            return []
+        return list(self.db.scalars(
+            select(StockVoucher)
+            .where(StockVoucher.loai == VOUCHER_NHAP,
+                   StockVoucher.trang_thai == VOUCHER_POSTED,
+                   StockVoucher.request_id.in_(stock_request_ids))
+            .order_by(StockVoucher.id)
+        ))
+
+    def yeu_cau_nhap_lai(self, cong_viec_id: int) -> list[StockRequest]:
+        """Các yêu cầu NHẬP tổ trả vật tư thừa của công việc này (mọi trạng thái), cũ trước mới sau,
+        kèm dòng (selectinload — một truy vấn cho cả danh sách)."""
+        return list(self.db.scalars(
+            select(StockRequest)
+            .options(selectinload(StockRequest.lines))
+            .where(StockRequest.vat_tu_tra_cong_viec_id == cong_viec_id)
+            .order_by(StockRequest.id)
+        ))
 
     def gia_von_xuat_theo_hang(self, stock_request_ids: list[int]) -> dict[tuple, tuple[float, float]]:
         """{`khoa_dong`: (tổng `sl_goc`, giá vốn bình quân / đơn vị GỐC)} của phần ĐÃ XUẤT (phiếu XUẤT `posted`) cho
@@ -756,7 +778,7 @@ class SanXuatSanLuongRepository:
         giá thật nằm ở lô đã xuất (`stock_lots.don_gia_nhap`, đ/đơn vị gốc). Dòng không có lô bị bỏ."""
         if not stock_request_ids:
             return {}
-        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.dang_giay,
+        cot = (StockVoucherLine.hang_loai, StockVoucherLine.hang_id, StockVoucherLine.don_vi_goc,
                StockVoucherLine.kho_rong, StockVoucherLine.kho_dai)
         rows = self.db.execute(
             select(*cot, func.sum(StockVoucherLine.sl_goc),
@@ -771,8 +793,8 @@ class SanXuatSanLuongRepository:
         )
         tong_sl: dict[tuple, float] = {}
         tong_tien: dict[tuple, float] = {}
-        for loai, hid, dang, kr, kd, sl, tien in rows:
-            k = khoa_dong(loai, int(hid), dang, kr, kd)
+        for loai, hid, goc, kr, kd, sl, tien in rows:
+            k = khoa_dong(loai, int(hid), goc, kr, kd)
             tong_sl[k] = tong_sl.get(k, 0.0) + float(sl or 0)
             tong_tien[k] = tong_tien.get(k, 0.0) + float(tien or 0)
         return {k: (s, tong_tien[k] / s) for k, s in tong_sl.items() if s > 0}

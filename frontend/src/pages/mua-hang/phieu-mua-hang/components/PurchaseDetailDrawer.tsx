@@ -9,7 +9,8 @@ import {
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { useCan } from "../../../../auth/permissions";
-import { RowActionButton } from "../../../../components/RowActionButton";
+import { Button } from "../../../../components/Button";
+import { Icon } from "../../../../components/Icons";
 import { NganDonMua } from "../../don-mua-chung/NganDonMua";
 import { printPurchaseRequest } from "../print";
 import { GHI_DOT_DUOC } from "../shared/constants";
@@ -95,130 +96,103 @@ export function PurchaseDetailDrawer({
   // (`kho:request`), KHÔNG phải `kho:create` — bộ phận mua hàng có `request` mà không có `create`.
   const coQuyenNhapKho = can("kho", "request");
 
-  function actionButtons(row: PurchaseRequestRow, dense = false) {
+  // Cụm nút đầu ngăn — cùng kiểu với ngăn Yêu cầu mua: nút thường có icon, VIỆC TIẾP THEO của đơn
+  // (Gửi duyệt / Đã đặt hàng / Ghi đợt giao) tô màu và đứng cuối bên phải; In, Sửa, Huỷ để trơn.
+  // Trước 11/10/2026 dùng `RowActionButton` (nút cỡ ô bảng, padding 2px) nên đầu ngăn trông lép.
+  function actionButtons(row: PurchaseRequestRow) {
     const busy = (key: string) => actionBusy === `${key}:${row.id}`;
     const canEdit =
       canUpdate && (row.status === "draft" || row.status === "rejected");
     return (
-      <div
-        className={
-          dense
-            ? "purchase__actions purchase__actions--dense"
-            : "purchase__actions"
-        }
-      >
+      <>
         {/* "Xem chi tiết" đã bỏ: bấm vào DÒNG là mở drawer, mà nút này lại nằm TRONG drawer nên
-            thừa. "In phiếu" giữ nhưng bỏ gate `dense` — nay thao tác nằm GỌN trong bản ghi
-            (drawer), không còn cột "Thao tác" ngoài dòng (24/08/2026). */}
-        <RowActionButton
-          dense={dense}
-          label="In phiếu"
-          icon="printer"
-          onClick={() => openPrint(row)}
-        />
+            thừa. Thao tác nằm GỌN trong bản ghi (drawer), không còn cột "Thao tác" ngoài dòng
+            (24/08/2026). */}
+        <Button variant="ghost" onClick={() => openPrint(row)}>
+          <Icon name="printer" size={14} /> In phiếu
+        </Button>
         {canEdit && (
-          <RowActionButton
-            dense={dense}
-            label="Sửa"
-            icon="pencil"
-            onClick={() => openEdit(row)}
-          />
+          <Button variant="ghost" onClick={() => openEdit(row)}>
+            <Icon name="pencil" size={14} /> Sửa
+          </Button>
         )}
+        {/* NÚT "HUỶ PHIẾU" — bày lại 24/08/2026 sau 9 ngày ẩn. Đây là van gỡ kẹt khi phiếu lập
+            nhầm: `POST /api/purchase-requests/{id}/cancel` chưa từng bị gỡ, chỉ là không có nút.
+            Luật hiện nút nằm ở `huyPhieuDuoc` phía trên, chép đúng `PurchaseService.cancel`. */}
+        {huyPhieuDuoc(row) && (
+          <Button
+            variant="ghost"
+            loading={busy("cancel")}
+            onClick={() =>
+              setReasonModal({ kind: "cancel", row, reason: "", error: null })
+            }
+          >
+            <Icon name="ban" size={14} /> Huỷ phiếu
+          </Button>
+        )}
+        {/* "Đóng đơn" chỉ có nghĩa khi còn hàng chưa về: nhà cung cấp báo không giao nốt. Server đòi
+            `thu_mua:approve` + lý do. */}
+        {canUpdate && canApprovePurchase && row.status === "partially_received" && (
+          <Button
+            variant="ghost"
+            onClick={() => setCloseModal({ row, reason: "", error: null })}
+          >
+            <Icon name="packageCheck" size={14} /> Đóng đơn
+          </Button>
+        )}
+        {/* Sửa số thực nhận: chỉ cho đơn KHÔNG theo đợt — đơn theo đợt thì sửa ở đúng đợt giao
+            đó, sửa ở đây sẽ bị nhánh dẫn xuất ghi đè trong im lặng (server chặn).
+            Nút "Đã nhận (giao một lần)" và "Mở lại đơn" ĐÃ GỠ (12/08/2026); endpoint vẫn giữ. */}
+        {canUpdate &&
+          canApprovePurchase &&
+          row.status === "received" &&
+          row.deliveries.length === 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => setReceiveModal({ row, mode: "edit" })}
+            >
+              <Icon name="pencil" size={14} /> Sửa số nhận
+            </Button>
+          )}
+        {/* KHÔNG có nút Duyệt / Từ chối ở màn Mua hàng (chủ 04/08/2026: "phải duyệt ở phần kế
+            toán chứ"). Duyệt đơn mua là quyết định CHI TIỀN — nằm ở Kế toán thu mua → Đơn mua. */}
         {canUpdate && (row.status === "draft" || row.status === "rejected") && (
-          <RowActionButton
-            dense={dense}
-            label="Gửi duyệt"
-            icon="send"
+          <Button
+            variant="accent"
             loading={busy("submit")}
             onClick={() =>
               runAction(row, "submit", () =>
                 api.purchaseRequests.submit(token!, row.id),
               )
             }
-          />
+          >
+            <Icon name="send" size={14} /> Gửi duyệt
+          </Button>
         )}
-        {/* KHÔNG có nút Duyệt / Từ chối ở màn Mua hàng (chủ 04/08/2026: "phải duyệt ở phần kế
-            toán chứ"). Duyệt đơn mua là quyết định CHI TIỀN — nó thuộc về giám đốc / người được
-            trao quyền, và nay nằm ở màn Kế toán thu mua → Đơn mua hàng.
-            Thu mua ở đây chỉ: Xem · In · Sửa · Gửi duyệt · Huỷ · Xoá. */}
         {canUpdate && row.status === "approved" && (
-          <RowActionButton
-            dense={dense}
-            label="Đã đặt hàng"
-            icon="bag"
+          <Button
+            variant="accent"
             loading={busy("purchased")}
             onClick={() =>
               runAction(row, "purchased", () =>
                 api.purchaseRequests.markPurchased(token!, row.id),
               )
             }
-          />
+          >
+            <Icon name="bag" size={14} /> Đã đặt hàng
+          </Button>
         )}
         {/* GHI ĐỢT GIAO — đường CHÍNH để hàng về vào hệ từ 06/08/2026. Hàng về tới đâu nợ tới đó;
             giao đủ thì phiếu tự lên "Đã nhận", không ai phải bấm. */}
         {canUpdate && GHI_DOT_DUOC.includes(row.status) && (
-          <RowActionButton
-            dense={dense}
-            label="Ghi đợt giao"
-            icon="truck"
+          <Button
+            variant="accent"
             onClick={() => setDeliveryModal({ row, delivery: null })}
-          />
+          >
+            <Icon name="truck" size={14} /> Ghi đợt giao
+          </Button>
         )}
-        {/* "Đóng đơn" chỉ có nghĩa khi còn hàng chưa về: nhà cung cấp báo không giao nốt. Server đòi
-            `thu_mua:approve` + lý do. */}
-        {canUpdate && canApprovePurchase && row.status === "partially_received" && (
-          <RowActionButton
-            dense={dense}
-            label="Đóng đơn"
-            icon="packageCheck"
-            onClick={() => setCloseModal({ row, reason: "", error: null })}
-          />
-        )}
-        {/* ĐƯỜNG CŨ, chỉ còn cho đơn KHÔNG theo dõi theo đợt (giao một lần, không ai muốn khai
-            đợt). Đơn đã có đợt giao thì trạng thái là số SUY RA — server chặn gán tay, nên đừng
-            bày nút ra rồi để người dùng bấm vào tường. */}
-        {/* {canUpdate &&
-          row.status === "purchased" &&
-          row.deliveries.length === 0 && (
-            <RowActionButton
-              dense={dense}
-              label="Đã nhận (giao một lần)"
-              icon="packageCheck"
-              onClick={() => setReceiveModal({ row, mode: "receive" })}
-            />
-          )} */}
-        {/* Sửa số thực nhận: cũng chỉ cho đơn KHÔNG theo đợt — đơn theo đợt thì sửa ở đúng đợt
-            giao đó, sửa ở đây sẽ bị nhánh dẫn xuất ghi đè trong im lặng (server chặn). */}
-        {canUpdate &&
-          canApprovePurchase &&
-          row.status === "received" &&
-          row.deliveries.length === 0 && (
-            <RowActionButton
-              dense={dense}
-              label="Sửa số nhận"
-              icon="pencil"
-              onClick={() => setReceiveModal({ row, mode: "edit" })}
-            />
-          )}
-        {/* Nút "Mở lại đơn" / "Lùi đã nhận" ĐÃ GỠ 12/08/2026 (chủ chốt: "cái nút mở lại đơn bỏ
-            đi nha"). Endpoint `undo-received` và bộ test của nó GIỮ NGUYÊN — nó là van an toàn
-            khi lỡ bấm "Đã nhận", chỉ là không còn bày ra ở màn này. */}
-        {/* NÚT "HUỶ PHIẾU" — bày lại 24/08/2026 sau 9 ngày ẩn. Đây là van gỡ kẹt khi phiếu lập
-            nhầm: `POST /api/purchase-requests/{id}/cancel` chưa từng bị gỡ, chỉ là không có nút.
-            Luật hiện nút nằm ở `huyPhieuDuoc` phía trên, chép đúng `PurchaseService.cancel`. */}
-        {huyPhieuDuoc(row) && (
-          <RowActionButton
-            dense={dense}
-            label="Huỷ phiếu"
-            icon="ban"
-            danger
-            loading={busy("cancel")}
-            onClick={() =>
-              setReasonModal({ kind: "cancel", row, reason: "", error: null })
-            }
-          />
-        )}
-      </div>
+      </>
     );
   }
 

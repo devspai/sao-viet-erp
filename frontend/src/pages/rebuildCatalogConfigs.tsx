@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CatalogConfig, ChuanBiKhoanRow } from "./RebuildCatalogPage";
 import { tongChuanBi } from "./RebuildCatalogPage";
 import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
-import { nhanTramDai, tramOptions } from "./tenDonVi";
+import { nhanTramDai, tenDonVi, tramOptions } from "./tenDonVi";
 import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
 import { KhoViTriPanel } from "./KhoViTriPanel";
@@ -46,11 +46,10 @@ const TOOLING_TYPE_CU: Lbls = {
 };
 const TOOLING_TYPE_NHAN: Lbls = { ...TOOLING_TYPE, ...TOOLING_TYPE_CU };
 
-// Chặng `cai` (Thành phẩm) ẨN khỏi menu Đơn vị đầu vào/ra (03/10/2026, user yêu cầu). Chỉ ẩn ở MENU:
-// engine vẫn biết chặng này, công đoạn cũ đang mang `cai` vẫn hiện "Thành phẩm (đã gỡ)" qua `nhanCu`
-// và lưu lại không mất giá trị.
-const TRAM_AN: Record<string, string> = { cai: "Thành phẩm" };
-const tramChonDuoc = () => tramOptions().filter((o) => !(o.value in TRAM_AN));
+// Chặng `cai` (Thành phẩm) từng ẨN khỏi menu Đơn vị đầu vào/ra (03/10/2026), TRẢ LẠI 11/10/2026:
+// thiếu nó thì sách không có chỗ khai "vào keo: tay sách → thành phẩm", cả chuỗi đếm tay tới cuối
+// và bước cuối ra 4.000 tay thay vì 1.000 cuốn. Đây là CHẶNG của dòng giấy (tờ đã thành sản phẩm),
+// KHÔNG phải đơn vị tính của sản phẩm (cuốn, hộp…) — menu ghi đúng chữ "Thành phẩm".
 
 // 5 CHẶNG của dòng giấy — nhãn lấy từ `/api/don-vi/tram` (hằng `models/don_vi_do.TRAM_NHAN`),
 // màn này KHÔNG giữ bản sao nữa. Bảng cứng `TRAM_DONG_GIAY` từng nằm đây GỠ 09/09/2026: nó là
@@ -114,6 +113,29 @@ const dvCell = (r: Row) => {
   const ma = r.don_vi_gia ? String(r.don_vi_gia) : "";
   if (!ma) return <span className="lds-cam">Chưa chọn đơn vị</span>;
   return r.don_vi_ten ? String(r.don_vi_ten) : ma;
+};
+
+/** Ô "Đơn vị thêm" của Giấy / Vật tư khác (spec 2026-10-10 mặt hàng nhiều ĐVT): mảng MÃ đơn vị khai
+ *  cạnh ĐVT chính, mỗi đơn vị kéo theo cả nhóm quy đổi của nó. Đơn giá danh mục chỉ thuộc ĐVT chính —
+ *  đơn vị thêm lấy giá ở bảng giá nhà cung cấp. Thành phẩm KHÔNG có ô này. */
+const F_DON_VI_THEM = {
+  key: "don_vi_them",
+  label: "Đơn vị thêm",
+  type: "don-vi-them" as const,
+  refPrefix: "/api/don-vi",
+  group: "Thông số",
+};
+
+/** Cột ĐVT của Giấy / Vật tư khác: ĐVT chính + mỗi đơn vị thêm một thẻ nhỏ (không nối bằng dấu). */
+const dvCellNhieu = (r: Row) => {
+  const them = Array.isArray(r.don_vi_them) ? (r.don_vi_them as unknown[]).map((x) => String(x)).filter(Boolean) : [];
+  if (them.length === 0) return dvCell(r);
+  return (
+    <span className="dm-gop" title={[String(r.don_vi_ten ?? r.don_vi_gia ?? ""), ...them.map((m) => tenDonVi(m) ?? m)].join("\n")}>
+      <span>{dvCell(r)}</span>
+      {them.map((m) => <span key={m} className="lds-tag">{tenDonVi(m) ?? m}</span>)}
+    </span>
+  );
 };
 
 
@@ -516,9 +538,9 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // chúng (`CAU_TRAM` bên backend) — thêm chặng thứ 6 là phải sửa code chứ không phải khai danh mục.
     // Để TRỐNG cả hai = bước NGOÀI dòng giấy (ghi kẽm, đóng thùng…): không dính chuỗi bù hao của
     // giấy; đơn vị + số của nó do người lập lệnh TỰ KHAI ở drawer bước lệnh.
-    { key: "don_vi_vao", label: "Đơn vị đầu vào", type: "select", options: tramChonDuoc, nhanCu: TRAM_AN,
+    { key: "don_vi_vao", label: "Đơn vị đầu vào", type: "select", options: tramOptions,
       group: "Đơn vị", default: "to" },
-    { key: "don_vi_ra", label: "Đơn vị đầu ra", type: "select", options: tramChonDuoc, nhanCu: TRAM_AN,
+    { key: "don_vi_ra", label: "Đơn vị đầu ra", type: "select", options: tramOptions,
       group: "Đơn vị", default: "to" },
     // GỠ 18/09/2026 (mg `0324`): "Công thức sản lượng ra" + "Đơn vị sản lượng" của bước ngoài dòng
     // giấy (cùng `he_so_ngoai_dong` đã ngưng từ 20/08) — số của bước ấy nay khai tay ở bước lệnh.
@@ -598,7 +620,7 @@ export const CFG_GIAY: CatalogConfig = {
   widthTen: 230,
   columns: [
     { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
-    { key: "don_vi_gia", label: "ĐVT", w: 100, render: (r) => dvCell(r) },
+    { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
     { key: "don_gia", label: "Đơn giá (đ/kg)", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
     // Cột "Cách tính tiền" + "Giấy thay thế" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem trong
     // thẻ giấy (ô Công thức tính giá, ô Giấy thay thế bên dưới).
@@ -609,6 +631,9 @@ export const CFG_GIAY: CatalogConfig = {
     // Đơn vị GỐC: tồn kho cộng dồn theo đơn vị này. Giấy để `kg` thì kho đếm theo cân; muốn đếm
     // theo tờ thì chọn `tờ` — cặp cố định "1 ram = 500 tờ" chạy sẵn, không cần khai khổ.
     { key: "don_vi_gia", label: "ĐVT", ...F_DON_VI, group: "Thông số" },
+    // Đơn vị THÊM (10/10/2026): cùng loại giấy lúc mua theo tờ lúc mua theo kg — hai nhóm không quy
+    // đổi lẫn nhau, mỗi nhóm một dòng tồn. Máy KHÔNG còn ngầm thêm họ tờ cho giấy.
+    F_DON_VI_THEM,
     // Đơn giá theo cân — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
     { key: "don_gia", label: "Đơn giá (đ/kg)", type: "number", group: "Giá", hint: "Đơn giá theo ĐVT đã chọn (mặc định đ/kg)" },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
@@ -644,7 +669,7 @@ export const CFG_VAT_TU: CatalogConfig = {
   widthMa: 130,
   widthTen: 230,
   columns: [
-    { key: "don_vi_gia", label: "ĐVT", w: 120, render: (r) => dvCell(r) },
+    { key: "don_vi_gia", label: "ĐVT", w: 160, render: (r) => dvCellNhieu(r) },
     // Cột "Đơn giá" ĐÃ ẨN 09/09/2026 — xem khối chú thích ở `fields` bên dưới.
     // Hai công thức + chip riêng (05/10/2026): thiếu công thức định mức thì lệnh SX không tự ra
     // lượng vật tư — phải thấy được từ bảng, không phải mở từng thẻ.
@@ -673,6 +698,9 @@ export const CFG_VAT_TU: CatalogConfig = {
     // người dùng nhớ luật vô ích. Cần "1 thùng keo = 20 kg" thì khai thẳng đơn vị đó trong danh
     // mục Đơn vị & quy đổi rồi chọn ở ô ĐVT — một nơi duy nhất cho mọi quy đổi.
     { key: "don_vi_gia", label: "Đơn vị tính (ĐVT)", ...F_DON_VI, group: "Thông số" },
+    // Đơn vị THÊM (10/10/2026): keo mua theo kg lẫn theo thùng — hai nhóm không quy đổi, mỗi nhóm
+    // một dòng tồn.
+    F_DON_VI_THEM,
     // ẨN KHỎI UI 09/09/2026 — cùng lối đã làm với `cong_thuc_gia`: giấu ô, GIỮ NGUYÊN cột DB,
     // dữ liệu cũ và mọi đường engine. Hai thứ bị giấu ở màn này:
     //
@@ -727,22 +755,24 @@ export const CFG_THANH_PHAM: CatalogConfig = {
   khongXoa: true,
   softDelete: true,
   widthMa: 170,
-  // Thanh lọc (06/10/2026): Khách đặt lần đầu (vết `customer_id`, tên do máy chủ gắn).
+  // Thanh lọc (06/10/2026): khách của thành phẩm (`customer_id`, tên do máy chủ gắn).
   man: "thanh-pham",
-  dieuKien: [{ key: "khach_hang_id", nhan: "Khách đặt lần đầu", icon: "nguoi" }],
+  dieuKien: [{ key: "khach_hang_id", nhan: "Khách hàng", icon: "nguoi" }],
   columns: [
     // Ô CHỌN "Khách hàng" ĐÃ GỠ HẲN (chủ 21/08/2026: "khách hàng mình lưu làm gì, mình không
     // dùng tới — thành phẩm này là một cái tên hàng mới, nêu chưa khai để tái sử dụng, tránh
     // phình lên"). Thành phẩm KHÔNG thuộc về ai: hai khách đặt cùng tên dùng CHUNG một dòng, công
     // tắc chia hai màn là cột `la_thanh_pham` (mg 0228) do repo tự đóng dấu.
     //
-    // HIỆN LẠI dạng CHỈ ĐỌC 17/09/2026 (chủ: "hiển thị hết đi" — màn thiếu so với thứ bảng lưu):
-    // đơn + khách ĐẶT LẦN ĐẦU là vết nguồn gốc máy ghi lúc chốt đơn, không phải chủ, không ai sửa.
+    // HIỆN LẠI dạng CHỈ ĐỌC 17/09/2026 (chủ: "hiển thị hết đi" — màn thiếu so với thứ bảng lưu).
+    // Từ 11/10/2026 (mg 0394) khách là CHỦ của thành phẩm: hàng in riêng cho khách nào là của
+    // khách đó, hai khách trùng tên là hai mã, tồn của mã là hàng của khách. Vẫn chỉ đọc — máy
+    // ghi lúc chốt đơn.
     // Bề rộng px: mã thành phẩm dài ("TP-DH-2026-041-11") nên Mã (`widthMa` ở đầu
     // config) rộng hơn mặc định của trang; Ghi chú cuối không khai bề rộng ⇒ ăn phần còn lại.
     { key: "don_vi_gia", label: "ĐVT", w: 110, render: (r) => dvCell(r) },
     { key: "order_no", label: "Đơn đầu tiên", w: 130, render: (r) => <MaDon r={r} ngan /> },
-    { key: "customer_ten", label: "Khách đặt lần đầu", w: 240,
+    { key: "customer_ten", label: "Khách hàng", w: 240,
       render: (r) => (r.customer_ten ? String(r.customer_ten) : "") },
     // Cột "Ngày khai" GỠ 06/10/2026: trang chung đã có cột "Ngày tạo" (cùng `created_at`).
     { key: "ghi_chu", label: "Ghi chú",
@@ -810,8 +840,8 @@ function NguonGocThanhPham({ r }: { r: Row }) {
           </div>
         ) : o("Đơn hàng đầu tiên", String(donDauTien(r, false)))}
         {o("Trạng thái", r.active === false ? "Đã ngừng dùng" : "Đang dùng")}
-        {o("Khách đặt lần đầu", khach,
-          "Chỉ để tra nguồn gốc — khách khác đặt cùng tên hàng vẫn dùng chung dòng này.")}
+        {o("Khách hàng", khach,
+          "Thành phẩm thuộc về khách này. Khách khác đặt cùng tên là một mã khác.")}
         {o("Ngày khai", ngayGio(r.created_at as string | null))}
         {o("Sửa lần cuối", ngayGio(r.updated_at as string | null))}
         {anh && (

@@ -17253,3 +17253,513 @@ def _migrate_quyen_dong_lenh_thieu(db) -> None:
 
 
 MIGRATIONS.append(("0382_quyen_dong_lenh_thieu", _migrate_quyen_dong_lenh_thieu))
+
+
+def _migrate_module_kcs(db) -> None:
+    """mg 0383 — KCS thành MODULE trong ma trận vai, bỏ cờ phòng ban "Tổ KCS đích danh" (09/10/2026,
+    `docs/design-kcs-quy-trach-nhiem.md` §2.4; chủ chốt: *"bỏ logic chỉ đích danh tổ KCS đi, mà sẽ
+    có module KCS với quyền liên quan"*).
+
+    · Thêm dòng `modules('kcs')` — Xem / Thao tác (`can_create`) / Đóng lệnh thiếu (`can_close_short`).
+    · Tắt `can_close_short` còn sót trên dòng theo tổ (`to_sx_<id>`, mg 0382 đặt ô này ở đó).
+    · DROP `departments.is_kcs`.
+    KHÔNG tự cấp dòng `kcs` cho vai nào: vai dùng chung nhiều phòng ban, cấp theo "có người đứng
+    trong phòng KCS" là cấp lan cho người ngoài. Raw SQL đích danh cột. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "modules" in bang:
+        db.execute(text(
+            "INSERT INTO modules (key, label, created_at) SELECT 'kcs', 'KCS', CURRENT_TIMESTAMP "
+            "WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = 'kcs')"))
+    if "role_permissions" in bang and "can_close_short" in _existing_columns(insp, "role_permissions"):
+        db.execute(text(
+            "UPDATE role_permissions SET can_close_short = false "
+            "WHERE module_key LIKE 'to_sx_%' AND can_close_short = true"))
+    if "departments" in bang and "is_kcs" in _existing_columns(insp, "departments"):
+        db.execute(text("ALTER TABLE departments DROP COLUMN is_kcs"))
+    db.commit()
+
+
+MIGRATIONS.append(("0383_module_kcs", _migrate_module_kcs))
+
+
+def _migrate_stock_request_can_luc(db: Session) -> None:
+    """0384 — `stock_requests.can_luc`: GIỜ cần hàng (09/10/2026, form Yêu cầu nhập xuất thêm giờ;
+    bàn tổ xin vật tư mở thẳng form này). Wall-clock giờ nhà máy gắn nhãn UTC — cùng khuôn
+    `san_xuat_vat_tu_de_nghi.can_luc`. `ngay_can` giữ nguyên làm ngày (lọc kỳ "Ngày cần" vẫn chạy
+    trên cột ngày). Idempotent; không backfill — yêu cầu cũ chỉ có ngày."""
+    insp = inspect(db.get_bind())
+    if "stock_requests" not in set(insp.get_table_names()):
+        return
+    if "can_luc" not in _existing_columns(insp, "stock_requests"):
+        kieu = "TIMESTAMP WITH TIME ZONE" if db.get_bind().dialect.name == "postgresql" else "DATETIME"
+        db.execute(text(f"ALTER TABLE stock_requests ADD COLUMN can_luc {kieu}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0384_stock_request_can_luc", _migrate_stock_request_can_luc))
+
+def _migrate_bo_dieu_chinh_ban_giao(db: Session) -> None:
+    """0385 — GỠ "Điều chỉnh số" trên lần giao (10/10/2026, chủ xưởng: *"bỏ điều chỉnh số ở các lần
+    giao, thay bằng sửa số ở chỗ lần mẻ ấy"*). Số lần giao đi theo mẻ (`san_luong.sua_so_me`).
+
+    · Lần giao `adjusted` có mẻ đi kèm ⇒ số = Σ tốt các mẻ đó; không mẻ (giao trước khi có giao
+      theo mẻ) ⇒ trả về số TRƯỚC lần điều chỉnh đầu. Trạng thái về `confirmed`; `xac_nhan_luc`
+      trống (đang chờ xác nhận lại) giữ trống — bên nhận xác nhận lại.
+    · DROP bảng `san_xuat_ban_giao_dieu_chinh` và cột `san_xuat_ban_giao.khong_nhat_quan`.
+    Raw SQL đích danh cột. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "san_xuat_ban_giao" not in bang:
+        return
+    # Đọc cột TRƯỚC mọi lệnh ghi: inspector mượn kết nối từ pool, trả về là rollback — trên SQLite
+    # một kết nối thì xoá luôn các UPDATE chưa commit.
+    co_cot = "khong_nhat_quan" in _existing_columns(insp, "san_xuat_ban_giao")
+    if "san_xuat_ban_giao_batch" in bang and "san_xuat_batch" in bang:
+        db.execute(text(
+            "UPDATE san_xuat_ban_giao SET so_luong = ("
+            " SELECT COALESCE(SUM(b.tot), 0) FROM san_xuat_ban_giao_batch l"
+            " JOIN san_xuat_batch b ON b.id = l.batch_id WHERE l.ban_giao_id = san_xuat_ban_giao.id)"
+            " WHERE trang_thai = 'adjusted' AND EXISTS ("
+            " SELECT 1 FROM san_xuat_ban_giao_batch l WHERE l.ban_giao_id = san_xuat_ban_giao.id)"))
+    if "san_xuat_ban_giao_dieu_chinh" in bang:
+        khong_me = (
+            " AND NOT EXISTS (SELECT 1 FROM san_xuat_ban_giao_batch l"
+            " WHERE l.ban_giao_id = san_xuat_ban_giao.id)"
+            if "san_xuat_ban_giao_batch" in bang else ""
+        )
+        db.execute(text(
+            "UPDATE san_xuat_ban_giao SET so_luong = ("
+            " SELECT d.so_luong_truoc FROM san_xuat_ban_giao_dieu_chinh d"
+            " WHERE d.ban_giao_id = san_xuat_ban_giao.id ORDER BY d.id LIMIT 1)"
+            " WHERE trang_thai = 'adjusted' AND EXISTS ("
+            " SELECT 1 FROM san_xuat_ban_giao_dieu_chinh d WHERE d.ban_giao_id = san_xuat_ban_giao.id)"
+            + khong_me))
+    db.execute(text("UPDATE san_xuat_ban_giao SET trang_thai = 'confirmed' WHERE trang_thai = 'adjusted'"))
+    if "san_xuat_ban_giao_dieu_chinh" in bang:
+        db.execute(text("DROP TABLE san_xuat_ban_giao_dieu_chinh"))
+    if co_cot:
+        db.execute(text("ALTER TABLE san_xuat_ban_giao DROP COLUMN khong_nhat_quan"))
+    db.commit()
+
+
+MIGRATIONS.append(("0385_bo_dieu_chinh_ban_giao", _migrate_bo_dieu_chinh_ban_giao))
+
+
+def _migrate_batch_nguoi(db: Session) -> None:
+    """0386 — chép NGƯỜI LÀM cho các lần ghi sản lượng cũ vào `san_xuat_batch_nguoi` (10/10/2026).
+
+    Bảng mới do `create_all` dựng. Từ bản này tổ tick người lúc ghi; lần ghi cũ chưa có dòng nào nên
+    tính lại theo đúng LUẬT CŨ của `nguoi_trong_me` để không mất tên:
+      · khoảng tham gia của cùng công việc giao THỰC SỰ với `[bat_dau, ket_thuc]` của lần ghi (chạm
+        một mốc không tính; khoảng còn mở kéo tới vô cùng);
+      · hỗ trợ chéo đã xác nhận, cùng công việc, `ngay_lam_viec` = ngày XƯỞNG của giờ bắt đầu, và
+        lần ghi tạo sau lúc đề xuất (đề xuất bù cho ngày đã qua thì cả ngày) — dòng `la_ho_tro`.
+    Tổ gốc lấy `employees.department_id` hiện tại. Raw SQL đích danh cột; chỉ lần ghi chưa có dòng
+    nào ⇒ chạy lại vô hại."""
+    from .services.gio_xuong import ve_gio_xuong
+
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"san_xuat_batch_nguoi", "san_xuat_batch", "employees"} <= bang:
+        return
+    co_khoang = "san_xuat_khoang_tham_gia" in bang
+    co_ho_tro = "san_xuat_ho_tro" in bang
+
+    def _dt(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = datetime.fromisoformat(v.strip().replace(" ", "T"))
+        return v if v.tzinfo is not None else v.replace(tzinfo=timezone.utc)
+
+    def _ngay(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return datetime.fromisoformat(v.strip()[:10]).date()
+        return v.date() if isinstance(v, datetime) else v
+
+    def _ngay_xuong(v):
+        d = ve_gio_xuong(_dt(v))
+        return d.date() if d is not None else None
+
+    me = db.execute(text(
+        "SELECT id, cong_viec_id, bat_dau, ket_thuc, created_at FROM san_xuat_batch b"
+        " WHERE NOT EXISTS (SELECT 1 FROM san_xuat_batch_nguoi n WHERE n.batch_id = b.id)"
+    )).all()
+    if not me:
+        return
+    xa = datetime(2999, 1, 1, tzinfo=timezone.utc)
+    to_goc = {i: d for i, d in db.execute(text("SELECT id, department_id FROM employees")).all()}
+    khoang: dict[int, list] = {}
+    if co_khoang:
+        for cv_id, eid, k0, k1 in db.execute(text(
+            "SELECT cong_viec_id, employee_id, bat_dau, ket_thuc FROM san_xuat_khoang_tham_gia"
+        )).all():
+            khoang.setdefault(cv_id, []).append((eid, _dt(k0), _dt(k1) or xa))
+    giup: dict[tuple, list] = {}
+    if co_ho_tro:
+        for cv_id, eid, ngay, luc in db.execute(text(
+            "SELECT cong_viec_id, employee_id, ngay_lam_viec, created_at FROM san_xuat_ho_tro"
+            " WHERE trang_thai = 'confirmed'"
+        )).all():
+            ngay = _ngay(ngay)
+            moc = _dt(luc)
+            ngay_dx = _ngay_xuong(moc) if moc else None
+            ghi_tu = None if moc is None or (ngay_dx is not None and ngay < ngay_dx) else moc
+            giup.setdefault((cv_id, ngay), []).append((eid, ghi_tu))
+
+    for bid, cv_id, b0, b1, tao in me:
+        b0, b1, tao = _dt(b0), _dt(b1), _dt(tao)
+        thay: dict[int, bool] = {}
+        for eid, k0, k1 in khoang.get(cv_id, []):
+            if b0 and b1 and k0 and max(k0, b0) < min(k1, b1):
+                thay.setdefault(eid, False)
+        for eid, ghi_tu in giup.get((cv_id, _ngay_xuong(b0)), []):
+            if ghi_tu is not None and tao is not None and tao < ghi_tu:
+                continue
+            thay.setdefault(eid, True)
+        for eid, la_ht in thay.items():
+            if eid not in to_goc:
+                continue
+            db.execute(text(
+                "INSERT INTO san_xuat_batch_nguoi (batch_id, employee_id, department_id, la_ho_tro, created_at)"
+                " VALUES (:b, :e, :d, :h, :c)"
+            ), {"b": bid, "e": eid, "d": to_goc[eid], "h": la_ht, "c": tao or datetime.now(timezone.utc)})
+    db.commit()
+
+
+MIGRATIONS.append(("0386_batch_nguoi", _migrate_batch_nguoi))
+
+
+_COT_QUYEN_TO_0387 = ("can_read", "can_run_order", "can_confirm_output", "can_warehouse")
+_DO_RONG_PHAM_VI = {"own": 0, "department": 1, "all": 2}
+
+
+def day_quyen_nhom_xuong_to_la(db: Session) -> None:
+    """Quyền ở dòng tổ CHA (`to_sx_<nhóm>`) chép xuống mọi tổ LÁ trong vùng rồi xoá trắng dòng cha.
+
+    Từ 10/10/2026 chỉ tổ lá nhận việc, tổ cha trên thanh bên và ma trận quyền chỉ là NHÓM gập/mở —
+    quyền nằm ở dòng cha là quyền vô hình. Chép xuống giữ nguyên hiệu lực trên các tổ lá: phạm vi
+    tính từ vị trí người xem trong vùng nên "Tất cả" / "Cả phòng" / "Của tôi" của dòng cha cho
+    đúng kết quả đó trên từng tổ lá. Tổ lá đã có quyền thì cộng ô (OR) và lấy phạm vi RỘNG hơn.
+    Raw SQL đích danh cột. Idempotent: lần sau dòng cha đã trắng."""
+    insp = inspect(db.get_bind())
+    if not {"role_permissions", "modules", "departments"} <= set(insp.get_table_names()):
+        return
+    nut = {
+        int(k[len("to_sx_"):])
+        for (k,) in db.execute(text("SELECT key FROM modules WHERE key LIKE 'to_sx_%'")).all()
+        if k[len("to_sx_"):].isdigit()
+    }
+    if not nut:
+        return
+    cha = {did: pid for did, pid in db.execute(text("SELECT id, parent_id FROM departments")).all()}
+    con: dict[int, list[int]] = {}
+    for d in nut:
+        if cha.get(d) in nut:
+            con.setdefault(cha[d], []).append(d)
+
+    def la_trong_vung(goc: int) -> list[int]:
+        ket, hang = [], [goc]
+        while hang:
+            x = hang.pop()
+            if con.get(x):
+                hang.extend(con[x])
+            else:
+                ket.append(x)
+        return ket
+
+    cot = ", ".join(_COT_QUYEN_TO_0387)
+    for goc in [d for d in nut if con.get(d)]:
+        khoa = f"to_sx_{goc}"
+        for role_id, scope, *co in db.execute(text(
+            f"SELECT role_id, scope, {cot} FROM role_permissions WHERE module_key = :k"
+        ), {"k": khoa}).all():
+            if not any(co):
+                continue
+            for la in la_trong_vung(goc):
+                kl = f"to_sx_{la}"
+                cu = db.execute(text(
+                    f"SELECT id, scope, {cot} FROM role_permissions WHERE role_id = :r AND module_key = :k"
+                ), {"r": role_id, "k": kl}).first()
+                if cu is None:
+                    db.execute(text(
+                        f"INSERT INTO role_permissions (role_id, module_key, can_create, can_update,"
+                        f" can_delete, scope, {cot}) VALUES (:r, :k, :f, :f, :f, :s, :c0, :c1, :c2, :c3)"
+                    ), {"r": role_id, "k": kl, "f": False, "s": scope,
+                        **{f"c{i}": bool(v) for i, v in enumerate(co)}})
+                    continue
+                pid, scope_cu, *co_cu = cu
+                moi = [bool(a) or bool(b) for a, b in zip(co, co_cu)]
+                if not any(co_cu):
+                    scope_moi = scope
+                else:
+                    scope_moi = max(scope, scope_cu, key=lambda s: _DO_RONG_PHAM_VI.get(s, 0))
+                db.execute(text(
+                    "UPDATE role_permissions SET scope = :s, can_read = :c0, can_run_order = :c1,"
+                    " can_confirm_output = :c2, can_warehouse = :c3 WHERE id = :id"
+                ), {"s": scope_moi, "id": pid, **{f"c{i}": v for i, v in enumerate(moi)}})
+            db.execute(text(
+                "UPDATE role_permissions SET scope = 'own', can_read = :f, can_create = :f,"
+                " can_update = :f, can_delete = :f, can_run_order = :f, can_confirm_output = :f,"
+                " can_warehouse = :f WHERE role_id = :r AND module_key = :k"
+            ), {"f": False, "r": role_id, "k": khoa})
+    db.commit()
+
+
+MIGRATIONS.append(("0387_quyen_to_cha_xuong_to_la", day_quyen_nhom_xuong_to_la))
+
+
+def _migrate_giay_bo_dang(db: Session) -> None:
+    """0388 — giấy BỎ dạng cuộn/tờ (chủ chốt 10/10/2026): chỉ còn khổ + đơn vị gốc của dòng.
+
+    · `don_vi_goc VARCHAR(16) NOT NULL DEFAULT ''` trên `stock_lots`, `stock_voucher_lines`,
+      `stock_request_lines`, `lsx_cong_doan_vat_tu` (thay `dang_giay`) và `stock_thresholds`,
+      `kho_ky_ton`, `vat_tu_giu_cho` (khoá tồn nay 5 phần tử).
+    · Backfill dòng giấy: `dang_giay = 'to'` ⇒ `'to'`; còn lại (cuộn, giấy cũ NULL) ⇒ `don_vi_gia`
+      của mã giấy. Bảng không có `dang_giay`: đủ hai cạnh khổ ⇒ `'to'` (khoá cũ chỉ tờ mới mang khổ),
+      còn lại ⇒ `don_vi_gia`.
+    · Unique ngưỡng / kỳ tồn thêm `don_vi_goc`; unique dòng đề nghị cấp thêm `dvt_goc`; dựng lại
+      chỉ mục lô + giữ chỗ. Bỏ `dang_giay` (5 bảng) + `supplier_items.dang_ban`.
+    Đọc inspector TRƯỚC lệnh ghi đầu; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot = {t: _existing_columns(insp, t) for t in bang}
+    pg = db.get_bind().dialect.name == "postgresql"
+    cot_id = {"lsx_cong_doan_vat_tu": "vat_tu_id"}
+    co_dang = ("stock_lots", "stock_voucher_lines", "stock_request_lines", "lsx_cong_doan_vat_tu")
+    khong_dang = ("stock_thresholds", "kho_ky_ton", "vat_tu_giu_cho")
+    gia = ("(SELECT COALESCE(lower(g.don_vi_gia), '') FROM giay_nguyen g "
+           "WHERE g.id = {t}.{id})")
+    for t in co_dang + khong_dang:
+        if t not in bang:
+            continue
+        if "don_vi_goc" not in cot[t]:
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN don_vi_goc VARCHAR(16) NOT NULL DEFAULT ''"))
+        hid = cot_id.get(t, "hang_id")
+        if t in co_dang and "dang_giay" in cot[t]:
+            db.execute(text(f"UPDATE {t} SET don_vi_goc = 'to' WHERE hang_loai = 'giay' "
+                            "AND dang_giay = 'to' AND don_vi_goc = ''"))
+        elif t in khong_dang:
+            db.execute(text(f"UPDATE {t} SET don_vi_goc = 'to' WHERE hang_loai = 'giay' "
+                            "AND kho_rong > 0 AND kho_dai > 0 AND don_vi_goc = ''"))
+        if "giay_nguyen" in bang:
+            db.execute(text(f"UPDATE {t} SET don_vi_goc = {gia.format(t=t, id=hid)} "
+                            "WHERE hang_loai = 'giay' AND don_vi_goc = ''"))
+    db.commit()
+
+    db.execute(text("DROP INDEX IF EXISTS ix_stock_lots_giay_kho"))
+    if "stock_lots" in bang:
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_stock_lots_giay_kho "
+                        "ON stock_lots (hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc)"))
+    db.execute(text("DROP INDEX IF EXISTS ix_giu_cho_hang"))
+    if "vat_tu_giu_cho" in bang:
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_giu_cho_hang "
+                        "ON vat_tu_giu_cho (hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc)"))
+    if pg:
+        rang_buoc = {
+            "stock_thresholds": ("uq_stock_thresholds_hang_kho",
+                                 "hang_loai, hang_id, kho_id, kho_rong, kho_dai, don_vi_goc"),
+            "kho_ky_ton": ("uq_kho_ky_ton",
+                           "kho_id, hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc, den_ngay"),
+            "san_xuat_vat_tu_de_nghi_dong": ("uq_sx_vt_dn_dong_hang",
+                                             "de_nghi_id, hang_loai, hang_id, kho_rong, kho_dai, dvt_goc"),
+        }
+        for t, (ten, cols) in rang_buoc.items():
+            if t not in bang:
+                continue
+            # DB nâng cấp dần có thể mang UNIQUE INDEX thay CONSTRAINT (xem mg 0350) — xoá cả hai dạng.
+            db.execute(text(f"ALTER TABLE {t} DROP CONSTRAINT IF EXISTS {ten}"))
+            db.execute(text(f"DROP INDEX IF EXISTS {ten}"))
+            db.execute(text(f"ALTER TABLE {t} ADD CONSTRAINT {ten} UNIQUE ({cols})"))
+    db.commit()
+
+    for t, c in [(t, "dang_giay") for t in co_dang + ("san_xuat_vat_tu_de_nghi_dong",)] + [
+            ("supplier_items", "dang_ban")]:
+        if t in bang and c in cot[t]:
+            db.execute(text(f"ALTER TABLE {t} DROP COLUMN {c}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0388_giay_bo_dang", _migrate_giay_bo_dang))
+
+
+def _migrate_bo_ho_tro_cheo(db) -> None:
+    """mg 0389 — gỡ THỎA THUẬN hỗ trợ chéo (10/10/2026). Chủ xưởng: *"không cần gửi cho bên kia
+    chấp nhận nữa mà cứ thêm vào thôi, lúc ghi sản lượng ấy, còn sản lượng bên kia vẫn nhìn thấy"*.
+
+    Người tổ khác sang giúp nay được tổ thêm thẳng vào lần ghi (`san_xuat_batch_nguoi`, cờ
+    `la_ho_tro`); tổ gốc thấy lần đó ở tab Sản lượng nhờ `department_id` chụp lúc ghi. Người hỗ trợ
+    đã xác nhận của các lần ghi cũ đã được mg 0386 chép vào `san_xuat_batch_nguoi`, nên bỏ bảng
+    không mất ai khỏi lần ghi nào. Lần ghi cũ không bị đụng."""
+    db.execute(text("DROP TABLE IF EXISTS san_xuat_ho_tro"))
+    db.commit()
+
+
+MIGRATIONS.append(("0389_bo_ho_tro_cheo", _migrate_bo_ho_tro_cheo))
+
+
+def _migrate_mat_hang_don_vi_them(db: Session) -> None:
+    """0390 — Giấy + Vật tư khác khai NHIỀU đơn vị tính (chủ chốt 10/10/2026, spec
+    2026-10-10-mat-hang-nhieu-don-vi-tinh).
+
+    · `don_vi_them JSON NULL` trên `giay_nguyen`, `vat_tu_in_an` — đơn vị khai thêm ngoài ĐVT chính.
+    · Giấy: trước đây máy NGẦM cho mọi mã giấy nhập theo họ tờ cạnh họ `don_vi_gia` — nay họ tờ phải
+      khai. Backfill `["to"]` cho mã giấy có ĐVT chính không thuộc họ tờ, để lô / bảng giá / yêu cầu
+      tờ đang có không rơi vào "đơn vị chưa khai". Chỉ ghi khi còn NULL — người khai đã bỏ tờ thì
+      cột là mảng rỗng, chạy lại không đẻ lại.
+    · Vật tư khác (cả Thành phẩm — kho mang `hang_loai = 'vat_tu'`): khoá tồn nay có đơn vị gốc.
+      Dòng cũ `don_vi_goc = ''` ⇒ `lower(don_vi_gia)` của mã (trước nay vật tư chỉ một họ đơn vị).
+    Đọc inspector TRƯỚC lệnh ghi đầu; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot = {t: _existing_columns(insp, t) for t in bang}
+    for t in ("giay_nguyen", "vat_tu_in_an"):
+        if t in bang and "don_vi_them" not in cot[t]:
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN don_vi_them JSON"))
+    if "giay_nguyen" in bang:
+        db.execute(text("UPDATE giay_nguyen SET don_vi_them = '[\"to\"]' WHERE don_vi_them IS NULL "
+                        "AND lower(COALESCE(don_vi_gia, '')) NOT IN ('', 'to', 'ram', 'to_nguyen')"))
+    cot_id = {"lsx_cong_doan_vat_tu": "vat_tu_id"}
+    gia = ("COALESCE((SELECT lower(v.don_vi_gia) FROM vat_tu_in_an v "
+           "WHERE v.id = {t}.{id}), '')")
+    if "vat_tu_in_an" in bang:
+        for t in ("stock_lots", "stock_voucher_lines", "stock_request_lines", "lsx_cong_doan_vat_tu",
+                  "stock_thresholds", "kho_ky_ton", "vat_tu_giu_cho"):
+            if t not in bang or "don_vi_goc" not in cot[t]:
+                continue
+            hid = cot_id.get(t, "hang_id")
+            db.execute(text(f"UPDATE {t} SET don_vi_goc = {gia.format(t=t, id=hid)} "
+                            "WHERE hang_loai = 'vat_tu' AND don_vi_goc = ''"))
+    db.commit()
+
+
+MIGRATIONS.append(("0390_mat_hang_don_vi_them", _migrate_mat_hang_don_vi_them))
+
+
+def _migrate_nguon_lenh_don_vi_goc(db: Session) -> None:
+    """0391 — `yeu_cau_mua_nguon_lenh.don_vi_goc` (11/10/2026): ô mua có đơn vị gốc (keo kg và keo
+    thùng là hai ô), liên kết "mua cho lệnh" phải mang theo để nối đúng dòng. Dòng cũ để rỗng = khớp
+    mọi gốc như trước. Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    if "yeu_cau_mua_nguon_lenh" not in set(insp.get_table_names()):
+        return
+    if "don_vi_goc" in _existing_columns(insp, "yeu_cau_mua_nguon_lenh"):
+        return
+    db.execute(text("ALTER TABLE yeu_cau_mua_nguon_lenh "
+                    "ADD COLUMN don_vi_goc VARCHAR(16) NOT NULL DEFAULT ''"))
+    db.commit()
+
+
+MIGRATIONS.append(("0391_nguon_lenh_don_vi_goc", _migrate_nguon_lenh_don_vi_goc))
+
+
+def _migrate_bo_xac_nhan_nhan_vat_tu(db) -> None:
+    """0392 — gỡ bước tổ bấm "Xác nhận nhận" vật tư (11/10/2026). Chủ xưởng: *"không cần xác nhận
+    nhận gì cả, có phiếu xuất kho là được rồi"*. Phiếu xuất đã ghi sổ là đủ vết tổ có hàng; bảng
+    `san_xuat_vat_tu_nhan` không còn ai đọc."""
+    db.execute(text("DROP TABLE IF EXISTS san_xuat_vat_tu_nhan"))
+    db.commit()
+
+
+MIGRATIONS.append(("0392_bo_xac_nhan_nhan_vat_tu", _migrate_bo_xac_nhan_nhan_vat_tu))
+
+
+def _migrate_bo_phan_yeu_cau_theo_nguoi_tao(db: Session) -> None:
+    """0393 — yêu cầu kho sinh từ sản xuất mang bộ phận của NGƯỜI tạo (11/10/2026), không phải tổ của
+    công đoạn: nhập thành phẩm KCS, đề nghị cấp vật tư, nhập lại vật tư thừa. Đổi lại yêu cầu cũ theo
+    phòng hiện tại của người tạo. Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "stock_requests" not in bang:
+        return
+    cot = _existing_columns(insp, "stock_requests")
+    ve = [f"{c} IS NOT NULL" for c in ("san_xuat_cong_viec_id", "vat_tu_tra_cong_viec_id") if c in cot]
+    if "san_xuat_vat_tu_de_nghi" in bang:
+        ve.append("id IN (SELECT stock_request_id FROM san_xuat_vat_tu_de_nghi "
+                  "WHERE stock_request_id IS NOT NULL)")
+    if not ve:
+        return
+    db.execute(text(
+        "UPDATE stock_requests SET bo_phan_id = "
+        "(SELECT u.department_id FROM users u WHERE u.id = stock_requests.nguoi_tao_id) "
+        f"WHERE nguoi_tao_id IS NOT NULL AND ({' OR '.join(ve)})"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0393_bo_phan_yeu_cau_theo_nguoi_tao", _migrate_bo_phan_yeu_cau_theo_nguoi_tao))
+
+
+def _migrate_thanh_pham_theo_khach(db: Session) -> None:
+    """0394 — thành phẩm THUỘC VỀ KHÁCH + tái bản theo mã (11/10/2026, plan
+    docs/superpowers/plans/2026-10-11-thanh-pham-theo-khach-tai-ban.md).
+
+    · `order_lines.thanh_pham_id` — mã thành phẩm của cụm bán, đóng dấu lúc chốt đơn.
+    · `phieu_thanh_phan.tai_ban_thanh_pham_id` — sản phẩm tái bản đang gắn trên thẻ phiếu.
+    · `vat_tu_in_an.cau_hinh_tai_ban` + `tai_ban_luc` — cấu hình kỹ thuật của lần chốt gần nhất.
+    Backfill `cau_hinh_tai_ban` một lần từ bảng cũ `san_pham_tai_ban` (khoá theo tên thành phần):
+    lấy ĐƠN ĐẦU TIÊN của mã, gom cụm như `cum_ban`, cụm trùng tên mã ⇒ cấu hình từng dòng của cụm.
+    Dòng đơn cũ KHÔNG backfill `thanh_pham_id` — chỗ đọc rơi về tìm theo (khách, tên).
+    Đọc inspector TRƯỚC lệnh ghi đầu; raw SQL đích danh cột; idempotent."""
+    from sqlalchemy import JSON, bindparam
+
+    from .services.san_pham_tai_ban_service import chuan_hoa_ten
+    from .services.thanh_pham_khai_bao import chuan_ten
+
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot = {t: _existing_columns(insp, t) for t in ("order_lines", "phieu_thanh_phan", "vat_tu_in_an")
+           if t in bang}
+    if "order_lines" in cot and "thanh_pham_id" not in cot["order_lines"]:
+        db.execute(text("ALTER TABLE order_lines ADD COLUMN thanh_pham_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_order_lines_thanh_pham_id "
+                        "ON order_lines (thanh_pham_id)"))
+    if "phieu_thanh_phan" in cot and "tai_ban_thanh_pham_id" not in cot["phieu_thanh_phan"]:
+        db.execute(text("ALTER TABLE phieu_thanh_phan ADD COLUMN tai_ban_thanh_pham_id INTEGER"))
+    if "vat_tu_in_an" not in cot:
+        db.commit()
+        return
+    if "cau_hinh_tai_ban" not in cot["vat_tu_in_an"]:
+        db.execute(text("ALTER TABLE vat_tu_in_an ADD COLUMN cau_hinh_tai_ban JSON"))
+    if "tai_ban_luc" not in cot["vat_tu_in_an"]:
+        db.execute(text("ALTER TABLE vat_tu_in_an ADD COLUMN tai_ban_luc TIMESTAMP WITH TIME ZONE"))
+
+    if not {"san_pham_tai_ban", "order_lines", "phieu_thanh_phan"} <= bang:
+        db.commit()
+        return
+    mau = {r[0]: r[1] for r in db.execute(text(
+        "SELECT ten_chuan_hoa, cau_hinh_json FROM san_pham_tai_ban")).all()}
+    ten_tp = {r[0]: r[1] for r in db.execute(text("SELECT id, ten FROM phieu_thanh_phan")).all()}
+    ghi = text("UPDATE vat_tu_in_an SET cau_hinh_tai_ban = :j, tai_ban_luc = :t WHERE id = :i") \
+        .bindparams(bindparam("j", type_=JSON))
+    luc = datetime.now(timezone.utc)
+    for tp_id, ten, order_id in db.execute(text(
+            "SELECT id, ten, order_id FROM vat_tu_in_an WHERE la_thanh_pham = :c "
+            "AND order_id IS NOT NULL AND cau_hinh_tai_ban IS NULL"), {"c": True}).all():
+        cums: dict[str, tuple[str, list]] = {}
+        for lid, nhom, mo_ta, qty, ptp in db.execute(text(
+                "SELECT id, nhom, description, qty, phieu_thanh_phan_id FROM order_lines "
+                "WHERE order_id = :o ORDER BY id"), {"o": order_id}).all():
+            nhan = (nhom or "").strip()
+            khoa = f"{nhan.lower()}|{float(qty or 0):g}" if nhan else f"line:{lid}"
+            cums.setdefault(khoa, (nhan or (mo_ta or ""), []))[1].append(ptp)
+        cfgs = []
+        for ten_cum, ptps in cums.values():
+            if chuan_ten(ten_cum) != chuan_ten(ten):
+                continue
+            for ptp in ptps:
+                cfg = mau.get(chuan_hoa_ten(ten_tp.get(ptp))) if ptp else None
+                if isinstance(cfg, str):
+                    cfg = json.loads(cfg)
+                if cfg:
+                    cfgs.append(cfg)
+            break
+        if cfgs:
+            db.execute(ghi, {"j": cfgs, "t": luc, "i": tp_id})
+    db.commit()
+
+
+MIGRATIONS.append(("0394_thanh_pham_theo_khach", _migrate_thanh_pham_theo_khach))

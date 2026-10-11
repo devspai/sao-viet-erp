@@ -31,6 +31,7 @@ O_DU_HANG = "du_hang"          # kho đã nhận đủ / nhà gia công giao th�
 O_NGOAI = "ngoai"              # có lệnh đang nằm ở nhà gia công
 O_XUONG = "xuong"              # có lệnh đang chạy trong xưởng
 O_CHO_KHO = "cho_kho"          # lệnh xong hết bước mà KCS / kho chưa nhận đủ
+O_DONG_THIEU = "dong_thieu"    # mọi lệnh đã ĐÓNG, kho không còn gì chờ nhận mà hàng vẫn chưa đủ số đặt
 O_CHUA_XUONG = "chua_xuong"    # có lệnh nhưng chưa phát hành xuống xưởng
 O_CHUA_LENH = "chua_lenh"      # không có lệnh, tồn kho không đủ
 
@@ -48,7 +49,7 @@ CHO_TAT_CA = (CHO_COC, CHO_KE_HOACH, CHO_XUONG, CHO_GIA_CONG, CHO_KHO, CHO_GIAO,
 _O_SANG_CHO = {O_NGOAI: CHO_GIA_CONG, O_XUONG: CHO_XUONG, O_CHO_KHO: CHO_KHO,
                O_CHUA_XUONG: CHO_KE_HOACH, O_CHUA_LENH: CHO_KE_HOACH}
 # Cụm nhiều lệnh: chỗ nào đứng trước thì đại diện cho cụm.
-_THU_TU_O = (O_CHUA_LENH, O_CHUA_XUONG, O_NGOAI, O_XUONG, O_CHO_KHO, O_DU_HANG)
+_THU_TU_O = (O_CHUA_LENH, O_CHUA_XUONG, O_NGOAI, O_XUONG, O_CHO_KHO, O_DONG_THIEU, O_DU_HANG)
 
 
 def _lenh_mot(bc, l: Lsx, gcns: list) -> dict:
@@ -132,10 +133,10 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
             c = n["cum"]
             ds = [_lenh_mot(bc, lenh[i], gcn_theo_lenh.get(i, [])) for i in n["lsx_ids"]]
             giao_thang = int(n.get("giao_thang", 0))
-            if n["co_lenh"]:
-                co = n["kho_da_nhan"] + giao_thang
-            else:
-                co = n["da_giao"] + n["dang_giu"] + n["giao_duoc"]
+            # Hàng ĐÃ CÓ = đã giao (kể cả giao thẳng) + đang giữ cho yêu cầu + còn giao được từ tồn
+            # của mã. Từ 11/10/2026 (mg 0394) tồn của mã là hàng của khách, nên món có lệnh cũng tính
+            # được hàng làm dư của đơn trước — không chỉ phần kho nhận từ lệnh của chính đơn.
+            co = n["da_giao"] + n["dang_giu"] + n["giao_duoc"]
             co = max(0.0, min(float(n["dat"]), float(co)))
             du = co >= n["dat"]
             if du:
@@ -146,7 +147,13 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
                 o_cum = min((x["o"] for x in ds), key=_THU_TU_O.index)
                 if o_cum == O_DU_HANG:      # mọi lệnh "xong" mà hàng chưa đủ ⇒ chờ KCS / kho
                     o_cum = O_CHO_KHO
-            if not du and not n["khach_nhan_du"]:
+                # Lệnh đã ĐÓNG hết và kho không còn phiếu KCS nào chờ nhận ⇒ chẳng còn gì đang tới:
+                # là đóng THIẾU, không phải "chờ KCS" (11/10/2026 — DH002 đóng lệnh ở 240/1.000 cuốn
+                # mà màn vẫn báo chờ KCS gửi kho). Đơn chuyển sang giao phần đã có.
+                if (o_cum == O_CHO_KHO and all(lenh[i].trang_thai == TT_DA_DONG for i in n["lsx_ids"])
+                        and n["kho_de_nghi"] - n["kho_da_nhan"] <= 1e-9):
+                    o_cum = O_DONG_THIEU
+            if not du and not n["khach_nhan_du"] and o_cum != O_DONG_THIEU:
                 # Khách đã nhận đủ thì sản xuất / kho không còn giữ đơn — sổ kho có trễ cũng vậy.
                 for x in ds or [{"o": O_CHUA_LENH}]:
                     if x["o"] in _O_SANG_CHO:

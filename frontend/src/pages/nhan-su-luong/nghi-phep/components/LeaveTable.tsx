@@ -51,6 +51,7 @@ export function cotDonNghi({ selectable, showEmployee, nguoiDuyet }: {
     { key: "ngay", label: "Ngày nghỉ", w: 150 },
     { key: "so_ngay", label: "Số ngày", n: true, w: 84 },
     { key: "tt", label: "Trạng thái", w: 150 },
+    { key: "duyet", label: "NV duyệt", w: 150 },
     { key: "ly_do", label: "Lý do" }, // co giãn
     { key: "tao", label: "Ngày tạo", w: 108 },
     { key: "nut", label: "Thao tác", coDinh: true, w: nguoiDuyet ? 76 : 48 },
@@ -113,6 +114,13 @@ export function LeaveTable({ items, showEmployee, onCancel, onApprove, onReject,
           <td key={key} className="np-don__tt">
             <ChipTT mau={mauTT}>{nhanTT}</ChipTT>
             <XinHuyNhan yc={r.yeu_cau_huy} />
+          </td>
+        );
+      case "duyet":
+        // Người duyệt hoặc từ chối; đơn đang chờ thì trống. Rê chuột xem giờ quyết.
+        return (
+          <td key={key} title={r.decided_at ? `${r.status === "rejected" ? "Từ chối" : "Duyệt"} lúc ${fmtDateTime(r.decided_at)}` : undefined}>
+            {r.decided_by_name ?? <span className="lds-mu3">—</span>}
           </td>
         );
       case "ly_do":

@@ -7,6 +7,7 @@ mg `0329`): Xem = vào màn + sổ nhập-xuất + NXT + export Excel; ô chi ti
 """
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -36,10 +37,11 @@ from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.kho_hang_repo import KhoHangRepository
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
+from ..repositories.nguon_phieu_kho_repo import NguonPhieu, NguonPhieuKhoRepository
 from ..repositories.tim_khong_dau import bo_dau
 from ..repositories.user_repo import UserRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
-from ..services.kho_giay import don_vi_goc_to, nhan_kho
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, nhan_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.vat_lieu_kho_service import VatLieuKhoService
 from ..schemas.stock import (
@@ -54,6 +56,8 @@ from ..schemas.stock import (
     KhoKhoaSoIn,
     KhoKhoaSoRow,
     KyDaTinhRow,
+    LuaChonBaoCaoKho,
+    LuaChonDem,
     ThanhPhamChuaGiaGocPage,
     TinhGiaKyIn,
 )
@@ -154,7 +158,14 @@ def _report_rows(
         stmt = stmt.where(StockVoucher.kho_id == kho_id)
     stmt = stmt.order_by(StockVoucher.ngay, StockVoucher.id, StockVoucherLine.id)
 
-    results = db.execute(stmt).all()
+    # NGÀY HẠCH TOÁN = NGÀY NHẬP/XUẤT KHO trên phiếu (`v.ngay`) — CÙNG mốc với khóa kỳ, nên
+    # phiếu bị chặn ở kỳ nào thì cũng nằm đúng kỳ đó trên sổ. Kỳ theo ngày ghi sổ khi `moc`
+    # = `ghi_so` (vai kiểm toán: ai bấm lúc nào). Lọc kỳ TRƯỚC rồi mới tra danh mục + nguồn phiếu.
+    def trong_ky(v) -> bool:
+        d = _ngay_moc(v, moc)
+        return not ((tu and (d is None or d < tu)) or (den and (d is None or d > den)))
+
+    results = [r for r in db.execute(stmt).all() if trong_ky(r[0])]
     # Mã / tên / ĐVT mặt hàng tra từ DANH MỤC GỐC theo (hang_loai, hang_id) — bảng `materials` đã bỏ.
     hang_svc = VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db))
     hang_map = hang_svc.map_theo_cap(
@@ -163,19 +174,16 @@ def _report_rows(
     # ĐVT trên báo cáo hiện TÊN có dấu (tờ · cái · bản kẽm) thay vì MÃ ascii (to · cai · kem) —
     # `mh.don_vi_gia` là MÃ đơn vị; tra danh mục `don_vi_do` để đổi sang tên hiển thị (khớp danh mục).
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
-    dv_to = don_vi_goc_to()
+    tra_khoa = _TraKyKhoa(db)
+    nguon = NguonPhieuKhoRepository(db).tra(
+        reqs=list({id(req): req for _v, _ln, req, _k, _l in results if req is not None}.values()),
+        dong_yc_ids={ln.request_line_id for _v, ln, _req, _k, _l in results if ln.request_line_id},
+        nguoi_ids={v.nguoi_lap_id for v, _ln, _req, _k, _l in results if v.nguoi_lap_id},
+    )
 
     rows: list[BaoCaoKhoRow] = []
     for v, ln, req, kho, lot in results:
         mh = hang_map.get((ln.hang_loai, ln.hang_id))
-        # NGÀY HẠCH TOÁN = NGÀY NHẬP/XUẤT KHO trên phiếu (`v.ngay`) — CÙNG mốc với khóa kỳ, nên
-        # phiếu bị chặn ở kỳ nào thì cũng nằm đúng kỳ đó trên sổ. Kỳ theo ngày ghi sổ khi `moc`
-        # = `ghi_so` (vai kiểm toán: ai bấm lúc nào).
-        d = _ngay_moc(v, moc)
-        if tu and (d is None or d < tu):
-            continue
-        if den and (d is None or d > den):
-            continue
         # SỐ LƯỢNG · ĐƠN GIÁ · THÀNH TIỀN đều theo ĐƠN VỊ GỐC — khớp tồn kho + ĐVT danh mục và
         # khớp cách tính giá vốn phiếu (`cost_of`): NHẬP quy đơn giá về ĐV gốc, XUẤT lấy giá vốn
         # lô (vốn đã theo ĐV gốc) × `sl_goc`. Nhân nhầm `so_luong` là lệch đúng bằng hệ số quy đổi.
@@ -194,10 +202,12 @@ def _report_rows(
             loai_kho=req.loai_kho if req else None,
             ma_hang=getattr(mh, "ma", None),
             ten_hang=getattr(mh, "ten", None),
-            # Dòng giấy TỜ đếm bằng "tờ" (`to`, lô/phiếu tờ lưu số tờ); còn lại đơn vị gốc của mã.
-            dvt=(dv_ten.get(dv_to, dv_to) if ln.dang_giay == "to" else
+            # Dòng giấy / vật tư đếm theo ĐƠN VỊ GỐC của chính dòng (đơn vị đã khai); hàng khác đơn vị
+            # gốc của mã.
+            dvt=(dv_ten.get(ln.don_vi_goc, ln.don_vi_goc)
+                 if (co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc) else
                  dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None))),
-            dang_giay=ln.dang_giay, kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
+            don_vi_goc=ln.don_vi_goc or "", kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
             so_luong=qty,
             don_gia=price,
             thanh_tien=round(price * qty) if price is not None else None,
@@ -205,15 +215,226 @@ def _report_rows(
             kho_ten=getattr(kho, "ten", None),
             han_su_dung=getattr(lot, "hsd", None),  # NHẬP: lô vừa tạo · XUẤT: lô bị xuất
             dieu_chuyen=bool(getattr(v, "dieu_chuyen", False)),
+            hang_loai=ln.hang_loai,
+            nhom_hang=_nhom_hang(ln.hang_loai, mh),
+            ky_khoa=tra_khoa.ten(v.kho_id, v.ngay),
+            **_nguon_dong(v, ln, req, nguon),
         )
-        if not _khop_tim(ql, row.so_ct, row.ma_hang, row.ten_hang):
+        if not _khop_tim(ql, row.so_ct, row.ma_hang, row.ten_hang, row.lenh, row.don_hang,
+                         row.khach_hang, row.nha_cung_cap):
             continue
         rows.append(row)
     return rows
 
 
+# --- Nhóm hàng + nguồn phiếu (11/10/2026) ----------------------------------------------------------
+#
+# Thành phẩm nằm chung danh mục Vật tư khác (cờ `la_thanh_pham`), nên "Loại hàng" của báo cáo tách
+# ba nhóm: Giấy · Vật tư · Thành phẩm. Lý do nhập/xuất suy từ cột NGUỒN của yêu cầu kho (đợt mua,
+# công đoạn KCS, gia công ngoài, trả vật tư thừa, chuyến giao hàng, lệnh của dòng).
+
+_NHAN_LY_DO = {
+    "nhap_mua": "Nhập mua hàng",
+    "nhap_thanh_pham": "Nhập thành phẩm từ sản xuất",
+    "nhap_gia_cong": "Nhập hàng gia công ngoài",
+    "nhap_tra_vat_tu": "Nhập lại vật tư thừa",
+    "nhap_khac": "Nhập khác",
+    "xuat_giao_khach": "Xuất giao khách",
+    "xuat_san_xuat": "Xuất cho sản xuất",
+    "xuat_gia_cong": "Xuất cho gia công ngoài",
+    "xuat_khac": "Xuất khác",
+}
+
+
+def _nhom_hang(hang_loai: str | None, mh) -> str | None:
+    if hang_loai == "vat_tu" and getattr(mh, "la_thanh_pham", False):
+        return "thanh_pham"
+    return hang_loai
+
+
+def _ly_do(v, req, co_lenh: bool) -> str:
+    nhap = v.loai == VOUCHER_NHAP
+    if req is not None:
+        if nhap:
+            if req.purchase_delivery_id:
+                return "nhap_mua"
+            if req.san_xuat_cong_viec_id:
+                return "nhap_thanh_pham"
+            if req.gia_cong_ngoai_id:
+                return "nhap_gia_cong"
+            if req.vat_tu_tra_cong_viec_id:
+                return "nhap_tra_vat_tu"
+        else:
+            if req.delivery_trip_id:
+                return "xuat_giao_khach"
+            if req.gia_cong_ngoai_id:
+                return "xuat_gia_cong"
+            if co_lenh:
+                return "xuat_san_xuat"
+    return "nhap_khac" if nhap else "xuat_khac"
+
+
+def _nguon_dong(v, ln, req, n: NguonPhieu) -> dict:
+    """Các cột nguồn của một dòng phiếu: lý do, lệnh, đơn, khách, NCC, bộ phận, người lập…"""
+    gcn = n.gia_cong.get(req.gia_cong_ngoai_id) if req is not None and req.gia_cong_ngoai_id else None
+    lsx_id = n.lsx_cua_dong.get(ln.request_line_id) or (gcn[1] if gcn else None)
+    lsx = n.lsx.get(lsx_id) if lsx_id else None
+    chuyen = n.chuyen_don.get(req.delivery_trip_id) if req is not None and req.delivery_trip_id else None
+    don_id = (lsx[1] if lsx else None) or (chuyen[0] if chuyen else None)
+    don = n.don.get(don_id) if don_id else None
+    khach_id = (don[1] if don else None) or (chuyen[1] if chuyen else None)
+    ly_do = _ly_do(v, req, lsx is not None)
+    ncc = (n.ncc_dot_mua.get(req.purchase_delivery_id) if req is not None and req.purchase_delivery_id
+           else None) or (gcn[0] or None if gcn else None)
+    return dict(
+        ly_do=ly_do,
+        ly_do_ten=_NHAN_LY_DO[ly_do],
+        lenh=lsx[0] if lsx else None,
+        don_hang=don[0] if don else None,
+        khach_hang=n.khach.get(khach_id) if khach_id else None,
+        nha_cung_cap=ncc,
+        bo_phan=n.bo_phan.get(req.bo_phan_id) if req is not None and req.bo_phan_id else None,
+        ma_yeu_cau=req.ma if req is not None else None,
+        nguoi_giao_nhan=v.nguoi_giao_nhan or None,
+        nguoi_lap=n.nguoi.get(v.nguoi_lap_id) if v.nguoi_lap_id else None,
+        dien_giai=v.ghi_chu or (req.ghi_chu if req is not None else None),
+    )
+
+
 #: Mốc kỳ của Sổ kho trên thanh lọc chung: ngày chứng từ (nhập/xuất kho) hoặc ngày ghi sổ.
 _MOC_SO = "^(ct|ghi_so)$"
+
+
+# --- Nút "Lọc" của các bảng báo cáo (11/10/2026): điều kiện THUỘC TÍNH, lọc + đếm ở máy chủ ----------
+#
+# Cùng một bộ cho Chi tiết phiếu (nhập · xuất · chuyển) và Nhập-Xuất-Tồn, để màn và file Excel lọc
+# giống hệt nhau. Giá trị chọn được + số dòng (`lua_chon`) đếm TRƯỚC khi áp các điều kiện này — chọn
+# "Giấy" thì menu "Mặt hàng" vẫn bày đủ hàng của kỳ, không tự co lại mất lựa chọn.
+
+_NHAN_LOAI = {"giay": "Giấy", "vat_tu": "Vật tư", "thanh_pham": "Thành phẩm"}
+_NHAN_LOAI_PHIEU = {"NHAP": "Phiếu nhập", "XUAT": "Phiếu xuất"}
+#: Điều kiện chọn nhiều so thẳng với một thuộc tính chữ của dòng Chi tiết phiếu: (tên điều kiện, thuộc tính).
+#: Chỉ giữ cái người ta thật sự cắt báo cáo theo (11/10/2026) — lệnh, bộ phận, người lập… là CỘT để đọc,
+#: cần tìm thì gõ ô Tìm; khổ giấy, ĐVT, kỳ khóa sổ, giá gốc thành phẩm đã bỏ khỏi menu Lọc.
+_LOC_THEO_COT = (("loai_phieu", "loai"), ("ly_do", "ly_do"), ("khach_hang", "khach_hang"),
+                 ("nha_cung_cap", "nha_cung_cap"))
+_NHAN_PHAT_SINH = {"nhap": "Có nhập trong kỳ", "xuat": "Có xuất trong kỳ", "khong": "Không phát sinh"}
+_NHAN_TON = {"con": "Còn tồn cuối kỳ", "het": "Hết tồn", "am": "Tồn âm"}
+_EPS = 1e-9
+
+
+class LocThuocTinh:
+    """Điều kiện thuộc tính chung (chọn nhiều — khớp một trong các giá trị là giữ)."""
+
+    def __init__(
+        self,
+        hang_loai: list[str] | None = Query(default=None, description="giay | vat_tu | thanh_pham"),
+        mat_hang: list[str] | None = Query(default=None, description="Mã hàng"),
+        phat_sinh: list[str] | None = Query(default=None, description="nhap | xuat | khong (chỉ N-X-T)"),
+        ton: list[str] | None = Query(default=None, description="con | het | am (chỉ N-X-T)"),
+        loai_phieu: list[str] | None = Query(default=None, description="NHAP | XUAT (Chi tiết phiếu)"),
+        ly_do: list[str] | None = Query(default=None),
+        khach_hang: list[str] | None = Query(default=None),
+        nha_cung_cap: list[str] | None = Query(default=None),
+    ) -> None:
+        self.hang_loai = set(hang_loai or [])
+        self.mat_hang = set(mat_hang or [])
+        self.phat_sinh = set(phat_sinh or [])
+        self.ton = set(ton or [])
+        self.theo_cot = {k: set(v) for k, v in (
+            ("loai_phieu", loai_phieu), ("ly_do", ly_do), ("khach_hang", khach_hang),
+            ("nha_cung_cap", nha_cung_cap)) if v}
+
+
+LocTT = Annotated[LocThuocTinh, Depends()]
+
+
+def _phat_sinh_cua(r) -> set[str]:
+    ps = set()
+    if r.nhap_sl > _EPS:
+        ps.add("nhap")
+    if r.xuat_sl > _EPS:
+        ps.add("xuat")
+    return ps or {"khong"}
+
+
+def _ton_cua(r) -> str:
+    return "con" if r.cuoi_sl > _EPS else "am" if r.cuoi_sl < -_EPS else "het"
+
+
+def _nhom_cua(r) -> str | None:
+    return getattr(r, "nhom_hang", None) or r.hang_loai
+
+
+def _khop_thuoc_tinh(r, loc: LocThuocTinh) -> bool:
+    if loc.hang_loai and _nhom_cua(r) not in loc.hang_loai:
+        return False
+    for khoa, thuoc_tinh in _LOC_THEO_COT:
+        chon = loc.theo_cot.get(khoa)
+        if chon and getattr(r, thuoc_tinh, None) not in chon:
+            return False
+    if loc.mat_hang and (r.ma_hang or "") not in loc.mat_hang:
+        return False
+    if loc.phat_sinh and not (_phat_sinh_cua(r) & loc.phat_sinh):
+        return False
+    if loc.ton and _ton_cua(r) not in loc.ton:
+        return False
+    return True
+
+
+def _lua_chon(rows: list, *, nxt: bool = False) -> LuaChonBaoCaoKho:
+    """Giá trị + số dòng cho menu Lọc, đếm trên `rows` (chưa áp điều kiện thuộc tính)."""
+    dem: dict[str, Counter] = {k: Counter() for k in ("hang_loai", "mat_hang", "phat_sinh", "ton",
+                                                      *(k for k, _a in _LOC_THEO_COT))}
+    ten_hang: dict[str, str] = {}
+    for r in rows:
+        if _nhom_cua(r):
+            dem["hang_loai"][_nhom_cua(r)] += 1
+        for khoa, thuoc_tinh in _LOC_THEO_COT:
+            if (v := getattr(r, thuoc_tinh, None)):
+                dem[khoa][v] += 1
+        if r.ma_hang:
+            dem["mat_hang"][r.ma_hang] += 1
+            ten_hang.setdefault(r.ma_hang, r.ten_hang or r.ma_hang)
+        if nxt:
+            for p in _phat_sinh_cua(r):
+                dem["phat_sinh"][p] += 1
+            dem["ton"][_ton_cua(r)] += 1
+
+    def ds(khoa: str, nhan, *, thu_tu: list[str] | None = None) -> list[LuaChonDem]:
+        c = dem[khoa]
+        keys = [v for v in thu_tu if v in c] if thu_tu else sorted(c, key=lambda v: bo_dau(nhan(v)))
+        return [LuaChonDem(value=v, nhan=nhan(v), so=c[v]) for v in keys]
+
+    return LuaChonBaoCaoKho(
+        hang_loai=ds("hang_loai", lambda v: _NHAN_LOAI.get(v, v), thu_tu=list(_NHAN_LOAI)),
+        mat_hang=ds("mat_hang", lambda v: ten_hang.get(v, v)),
+        phat_sinh=ds("phat_sinh", lambda v: _NHAN_PHAT_SINH[v], thu_tu=list(_NHAN_PHAT_SINH)),
+        ton=ds("ton", lambda v: _NHAN_TON[v], thu_tu=list(_NHAN_TON)),
+        # Báo cáo nhập-xuất không cho chọn chiều (đã gộp một bảng) thì dòng chuyển kho không có `loai`.
+        loai_phieu=ds("loai_phieu", lambda v: _NHAN_LOAI_PHIEU.get(v, v), thu_tu=list(_NHAN_LOAI_PHIEU)),
+        ly_do=ds("ly_do", lambda v: _NHAN_LY_DO.get(v, v), thu_tu=list(_NHAN_LY_DO)),
+        khach_hang=ds("khach_hang", lambda v: v),
+        nha_cung_cap=ds("nha_cung_cap", lambda v: v),
+    )
+
+
+class _TraKyKhoa:
+    """Tra kỳ ĐÃ KHÓA SỔ phủ (kho, ngày) cho cả loạt dòng với MỘT lần đọc DB. Luật như `is_locked`:
+    bản ghi khóa/mở MỚI NHẤT phủ ngày đó quyết định; bản ghi toàn kho (kho_id NULL) phủ mọi kho."""
+
+    def __init__(self, db: Session) -> None:
+        self.ds = KhoKhoaSoRepository(db).tat_ca()
+
+    def ten(self, kho_id: int | None, d: date | None) -> str | None:
+        if d is None:
+            return None
+        for l in self.ds:
+            if l.tu_ngay <= d <= l.den_ngay and (l.kho_id is None or l.kho_id == kho_id):
+                if l.hanh_dong != "khoa":
+                    return None
+                return (l.ten or "").strip() or f"{_fmt_date(l.tu_ngay)} – {_fmt_date(l.den_ngay)}"
+        return None
 
 
 def _loc_so_va_trang(
@@ -241,6 +462,7 @@ def bao_cao_dong(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
+    loc: LocTT,
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query("ct", pattern=_MOC_SO),
@@ -261,11 +483,13 @@ def bao_cao_dong(
         _report_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, loai=loai, q=q, moc=moc),
         "so", cho_xem,
     )
+    lua_chon = _lua_chon(rows)
+    rows = [r for r in rows if _khop_thuoc_tinh(r, loc)]
     items, total, tong = _loc_so_va_trang(
         rows, cho_xem=cho_xem, price_attr="don_gia", total_attr="thanh_tien",
         sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
         page=page, size=size)
-    return BaoCaoKhoPage(items=items, total=total, tong_tien=tong)
+    return BaoCaoKhoPage(items=items, total=total, tong_tien=tong, lua_chon=lua_chon)
 
 
 @router.get("/bao-cao/thanh-pham-chua-gia-goc", response_model=ThanhPhamChuaGiaGocPage)
@@ -273,20 +497,21 @@ def thanh_pham_chua_gia_goc(
     db: Db,
     _: Annotated[User, Depends(require_permission(MODULE, "view_cost"))],
     q: str | None = Query(default=None, max_length=100),
-    chi_chua_gia: bool = Query(default=True),
+    gia: str = Query(default="chua", pattern="^(chua|co|tat_ca)$"),
     tu: date | None = Query(default=None),
     den: date | None = Query(default=None),
-    kho_id: int | None = Query(default=None),
-    khach_hang_id: int | None = Query(default=None),
+    kho_id: list[int] | None = Query(default=None),
+    khach_hang_id: list[int] | None = Query(default=None),
+    hang_id: list[int] | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=200),
 ) -> ThanhPhamChuaGiaGocPage:
-    """Lô gốc thành phẩm nhập từ KCS ở MỌI kho — mặc định chỉ lô còn giá gốc 0 đ. Lọc nâng cao: khoảng
-    ngày nhập (`tu`/`den`), kho nhập, khách hàng. Phân trang máy chủ."""
+    """Lô gốc thành phẩm nhập từ KCS ở MỌI kho — mặc định chỉ lô còn giá gốc 0 đ (`gia=chua`). Nút
+    Lọc: khoảng ngày nhập (`tu`/`den`), kho nhập, khách hàng, mặt hàng (chọn nhiều). Phân trang máy chủ."""
     try:
         return ThanhPhamChuaGiaGocPage(**kho_gia_goc_service.ds_chua_gia_goc(
-            db, q=q, chi_chua_gia=chi_chua_gia, page=page, size=size,
-            tu_ngay=tu, den_ngay=den, kho_id=kho_id, khach_hang_id=khach_hang_id))
+            db, q=q, gia=gia, page=page, size=size,
+            tu_ngay=tu, den_ngay=den, kho_id=kho_id, khach_hang_id=khach_hang_id, hang_id=hang_id))
     except kho_gia_goc_service.GiaGocError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
 
@@ -324,6 +549,7 @@ def _chuyen_kho_rows(
         list({(ln.hang_loai, ln.hang_id) for _v, ln, _req, _k in results})
     )
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
+    tra_khoa = _TraKyKhoa(db)
 
     rows: list[BaoCaoChuyenKhoRow] = []
     for v, ln, req, kho in results:
@@ -357,6 +583,9 @@ def _chuyen_kho_rows(
             kho_xuat_id=nguon_id,       # kho nguồn — cho FE tô kỳ đã khóa
             kho_nhap_id=v.kho_id,       # kho đích (phiếu nhập đích ghi sổ ở đây)
             dien_giai=v.ghi_chu or (req.ghi_chu if req else None),
+            hang_loai=ln.hang_loai,
+            nhom_hang=_nhom_hang(ln.hang_loai, mh),
+            ky_khoa=tra_khoa.ten(v.kho_id, v.ngay) or tra_khoa.ten(nguon_id, v.ngay),
         )
         if not _khop_tim(ql, row.so_ct, row.ma_hang, row.ten_hang):
             continue
@@ -369,6 +598,7 @@ def bao_cao_chuyen_kho(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
+    loc: LocTT,
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query("ct", pattern=_MOC_SO),
@@ -388,11 +618,13 @@ def bao_cao_chuyen_kho(
         _chuyen_kho_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, q=q, moc=moc),
         "chuyen", cho_xem,
     )
+    lua_chon = _lua_chon(rows)
+    rows = [r for r in rows if _khop_thuoc_tinh(r, loc)]
     items, total, tong = _loc_so_va_trang(
         rows, cho_xem=cho_xem, price_attr="don_gia_von", total_attr="tien_von",
         sl_from=sl_from, sl_to=sl_to, dg_from=dg_from, dg_to=dg_to, tt_from=tt_from, tt_to=tt_to,
         page=page, size=size)
-    return BaoCaoChuyenKhoPage(items=items, total=total, tong_tien=tong)
+    return BaoCaoChuyenKhoPage(items=items, total=total, tong_tien=tong, lua_chon=lua_chon)
 
 
 # --- Nhập-Xuất-Tồn theo kỳ (bình quân gia quyền cuối kỳ) — kiểu MISA "Tính giá kỳ" ------------
@@ -407,12 +639,16 @@ def bao_cao_chuyen_kho(
 # (định giá BQ gộp lịch sử trước — chỉ dùng cho lần bootstrap). SL khớp tồn thật (Σ nhập − Σ xuất);
 # GT là bản dựng theo BQ. BAO GỒM điều chuyển (nhập/xuất thật của từng kho).
 
-def _kho_nxt(ln) -> tuple[int, int]:
-    """Khổ của dòng phiếu trong N-X-T: giấy TỜ ⇒ (rộng, dài) — tách dòng, đếm tờ; còn lại (cuộn, kg
-    cũ, hàng khác) ⇒ (0, 0) gom theo mã. Tờ với kg khác thang nên không bao giờ chung một dòng."""
-    if ln.hang_loai == "giay" and ln.dang_giay == "to" and ln.kho_rong and ln.kho_dai:
-        return (int(ln.kho_rong), int(ln.kho_dai))
-    return (0, 0)
+def _kho_nxt(ln) -> tuple[int, int, str]:
+    """(rộng, dài, đơn vị gốc) của dòng phiếu trong N-X-T: giấy tách dòng theo khổ + đơn vị gốc, vật tư
+    theo đơn vị gốc (cùng khoá tồn — tờ với kg, thùng với kg khác thang nên không bao giờ chung một
+    dòng); hàng khác (0, 0, "") gom theo mã."""
+    if ln.hang_loai == "giay":
+        kr, kd = chuan_kho(ln.kho_rong, ln.kho_dai)
+        return (kr, kd, (ln.don_vi_goc or "").strip().lower())
+    if co_don_vi_goc(ln.hang_loai):
+        return (0, 0, (ln.don_vi_goc or "").strip().lower())
+    return (0, 0, "")
 
 
 def _nxt_compute(
@@ -508,24 +744,24 @@ def _nxt_rows(
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
     kho_repo = KhoHangRepository(db)
     kho_ten = {kid: getattr(kho_repo.get(kid), "ten", None) for kid in {k[0] for k in comp}}
-    dv_to = don_vi_goc_to()
 
     rows: list[BaoCaoNXTRow] = []
-    for (kid, hloai, hid, kr, kd), c in comp.items():
+    for (kid, hloai, hid, kr, kd, goc), c in comp.items():
         # Bỏ dòng RỖNG hoàn toàn (không tồn đầu, không phát sinh).
         if (abs(c["dau_sl"]) < 1e-9 and abs(c["nhap_sl"]) < 1e-9 and abs(c["xuat_sl"]) < 1e-9
                 and c["dau_gt"] == 0):
             continue
         mh = hang_map.get((hloai, hid))
+        nhom = _nhom_hang(hloai, mh)
         row = BaoCaoNXTRow(
             kho_id=kid, kho_ten=kho_ten.get(kid),
             hang_loai=hloai, hang_id=hid,
             ma_hang=getattr(mh, "ma", None), ten_hang=getattr(mh, "ten", None),
-            hang_nhom="Giấy" if hloai == "giay" else "Vật tư",
-            # Dòng giấy tờ đếm TỜ NGUYÊN; còn lại theo đơn vị gốc của mã (spec §3.2).
-            dvt=(dv_ten.get(dv_to, dv_to) if kr and kd else
+            hang_nhom=_NHAN_LOAI.get(nhom or "", "Vật tư"), nhom_hang=nhom,
+            # Dòng giấy / vật tư đếm theo đơn vị gốc của khoá (đơn vị đã khai); hàng khác đơn vị gốc của mã.
+            dvt=(dv_ten.get(goc, goc) if goc else
                  dv_ten.get(getattr(mh, "don_vi_gia", None), getattr(mh, "don_vi_gia", None))),
-            kho_rong=kr, kho_dai=kd,
+            kho_rong=kr, kho_dai=kd, don_vi_goc=goc,
             dau_sl=c["dau_sl"], dau_gt=c["dau_gt"],
             nhap_sl=c["nhap_sl"], nhap_gt=c["nhap_gt"],
             xuat_sl=c["xuat_sl"], xuat_gt=c["xuat_gt"],
@@ -536,7 +772,7 @@ def _nxt_rows(
             continue
         rows.append(row)
     rows.sort(key=lambda r: ((r.kho_ten or "").lower(), (r.ten_hang or "").lower(),
-                             r.kho_rong, r.kho_dai))
+                             r.kho_rong, r.kho_dai, r.don_vi_goc))
     return rows
 
 
@@ -556,6 +792,7 @@ def bao_cao_nxt(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
+    loc: LocTT,
     tu: date = Query(...),
     den: date = Query(...),
     kho_id: int | None = Query(default=None),
@@ -565,6 +802,8 @@ def bao_cao_nxt(
     kỳ"). Kỳ chưa tính → hiện TẠM TÍNH (da_tinh=false). Chỉ kế toán kho (`close_book`)."""
     rows = _an_tien(_nxt_rows(db, tu=tu, den=den, kho_id=kho_id, q=q),
                     "nxt", _thay_gia(authz, user))
+    lua_chon = _lua_chon(rows, nxt=True)
+    rows = [r for r in rows if _khop_thuoc_tinh(r, loc)]
     kho_ids = [kho_id] if kho_id else None
     ky_repo = KhoKyTonRepository(db)
     da_tinh = ky_repo.count_for_den(den, kho_ids) > 0
@@ -575,7 +814,8 @@ def bao_cao_nxt(
     return BaoCaoNXTPage(items=rows, total=len(rows), tu=tu, den=den,
                          da_tinh=da_tinh, da_khoa=da_khoa,
                          ky_da_tinh_den=ky_bao[1] if ky_bao else None,
-                         ky_da_tinh_ten=ky_bao[2] if ky_bao else None)
+                         ky_da_tinh_ten=ky_bao[2] if ky_bao else None,
+                         lua_chon=lua_chon)
 
 
 def _chot_ky(
@@ -587,14 +827,14 @@ def _chot_ky(
     comp = _nxt_compute(db, tu=tu, den=den, kho_ids=kho_ids)
     ky_repo = KhoKyTonRepository(db)
     ky_repo.delete_for_den(den, kho_ids)
-    for (kid, hloai, hid, kr, kd), c in comp.items():
+    for (kid, hloai, hid, kr, kd, goc), c in comp.items():
         # Bỏ dòng rỗng hoàn toàn (không tồn cuối, không phát sinh) — khỏi phình snapshot.
         if (abs(c["cuoi_sl"]) < 1e-9 and c["cuoi_gt"] == 0
                 and abs(c["nhap_sl"]) < 1e-9 and abs(c["xuat_sl"]) < 1e-9
                 and abs(c["dau_sl"]) < 1e-9):
             continue
         ky_repo.upsert(
-            kho_id=kid, hang_loai=hloai, hang_id=hid, kho_rong=kr, kho_dai=kd,
+            kho_id=kid, hang_loai=hloai, hang_id=hid, kho_rong=kr, kho_dai=kd, don_vi_goc=goc,
             tu_ngay=tu, den_ngay=den, ten_ky=ten, sl_cuoi=c["cuoi_sl"], gt_cuoi=int(c["cuoi_gt"]),
             don_gia_bq=c["don_gia_bq"], khoa_so_id=khoa_so_id,
         )
@@ -797,9 +1037,9 @@ def _fmt_date(d: date | None) -> str | None:
 
 
 def _ten_kem_kho(r) -> str | None:
-    """Tên hàng trên file Excel: dòng giấy TỜ kèm khổ (mẫu MISA không có cột Khổ — cùng mã hai khổ
-    là hai dòng đếm tờ khác nhau, thiếu khổ thì đọc như trùng)."""
-    if r.kho_rong and r.kho_dai:
+    """Tên hàng trên file Excel: dòng giấy có khổ thì kèm khổ (mẫu MISA không có cột Khổ — cùng mã hai
+    khổ là hai dòng khác nhau, thiếu khổ thì đọc như trùng)."""
+    if r.kho_rong:
         return f"{r.ten_hang or ''} ({nhan_kho(r.kho_rong, r.kho_dai)})".strip()
     return r.ten_hang
 
@@ -1028,6 +1268,7 @@ def export_bao_cao(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
+    loc: LocTT,
     loai: str = Query(pattern="^(NHAP|XUAT)$"),
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
@@ -1050,6 +1291,7 @@ def export_bao_cao(
         _report_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, loai=loai, q=q, moc=moc),
         "so", cho_xem,
     )
+    rows = [r for r in rows if _khop_thuoc_tinh(r, loc)]
     # Áp CÙNG bộ lọc khoảng số với màn (không cắt trang) → file = đúng bảng đang xem.
     rows, _, _ = _loc_so_va_trang(
         rows, cho_xem=cho_xem, price_attr="don_gia", total_attr="thanh_tien",
@@ -1197,14 +1439,16 @@ def export_nxt(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
+    loc: LocTT,
     tu: date = Query(...),
     den: date = Query(...),
     kho_id: int | None = Query(default=None),
     q: str | None = Query(default=None),
 ) -> Response:
-    """Xuất Excel bảng Nhập-Xuất-Tồn (mẫu MISA, gom nhóm theo kho + dòng cộng)."""
+    """Xuất Excel bảng Nhập-Xuất-Tồn (mẫu MISA, gom nhóm theo kho + dòng cộng) — cùng bộ lọc màn."""
     rows = _an_tien(_nxt_rows(db, tu=tu, den=den, kho_id=kho_id, q=q),
                     "nxt", _thay_gia(authz, user))
+    rows = [r for r in rows if _khop_thuoc_tinh(r, loc)]
     kho_ids = [kho_id] if kho_id else None
     ky_repo = KhoKyTonRepository(db)
     # Giống màn hình: cuối kỳ chỉ ra tiền khi đã chốt, hoặc `den` nằm trong một kỳ đã tính.
@@ -1224,6 +1468,7 @@ def export_chuyen_kho(
     db: Db,
     authz: Authz,
     user: XemBaoCaoUser,
+    loc: LocTT,
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query("ct", pattern=_MOC_SO),
@@ -1241,6 +1486,7 @@ def export_chuyen_kho(
         _chuyen_kho_rows(db, tu=tu_ngay, den=den_ngay, kho_id=kho_id, q=q, moc=moc),
         "chuyen", cho_xem,
     )
+    rows = [r for r in rows if _khop_thuoc_tinh(r, loc)]
     # Bảng Chuyển kho lọc theo `don_gia_von`/`tien_von` (cột Đơn giá/Thành tiền) — khớp màn.
     rows, _, _ = _loc_so_va_trang(
         rows, cho_xem=cho_xem, price_attr="don_gia_von", total_attr="tien_von",

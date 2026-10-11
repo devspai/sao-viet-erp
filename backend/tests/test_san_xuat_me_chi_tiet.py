@@ -23,7 +23,7 @@ from app.services.san_xuat.thuc_thi import _aware
 
 # Fixtures + helper luồng thật.
 from tests.san_xuat_me_fixtures import T0 as _T0
-from tests.san_xuat_me_fixtures import canh_me, khoang, tao_me
+from tests.san_xuat_me_fixtures import canh_me, co_mat, tao_me
 from tests.test_san_xuat_thuc_thi import (  # noqa: F401
     _emp,
     admin,
@@ -167,7 +167,7 @@ def test_me_mang_viec_khoan_va_phat_sinh_da_chup_khong_co_thanh_tien(
         bat_dau=_T0 + timedelta(hours=2), ket_thuc=_T0 + timedelta(hours=3), tong=30, tot=30,
         phat_sinh=[{"phat_sinh_id": ps.id, "so_luong": 2}],
     )["batch_id"]
-    khoang(db, cv, e, batch.bat_dau, batch.ket_thuc)
+    co_mat(db, batch, e)
     db.commit()
 
     mes = {m["id"]: m for m in _mes(db, admin, cv)}

@@ -204,21 +204,19 @@ export function DonViChonTheoHang({
   disabled = false,
   chiDoc = false,
   heSoDaLuu = null,
-  dang = null,
   gon = false,
 }: {
   token: string;
   hangLoai: HangLoai | null;
   hangId: number | null;
-  /** Giấy ở KHO: dạng dòng — `to` ⇒ đơn vị gốc là "tờ" (mã `to`), `cuon` ⇒ kg. Đổi dạng thì nơi gọi
-   *  nên xoá `value` để ô tự điền lại đơn vị gốc của dạng mới. */
-  dang?: "to" | "cuon" | null;
   value: string;
   onChange: (ma: string, heSoVeGoc: number | null) => void;
   /** Hệ số quy đổi của ĐƠN VỊ ĐANG CHỌN về đơn vị gốc — bắn cả khi dòng nạp sẵn từ DB, không chỉ
    *  lúc người dùng bấm đổi (`onChange`). Thiếu nó thì dòng cũ không có gì để quy đổi hiển thị.
-   *  `heSoVeGoc` = 1 đơn vị này bằng bao nhiêu đơn vị gốc (dùng CHIA để ra giá/đơn-vị-gốc). */
-  onQuyDoi?: (info: { donViGocTen: string; heSoVeGoc: number } | null) => void;
+   *  `heSoVeGoc` = 1 đơn vị này bằng bao nhiêu đơn vị gốc (dùng CHIA để ra giá/đơn-vị-gốc).
+   *  `goc` = MÃ đơn vị gốc của họ chứa đơn vị đang chọn — giấy có hai họ (tờ, kg) nên nơi gọi cần nó
+   *  để khớp tồn đúng dòng (mã + khổ + đơn vị gốc). */
+  onQuyDoi?: (info: { donViGocTen: string; heSoVeGoc: number; goc?: string } | null) => void;
   disabled?: boolean;
   /** CHỈ ĐỌC — hiện đơn vị của mặt hàng, KHÔNG cho chọn đơn vị quy đổi.
    *
@@ -241,7 +239,12 @@ export function DonViChonTheoHang({
 }) {
   // Tên đơn vị cho khung hình đầu (trước khi danh sách đơn vị về) — không nạp thì hiện mã "cai".
   useNapTenDonVi();
-  const [ds, setDs] = useState<{ ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean }[]>([]);
+  // Giấy / vật tư khác khai nhiều đơn vị (10/10/2026): danh sách GỘP nhóm của mọi đơn vị đã khai,
+  // mỗi dòng mang `goc` của nhóm nó — hệ số về gốc chỉ có nghĩa trong CÙNG nhóm (tờ và kg không quy
+  // đổi lẫn nhau).
+  const [ds, setDs] = useState<{
+    ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean; goc?: string; goc_ten?: string;
+  }[]>([]);
   const [lyDo, setLyDo] = useState<string | null>(null);
   // Callback giữ trong ref: nơi gọi hay truyền arrow inline, đưa thẳng vào deps là vòng lặp render.
   const quyDoiRef = useRef(onQuyDoi);
@@ -255,14 +258,14 @@ export function DonViChonTheoHang({
     }
     let alive = true;
     api.matHang
-      .donVi(token, hangLoai, hangId, dang)
+      .donVi(token, hangLoai, hangId)
       .then((r) => {
         if (!alive) return;
         setDs(r.ds);
         setLyDo(r.ly_do);
         // Chưa chọn đơn vị → mặc định ĐƠN VỊ GỐC, khỏi bắt người ta chọn lại thứ hiển nhiên.
         if (!value && r.don_vi_goc) {
-          const goc = r.ds.find((d) => d.la_goc);
+          const goc = r.ds.find((d) => d.ma === r.don_vi_goc) ?? r.ds.find((d) => d.la_goc);
           onChange(r.don_vi_goc, goc ? goc.he_so_ve_goc : 1);
         }
       })
@@ -278,7 +281,7 @@ export function DonViChonTheoHang({
     // `value`/`onChange` cố tình KHÔNG nằm trong deps: chỉ nạp lại khi ĐỔI MẶT HÀNG, không phải
     // mỗi lần người dùng đổi đơn vị.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, hangLoai, hangId, dang]);
+  }, [token, hangLoai, hangId]);
 
   // Dòng cũ có thể lưu TÊN đơn vị ("cái") thay vì mã ("cai") — máy chủ nhận cả hai (mg 0341 đã
   // dọn dữ liệu, cửa ghi nay lưu mã). So theo mã TRƯỚC, không khớp thì so theo tên; không có bước
@@ -291,11 +294,13 @@ export function DonViChonTheoHang({
   // Báo hệ số của đơn vị ĐANG chọn mỗi khi danh sách hoặc lựa chọn đổi.
   useEffect(() => {
     if (!quyDoiRef.current) return;
-    const goc = ds.find((d) => d.la_goc);
     const dv = dangChon;
+    // Gốc của ĐÚNG họ đơn vị đang chọn: danh sách gộp của giấy có hai dòng `la_goc` (tờ, kg).
+    const goc = ds.find((d) => d.la_goc && (dv?.goc == null || d.goc === dv.goc));
+    const tenGoc = dv?.goc_ten || goc?.ten;
     quyDoiRef.current(
-      goc && dv && dv.he_so_ve_goc > 0
-        ? { donViGocTen: goc.ten, heSoVeGoc: dv.he_so_ve_goc }
+      tenGoc && dv && dv.he_so_ve_goc > 0
+        ? { donViGocTen: tenGoc, heSoVeGoc: dv.he_so_ve_goc, goc: dv.goc ?? goc?.ma }
         : null,
     );
   }, [ds, dangChon]);
@@ -308,14 +313,14 @@ export function DonViChonTheoHang({
     );
   }
   if (chiDoc) {
-    const dang = dangChon ?? ds.find((d) => d.la_goc);
+    const dvHien = dangChon ?? ds.find((d) => d.la_goc);
     // `||` chứ KHÔNG phải `??`: chưa chọn vật tư thì `value` là CHUỖI RỖNG, mà `??` chỉ bắt
     // null/undefined ⇒ ô hiện ra trống trơn, trông như một ô nhập vỡ.
-    const chu = dang?.ten || value || "—";
+    const chu = dvHien?.ten || value || "—";
     return (
       <span
-        className={`kho-dv__ro${dang ? "" : " kho-dv__ro--trong"}`}
-        title={dang ? `Đơn vị của mặt hàng: ${dang.ten}` : "Chọn vật tư trước"}
+        className={`kho-dv__ro${dvHien ? "" : " kho-dv__ro--trong"}`}
+        title={dvHien ? `Đơn vị của mặt hàng: ${dvHien.ten}` : "Chọn vật tư trước"}
       >
         {chu}
       </span>
@@ -332,6 +337,10 @@ export function DonViChonTheoHang({
       />
     );
   }
+  // Mã khai từ hai đơn vị trở lên (giấy tờ + kg, keo kg + thùng): mỗi nhóm một gốc, không quy đổi
+  // lẫn nhau — gắn "(gốc)" thì danh sách có hai chữ "(gốc)" khó hiểu, nên chỉ hiện tên đơn vị như
+  // cột ĐVT ở kho (10/10/2026). Mã một nhóm vẫn giữ chữ "(gốc)".
+  const anGoc = gon || new Set(ds.map((d) => d.goc).filter(Boolean)).size >= 2;
   return (
     <select
       className="rc-input"
@@ -348,13 +357,13 @@ export function DonViChonTheoHang({
           để ô không nháy từ gạch sang chữ khi danh sách về. */}
       {ds.length === 0 && (
         <option value={value}>
-          {value ? `${tenDonVi(value) ?? value}${heSoDaLuu === 1 && !gon ? " (gốc)" : ""}` : "—"}
+          {value ? `${tenDonVi(value) ?? value}${heSoDaLuu === 1 && !anGoc ? " (gốc)" : ""}` : "—"}
         </option>
       )}
       {ds.map((d) => (
         <option key={d.ma} value={d.ma}>
           {d.ten}
-          {d.la_goc && !gon ? " (gốc)" : ""}
+          {d.la_goc && !anGoc ? " (gốc)" : ""}
         </option>
       ))}
     </select>
@@ -372,7 +381,7 @@ function DonViMenu({
   disabled,
   onChon,
 }: {
-  ds: { ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean }[];
+  ds: { ma: string; ten: string; he_so_ve_goc: number; la_goc: boolean; goc?: string }[];
   chu: string;
   ma: string;
   disabled?: boolean;
@@ -382,7 +391,8 @@ function DonViMenu({
   const [viTri, setViTri] = useState<{ top: number; right: number } | null>(null);
   const nutRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const goc = ds.find((d) => d.la_goc);
+  // Gốc của ĐÚNG nhóm chứa dòng `d` — danh sách gộp nhiều nhóm có nhiều dòng `la_goc`.
+  const gocCua = (d: { goc?: string }) => ds.find((x) => x.la_goc && (d.goc == null || x.goc === d.goc));
 
   useEffect(() => {
     if (!mo) return;
@@ -440,24 +450,27 @@ function DonViMenu({
             role="listbox"
             style={viTri ? { top: viTri.top, right: viTri.right, left: "auto" } : undefined}
           >
-            {ds.map((d) => (
-              <li
-                key={d.ma}
-                role="option"
-                aria-selected={d.ma === ma}
-                className={`kho-combo__opt${d.ma === ma ? " is-active" : ""}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onChon(d);
-                  setMo(false);
-                }}
-              >
-                <span className="kho-combo__name">{d.ten}</span>
-                <span className="kho-dv__hs">
-                  {d.la_goc || !goc ? "" : `= ${d.he_so_ve_goc.toLocaleString("vi-VN")} ${goc.ten}`}
-                </span>
-              </li>
-            ))}
+            {ds.map((d) => {
+              const goc = gocCua(d);
+              return (
+                <li
+                  key={d.ma}
+                  role="option"
+                  aria-selected={d.ma === ma}
+                  className={`kho-combo__opt${d.ma === ma ? " is-active" : ""}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onChon(d);
+                    setMo(false);
+                  }}
+                >
+                  <span className="kho-combo__name">{d.ten}</span>
+                  <span className="kho-dv__hs">
+                    {d.la_goc || !goc ? "" : `= ${d.he_so_ve_goc.toLocaleString("vi-VN")} ${goc.ten}`}
+                  </span>
+                </li>
+              );
+            })}
           </ul>,
           document.body,
         )}

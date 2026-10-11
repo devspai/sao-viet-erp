@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Icon } from "../Icons";
 import { chuanKho, nhanKho, tachKho } from "./tienIchKho";
 import "./khungKho.css";
 
-export type DangKho = "to" | "cuon";
-
+/** Khổ giấy: hai cạnh mm. `dai = 0` = khổ chỉ rộng (giấy khổ rộng chưa cắt). 10/10/2026 giấy bỏ
+ *  dạng cuộn/tờ: không còn nút đổi dạng, đơn vị gốc máy chủ tự suy từ ĐVT của dòng. */
 export interface GiaTriKho {
-  dang: DangKho;
   rong: number;
   dai: number;
 }
@@ -22,18 +20,16 @@ interface Props extends GiaTriKho {
   onChange: (v: GiaTriKho) => void;
   /** Khổ đang có trong kho / đã mua — mở khi bấm vào khung. */
   goiY?: GoiYKho[];
-  /** Cho bấm nút Tờ/Cuộn để đổi dạng. Tắt khi dạng đã chốt ở chỗ khác. */
-  coTheDoiDang?: boolean;
   chiDoc?: boolean;
   /** Ép trạng thái lỗi từ ngoài (vd khác khổ đặt ⇒ viền vàng thì dùng `canh`). */
   canh?: boolean;
   ariaLabel?: string;
 }
 
-/** Ô khổ giấy ghép (mockup A2b): nút Tờ/Cuộn + Rộng × Dài mm (tờ) hoặc Khổ … mm (cuộn). Gõ hoặc
- *  dán "790x1090" vào ô đầu là tách đủ hai cạnh; rời ô là tự xếp cạnh ngắn trước. */
+/** Ô khổ giấy ghép (mockup A2b): Rộng × Dài mm, ô Dài để trống được (khổ chỉ rộng). Gõ hoặc dán
+ *  "790x1090" vào ô đầu là tách đủ hai cạnh; rời ô là tự xếp cạnh ngắn trước. */
 export function KhungKho({
-  dang, rong, dai, onChange, goiY = [], coTheDoiDang = true, chiDoc, canh, ariaLabel,
+  rong, dai, onChange, goiY = [], chiDoc, canh, ariaLabel,
 }: Props) {
   const [a, setA0] = useState(rong ? String(rong) : "");
   const [b, setB0] = useState(dai ? String(dai) : "");
@@ -75,43 +71,38 @@ export function KhungKho({
   }, [mo]);
 
   if (chiDoc) {
-    const nhan = nhanKho(dang, rong, dai);
-    return <span className="kk-doc">{dang === "cuon" ? "Cuộn" : "Tờ"} {nhan || "chưa có khổ"}{nhan && dang === "to" ? " mm" : ""}</span>;
+    const nhan = nhanKho(rong, dai);
+    return <span className="kk-doc">{nhan ? `${nhan} mm` : "chưa có khổ"}</span>;
   }
 
-  // Đang gõ (con trỏ còn trong khung) thì chưa báo — rời ô Rộng là chốt rộng trước khi kịp gõ Dài.
-  const thieuCanh = !dangGo && dang === "to" && (!!rong !== !!dai);
-  const goiLoc = goiY.filter((g) => (dang === "to" ? g.rong && g.dai : g.rong && !g.dai));
+  const goiLoc = goiY.filter((g) => g.rong > 0);
 
   function chot() {
     const { a: chuA, b: chuB } = chu.current;
     const x = Number(chuA.replace(/\D/g, "")) || 0;
     const y = Number(chuB.replace(/\D/g, "")) || 0;
-    if (dang === "cuon") {
-      onChange({ dang, rong: x, dai: 0 });
-      return;
-    }
-    const [r, d] = x && y ? chuanKho(x, y) : [x, y];
-    onChange({ dang, rong: r, dai: d });
+    // Chỉ gõ ô Dài mà bỏ trống ô Rộng ⇒ `chuanKho` dồn cạnh đó về ô Rộng (khổ chỉ rộng).
+    const [r, d] = chuanKho(x, y);
+    onChange({ rong: r, dai: d });
   }
 
-  function goA(chu: string) {
-    if (/[x×X*\s]/.test(chu.trim()) && dang === "to") {
-      const t = tachKho(chu);
+  function goA(chuMoi: string) {
+    if (/[x×X*\s]/.test(chuMoi.trim())) {
+      const t = tachKho(chuMoi);
       if (t) {
         setA(String(t.rong));
-        setB(String(t.dai));
-        onChange({ dang, rong: t.rong, dai: t.dai });
+        setB(t.dai ? String(t.dai) : "");
+        onChange({ rong: t.rong, dai: t.dai });
         return;
       }
     }
-    setA(chu.replace(/\D/g, ""));
+    setA(chuMoi.replace(/\D/g, ""));
   }
 
   function chon(g: GoiYKho) {
     setA(String(g.rong));
-    setB(dang === "to" ? String(g.dai) : "");
-    onChange({ dang, rong: g.rong, dai: dang === "to" ? g.dai : 0 });
+    setB(g.dai ? String(g.dai) : "");
+    onChange({ rong: g.rong, dai: g.dai });
     setMo(false);
   }
 
@@ -123,67 +114,52 @@ export function KhungKho({
     else if (e.key === "Escape") setMo(false);
   }
 
-  const lop = ["kk", dangGo && "dang-go", thieuCanh && "loi", canh && "canh"].filter(Boolean).join(" ");
+  const lop = ["kk", dangGo && "dang-go", canh && "canh"].filter(Boolean).join(" ");
   return (
     <div className="kk-wrap" ref={goc}>
       <div className={lop} aria-label={ariaLabel ?? "Khổ giấy"}>
-        <button
-          type="button"
-          className="kk-dang"
-          disabled={!coTheDoiDang}
-          title={coTheDoiDang ? "Đổi Tờ / Cuộn" : undefined}
-          onClick={() => onChange({ dang: dang === "to" ? "cuon" : "to", rong: 0, dai: 0 })}
-        >
-          {dang === "cuon" ? "Cuộn" : "Tờ"}
-          {coTheDoiDang && <Icon name="chevron" size={12} />}
-        </button>
-        {dang === "cuon" && <span className="kk-nhan">Khổ</span>}
         <input
           className="kk-o"
           inputMode="numeric"
-          placeholder={dang === "cuon" ? "Rộng" : "Rộng"}
-          aria-label={dang === "cuon" ? "Khổ cuộn (mm)" : "Cạnh rộng (mm)"}
+          placeholder="Rộng"
+          aria-label="Cạnh rộng (mm)"
           value={a}
           onChange={(e) => goA(e.target.value)}
           onFocus={() => { setDangGo(true); setMo(true); setSang(0); }}
           onBlur={() => { setDangGo(false); chot(); }}
           onKeyDown={phim}
         />
-        {dang === "to" && (
-          <>
-            <span className="kk-x">×</span>
-            <input
-              className="kk-o"
-              inputMode="numeric"
-              placeholder="Dài"
-              aria-label="Cạnh dài (mm)"
-              value={b}
-              onChange={(e) => setB(e.target.value.replace(/\D/g, ""))}
-              onFocus={() => { setDangGo(true); setMo(true); setSang(0); }}
-              onBlur={() => { setDangGo(false); chot(); }}
-              onKeyDown={phim}
-            />
-          </>
-        )}
+        <span className="kk-x">×</span>
+        <input
+          className="kk-o"
+          inputMode="numeric"
+          placeholder="Dài"
+          aria-label="Cạnh dài (mm), để trống nếu chỉ có khổ rộng"
+          value={b}
+          onChange={(e) => setB(e.target.value.replace(/\D/g, ""))}
+          onFocus={() => { setDangGo(true); setMo(true); setSang(0); }}
+          onBlur={() => { setDangGo(false); chot(); }}
+          onKeyDown={phim}
+        />
         <span className="kk-mm">mm</span>
       </div>
-      {thieuCanh && <div className="kk-loi">Giấy tờ cần đủ hai cạnh</div>}
       {mo && goiLoc.length > 0 && (
         <div className="kk-goi" role="listbox" style={viTri ? { position: "fixed", ...viTri } : undefined}>
-          <div className="kk-gh">{dang === "to" ? "Khổ tờ đã có" : "Khổ cuộn đã có"}</div>
+          <div className="kk-gh">Khổ đã có</div>
           {goiLoc.map((g, i) => (
             <div
-              key={`${g.rong}x${g.dai}`}
+              // Cùng khổ có thể hai dòng (tồn theo tờ và tồn theo kg) ⇒ khoá kèm thứ tự.
+              key={`${g.rong}x${g.dai}-${i}`}
               role="option"
               aria-selected={i === sang}
               className={`kk-gr${i === sang ? " on" : ""}`}
               onMouseDown={(e) => { e.preventDefault(); chon(g); }}
             >
-              <b>{nhanKho(dang, g.rong, g.dai)}</b>
+              <b>{nhanKho(g.rong, g.dai)}</b>
               {g.ghiChu && <span className="kk-end">{g.ghiChu}</span>}
             </div>
           ))}
-          <div className="kk-gf">Gõ khổ khác, hoặc dán 790x1090 vào ô đầu</div>
+          <div className="kk-gf">Gõ khổ khác, hoặc dán 790x1090 vào ô đầu. Chỉ có khổ rộng thì để trống ô Dài.</div>
         </div>
       )}
     </div>

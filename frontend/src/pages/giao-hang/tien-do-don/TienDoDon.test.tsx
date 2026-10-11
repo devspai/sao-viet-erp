@@ -145,7 +145,7 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
     stubApi();
     ve({ ...TD, cum: TD.cum.map((c) => ({ ...c, giao_duoc: 0 })) });
     expect(screen.getByRole("button", { name: "Tạo yêu cầu giao hàng" })).toBeDisabled();
-    expect(screen.getByText(/chỉ lập yêu cầu cho phần kho đã nhận/)).toBeInTheDocument();
+    expect(screen.getByText(/Chưa có hàng của đơn này ở kho nào/)).toBeInTheDocument();
   });
 
   it("yêu cầu có chuyến đã huỷ ⇒ Kinh doanh huỷ được, không sửa được", () => {

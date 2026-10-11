@@ -9,17 +9,9 @@ from app.repositories.san_xuat_repo import SanXuatRepository
 from app.security import create_access_token
 
 from tests.test_san_xuat_kcs import (  # noqa: F401
-    _batch, admin, customer, db, lsx_svc, orders,
+    _batch, _ngoai_kcs, admin, customer, db, lsx_svc, orders,
 )
 from tests.quyen_to_fixtures import cap_dong_thieu
-
-ADMIN = {"username": "admin", "password": "admin123"}
-
-
-def _admin_h(client) -> dict[str, str]:
-    tok = client.post("/api/auth/login", json=ADMIN).json()["access_token"]
-    return {"Authorization": f"Bearer {tok}"}
-
 
 def _kcs_h(user) -> dict[str, str]:
     return {"Authorization": f"Bearer {create_access_token(str(user.id))}"}
@@ -31,7 +23,8 @@ def test_tinh_trang_can_dang_nhap(client):
 
 def test_dong_nguoi_ngoai_kcs_403(client, db, orders, lsx_svc, admin, customer):
     _to, cv, _res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True)
-    r = client.post(f"/api/san-xuat/kcs/nhom/{cv.nhom_id}/dong", json={}, headers=_admin_h(client))
+    h = {"Authorization": f"Bearer {create_access_token(str(_ngoai_kcs(db).id))}"}
+    r = client.post(f"/api/san-xuat/kcs/nhom/{cv.nhom_id}/dong", json={}, headers=h)
     assert r.status_code == 403
 
 

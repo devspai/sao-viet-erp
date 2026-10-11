@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo thu chi làm lại</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --thu:#3b82f6;--thu-bg:#dbeafe;--thu-fg:#1d4ed8;
+  --chi:#f97316;--chi-bg:#ffedd5;--chi-fg:#c2410c;
+  --vang-fg:#b45309;--do-fg:#b91c1c;
+  --kt-ngan-w:1180px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+
+.doc{max-width:1680px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.doc a{color:var(--thu-fg)}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;max-width:1620px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;height:230px;object-fit:contain;background:#f8fafc;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink);font-weight:500}
+
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px;max-width:1620px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.pa{display:none}.pa.on{display:block}
+
+/* khung app */
+.frame{width:1620px;height:900px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.tabs{display:flex;gap:22px;padding:0 24px;background:#fff;border-bottom:1px solid var(--rule-soft);flex:none}
+.tabs span{padding:10px 0 9px;color:var(--ash-2);font-size:13.5px;cursor:pointer;border-bottom:2px solid transparent}
+.tabs span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.body{padding:14px 24px 16px;flex:1;display:flex;flex-direction:column;min-height:0}
+.body.cuon{overflow:auto;display:block}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex:none}
+.tool h2{font-size:18px;font-weight:500;margin:0 8px 0 0;white-space:nowrap}
+.tool .sp{flex:1}
+.ky-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 10px;font-size:13px;cursor:pointer;white-space:nowrap}
+.ky-btn .lb{color:var(--ash-2)}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:230px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+
+/* hàng số bấm-lọc */
+.so{display:flex;align-items:flex-end;gap:22px;padding:2px 2px 12px;flex:none}
+.so .c{display:flex;flex-direction:column;gap:1px;white-space:nowrap;border:1px solid transparent;border-radius:8px;padding:4px 8px;margin:-4px -8px}
+.so .c.bam{cursor:pointer}
+.so .c.bam:hover{background:var(--rule-hair)}
+.so .c.on{border-color:var(--ink)}
+.so .l{font-size:12px;color:var(--ash-2);display:flex;align-items:center;gap:6px}
+.so .l i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.so .v{font-size:17px;letter-spacing:-.01em}
+.so .v small{font-size:12px;color:var(--ash-2);margin-left:6px}
+.so .op{color:var(--ash-3);font-size:16px;padding-bottom:2px}
+.so .gap{flex:1}
+.so .c.phu .v{font-size:14px;color:var(--vang-fg)}
+
+/* khối */
+.khoi{background:#fff;border:1px solid var(--rule-soft);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.khoi .dau{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.khoi .dau .t{font-size:14px}
+.khoi .dau .sp{flex:1}
+.khoi .dau .ph{color:var(--ash-2);font-size:12.5px}
+.hai{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chu-giai{display:flex;gap:14px;color:var(--ash-2);font-size:12.5px}
+.chu-giai span{display:inline-flex;align-items:center;gap:6px}
+.chu-giai i{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+svg text{font-family:"Be Vietnam Pro",system-ui,sans-serif}
+.cot-bam{cursor:pointer}
+.cot-bam:hover rect.nen{fill:var(--rule-hair)}
+
+/* thanh ngang theo mục */
+.hb{display:flex;flex-direction:column}
+.hb .r{display:grid;grid-template-columns:290px 1fr 120px 52px;gap:10px;align-items:center;height:30px;padding:0 6px;border-radius:6px;border:1px solid transparent;cursor:pointer;font-size:13px}
+.hb .r:hover{background:var(--rule-hair)}
+.hb .r.on{border-color:var(--ink)}
+.hb .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .r .tr{height:10px;border-radius:3px;background:var(--rule-hair);position:relative;overflow:hidden}
+.hb .r .tr b{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.hb .r .n{text-align:right;font-variant-numeric:tabular-nums}
+.hb .r .pt{text-align:right;color:var(--ash-2);font-size:12.5px;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;background:var(--rule-hair);color:var(--ash);line-height:20px;margin-left:6px}
+.tag.chua{color:var(--vang-fg)}
+
+/* đang lọc */
+.loc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:28px}
+.loc .x{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:999px;padding:1px 6px 1px 10px;font-size:12.5px;background:#fff;cursor:pointer}
+.loc .x b{color:var(--ash-3);font-weight:400}
+.loc .x:hover{background:var(--rule-hair)}
+
+/* lưới */
+.wrap{min-height:0;overflow:auto;background:#fff;border:1px solid var(--rule-soft);border-radius:8px}
+table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.g th,.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--rule-hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.g thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:var(--ash-2);font-weight:400;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .mu{color:var(--ash-3)}
+.g .ma{color:var(--ash-2)}
+.g tbody tr:hover td{background:var(--rule-hair)}
+.g tr.nhom td{background:#f8fafc;border-bottom:1px solid var(--rule-soft)}
+.g tr.muc td:first-child{padding-left:28px}
+.g tr.cl td{background:#f8fafc;border-top:1px solid var(--rule-soft)}
+.g td.o{cursor:pointer}
+.g td.o:hover{box-shadow:inset 0 0 0 1px var(--rule)}
+.g td.o.on{box-shadow:inset 0 0 0 1px var(--ink)}
+.g tfoot td{position:sticky;bottom:0;background:#f8fafc;border-top:1px solid var(--rule-soft);border-bottom:0}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;white-space:nowrap}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.chip.thu{background:var(--thu-bg);color:var(--thu-fg)}.chip.thu i{background:var(--thu)}
+.chip.chi{background:var(--chi-bg);color:var(--chi-fg)}.chip.chi i{background:var(--chi)}
+.lk{color:var(--thu-fg);text-decoration:none}
+.lk:hover{text-decoration:underline}
+.chan{display:flex;justify-content:space-between;align-items:center;color:var(--ash-2);font-size:12px;padding-top:8px}
+.trang{display:inline-flex;gap:4px;align-items:center}
+.trang button{border:1px solid var(--rule);background:#fff;border-radius:6px;min-width:26px;height:26px;font-size:12px;color:var(--ash)}
+.trang button.on{border-color:var(--ink);color:var(--ink)}
+
+/* ngăn */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28);display:none;z-index:30}
+.frame.dw .scrim{display:block}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:var(--kt-ngan-w);background:#fff;z-index:31;display:none;flex-direction:column;box-shadow:-12px 0 30px rgba(15,23,42,.14)}
+.frame.dw .ngan{display:flex}
+.ng-dau{padding:16px 24px 0;flex:none}
+.ng-r1{display:flex;align-items:center;gap:10px}
+.ng-r1 .ten{font-size:18px;font-weight:500;white-space:nowrap}
+.ng-r1 .sp{flex:1}
+.ng-x{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--ash)}
+.ng-x:hover{background:var(--rule-hair)}
+.ng-so{display:flex;gap:40px;padding:12px 0 10px}
+.ng-so .c{display:flex;flex-direction:column;gap:1px}
+.ng-so .l{font-size:12px;color:var(--ash-2)}
+.ng-so .v{font-size:17px}
+.ng-tab{display:flex;gap:20px;padding:0 24px;border-bottom:1px solid var(--rule-soft);flex:none}
+.ng-tab span{padding:9px 0 8px;font-size:13.5px;color:var(--ash-2);border-bottom:2px solid transparent;cursor:pointer}
+.ng-tab span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.ng-than{flex:1;min-height:0;overflow:auto;padding:12px 24px 20px}
+
+/* C: bên trái chọn mục */
+.c-luoi{flex:1;min-height:0;display:grid;grid-template-columns:330px 1fr;gap:12px}
+.mucds{background:#fff;border:1px solid var(--rule-soft);border-radius:8px;overflow:auto;padding:6px}
+.mucds .r{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:7px 10px;border-radius:7px;border:1px solid transparent;cursor:pointer}
+.mucds .r:hover{background:var(--rule-hair)}
+.mucds .r.on{border-color:var(--ink)}
+.mucds .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mucds .r .n{text-align:right;font-variant-numeric:tabular-nums}
+.mucds .r .tr{grid-column:1/-1;height:4px;border-radius:2px;background:var(--rule-hair);position:relative;overflow:hidden}
+.mucds .r .tr b{position:absolute;left:0;top:0;bottom:0}
+.mucds .nh{color:var(--ash-2);font-size:12px;padding:8px 10px 4px}
+.c-phai{display:flex;flex-direction:column;min-height:0;gap:10px}
+.c-phai .wrap{flex:1}
+.ghi{color:var(--ash-2);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Báo cáo thu chi làm lại: có biểu đồ, bấm xuống tới từng phiếu</h1>
+<p>Thay phần 1 của <a href="bao-cao-thu-chi-3-phuong-an.html">bản trước</a>. Phần danh mục mục thu chi và ô chọn mục trên phiếu ở bản trước giữ nguyên. Số liệu là <b>40 phiếu thật</b> trong DB dev (24 phiếu chi đã chi, 16 phiếu thu đã thu, 08/08 tới 11/10/2026), đủ số phiếu, người nhận hoặc nộp, lý do, hình thức. Mục của phiếu chi khác và phiếu thu khác là <b>giả định</b> (hệ chưa có mục), 3 phiếu cố ý để "Chưa phân loại".</p>
+
+<h2>Logic (nói bằng lời, chờ gật)</h2>
+<ol>
+<li><b>Ba tầng, chỗ nào có số là bấm được:</b> tháng → mục → phiếu → mở phiếu gốc (đúng ngăn phiếu chi, phiếu thu đang có). Bấm cột tháng ở biểu đồ hay ô số ở bảng thì danh sách phiếu lọc theo đúng thứ đó.</li>
+<li><b>Bảng, biểu đồ và danh sách phiếu đọc chung một bộ số</b>, chung kỳ và bộ lọc; Xuất Excel ra đúng cái đang lọc (như Báo cáo lỗi KCS đã chốt).</li>
+<li><b>Thu, chi tính theo ngày thực thu, thực chi.</b> Phiếu nháp, chờ duyệt, đã huỷ không vào. Danh sách phiếu lọc và phân trang ở máy chủ.</li>
+<li><b>Nút "Chỉ thu chi khác"</b> bỏ các mục máy tự gán (trả nhà cung cấp, gia công ngoài, khách trả tiền hàng, khách đặt cọc). Lý do: trả nhà cung cấp chiếm 84% tiền chi, để chung thì biểu đồ chỉ thấy một cột, điện nước hay văn phòng phẩm thành vạch mỏng không đọc được.</li>
+<li>Biểu đồ chỉ có cột và thanh, một trục tiền; không bánh tròn (mục nhỏ thành lát mỏng, khó so), không hai trục.</li>
+</ol>
+
+<h2>Ảnh tham khảo (đã mở trang, tải ảnh gốc)</h2>
+<div class="refs">
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi/zoho-income-and-expense.png" alt=""><p><span class="t">Zoho Books, Thu và chi.</span> Cột đôi theo tháng, tổng thu tổng chi ngay dưới; có nút Accrual | Cash (mình chỉ có kiểu tiền mặt). Bấm cột mở báo cáo lãi lỗ.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi/zoho-top-expense.png" alt=""><p><span class="t">Zoho Books, Chi nhiều nhất.</span> Bánh tròn theo nhóm chi, bấm lát ra danh sách giao dịch. Mình giữ ý "bấm ra giao dịch" nhưng đổi sang thanh ngang xếp từ lớn tới nhỏ.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi/zoho-cash-flow.png" alt=""><p><span class="t">Zoho Books, Dòng tiền.</span> Bên phải là phép tính tiền đầu kỳ + thu − chi = cuối kỳ. Mình chưa có số tồn quỹ đầu kỳ nên chỉ để thu − chi = chênh lệch.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/odoo-bang-dieu-khien.jpg" alt=""><p><span class="t">Odoo, Bảng điều khiển (dùng cho A).</span> Một trang cuộn: hàng số, biểu đồ theo tháng, rồi các khối xếp hạng; khối cuối là bảng.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh/odoo-phan-tich-ban-hang-cot-chong.jpg" alt=""><p><span class="t">Odoo, Phân tích bán hàng (dùng cho B).</span> Cột chồng theo nhóm, chú giải bấm được; cùng màn có nút đổi sang bảng xoay và danh sách.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi/misa-muc-thu-chi-ngam-dinh.png" alt=""><p><span class="t">MISA AMIS, Mục thu/chi.</span> Danh mục có mã, tên, loại mục thu hoặc mục chi, cờ phát sinh định kỳ, trạng thái. Báo cáo Dòng tiền của MISA là bảng thực thu, thực chi theo mục, không có biểu đồ đi kèm.</p></div>
+</div>
+<p style="font-size:12.5px">Đã tìm mà không lấy được ảnh: Xero Business snapshot (trang giới thiệu không mô tả bố cục), QuickBooks chi theo nhóm (chỉ có blog bên thứ ba).</p>
+
+<div class="sw" data-grp="bc">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Một trang: số, biểu đồ, danh sách phiếu</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Bảng | Biểu đồ, bấm mở ngăn phiếu</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Tab Tổng hợp | Chi | Thu, danh sách là chính</button>
+</div>
+
+<!-- ======================= A ======================= -->
+<section class="pa on" data-grp="bc" data-pa="A">
+<div class="desc">
+  <h3>A. Một trang cuộn: hàng số, biểu đồ tháng, chi và thu theo mục, danh sách phiếu ở cuối</h3>
+  <p>Bấm cột một tháng thì cả hai khối "theo mục" và danh sách phiếu thu về tháng đó; bấm một mục thì danh sách lọc theo mục; bấm ô "Chưa phân loại" thì ra các phiếu cần gán mục. Chỗ đang lọc hiện thành thẻ có dấu ✕ ngay trên danh sách. Không ngăn nào che màn; bấm số phiếu mới mở ngăn phiếu gốc.</p>
+  <p>Hợp cho giám đốc mở ra nhìn một lượt. Kém: phải cuộn mới tới danh sách, màn dài.</p>
+</div>
+<div class="frame" id="fA">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body cuon">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <button class="ky-btn"><span class="lb">Kỳ</span>01/08 – 11/10/2026</button>
+        <div class="seg" data-chikhac><button class="on" data-v="0">Tất cả</button><button data-v="1">Chỉ thu chi khác</button></div>
+        <span class="sp"></span>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="so" data-so></div>
+      <div class="khoi">
+        <div class="dau"><span class="t">Thu và chi theo tháng</span><span class="ph">bấm cột để xem riêng tháng đó</span><span class="sp"></span><div class="chu-giai"><span><i style="background:var(--thu)"></i>Thu</span><span><i style="background:var(--chi)"></i>Chi</span></div></div>
+        <div data-bieudo-thang></div>
+      </div>
+      <div class="hai">
+        <div class="khoi"><div class="dau"><span class="t">Chi theo mục</span><span class="ph" data-tieu-chi></span></div><div class="hb" data-hb="chi"></div></div>
+        <div class="khoi"><div class="dau"><span class="t">Thu theo mục</span><span class="ph" data-tieu-thu></span></div><div class="hb" data-hb="thu"></div></div>
+      </div>
+      <div class="khoi">
+        <div class="dau"><span class="t">Danh sách phiếu</span><div class="loc" data-loc></div><span class="sp"></span><div class="seg" data-loai><button class="on" data-v="">Cả hai</button><button data-v="thu">Thu</button><button data-v="chi">Chi</button></div><div class="search">Tìm số phiếu, người nhận</div></div>
+        <div class="wrap" style="max-height:none"><table class="g" data-ds></table></div>
+        <div class="chan" data-chan></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ======================= B ======================= -->
+<section class="pa" data-grp="bc" data-pa="B">
+<div class="desc">
+  <h3>B. Một màn có nút Bảng | Biểu đồ (giống Báo cáo kinh doanh và Báo cáo lỗi KCS đã làm), bấm là mở ngăn phiếu</h3>
+  <p>Bảng là mục × tháng như bản trước. Biểu đồ là cột chồng theo tháng, mỗi màu một mục (5 mục lớn nhất, còn lại gộp "Mục khác"); nút Chi | Thu đổi bên. Bấm một đoạn cột, một dòng chú giải hay một ô của bảng đều mở cùng một ngăn: tên mục, ba số, biểu đồ nhỏ theo tháng của riêng mục đó, tab Phiếu và tab Người nhận (cộng theo người nhận, xem trả ai nhiều nhất).</p>
+  <p>Hợp với khuôn báo cáo đang có, người dùng đã quen. Kém: muốn xem danh sách phiếu của cả tháng (không theo mục) phải sang màn Phiếu chi.</p>
+</div>
+<div class="frame" id="fB">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <button class="ky-btn"><span class="lb">Kỳ</span>01/08 – 11/10/2026</button>
+        <div class="seg" data-chikhac><button class="on" data-v="0">Tất cả</button><button data-v="1">Chỉ thu chi khác</button></div>
+        <span class="sp"></span>
+        <div class="seg" data-xem><button data-v="bang">Bảng</button><button class="on" data-v="bieudo">Biểu đồ</button></div>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="so" data-so></div>
+      <div data-view="bieudo" style="flex:1;min-height:0;display:flex;flex-direction:column">
+        <div class="khoi" style="flex:1;margin:0;display:flex;flex-direction:column">
+          <div class="dau"><div class="seg" data-ben><button class="on" data-v="chi">Chi</button><button data-v="thu">Thu</button></div><span class="ph">mỗi màu một mục, bấm đoạn cột hoặc dòng chú giải để xem phiếu</span></div>
+          <div style="display:grid;grid-template-columns:1fr 470px;gap:20px;flex:1;min-height:0">
+            <div data-chong></div>
+            <div class="hb" data-chu-giai style="align-self:start;padding-top:8px"></div>
+          </div>
+        </div>
+      </div>
+      <div data-view="bang" style="flex:1;min-height:0;display:none">
+        <div class="wrap" style="height:100%"><table class="g" data-bang></table></div>
+      </div>
+    </div>
+    <div class="scrim" data-dong></div>
+    <aside class="ngan" data-ngan></aside>
+  </div>
+</div>
+</section>
+
+<!-- ======================= C ======================= -->
+<section class="pa" data-grp="bc" data-pa="C">
+<div class="desc">
+  <h3>C. Ba tab Tổng hợp | Chi | Thu; tab Chi và Thu là danh sách phiếu có biểu đồ và cột mục đi kèm</h3>
+  <p>Tab Chi (đang mở): dải cột chi theo tháng ở trên, bên trái là các mục chi với số tiền và vạch tỷ trọng, bên phải là danh sách phiếu chi. Bấm tháng, bấm mục là danh sách lọc; số trên cột mục đổi theo tháng đang chọn. Tab Tổng hợp là thu và chi theo tháng cùng bảng tháng × thu, chi, chênh lệch.</p>
+  <p>Hợp cho kế toán (làm việc trên danh sách, tick nhiều phiếu chuyển mục). Kém: không thấy thu và chi trên cùng một màn trừ tab Tổng hợp.</p>
+</div>
+<div class="frame" id="fC">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="tabs" data-tabc><span data-v="tong">Tổng hợp</span><span class="on" data-v="chi">Chi</span><span data-v="thu">Thu</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <button class="ky-btn"><span class="lb">Kỳ</span>01/08 – 11/10/2026</button>
+        <div class="seg" data-chikhac><button class="on" data-v="0">Tất cả</button><button data-v="1">Chỉ thu chi khác</button></div>
+        <div class="search">Tìm số phiếu, người nhận</div>
+        <span class="sp"></span>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div data-c-ben style="flex:1;min-height:0;display:flex;flex-direction:column">
+        <div class="khoi" style="padding:8px 14px 4px;flex:none"><div class="dau" style="margin:0"><span class="t" data-c-tieu></span><span class="ph">bấm cột để lọc tháng</span><span class="sp"></span><div class="loc" data-loc></div></div><div data-c-thang></div></div>
+        <div class="c-luoi">
+          <div class="mucds" data-c-muc></div>
+          <div class="c-phai">
+            <div class="wrap"><table class="g" data-ds></table></div>
+            <div class="chan" data-chan style="padding-top:0"></div>
+          </div>
+        </div>
+      </div>
+      <div data-c-tong style="flex:1;min-height:0;display:none">
+        <div class="so" data-so></div>
+        <div class="khoi"><div class="dau"><span class="t">Thu và chi theo tháng</span><span class="sp"></span><div class="chu-giai"><span><i style="background:var(--thu)"></i>Thu</span><span><i style="background:var(--chi)"></i>Chi</span></div></div><div data-bieudo-thang></div></div>
+        <div class="wrap"><table class="g" data-c-bang-thang></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<h2>Đề xuất</h2>
+<p><b>A</b> nếu người xem chính là giám đốc (mở ra nhìn một lượt, ít bấm). <b>B</b> nếu muốn đồng bộ với Báo cáo kinh doanh và Báo cáo lỗi KCS (cùng nút Bảng | Biểu đồ, cùng kiểu ngăn). <b>C</b> nếu người dùng chính là kế toán rà và phân loại phiếu hằng ngày. Tôi nghiêng về <b>B</b>: đúng khuôn hai báo cáo đã có, bảng mục × tháng xuất Excel gọn, ngăn có cả danh sách phiếu lẫn biểu đồ nhỏ của mục.</p>
+</div>
+
+<script>
+// ================= dữ liệu thật (DB dev 11/10/2026) =================
+// [loại, số phiếu, ngày, tiền, người nhận/nộp, lý do, hình thức, mục, tự gán]
+const P = [
+ ['chi','UNC-261007-CLXS','2026-08-08',2484000,'Công ty TNHH Thương mại Giấy An Phát','Thanh toán một phần đợt 1 DMH-261007-VBF4','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261007-XQKH','2026-09-02',7348000,'Công ty TNHH Tổng hợp In ấn Phương Nam','Thanh toán một phần đợt 1 DMH-261007-337Y','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261007-9DA7','2026-09-25',19494000,'Công ty TNHH Thương mại Giấy An Phát','Thanh toán đủ đợt 1 DMH-261007-RE5B','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261006-MQYM','2026-10-06',1000000,'Cơ sở Gia công Cán màng Thành Công','Gia công trọn gói cả lệnh LSX26-0002','ck','Thuê gia công ngoài',1],
+ ['chi','UNC-261007-8F2L','2026-10-06',70761600,'Công ty TNHH Giấy Tân Mai Sài Gòn','Thanh toán đủ đợt 1 DMH-261007-0R7L','ck','Trả nhà cung cấp',1],
+ ['chi','UNC-261007-RQ06','2026-10-06',28958000,'Công ty CP Giấy Việt Trì','Thanh toán một phần đợt 1 DMH-261007-PTHV','ck','Trả nhà cung cấp',1],
+ ['chi','PC-261007-FNWN','2026-10-07',8047600,'Công ty TNHH Nhũ ép kim Kim Long','Thanh toán đủ đợt 1 DMH-261007-7DK7','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261007-D5ZB','2026-10-07',2000000,'Cơ sở Gia công Cán màng Thành Công','Gia công trọn gói cả lệnh LSX26-0006','tm','Thuê gia công ngoài',1],
+ ['chi','UNC-261007-MD21','2026-10-07',31817000,'Công ty TNHH Thương mại Giấy An Phát','Thanh toán một phần đợt 1 DMH-261007-UIMN','ck','Trả nhà cung cấp',1],
+ ['chi','PC-261007-WMR6','2026-10-07',50000000,'Công ty CP Màng và Keo Đông Á','Thanh toán DMH-261007-C22N vật tư ép kim hộp quà Trung thu','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261007-GC1M','2026-10-07',75130000,'Công ty CP Màng và Keo Đông Á','Thanh toán DMH-261007-C22N vật tư ép kim hộp quà Trung thu','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261007-PCSZ','2026-10-07',108724000,'Công ty CP Màng và Keo Đông Á','Thanh toán DMH-261007-C22N vật tư ép kim hộp quà Trung thu','tm','Trả nhà cung cấp',1],
+ ['chi','PC-261011-W2DV','2026-10-11',3000000,'Cơ sở Gia công Cán màng Thành Công','Gia công cắt thành phẩm LSX26-0004','tm','Thuê gia công ngoài',1],
+ ['chi','UNC-261007-PXPI','2026-08-10',18750000,'Điện lực Thuận An','Tiền điện tháng 8 xưởng in','ck','Điện nước',0],
+ ['chi','UNC-261007-OKVM','2026-09-07',21340000,'Điện lực Thuận An','Tiền điện tháng 9 xưởng in (đợt 2)','ck','Điện nước',0],
+ ['chi','PC-261007-5UGN','2026-09-10',1850000,'Công ty Cấp thoát nước Bình Dương','Tiền nước tháng 9','tm','Điện nước',0],
+ ['chi','PC-261007-PMH9','2026-09-16',3200000,'Nhà sách Phương Nam Thuận An','Mua văn phòng phẩm quý IV','tm','Văn phòng phẩm',0],
+ ['chi','UNC-261007-70H7','2026-09-22',12000000,'Nhà xe Tấn Phát','Thuê xe tải giao hàng tháng 9','ck','Vận chuyển thuê ngoài',0],
+ ['chi','PC-261007-LP0G','2026-09-28',650000,'Nhà hàng Hương Quê','Tiếp khách đơn hàng Bibica','tm','Tiếp khách',0],
+ ['chi','PC-261007-14L6','2026-10-01',2400000,'Cơ khí Hoàng Long','Sửa máy nén khí xưởng in','tm','Sửa chữa bảo trì máy',0],
+ ['chi','UNC-261007-4DKM','2026-10-05',4500000,'VNPT Bình Dương','Cước internet và phần mềm hoá đơn điện tử','ck','Internet và phần mềm',0],
+ ['chi','UNC-261005-AQ71','2026-10-06',2000000,'Công ty Điện lực Bình Dương','Tiền điện tháng 9 xưởng in','ck','Chưa phân loại',2],
+ ['chi','UNC-261006-8ODQ','2026-10-06',2350000,'Điện lực Thuận An','Tiền điện tháng 9 xưởng in','ck','Chưa phân loại',2],
+ ['chi','PC-261007-OE92','2026-10-07',980000,'Cửa hàng Dầu nhớt Minh Tâm','Mua dầu nhớt bảo trì máy bế','tm','Sửa chữa bảo trì máy',0],
+ ['thu','PT-261006-MUNO','2026-10-06',500000,'Công ty CP Café Katinat','Thu cọc đơn DH003','ck','Khách đặt cọc',1],
+ ['thu','PT-261006-Y5VV','2026-10-06',1060420,'Công ty CP Café Katinat','Thu cọc đơn DH003','tm','Khách đặt cọc',1],
+ ['thu','PT-261006-A9KQ','2026-10-06',1000000,'Công ty CP Cao Lợi Hưng Việt Nam','Thu hoá đơn 123 của đơn DH001','ck','Khách trả tiền hàng',1],
+ ['thu','PT-261007-FSAE','2026-10-07',13472000,'Công ty CP Bibica','Thu tiền hoá đơn đợt 1','ck','Khách trả tiền hàng',1],
+ ['thu','PT-261007-MWDF','2026-10-07',468000,'Công ty CP Café Katinat','Thu tiền hoá đơn đợt 1','ck','Khách trả tiền hàng',1],
+ ['thu','PT-261008-9ZY2','2026-10-08',1092420,'Công ty CP Café Katinat','Thu hoá đơn 0000125 của đơn DH003','tm','Khách trả tiền hàng',1],
+ ['thu','PT-261008-HG97','2026-10-08',4000000,'Công ty CP Café Katinat','Thu hoá đơn 0000126 của đơn DH004','tm','Khách trả tiền hàng',1],
+ ['thu','PT-261007-NE7V','2026-08-13',1250000,'Cơ sở phế liệu Minh Phát','Bán giấy vụn tháng 8','tm','Bán phế liệu',0],
+ ['thu','PT-261007-UJA4','2026-08-28',3500000,'Công ty TNHH Giấy Tân Mai Sài Gòn','Nhà cung cấp hoàn tiền giấy lỗi','ck','Nhà cung cấp hoàn tiền',1],
+ ['thu','PT-261007-GBC1','2026-09-04',420000,'Tổ bế','Thu tiền phạt vi phạm nội quy','tm','Tiền phạt nội quy',0],
+ ['thu','PT-261007-5M9Z','2026-09-11',186500,'Ngân hàng BIDV','Lãi tiền gửi tháng 9','ck','Lãi tiền gửi',0],
+ ['thu','PT-261007-ZGZH','2026-09-19',2300000,'Cơ sở Pallet Thuận Phát','Bán pallet gỗ cũ','tm','Bán phế liệu',0],
+ ['thu','PT-261007-P4K5','2026-09-25',15000000,'Công ty TNHH Bao Bì An Khang','Thu tiền in mẫu thử khách lẻ','ck','Doanh thu khách lẻ',0],
+ ['thu','PT-261007-J0SN','2026-10-03',980000,'Cơ sở phế liệu Minh Phát','Bán lõi giấy cuộn','tm','Bán phế liệu',0],
+ ['thu','PT-261005-H4B7','2026-10-06',750000,'Cơ sở phế liệu Minh Phát','Bán giấy vụn tháng 9','tm','Chưa phân loại',2],
+ ['thu','PT-261007-HO1X','2026-10-07',5000000,'Trần Đình Sơn','Nhân viên hoàn tạm ứng công tác','ck','Nhân viên hoàn tạm ứng',0],
+].map(r=>({loai:r[0],so:r[1],ngay:r[2],tien:r[3],nguoi:r[4],lydo:r[5],ht:r[6]==='ck'?'Chuyển khoản':'Tiền mặt',muc:r[7],tu:r[8],thang:+r[2].slice(5,7)}));
+const THANG=[8,9,10], TEN_THANG={8:'Tháng 8',9:'Tháng 9',10:'Tháng 10'};
+const MAU=['#f97316','#3b82f6','#14b8a6','#a855f7','#eab308','#94a3b8'];
+
+const f=v=>v?(v<0?'−':'')+Math.abs(Math.round(v)).toLocaleString('vi-VN'):'0';
+const ngan=v=>{const a=Math.abs(v),s=v<0?'−':''; if(a>=1e6) return s+(a/1e6).toLocaleString('vi-VN',{maximumFractionDigits:1})+' tr'; if(a>=1e3) return s+Math.round(a/1e3)+' nghìn'; return s+a;};
+const dmy=d=>d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+const sum=a=>a.reduce((s,p)=>s+p.tien,0);
+const loc=(st)=>P.filter(p=>(!st.chiKhac||p.tu!==1)&&(!st.thang||p.thang===st.thang)&&(!st.muc||p.muc===st.muc)&&(!st.loai||p.loai===st.loai)&&(!st.chua||p.tu===2));
+const nhanMuc=(m,tu)=>m+(tu===1?'<span class="tag">máy tự gán</span>':'')+(tu===2?'<span class="tag chua">cần phân loại</span>':'');
+const chipLoai=l=>l==='thu'?'<span class="chip thu"><i></i>Thu</span>':'<span class="chip chi"><i></i>Chi</span>';
+function theoMuc(ds,loai){const m={};ds.filter(p=>p.loai===loai).forEach(p=>{(m[p.muc]=m[p.muc]||{ten:p.muc,tien:0,n:0,tu:p.tu}).tien+=p.tien;m[p.muc].n++;});return Object.values(m).sort((a,b)=>(a.tu===2)-(b.tu===2)||b.tien-a.tien);}
+
+// ---------- biểu đồ cột đôi theo tháng (SVG) ----------
+function bieuDoThang(el,st,onBam,cao=230){
+  const W=el.clientWidth||1400,H=cao,L=70,B=44,T=18;
+  const base=P.filter(p=>!st.chiKhac||p.tu!==1);
+  const d=THANG.map(t=>({t,thu:sum(base.filter(p=>p.thang===t&&p.loai==='thu')),chi:sum(base.filter(p=>p.thang===t&&p.loai==='chi'))}));
+  const max=Math.max(...d.map(x=>Math.max(x.thu,x.chi)))||1;
+  const buoc=niceStep(max/4), top=buoc*Math.ceil(max*1.08/buoc);
+  const y=v=>T+(H-T-B)*(1-v/top), gw=(W-L-10)/d.length, bw=Math.min(54,gw/5);
+  let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  for(let v=0;v<=top+1;v+=buoc){s+=`<line x1="${L}" x2="${W-10}" y1="${y(v)}" y2="${y(v)}" stroke="#eef2f6"/><text x="${L-8}" y="${y(v)+4}" font-size="11" fill="#94a3b8" text-anchor="end">${ngan(v)}</text>`;}
+  d.forEach((x,i)=>{
+    const cx=L+gw*i+gw/2, on=st.thang===x.t, mo=st.thang&&!on;
+    s+=`<g class="cot-bam" data-thang="${x.t}"><rect class="nen" x="${L+gw*i+4}" y="${T-6}" width="${gw-8}" height="${H-T-B+34}" rx="8" fill="${on?'#fff':'transparent'}" stroke="${on?'#0f172a':'none'}"/>`;
+    s+=`<rect x="${cx-bw-3}" y="${y(x.thu)}" width="${bw}" height="${Math.max(1,y(0)-y(x.thu))}" rx="3" fill="var(--thu)" opacity="${mo?.35:1}"/>`;
+    s+=`<rect x="${cx+3}" y="${y(x.chi)}" width="${bw}" height="${Math.max(1,y(0)-y(x.chi))}" rx="3" fill="var(--chi)" opacity="${mo?.35:1}"/>`;
+    s+=`<text x="${cx-bw/2-3}" y="${y(x.thu)-5}" font-size="11" fill="#475569" text-anchor="middle">${ngan(x.thu)}</text>`;
+    s+=`<text x="${cx+bw/2+3}" y="${y(x.chi)-5}" font-size="11" fill="#475569" text-anchor="middle">${ngan(x.chi)}</text>`;
+    s+=`<text x="${cx}" y="${H-B+18}" font-size="12.5" fill="#0f172a" text-anchor="middle">${TEN_THANG[x.t]}${x.t===10?' (1 – 11/10)':''}</text>`;
+    s+=`<text x="${cx}" y="${H-B+34}" font-size="11.5" fill="#64748b" text-anchor="middle">chênh lệch ${ngan(x.thu-x.chi)}</text></g>`;
+  });
+  s+='</svg>'; el.innerHTML=s;
+  el.querySelectorAll('[data-thang]').forEach(g=>g.onclick=()=>onBam(+g.dataset.thang));
+}
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const n=x/p;return (n<=1?1:n<=2?2:n<=5?5:10)*p;}
+
+function thanhNgang(el,items,mau,chon,onBam){
+  const tong=items.reduce((s,x)=>s+x.tien,0)||1, max=Math.max(...items.map(x=>x.tien),1);
+  el.innerHTML=items.length?items.map(x=>`<div class="r${chon===x.ten?' on':''}" data-m="${x.ten}"><span class="ten">${nhanMuc(x.ten,x.tu)}</span><span class="tr"><b style="width:${x.tien/max*100}%;background:${x.tu===2?'#eab308':mau}"></b></span><span class="n">${f(x.tien)}</span><span class="pt">${(x.tien/tong*100).toLocaleString('vi-VN',{maximumFractionDigits:1})}%</span></div>`).join(''):'<div class="ghi" style="padding:10px 6px">Không có phiếu nào</div>';
+  el.querySelectorAll('[data-m]').forEach(r=>r.onclick=()=>onBam(r.dataset.m));
+}
+function bangPhieu(tb,ds,coLoai=true){
+  ds=[...ds].sort((a,b)=>b.ngay.localeCompare(a.ngay)||b.tien-a.tien);
+  tb.innerHTML=`<colgroup><col style="width:100px"><col style="width:160px">${coLoai?'<col style="width:74px">':''}<col style="width:210px"><col style="width:270px"><col><col style="width:120px"><col style="width:130px"></colgroup>
+  <thead><tr><th>Ngày</th><th>Số phiếu</th>${coLoai?'<th>Loại</th>':''}<th>Mục</th><th>Người nhận hoặc nộp</th><th>Lý do</th><th>Hình thức</th><th class="n">Số tiền</th></tr></thead>
+  <tbody>${ds.slice(0,12).map(p=>`<tr><td>${dmy(p.ngay)}</td><td><a class="lk" href="#">${p.so}</a></td>${coLoai?`<td>${chipLoai(p.loai)}</td>`:''}<td>${nhanMuc(p.muc,p.tu===2?2:0)}</td><td>${p.nguoi}</td><td class="ma">${p.lydo}</td><td class="ma">${p.ht}</td><td class="n">${p.loai==='chi'?'':''}${f(p.tien)}</td></tr>`).join('')}</tbody>`;
+  return ds;
+}
+function chanTrang(el,ds){const thu=sum(ds.filter(p=>p.loai==='thu')),chi=sum(ds.filter(p=>p.loai==='chi'));
+  el.innerHTML=`<span>${ds.length} phiếu${thu?`<span style="margin-left:14px">thu ${f(thu)}</span>`:''}${chi?`<span style="margin-left:14px">chi ${f(chi)}</span>`:''}</span><span class="trang">${ds.length>12?'<button class="on">1</button><button>2</button><button>3</button><span style="margin-left:8px">12 dòng một trang</span>':''}</span>`;}
+function hangSo(el,st,onChua){
+  const base=P.filter(p=>!st.chiKhac||p.tu!==1).filter(p=>!st.thang||p.thang===st.thang);
+  const t=base.filter(p=>p.loai==='thu'),c=base.filter(p=>p.loai==='chi'),ch=base.filter(p=>p.tu===2);
+  el.innerHTML=`<div class="c"><span class="l"><i style="background:var(--thu)"></i>Thu${st.thang?' '+TEN_THANG[st.thang].toLowerCase():''}</span><span class="v">${f(sum(t))}<small>${t.length} phiếu</small></span></div><span class="op">−</span>
+  <div class="c"><span class="l"><i style="background:var(--chi)"></i>Chi${st.thang?' '+TEN_THANG[st.thang].toLowerCase():''}</span><span class="v">${f(sum(c))}<small>${c.length} phiếu</small></span></div><span class="op">=</span>
+  <div class="c"><span class="l">Chênh lệch</span><span class="v">${f(sum(t)-sum(c))}</span></div><span class="gap"></span>
+  ${ch.length?`<div class="c phu bam${st.chua?' on':''}" data-chua><span class="l">Chưa phân loại</span><span class="v">${f(sum(ch))}<small>${ch.length} phiếu cần gán mục</small></span></div>`:''}`;
+  const b=el.querySelector('[data-chua]'); if(b&&onChua) b.onclick=onChua;
+}
+function segBind(root,sel,cb){root.querySelectorAll(sel).forEach(seg=>seg.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.v);}));}
+
+// ================= A =================
+(function(){
+  const R=document.getElementById('fA'), st={chiKhac:false,thang:null,muc:null,loai:'',chua:false};
+  function ve(){
+    hangSo(R.querySelector('[data-so]'),st,()=>{st.chua=!st.chua;st.muc=null;ve();});
+    bieuDoThang(R.querySelector('[data-bieudo-thang]'),st,t=>{st.thang=st.thang===t?null:t;ve();});
+    const base=P.filter(p=>(!st.chiKhac||p.tu!==1)&&(!st.thang||p.thang===st.thang));
+    R.querySelector('[data-tieu-chi]').textContent=st.thang?TEN_THANG[st.thang]:'cả kỳ';
+    R.querySelector('[data-tieu-thu]').textContent=st.thang?TEN_THANG[st.thang]:'cả kỳ';
+    thanhNgang(R.querySelector('[data-hb="chi"]'),theoMuc(base,'chi'),'var(--chi)',st.muc,m=>{st.muc=st.muc===m?null:m;st.chua=false;ve();});
+    thanhNgang(R.querySelector('[data-hb="thu"]'),theoMuc(base,'thu'),'var(--thu)',st.muc,m=>{st.muc=st.muc===m?null:m;st.chua=false;ve();});
+    const lc=[];
+    if(st.thang) lc.push([TEN_THANG[st.thang],()=>{st.thang=null}]);
+    if(st.muc) lc.push([st.muc,()=>{st.muc=null}]);
+    if(st.chua) lc.push(['Chưa phân loại',()=>{st.chua=false}]);
+    if(st.chiKhac) lc.push(['Chỉ thu chi khác',()=>{st.chiKhac=false;R.querySelector('[data-chikhac] [data-v="0"]').click();}]);
+    const le=R.querySelector('[data-loc]');
+    le.innerHTML=lc.map((x,i)=>`<span class="x" data-i="${i}">${x[0]}<b>✕</b></span>`).join('');
+    le.querySelectorAll('[data-i]').forEach(e=>e.onclick=()=>{lc[+e.dataset.i][1]();ve();});
+    const ds=loc(st); bangPhieu(R.querySelector('[data-ds]'),ds); chanTrang(R.querySelector('[data-chan]'),ds);
+  }
+  segBind(R,'[data-chikhac]',v=>{st.chiKhac=v==='1';st.muc=null;ve();});
+  segBind(R,'[data-loai]',v=>{st.loai=v;ve();});
+  window.veA=ve; ve();
+})();
+
+// ================= B =================
+(function(){
+  const R=document.getElementById('fB'), st={chiKhac:false,ben:'chi',xem:'bieudo'};
+  function muc5(ben){
+    const base=P.filter(p=>p.loai===ben&&(!st.chiKhac||p.tu!==1));
+    const all=theoMuc(base,ben); const top=all.filter(x=>x.tu!==2).slice(0,5); const ten=new Set(top.map(x=>x.ten));
+    const khac=all.filter(x=>!ten.has(x.ten));
+    const nhom=[...top.map((x,i)=>({...x,mau:MAU[i],gom:[x.ten]}))];
+    if(khac.length) nhom.push({ten:khac.length===1?khac[0].ten:'Mục khác ('+khac.length+' mục)',tien:khac.reduce((s,x)=>s+x.tien,0),tu:khac.length===1?khac[0].tu:0,mau:MAU[5],gom:khac.map(x=>x.ten)});
+    return {base,nhom};
+  }
+  function veChong(){
+    const el=R.querySelector('[data-chong]'); const {base,nhom}=muc5(st.ben);
+    const W=el.clientWidth||1000,H=Math.max(el.clientHeight,420),L=70,B=36,T=16;
+    const d=THANG.map(t=>({t,ph:nhom.map(n=>sum(base.filter(p=>p.thang===t&&n.gom.includes(p.muc))))}));
+    const max=Math.max(...d.map(x=>x.ph.reduce((a,b)=>a+b,0)))||1, buoc=niceStep(max/5), top=buoc*Math.ceil(max*1.08/buoc);
+    const y=v=>T+(H-T-B)*(1-v/top), gw=(W-L-10)/3, bw=Math.min(120,gw*.45);
+    let s=`<svg width="${W}" height="${H}">`;
+    for(let v=0;v<=top+1;v+=buoc) s+=`<line x1="${L}" x2="${W-10}" y1="${y(v)}" y2="${y(v)}" stroke="#eef2f6"/><text x="${L-8}" y="${y(v)+4}" font-size="11" fill="#94a3b8" text-anchor="end">${ngan(v)}</text>`;
+    d.forEach((x,i)=>{const cx=L+gw*i+gw/2; let acc=0;
+      x.ph.forEach((v,j)=>{ if(!v) return; const y0=y(acc+v), h=y(acc)-y(acc+v); s+=`<rect class="cot-bam" data-j="${j}" data-t="${x.t}" x="${cx-bw/2}" y="${y0}" width="${bw}" height="${Math.max(h,1.5)}" fill="${nhom[j].mau}" stroke="#fff" stroke-width="1"><title>${nhom[j].ten} ${TEN_THANG[x.t]}: ${f(v)}</title></rect>`; acc+=v;});
+      s+=`<text x="${cx}" y="${y(acc)-6}" font-size="12" fill="#0f172a" text-anchor="middle">${f(acc)}</text><text x="${cx}" y="${H-B+20}" font-size="12.5" fill="#0f172a" text-anchor="middle">${TEN_THANG[x.t]}${x.t===10?' (1 – 11/10)':''}</text>`;});
+    el.innerHTML=s+'</svg>';
+    el.querySelectorAll('[data-j]').forEach(r=>r.onclick=()=>moNgan(nhom[+r.dataset.j],+r.dataset.t));
+    const cg=R.querySelector('[data-chu-giai]');
+    cg.innerHTML=nhom.map((n,j)=>`<div class="r" data-j="${j}" style="grid-template-columns:14px 1fr 120px 48px"><i style="width:10px;height:10px;border-radius:2px;background:${n.mau}"></i><span class="ten">${nhanMuc(n.ten,n.tu)}</span><span class="n">${f(n.tien)}</span><span class="pt">${(n.tien/sum(base)*100).toLocaleString('vi-VN',{maximumFractionDigits:1})}%</span></div>`).join('')+`<div class="r" style="grid-template-columns:14px 1fr 120px 48px;cursor:default;border-top:1px solid var(--rule-soft);border-radius:0"><i></i><span>Cộng ${st.ben}</span><span class="n">${f(sum(base))}</span><span></span></div>`;
+    cg.querySelectorAll('[data-j]').forEach(r=>r.onclick=()=>moNgan(nhom[+r.dataset.j],null));
+  }
+  function veBang(){
+    const base=P.filter(p=>!st.chiKhac||p.tu!==1);
+    let h=`<colgroup><col style="width:380px"><col style="width:190px"><col style="width:190px"><col style="width:210px"><col style="width:190px"><col></colgroup><thead><tr><th>Mục</th><th class="n">Tháng 8</th><th class="n">Tháng 9</th><th class="n">Tháng 10 (1 – 11/10)</th><th class="n">Cộng kỳ</th><th></th></tr></thead><tbody>`;
+    const tong={};
+    ['thu','chi'].forEach(ben=>{
+      const ms=theoMuc(base,ben), tt=THANG.map(t=>sum(base.filter(p=>p.loai===ben&&p.thang===t)));
+      tong[ben]=tt;
+      h+=`<tr class="nhom"><td>${ben==='thu'?'Thu':'Chi'}</td>${tt.map(v=>`<td class="n">${f(v)}</td>`).join('')}<td class="n">${f(tt[0]+tt[1]+tt[2])}</td><td></td></tr>`;
+      ms.forEach(m=>{h+=`<tr class="muc"><td>${nhanMuc(m.ten,m.tu)}</td>${THANG.map(t=>{const v=sum(base.filter(p=>p.loai===ben&&p.muc===m.ten&&p.thang===t));return v?`<td class="n o" data-m="${m.ten}" data-t="${t}">${f(v)}</td>`:'<td class="n mu">—</td>';}).join('')}<td class="n o" data-m="${m.ten}">${f(m.tien)}</td><td></td></tr>`;});
+    });
+    h+=`<tr class="cl"><td>Chênh lệch thu − chi</td>${[0,1,2].map(i=>`<td class="n">${f(tong.thu[i]-tong.chi[i])}</td>`).join('')}<td class="n">${f(tong.thu.reduce((a,b)=>a+b)-tong.chi.reduce((a,b)=>a+b))}</td><td></td></tr></tbody>`;
+    const tb=R.querySelector('[data-bang]'); tb.innerHTML=h;
+    tb.querySelectorAll('[data-m]').forEach(td=>td.onclick=()=>{const m=td.dataset.m;const x=theoMuc(base,P.find(p=>p.muc===m).loai).find(k=>k.ten===m);moNgan({...x,gom:[m],mau:'var(--chi)'},td.dataset.t?+td.dataset.t:null);});
+  }
+  function moNgan(n,thang){
+    const ben=P.find(p=>n.gom.includes(p.muc)).loai;
+    const ds=P.filter(p=>n.gom.includes(p.muc)&&(!st.chiKhac||p.tu!==1));
+    const dsT=thang?ds.filter(p=>p.thang===thang):ds;
+    const theoT=THANG.map(t=>sum(ds.filter(p=>p.thang===t))), mx=Math.max(...theoT,1);
+    const ng=R.querySelector('[data-ngan]');
+    const nguoi={}; dsT.forEach(p=>{(nguoi[p.nguoi]=nguoi[p.nguoi]||{n:0,t:0}).n++;nguoi[p.nguoi].t+=p.tien;});
+    ng.innerHTML=`<div class="ng-dau"><div class="ng-r1"><span class="ten">${n.ten}</span>${chipLoai(ben)}${n.tu===2?'<span class="tag chua">cần phân loại</span>':''}<span class="sp"></span>${n.tu===2?'<button class="btn">Chuyển sang mục…</button>':''}<button class="btn">Xuất Excel</button><button class="ng-x" data-dong>✕</button></div>
+      <div style="display:flex;gap:40px;align-items:flex-end">
+        <div class="ng-so"><div class="c"><span class="l">${thang?TEN_THANG[thang]:'Cả kỳ 01/08 – 11/10'}</span><span class="v">${f(sum(dsT))}</span></div><div class="c"><span class="l">Số phiếu</span><span class="v">${dsT.length}</span></div>${thang?`<div class="c"><span class="l">Cả kỳ</span><span class="v">${f(sum(ds))}</span></div>`:''}</div>
+        <span style="flex:1"></span>
+        <div style="display:flex;gap:14px;align-items:flex-end;padding-bottom:10px">${THANG.map((t,i)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer" data-nt="${t}"><span style="font-size:11.5px;color:var(--ash-2)">${ngan(theoT[i])}</span><span style="width:46px;height:${Math.max(2,theoT[i]/mx*56)}px;border-radius:3px;background:${ben==='thu'?'var(--thu)':'var(--chi)'};opacity:${thang&&thang!==t?.35:1};outline:${thang===t?'1px solid #0f172a':'none'};outline-offset:2px"></span><span style="font-size:12px">${TEN_THANG[t]}</span></div>`).join('')}</div>
+      </div></div>
+      <div class="ng-tab"><span class="on" data-tb="p">Phiếu ${dsT.length}</span><span data-tb="n">Người nhận ${Object.keys(nguoi).length}</span></div>
+      <div class="ng-than"><div data-tbv="p"><div class="wrap"><table class="g" data-ngds></table></div></div>
+      <div data-tbv="n" style="display:none"><div class="wrap"><table class="g"><colgroup><col><col style="width:110px"><col style="width:160px"></colgroup><thead><tr><th>${ben==='thu'?'Người nộp tiền':'Người nhận tiền'}</th><th class="n">Số phiếu</th><th class="n">Số tiền</th></tr></thead><tbody>${Object.entries(nguoi).sort((a,b)=>b[1].t-a[1].t).map(([k,v])=>`<tr><td>${k}</td><td class="n">${v.n}</td><td class="n">${f(v.t)}</td></tr>`).join('')}</tbody></table></div></div></div>`;
+    bangPhieu(ng.querySelector('[data-ngds]'),dsT,false);
+    ng.querySelectorAll('[data-nt]').forEach(e=>e.onclick=()=>moNgan(n,thang===+e.dataset.nt?null:+e.dataset.nt));
+    ng.querySelectorAll('[data-tb]').forEach(e=>e.onclick=()=>{ng.querySelectorAll('[data-tb]').forEach(x=>x.classList.toggle('on',x===e));ng.querySelectorAll('[data-tbv]').forEach(x=>x.style.display=x.dataset.tbv===e.dataset.tb?'':'none');});
+    R.classList.add('dw');
+  }
+  R.addEventListener('click',e=>{if(e.target.closest('[data-dong]')) R.classList.remove('dw');});
+  function ve(){ hangSo(R.querySelector('[data-so]'),{chiKhac:st.chiKhac},()=>moNgan({ten:'Chưa phân loại',tu:2,gom:['Chưa phân loại']},null));
+    R.querySelector('[data-view="bieudo"]').style.display=st.xem==='bieudo'?'flex':'none';
+    R.querySelector('[data-view="bang"]').style.display=st.xem==='bang'?'block':'none';
+    if(st.xem==='bieudo') veChong(); else veBang(); }
+  segBind(R,'[data-chikhac]',v=>{st.chiKhac=v==='1';ve();});
+  segBind(R,'[data-ben]',v=>{st.ben=v;ve();});
+  segBind(R,'[data-xem]',v=>{st.xem=v;ve();});
+  window.veB=ve; ve();
+})();
+
+// ================= C =================
+(function(){
+  const R=document.getElementById('fC'), st={chiKhac:false,tab:'chi',thang:null,muc:null};
+  function veBen(){
+    const ben=st.tab, base=P.filter(p=>p.loai===ben&&(!st.chiKhac||p.tu!==1));
+    R.querySelector('[data-c-tieu]').textContent=(ben==='chi'?'Chi':'Thu')+' theo tháng';
+    // dải cột một màu
+    const el=R.querySelector('[data-c-thang]'), W=el.clientWidth||1400, H=120, L=70, B=24, T=14;
+    const d=THANG.map(t=>({t,v:sum(base.filter(p=>p.thang===t))})); const max=Math.max(...d.map(x=>x.v))*1.15||1;
+    const y=v=>T+(H-T-B)*(1-v/max), gw=(W-L-10)/3, bw=Math.min(160,gw*.5);
+    let s=`<svg width="${W}" height="${H}">`;
+    d.forEach((x,i)=>{const cx=L+gw*i+gw/2,on=st.thang===x.t,mo=st.thang&&!on;
+      s+=`<g class="cot-bam" data-t="${x.t}"><rect class="nen" x="${L+gw*i+6}" y="2" width="${gw-12}" height="${H-4}" rx="7" fill="${on?'#fff':'transparent'}" stroke="${on?'#0f172a':'none'}"/><rect x="${cx-bw/2}" y="${y(x.v)}" width="${bw}" height="${Math.max(1,y(0)-y(x.v))}" rx="3" fill="${ben==='chi'?'var(--chi)':'var(--thu)'}" opacity="${mo?.35:1}"/><text x="${cx+bw/2+8}" y="${y(x.v)+12}" font-size="12" fill="#0f172a">${f(x.v)}</text><text x="${cx}" y="${H-6}" font-size="12" fill="#475569" text-anchor="middle">${TEN_THANG[x.t]}</text></g>`;});
+    el.innerHTML=s+'</svg>';
+    el.querySelectorAll('[data-t]').forEach(g=>g.onclick=()=>{st.thang=st.thang===+g.dataset.t?null:+g.dataset.t;veBen();});
+    // cột mục
+    const bt=base.filter(p=>!st.thang||p.thang===st.thang), ms=theoMuc(bt,ben), mx=Math.max(...ms.map(x=>x.tien),1);
+    const md=R.querySelector('[data-c-muc]');
+    md.innerHTML=`<div class="r${!st.muc?' on':''}" data-m=""><span class="ten">Tất cả mục</span><span class="n">${f(sum(bt))}</span></div><div class="nh">${st.thang?TEN_THANG[st.thang]:'Cả kỳ'}, ${bt.length} phiếu</div>`+ms.map(m=>`<div class="r${st.muc===m.ten?' on':''}" data-m="${m.ten}"><span class="ten">${nhanMuc(m.ten,m.tu)}</span><span class="n">${f(m.tien)}</span><span class="tr"><b style="width:${m.tien/mx*100}%;background:${m.tu===2?'#eab308':(ben==='chi'?'var(--chi)':'var(--thu)')}"></b></span></div>`).join('');
+    md.querySelectorAll('[data-m]').forEach(r=>r.onclick=()=>{st.muc=r.dataset.m||null;veBen();});
+    const lc=[]; if(st.thang) lc.push([TEN_THANG[st.thang],()=>st.thang=null]); if(st.muc) lc.push([st.muc,()=>st.muc=null]);
+    const le=R.querySelector('[data-loc]'); le.innerHTML=lc.map((x,i)=>`<span class="x" data-i="${i}">${x[0]}<b>✕</b></span>`).join('');
+    le.querySelectorAll('[data-i]').forEach(e=>e.onclick=()=>{lc[+e.dataset.i][1]();veBen();});
+    const ds=bt.filter(p=>!st.muc||p.muc===st.muc);
+    bangPhieu(R.querySelector('[data-ds]'),ds,false); chanTrang(R.querySelector('[data-chan]'),ds);
+  }
+  function veTong(){
+    hangSo(R.querySelector('[data-c-tong] [data-so]'),{chiKhac:st.chiKhac},null);
+    bieuDoThang(R.querySelector('[data-c-tong] [data-bieudo-thang]'),{chiKhac:st.chiKhac},()=>{},250);
+    const base=P.filter(p=>!st.chiKhac||p.tu!==1);
+    const rows=THANG.map(t=>{const th=sum(base.filter(p=>p.thang===t&&p.loai==='thu')),c=sum(base.filter(p=>p.thang===t&&p.loai==='chi'));return [TEN_THANG[t],th,c];});
+    R.querySelector('[data-c-bang-thang]').innerHTML=`<colgroup><col style="width:260px"><col style="width:200px"><col style="width:200px"><col style="width:200px"><col></colgroup><thead><tr><th>Tháng</th><th class="n">Thu</th><th class="n">Chi</th><th class="n">Chênh lệch</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td class="n">${f(r[1])}</td><td class="n">${f(r[2])}</td><td class="n">${f(r[1]-r[2])}</td><td></td></tr>`).join('')}<tr class="cl"><td>Cộng kỳ</td><td class="n">${f(rows.reduce((s,r)=>s+r[1],0))}</td><td class="n">${f(rows.reduce((s,r)=>s+r[2],0))}</td><td class="n">${f(rows.reduce((s,r)=>s+r[1]-r[2],0))}</td><td></td></tr></tbody>`;
+  }
+  function ve(){
+    R.querySelector('[data-c-ben]').style.display=st.tab==='tong'?'none':'flex';
+    R.querySelector('[data-c-tong]').style.display=st.tab==='tong'?'block':'none';
+    st.tab==='tong'?veTong():veBen();
+  }
+  R.querySelectorAll('[data-tabc] span').forEach(s=>s.onclick=()=>{R.querySelectorAll('[data-tabc] span').forEach(x=>x.classList.toggle('on',x===s));st.tab=s.dataset.v;st.thang=null;st.muc=null;ve();});
+  segBind(R,'[data-chikhac]',v=>{st.chiKhac=v==='1';st.muc=null;ve();});
+  window.veC=ve; ve();
+})();
+
+// chuyển phương án (vẽ lại vì khung ẩn không có bề rộng)
+document.querySelectorAll('.sw').forEach(sw=>sw.addEventListener('click',e=>{
+  const b=e.target.closest('.pill'); if(!b) return;
+  sw.querySelectorAll('.pill').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll(`.pa[data-grp="${sw.dataset.grp}"]`).forEach(p=>p.classList.toggle('on',p.dataset.pa===b.dataset.pa));
+  ({A:window.veA,B:window.veB,C:window.veC})[b.dataset.pa]();
+}));
+</script>
+</body>
+</html>

@@ -80,13 +80,14 @@ export function slText(w: SxWorkItem): string {
  *  Kết thúc thì phần còn lại là LỖI ("Nhận 1.300 tờ in · Tốt 1.200 tờ in · Lỗi 100"). Không bày
  *  kế hoạch/mục tiêu ở đây. Số nhận do máy chủ chốt (`nhan`: bước đầu = số vào lấy từ kho). Bước
  *  ngoài dòng giấy chỉ một đơn vị ⇒ chỉ số tốt. Drawer mục "Thông tin kế hoạch" vẫn dùng `slText`. */
-export function slThucTe(w: SxWorkItem): string {
+export function slThucTe(w: SxWorkItem): string[] {
+  // Trả từng MẨU (Nhận / Tốt / Lỗi) để nơi vẽ tách bằng khoảng trống — không nối bằng dấu.
   const dvRa = nhanChang(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null));
   const tot = `Tốt ${num(w.da_lam ?? 0)}${dvRa ? ` ${dvRa}` : ""}`;
-  const loi = w.loi != null ? ` · Lỗi ${num(w.loi)}` : "";
-  if (w.ngoai_dong || w.nhan == null) return `${tot}${loi}`;
+  const loi = w.loi != null ? [`Lỗi ${num(w.loi)}`] : [];
+  if (w.ngoai_dong || w.nhan == null) return [tot, ...loi];
   const dvVao = w.don_vi_vao ? ` ${nhanChang(w.don_vi_vao)}` : "";
-  return `Nhận ${num(w.nhan)}${dvVao} · ${tot}${loi}`;
+  return [`Nhận ${num(w.nhan)}${dvVao}`, tot, ...loi];
 }
 
 /** Cột "Sản lượng tốt" của bảng bàn tổ: CHỈ số tốt kèm đơn vị ra ("1.200 tờ in"). */

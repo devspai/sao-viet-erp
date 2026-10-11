@@ -211,3 +211,95 @@ def test_cong_no_tim_doi_tuong_o_may_chu(client):
     assert [d["ten"] for d in r.json()["items"]] == ["NCC Lọc Tìm Ánh"]
     assert r.json()["tong"]["so_dong"] == 1
     assert r.json()["tong"]["cuoi_co"] == r.json()["items"][0]["cuoi_co"]
+
+
+def test_bao_cao_kho_loc_thuoc_tinh_va_lua_chon(client):
+    """Nút Lọc của Chi tiết phiếu + Nhập-Xuất-Tồn (11/10/2026): điều kiện thuộc tính lọc ở máy chủ,
+    `lua_chon` đếm TRƯỚC khi áp (chọn một mặt hàng thì menu vẫn bày đủ), kỳ khóa tra theo ngày CT."""
+    from app.repositories.kho_khoa_so_repo import KhoKhoaSoRepository
+
+    kho_id, mat = _setup(client)
+    a = _nhap(client, kho_id=kho_id, mat_id=mat, qty=5, gia=1000)
+    _nhap(client, kho_id=kho_id, mat_id=mat, qty=7, gia=1000)
+    _sua_phieu(a["id"], ngay=date(2026, 8, 15))
+    h = _admin(client)
+    base = {"kho_id": kho_id, "loai": "NHAP"}
+
+    r = client.get(URL_SO, headers=h, params=base)
+    assert r.status_code == 200, r.text
+    lc = r.json()["lua_chon"]
+    assert [(x["value"], x["so"]) for x in lc["mat_hang"]] == [("GY-KHO-1", 2)]
+    assert [x["value"] for x in lc["hang_loai"]] == [mat[0]]
+    # Menu Lọc chỉ giữ điều kiện người ta cắt báo cáo theo — khổ, ĐVT, kỳ khóa, lệnh… không còn.
+    assert set(lc) == {"hang_loai", "mat_hang", "phat_sinh", "ton", "loai_phieu", "ly_do",
+                       "khach_hang", "nha_cung_cap"}
+    # Cột nguồn phiếu + điều kiện Loại phiếu / Lý do (Chi tiết phiếu gộp nhập + xuất một bảng).
+    assert [(x["value"], x["so"]) for x in lc["loai_phieu"]] == [("NHAP", 2)]
+    assert [(x["value"], x["so"]) for x in lc["ly_do"]] == [("nhap_khac", 2)]
+    dong = r.json()["items"][0]
+    assert dong["ly_do_ten"] == "Nhập khác" and dong["ma_yeu_cau"] and dong["nguoi_lap"]
+    assert dong["nhom_hang"] == mat[0]
+    gop = {"kho_id": kho_id}
+    assert client.get(URL_SO, headers=h, params=gop).json()["total"] == 2
+    assert client.get(URL_SO, headers=h, params={**gop, "loai_phieu": "XUAT"}).json()["total"] == 0
+    assert client.get(URL_SO, headers=h, params={**gop, "loai_phieu": ["NHAP", "XUAT"]}).json()["total"] == 2
+    assert client.get(URL_SO, headers=h, params={**gop, "ly_do": "nhap_mua"}).json()["total"] == 0
+
+    assert r.json()["total"] == 2
+    assert client.get(URL_SO, headers=h, params={**base, "mat_hang": "KHAC"}).json()["total"] == 0
+    r = client.get(URL_SO, headers=h, params={**base, "mat_hang": ["KHAC", "GY-KHO-1"]})
+    assert r.json()["total"] == 2
+    # Lựa chọn không co lại theo điều kiện đang áp.
+    r = client.get(URL_SO, headers=h, params={**base, "mat_hang": "KHAC"})
+    assert [x["value"] for x in r.json()["lua_chon"]["mat_hang"]] == ["GY-KHO-1"]
+    assert client.get(URL_SO, headers=h, params={**base, "hang_loai": "khong-co"}).json()["total"] == 0
+
+    # Khóa sổ tháng 8 ⇒ phiếu ngày CT 15/08 mang tên kỳ ở cột Kỳ khóa sổ (kỳ chọn ở nút Kỳ, không lọc).
+    db = SessionLocal()
+    try:
+        KhoKhoaSoRepository(db).add(kho_id=None, tu_ngay=date(2026, 8, 1), den_ngay=date(2026, 8, 31),
+                                    hanh_dong="khoa", nguoi_khoa_id=None, ten="Tháng 8")
+    finally:
+        db.close()
+    r = client.get(URL_SO, headers=h, params={**base, "tu_ngay": "2026-08-01", "den_ngay": "2026-08-31"})
+    assert _ct(r) == [a["ma"]]
+    assert r.json()["items"][0]["ky_khoa"] == "Tháng 8"
+    # File Excel nhận cùng điều kiện.
+    x = client.get("/api/kho/bao-cao/export.xlsx", headers=h, params={**base, "mat_hang": "GY-KHO-1"})
+    assert x.status_code == 200, x.text
+
+    # Nhập-Xuất-Tồn: phát sinh + tồn cuối, đếm trước khi áp.
+    nxt = {"tu": "2026-08-01", "den": "2100-12-31", "kho_id": kho_id}
+    r = client.get("/api/kho/bao-cao/nxt", headers=h, params=nxt)
+    assert r.status_code == 200, r.text
+    lc = r.json()["lua_chon"]
+    assert {x["value"] for x in lc["phat_sinh"]} == {"nhap"}
+    assert {x["value"] for x in lc["ton"]} == {"con"}
+    assert len(client.get("/api/kho/bao-cao/nxt", headers=h,
+                          params={**nxt, "phat_sinh": "nhap"}).json()["items"]) == 1
+    assert client.get("/api/kho/bao-cao/nxt", headers=h,
+                      params={**nxt, "phat_sinh": "xuat"}).json()["items"] == []
+    assert client.get("/api/kho/bao-cao/nxt", headers=h,
+                      params={**nxt, "ton": ["het", "am"]}).json()["items"] == []
+    x = client.get("/api/kho/bao-cao/nxt/export.xlsx", headers=h, params={**nxt, "ton": "con"})
+    assert x.status_code == 200, x.text
+
+
+def test_bao_cao_kho_nhom_thanh_pham_va_ly_do():
+    """Thành phẩm (vật tư bật cờ `la_thanh_pham`) là nhóm hàng riêng; lý do phiếu suy từ nguồn yêu cầu."""
+    from types import SimpleNamespace as NS
+
+    from app.routers.kho_baocao import _ly_do, _nhom_hang
+
+    assert _nhom_hang("vat_tu", NS(la_thanh_pham=True)) == "thanh_pham"
+    assert _nhom_hang("vat_tu", NS(la_thanh_pham=False)) == "vat_tu"
+    assert _nhom_hang("giay", None) == "giay"
+
+    req = NS(purchase_delivery_id=None, san_xuat_cong_viec_id=None, gia_cong_ngoai_id=None,
+             vat_tu_tra_cong_viec_id=None, delivery_trip_id=None)
+    assert _ly_do(NS(loai="NHAP"), NS(**{**vars(req), "san_xuat_cong_viec_id": 3}), False) == "nhap_thanh_pham"
+    assert _ly_do(NS(loai="NHAP"), NS(**{**vars(req), "purchase_delivery_id": 1}), False) == "nhap_mua"
+    assert _ly_do(NS(loai="XUAT"), NS(**{**vars(req), "delivery_trip_id": 9}), False) == "xuat_giao_khach"
+    assert _ly_do(NS(loai="XUAT"), req, True) == "xuat_san_xuat"
+    assert _ly_do(NS(loai="XUAT"), None, False) == "xuat_khac"
+

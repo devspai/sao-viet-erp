@@ -88,6 +88,8 @@
 .ycf3-loai__goi { font-size: 12.5px; color: var(--ash-2); }
 .ycf3-muc { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px; font-size: 13px; color: var(--ash-2); }
 .ycf3-bang td { vertical-align: middle; }
+/* Tồn cùng khổ khác đơn vị gốc (tờ và kg): hai số đứng cạnh, cách bằng khoảng trống. */
+.ycf3-ton { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 10px; }
 .ycf3-bang .ycf-gi { margin-left: auto; width: 100%; padding: 0 8px; }
 /* Bảng món có minWidth: ngăn hẹp thì khung cuộn ngang (menu chọn vật tư dựng qua portal nên không bị cắt). */
 .lds-bang.lds-bang--nhap.ycf3-khung { overflow-x: auto; }

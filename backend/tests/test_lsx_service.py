@@ -94,7 +94,7 @@ def _ptg_sach(db, *, so_cuon=2_000, so_trang=160, trang_moi_tay=16) -> PhieuTinh
     cuốn (đúng như migration `0148` khai cho `CD-0008`). Gấp tay giữ `to → to` vì nó gấp cả tờ,
     một tờ thành một tay.
     """
-    giay = GiayNguyen(ma="G-FORD70", ten="Ford 70", gsm=70, don_gia=22_000, don_vi_gia="tan",
+    giay = GiayNguyen(don_vi_them=["to"], ma="G-FORD70", ten="Ford 70", gsm=70, don_gia=22_000, don_vi_gia="tan",
                       cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000")
     db.add(giay)
     to_id = _to_san_xuat(db).id
@@ -175,7 +175,7 @@ def _ptg_hinh(db, *, ma: str, buoc: list[tuple[str, str, str, str]],
     (`kho_may` = `may.kho_max_*`), KHÔNG theo khổ tờ in. Dùng chung máy 1020×720 thì giấy 860×650
     không cắt ra nổi một mảnh máy nhận ⇒ `_fit` = 0 ⇒ xả = 1, và ca "có xả" hoá ra không xả.
     """
-    giay = GiayNguyen(ma=f"G-{ma}", ten=f"Giấy {ma}", gsm=300, don_gia=25_000, don_vi_gia="tan",
+    giay = GiayNguyen(don_vi_them=["to"], ma=f"G-{ma}", ten=f"Giấy {ma}", gsm=300, don_gia=25_000, don_vi_gia="tan",
                       cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000")
     db.add(giay)
     to_id = _to_san_xuat(db).id
@@ -433,7 +433,7 @@ def _khai(db, cd, vt, ct, *, ptg=None, ten_buoc="Dán hộp", chip=None):
 
 def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
     """1 phiếu tính giá 2 sản phẩm (Hộp + Tem), mỗi sản phẩm có giấy + routing riêng."""
-    giay = GiayNguyen(ma="G-IV350", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
+    giay = GiayNguyen(don_vi_them=["to"], ma="G-IV350", ten="Ivory 350", gsm=350, don_gia=25_000, don_vi_gia="tan",
                       cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000")
     db.add(giay)
     to_id = _to_san_xuat(db).id
@@ -564,6 +564,27 @@ def test_hang_cho_chi_hien_don_da_chuyen_va_con_no_lenh(db, orders, lsx_svc, adm
     lines = lsx_svc.preview(d.id)["lines"]
     lsx_svc.tao(order_id=d.id, order_line_ids=[l["order_line_id"] for l in lines], actor=admin)
     assert not any(r["order_id"] == d.id for r in lsx_svc.hang_cho()[0])  # đủ lệnh → rời hàng chờ
+
+
+def test_preview_bao_KHO_DANG_CO_hang_cua_khach(db, orders, lsx_svc, admin, customer):
+    """11/10/2026: thành phẩm thuộc về khách ⇒ đơn trước làm dư thì KHSX thấy "kho đang có N" để
+    chỉ làm phần thiếu. Số là tồn của mã trừ phần đơn khác đang giữ."""
+    from app.models.kho_hang import KhoHang
+    from app.models.order import Order
+    from app.models.stock_lot import StockLot
+
+    d = _don_da_chuyen_sx(db, orders, admin, customer, _ptg_2_san_pham(db))
+    hop_id = db.get(Order, d.id).lines[0].thanh_pham_id
+    kho = KhoHang(ma="KTP-LSX", ten="Kho thanh pham")
+    db.add(kho)
+    db.flush()
+    db.add(StockLot(hang_loai="vat_tu", hang_id=hop_id, kho_id=kho.id, ma_lo="LO-LSX-1",
+                    ngay_nhap=date.today(), sl_ban_dau=500, sl_con_lai=500))
+    db.commit()
+
+    hop, tem = lsx_svc.preview(d.id)["lines"]
+    assert hop["ton_san"] == 500 and hop["ton_dvt"]
+    assert tem["ton_san"] == 0
 
 
 def test_preview_bung_moi_dong_mot_lenh_du_kien(db, orders, lsx_svc, admin, customer):
@@ -742,9 +763,10 @@ def test_sua_routing_khong_dung_phieu_tinh_gia_va_khong_anh_huong_lenh_khac(
     assert hop2.cong_doans[-1].loai_buoc == "thue_ngoai"
     # Client gửi NỬA cặp đơn vị (chỉ `don_vi_vao`) thì đó chưa phải lời khai: bước vẫn kế thừa
     # như cũ — bốn dòng trên đều tự thêm (không `cong_doan_id`) nên nối tiếp đơn vị bước trước,
-    # ra pass-through "to", KHÔNG phải "cai" mà client gửi. Khai ĐỦ CẢ HAI ô mới giữ được số của
-    # mình, xem `tests/test_lsx_buoc_khai_tay.py` (10/09/2026).
-    assert hop2.cong_doans[-1].don_vi_ra == "to"
+    # ra pass-through "to". Khai ĐỦ CẢ HAI ô mới giữ được số của mình, xem
+    # `tests/test_lsx_buoc_khai_tay.py` (10/09/2026). Riêng bước CUỐI của lệnh chính ra chặng
+    # Thành phẩm dù khai gì (11/10/2026, LƯỢT 3 của `_ap_chuoi_nguoc`).
+    assert [cd.don_vi_ra for cd in hop2.cong_doans] == ["to", "to", "to", "cai"]
     assert [cd.thu_tu for cd in hop2.cong_doans] == [0, 1, 2, 3]
 
     assert [cd.ten for cd in lsx_svc.get(tem.id).cong_doans] == tem_truoc      # lệnh khác nguyên vẹn
@@ -1026,7 +1048,7 @@ def _ptg_mot_buoc_in(db, *, may_cua_phieu, may_lam_duoc) -> PhieuTinhGia:
     ô "Máy in" của phiếu mời chọn (phiếu mời HỢP của mọi công đoạn nhóm In), nên hai thứ lệch nhau
     là chuyện thường ngày chứ không phải dữ liệu hỏng.
     """
-    giay = GiayNguyen(ma="G-MAYIN", ten="Giấy máy in", gsm=300, don_gia=25_000, don_vi_gia="tan",
+    giay = GiayNguyen(don_vi_them=["to"], ma="G-MAYIN", ten="Giấy máy in", gsm=300, don_gia=25_000, don_vi_gia="tan",
                       cong_thuc_gia="to_nguyen * dai_nguyen * rong_nguyen * dinh_luong * don_gia / 1000")
     db.add(giay)
     to_id = _to_san_xuat(db).id
@@ -2386,7 +2408,7 @@ def test_doi_giay_tai_lenh_keo_theo_dinh_luong_va_ten(db, orders, lsx_svc, admin
     hop = lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]
     gsm_cu = (hop.quy_cach_json or {}).get("gsm")
 
-    khac = GiayNguyen(ma="G-COUCHE400", ten="Couché 400", gsm=400, don_gia=31_000,
+    khac = GiayNguyen(don_vi_them=["to"], ma="G-COUCHE400", ten="Couché 400", gsm=400, don_gia=31_000,
                       don_vi_gia="tan", cong_thuc_gia="so_luong * don_gia")
     db.add(khac)
     db.commit()
@@ -3608,7 +3630,7 @@ def _goi_y_giay(lsx_svc, lsx, buoc, giay_id):
 
 
 def _giay_kg(db, ma="C-300"):
-    g = GiayNguyen(ma=ma, ten=f"Giấy {ma}", gsm=300, don_gia=25_000, don_vi_gia="kg")
+    g = GiayNguyen(don_vi_them=["to"], ma=ma, ten=f"Giấy {ma}", gsm=300, don_gia=25_000, don_vi_gia="kg")
     db.add(g)
     db.commit()
     return g
@@ -3626,7 +3648,7 @@ def test_goi_y_giay_buoc_nhan_to_nguyen_lay_kho_nguyen_va_so_vao_cua_buoc(db, ls
     g = _giay_kg(db)
     gy = _goi_y_giay(lsx_svc, l, b, g.id)
     assert (gy["kho_rong"], gy["kho_dai"], gy["so_luong"]) == (780, 905, 5000)
-    assert gy["don_vi"] == TRAM_TO_NGUYEN and gy["dang_giay"] == "to" and gy["ly_do"] is None
+    assert gy["don_vi"] == TRAM_TO_NGUYEN and gy["don_vi_goc"] == "to" and gy["ly_do"] is None
 
 
 def test_goi_y_giay_buoc_nhan_to_in_lay_kho_in_va_so_to_in(db, lsx_svc, lenh_giay):
@@ -3688,11 +3710,11 @@ def test_luu_dong_giay_bo_so_va_kho_cua_client_lay_theo_dau_vao_buoc(
     cd = next(c for c in saved.cong_doans if c.step_key == buoc.step_key)
     assert cd.don_vi_vao == TRAM_TO_NGUYEN and float(cd.so_luong_vao) > 0
     dong = next(v for v in cd.vat_tus if v.hang_loai == "giay")
-    assert (dong.dang_giay, dong.kho_rong, dong.kho_dai, dong.don_vi_snapshot) ==         ("to", 780, 905, TRAM_TO_NGUYEN)
+    assert (dong.don_vi_goc, dong.kho_rong, dong.kho_dai, dong.don_vi_snapshot) ==         ("to", 780, 905, TRAM_TO_NGUYEN)
     assert float(dong.so_luong) == pytest.approx(float(cd.so_luong_vao)) and float(dong.so_luong) != 7
     b = next(x for x in lsx_svc.detail_dict(saved)["cong_doans"] if x["step_key"] == buoc.step_key)
     v = next(x for x in b["vat_tus"] if x["hang_loai"] == "giay")
-    assert (v["dang_giay"], v["kho_rong"], v["kho_dai"]) == ("to", 780, 905)
+    assert (v["don_vi_goc"], v["kho_rong"], v["kho_dai"]) == ("to", 780, 905)
 
 
 def test_dong_giay_khong_con_bat_client_gui_kho_hay_so():

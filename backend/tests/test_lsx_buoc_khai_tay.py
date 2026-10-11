@@ -171,5 +171,6 @@ def test_buoc_tren_dong_giay_van_bi_chuoi_nguoc_ghi_de(db, orders, lsx_svc, admi
     lsx_svc.replace_routing(lsx_id=a.id, actor=admin, rows_in=_rows(
         a, **{in_key: dict(so_luong_vao=99, so_luong_ra=99, don_vi_vao="kem", don_vi_ra="kem")}))
     b = _buoc(lsx_svc.get(a.id), in_key)
-    assert (b.don_vi_vao, b.don_vi_ra) == ("to", "to")
+    # In là bước cuối trên dòng giấy ⇒ ra chặng Thành phẩm (11/10/2026); client gửi "kem" vô hiệu.
+    assert (b.don_vi_vao, b.don_vi_ra) == ("to", "cai")
     assert float(b.so_luong_vao) == vao_that

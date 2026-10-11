@@ -725,3 +725,10 @@ input.mine__input-num::placeholder {
   .shell__content .mine__name-req { min-height: 0; width: 32px; height: 32px; }
   .mine__tip { left: 0; transform: none; white-space: normal; width: 220px; }
 }
+
+/* Nút "Chấm công" trong khung tên — trên điện thoại kéo hết bề ngang, ngón cái bấm tới. */
+.mine__herotags { align-items: center; }
+.mine__chamcong { margin-left: auto; min-height: 38px; padding: 0 18px; font-size: 14px; gap: 7px; }
+@media (max-width: 640px) {
+  .mine__chamcong { margin-left: 0; flex-basis: 100%; justify-content: center; min-height: 48px; font-size: 15px; }
+}

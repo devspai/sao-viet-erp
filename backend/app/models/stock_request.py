@@ -90,6 +90,8 @@ class StockRequest(Base):
         Integer, ForeignKey("kho_hang.id"), index=True, nullable=True
     )
     ngay_can: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Giờ cần hàng (mg 0384). Wall-clock nhà máy nhãn UTC; `ngay_can` là ngày của chính giờ này.
+    can_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     uu_tien: Mapped[str] = mapped_column(
         String(12), nullable=False, server_default=PRIORITY_NORMAL, default=PRIORITY_NORMAL
     )
@@ -239,10 +241,9 @@ class StockRequestLine(Base):
     # lập phiếu khi SL < còn phải cấp; hiện ở mục "Kho phản hồi" của yêu cầu.
     ly_do_thieu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # GIẤY mang DẠNG (`to` | `cuon`) + KHỔ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0) — spec
-    # 2026-10-01-giay-dem-to-theo-kho §3.1, mg 0349. Vật tư khác: NULL · 0 · 0. Chuẩn hoá qua
-    # `services/kho_giay.chuan_kho`. Dạng quyết đơn vị gốc của dòng (tờ ⇒ tờ nguyên, cuộn ⇒ kg).
-    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # GIẤY mang KHỔ mm (cạnh ngắn × cạnh dài; khổ chỉ-rộng: rộng × 0) + ĐƠN VỊ GỐC của dòng (máy suy
+    # từ `dvt`: họ tờ ⇒ `to`, còn lại ⇒ `don_vi_gia`) — mg 0349, bỏ dạng mg 0388. Hàng khác: rỗng · 0 · 0.
+    don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
 

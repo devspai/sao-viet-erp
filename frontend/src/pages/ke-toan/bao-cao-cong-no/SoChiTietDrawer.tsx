@@ -1,38 +1,60 @@
-// SỔ CHI TIẾT CÔNG NỢ của MỘT đối tượng — PRD §5.1, mở khi bấm một dòng ở sổ tổng hợp.
+// NGĂN SỔ CHI TIẾT của MỘT đối tượng — mở khi bấm một dòng ở sổ tổng hợp (phương án C, 11/10/2026).
 //
-// Vì sao phải có màn này: sổ tổng hợp nói "PS Nợ 304.500.000" nhưng KHÔNG nói gồm phiếu nào. Tab
-// "Chi tiết đơn & đợt" cũng không trả lời được — nó chỉ liệt kê ĐỢT GIAO (bên Có), còn tiền đã
-// trả bị nén thành một con số. Chủ chốt 05/09/2026: *"chưa có nợ (là các phiếu đã chi)"*.
+// Đầu ngăn: phép tính của kỳ "còn nợ đầu kỳ + nhận hàng − đã trả = còn nợ cuối kỳ" và phần quá hạn —
+// đọc một hàng là hiểu con số ở sổ tổng hợp từ đâu ra. Hai tab:
+//   - Sổ chi tiết: còn nợ đầu kỳ → từng chứng từ (mới nhất lên đầu, cắt trang ở máy chủ) → còn nợ cuối
+//     kỳ. Dòng cuối kỳ luôn khớp ô của chính đối tượng bên sổ tổng hợp (máy chủ đọc chung một luồng).
+//   - Đợt còn nợ (331) / Hoá đơn còn nợ (131): các khoản chưa trả hết TẠI NGÀY CUỐI KỲ với hạn và số
+//     ngày còn / trễ. Cùng vòng cấn trừ với cột tuổi nợ nên cộng ra đúng các ô tuổi nợ của dòng.
 //
-// Bố cục theo đúng sổ kế toán: SỐ DƯ ĐẦU KỲ → từng chứng từ xếp theo ngày → SỐ DƯ CUỐI KỲ. Cột
-// "Luỹ kế" chạy dồn nên đọc tới dòng nào cũng biết lúc đó còn nợ bao nhiêu — và dòng cuối bắt
-// buộc bằng ô "Dư cuối kỳ" của chính đối tượng đó bên sổ tổng hợp (server đọc chung một luồng
-// chứng từ, có test đối chiếu canh).
-//
-// CHỈ ĐỌC nên đóng thoải mái: bấm nền mờ hoặc Esc đều được — khác các form tiền, đóng nhầm không
-// mất gì.
-import { useEffect, useMemo, useState } from "react";
-import { ApiError, api, type SoChiTietCongNo } from "../../../api/client";
+// Chỉ đọc nên đóng thoải mái (Esc, nút đóng). ↑ ↓ ở đầu ngăn đổi sang đối tượng trước / sau.
+import { ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+import { ApiError, api, type KhoanConNoList, type SoChiTietCongNo } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import type { NavigateFn } from "../../../components/AppShell";
-import { Icon } from "../../../components/Icons";
-import { EmptyState } from "../../../components/EmptyState";
-import { fmtDate } from "../../../utils/format";
+import { soVN } from "../../../components/LuoiDs";
+import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
+import { TheNho } from "../shared/Cum";
+import { NganPhai } from "../shared/NganPhai";
 
-/** Nhãn tiếng Việt cho từng loại chứng từ. Server trả khoá máy, giao diện đặt tên. */
+export type TabSo = "so" | "dot";
+
+/** Tên loại chứng từ — máy chủ trả khoá, giao diện đặt tên. */
 const NHAN_LOAI: Record<string, string> = {
   hoa_don: "Hoá đơn bán",
   phieu_thu: "Phiếu thu",
-  dot_giao: "Hàng đã nhận",
+  dot_giao: "Nhận hàng",
   phieu_chi: "Phiếu chi",
   hoan_tien: "NCC hoàn tiền",
 };
 
-/** Mỗi trang bao nhiêu chứng từ. Cùng cỡ với danh sách "đã trả" ở drawer Công nợ phải trả. */
-const MOI_TRANG = 20;
+const CHU = {
+  payables: {
+    man: "Tổng hợp công nợ phải trả", doiTac: "Nhà cung cấp", tang: "Nhận hàng", giam: "Đã trả",
+    tabKhoan: "Đợt còn nợ", khoan: "đợt", ctKhoan: "Đơn mua", ngayKhoan: "Ngày nhận", han: "Hạn trả",
+    traTruoc: "Đã trả trước",
+  },
+  receivables: {
+    man: "Tổng hợp công nợ phải thu", doiTac: "Khách hàng", tang: "Bán ra", giam: "Đã thu",
+    tabKhoan: "Hoá đơn còn nợ", khoan: "hoá đơn", ctKhoan: "Hoá đơn", ngayKhoan: "Ngày hoá đơn", han: "Hạn thu",
+    traTruoc: "Khách trả trước",
+  },
+} as const;
 
-/** `HH:mm` của mốc ghi nhận. Rỗng khi chứng từ cũ chưa có mốc — KHÔNG bịa ra "00:00", vì 00:00 là
- *  một giờ có thật, người đọc sẽ tưởng chứng từ được ghi lúc nửa đêm. */
+/** Diễn giải máy chủ tự điền khi chứng từ không có nội dung — nói lại đúng cột Loại nên để trống. */
+const DIEN_GIAI_MAC_DINH = new Set(["Hoá đơn bán hàng", "Khách trả tiền", "Hàng đã nhận", "Chi trả nhà cung cấp", "Nhà cung cấp hoàn tiền"]);
+
+const CO_TRANG = 50;
+
+function ngay(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : iso;
+}
+
+/** `HH:mm` của lúc ghi nhận. Chứng từ cũ chưa có mốc thì để trống — không bịa "00:00". */
 function gioPhut(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -40,50 +62,108 @@ function gioPhut(iso: string | null): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function So({ v, manh = false }: { v: number; manh?: boolean }) {
-  if (!v) return <span className="bccn__khong">—</span>;
-  return (
-    <span className={manh ? "bccn__tien bccn__tien--manh" : "bccn__tien"}>
-      {Math.round(v).toLocaleString("vi-VN")}
-    </span>
-  );
+function oSo(n: number): ReactNode {
+  return n > 0 ? soVN(n) : <span className="lds-mu3">–</span>;
+}
+
+/** Số dư sau chứng từ: âm là bên kia (trả trước) — nói bằng chữ, không in số âm. */
+function oDu(du: number, chuTruoc: string): ReactNode {
+  if (du >= 0) return soVN(du);
+  return <span className="lds-mu">{`${chuTruoc.toLowerCase()} ${soVN(-du)}`}</span>;
 }
 
 export function SoChiTietDrawer({
   ben,
   doiTuongId,
   tenLui,
+  ma,
+  tabDau = "so",
   tuNgay,
   denNgay,
+  trangThaiKy,
   onClose,
-  navigate: _navigate,
+  len,
+  xuong,
 }: {
   ben: "receivables" | "payables";
   /** `null` = dòng gom "ngoài danh mục" — KHÔNG phải "lấy tất cả". */
   doiTuongId: number | null;
   /** Tên lấy sẵn từ dòng vừa bấm, để hiện ngay lúc còn đang tải. */
   tenLui: string;
+  ma?: string | null;
+  tabDau?: TabSo;
   tuNgay: string;
   denNgay: string;
+  /** "Chưa chốt" / "Đã chốt" / "Chốt một phần" của kỳ đang xem. */
+  trangThaiKy: string;
   onClose: () => void;
+  len?: () => void;
+  xuong?: () => void;
   navigate?: NavigateFn;
 }) {
   const { token } = useAuth();
-  const [data, setData] = useState<SoChiTietCongNo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const c = CHU[ben];
+  const [tab, setTab] = useState<TabSo>(tabDau);
   const [trang, setTrang] = useState(1);
+  const [size, setSize] = useState(CO_TRANG);
+  const [so, setSo] = useState<SoChiTietCongNo | null>(null);
+  const [khoan, setKhoan] = useState<KhoanConNoList | null>(null);
+  const [dangTai, setDangTai] = useState(true);
+  const [loi, setLoi] = useState<string | null>(null);
   const [dangXuat, setDangXuat] = useState(false);
 
-  // Xuất Excel sổ chi tiết của RIÊNG người đang xem — cùng khuôn với "Xuất Excel chi tiết" ở sổ
-  // tổng hợp (TK công nợ trống, TK đối ứng theo phiếu thu–chi), chỉ khác là một khối.
+  // Đổi đối tượng (↑ ↓) hay bấm số quá hạn của dòng khác: về trang 1, mở đúng tab được yêu cầu.
+  useEffect(() => {
+    setTab(tabDau);
+    setTrang(1);
+  }, [doiTuongId, tenLui, tabDau, tuNgay, denNgay]);
+
+  // Sổ chi tiết theo trang — câu trả lời cũ về muộn bị bỏ.
+  const luot = useRef(0);
+  useEffect(() => {
+    if (!token) return;
+    const l = ++luot.current;
+    setDangTai(true);
+    setLoi(null);
+    api.accounting
+      .soChiTietCongNo(token, ben, { doiTuongId, tuNgay, denNgay, page: trang, size })
+      .then((d) => {
+        if (l === luot.current) setSo(d);
+      })
+      .catch((err) => {
+        if (l !== luot.current) return;
+        setSo(null);
+        setLoi(err instanceof ApiError ? err.message : "Không tải được sổ chi tiết.");
+      })
+      .finally(() => {
+        if (l === luot.current) setDangTai(false);
+      });
+  }, [token, ben, doiTuongId, tuNgay, denNgay, trang, size]);
+
+  // Các khoản còn nợ tại cuối kỳ — tải luôn (đầu ngăn cần số quá hạn), không đợi bấm tab.
+  const luotKhoan = useRef(0);
+  const [loiKhoan, setLoiKhoan] = useState<string | null>(null);
+  useEffect(() => {
+    if (!token) return;
+    const l = ++luotKhoan.current;
+    setLoiKhoan(null);
+    api.accounting
+      .khoanConNo(token, ben, { doiTuongId, tuNgay, denNgay })
+      .then((d) => {
+        if (l === luotKhoan.current) setKhoan(d);
+      })
+      .catch((err) => {
+        if (l !== luotKhoan.current) return;
+        setKhoan(null);
+        setLoiKhoan(err instanceof ApiError ? err.message : "Không tải được các khoản còn nợ.");
+      });
+  }, [token, ben, doiTuongId, tuNgay, denNgay]);
+
   async function xuatExcel() {
     if (!token) return;
     setDangXuat(true);
     try {
-      const { url, ten } = await api.accounting.baoCaoCongNoXlsx(
-        token, ben, { tuNgay, denNgay }, true, { doiTuongId },
-      );
+      const { url, ten } = await api.accounting.baoCaoCongNoXlsx(token, ben, { tuNgay, denNgay }, true, { doiTuongId });
       const a = document.createElement("a");
       a.href = url;
       a.download = ten;
@@ -92,286 +172,238 @@ export function SoChiTietDrawer({
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không xuất được file.");
+      setLoi(e instanceof ApiError ? e.message : "Không xuất được file.");
     } finally {
       setDangXuat(false);
     }
   }
 
-  // Sắp xếp chứng từ phát sinh: MỚI NHẤT LÊN ĐẦU (chủ chốt chọn Cách 1: Đầu kỳ → Phát sinh mới đến cũ → Cuối kỳ).
-  // Bố cục hiển thị: SỐ DƯ ĐẦU KỲ → PHÁT SINH TRONG KỲ (mới → cũ) → SỐ DƯ CUỐI KỲ.
-  // Cả hai mốc dư đầu kỳ và cuối kỳ luôn cố định ở mọi trang; phân trang chỉ áp dụng cho
-  // các dòng chứng từ con trong khối phát sinh.
-  const dongHien = useMemo(() => [...(data?.dong ?? [])].reverse(), [data]);
-  const soTrang = Math.max(1, Math.ceil(dongHien.length / MOI_TRANG));
-  const trangAnToan = Math.min(trang, soTrang);
-  const dongTrang = useMemo(
-    () => dongHien.slice((trangAnToan - 1) * MOI_TRANG, trangAnToan * MOI_TRANG),
-    [dongHien, trangAnToan]
+  // Quy về chiều "còn nợ": 331 dư bên Có, 131 dư bên Nợ.
+  const chieu = (no: number, co: number) => (ben === "payables" ? co - no : no - co);
+  const dau = so ? chieu(so.dau_no, so.dau_co) : 0;
+  const cuoi = so ? chieu(so.cuoi_no, so.cuoi_co) : 0;
+  const tang = so ? (ben === "payables" ? so.ps_co : so.ps_no) : 0;
+  const giam = so ? (ben === "payables" ? so.ps_no : so.ps_co) : 0;
+  const quaHan = (khoan?.items ?? []).reduce((t, k) => t + ((k.tre_ngay ?? 0) > 0 ? k.con_no : 0), 0);
+  const soKhoan = khoan?.items.length ?? 0;
+
+  const ten = so?.ten ?? tenLui;
+  const maHien = so?.ma ?? ma ?? null;
+
+  const o = (nhan: string, giaTri: ReactNode, lop?: string) => (
+    <div className={`bccn-pt__o${lop ? ` ${lop}` : ""}`}>
+      <span className="bccn-pt__nhan">{nhan}</span>
+      <span className="bccn-pt__so">{giaTri}</span>
+    </div>
   );
+  const phepTinh = so ? (
+    <div className="bccn-pt" aria-label="Phép tính của kỳ">
+      {o("Còn nợ đầu kỳ", oDu(dau, c.traTruoc))}
+      <span className="bccn-pt__dau" aria-hidden="true">+</span>
+      {o(c.tang, soVN(tang))}
+      <span className="bccn-pt__dau" aria-hidden="true">−</span>
+      {o(c.giam, soVN(giam))}
+      <span className="bccn-pt__dau" aria-hidden="true">=</span>
+      {cuoi >= 0 ? o("Còn nợ cuối kỳ", soVN(cuoi), "bccn-pt__o--cuoi") : o(c.traTruoc, soVN(-cuoi), "bccn-pt__o--cuoi")}
+      {quaHan > 0 && o("Trong đó quá hạn", <span className="lds-do">{soVN(quaHan)}</span>, "bccn-pt__o--tach")}
+    </div>
+  ) : null;
 
-  useEffect(() => {
-    if (!token) return;
-    let huy = false;
-    setLoading(true);
-    setError(null);
-    api.accounting
-      .soChiTietCongNo(token, ben, { doiTuongId, tuNgay, denNgay })
-      .then((d) => {
-        if (!huy) setData(d);
-      })
-      .catch((err) => {
-        if (huy) return;
-        setData(null);
-        setError(err instanceof ApiError ? err.message : "Không tải được sổ chi tiết.");
-      })
-      .finally(() => {
-        if (!huy) setLoading(false);
-      });
-    return () => {
-      huy = true;
-    };
-  }, [token, ben, doiTuongId, tuNgay, denNgay]);
-
-  useEffect(() => {
-    setTrang(1);
-  }, [ben, doiTuongId, tuNgay, denNgay]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const soDong = so?.so_dong ?? 0;
 
   return (
-    <div className="rc-drawer__scrim" onClick={onClose}>
-      <aside
-        className="rc-drawer acct-drawer-wide"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Sổ chi tiết công nợ — ${data?.ten ?? tenLui}`}
-      >
-        <div className="purchase__hero-banner">
-          <div className="purchase__hero-top">
-            <div>
-              <span className="purchase__hero-kicker">
-                {data?.tieu_de ?? "Sổ chi tiết công nợ"}
-              </span>
-              <div className="purchase__hero-title-row">
-                <h2 className="purchase__hero-code">{data?.ten ?? tenLui}</h2>
-                {/* Tạm thời comment nút điều hướng sang màn công nợ:
-                {navigate && doiTuongId != null && (
-                  <button
-                    type="button"
-                    className="btn btn--secondary btn--sm"
-                    style={{ marginLeft: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
-                    onClick={() => {
-                      onClose();
-                      navigate(ben === "payables" ? "ke-toan-cong-no" : "ke-toan-cong-no-phai-thu");
-                    }}
-                    title={
-                      ben === "payables"
-                        ? "Mở màn Công nợ phải trả để xem chi tiết đợt giao và lập phiếu chi"
-                        : "Mở màn Công nợ phải thu để xem chi tiết hoá đơn và thu tiền"
-                    }
-                  >
-                    <Icon name="externalLink" size={13} />
-                    <span>{ben === "payables" ? "Xem đợt nợ & thanh toán" : "Xem HĐ nợ & thu tiền"}</span>
-                  </button>
-                )}
-                */}
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <button
-                type="button"
-                className="btn btn--secondary btn--sm"
-                onClick={() => void xuatExcel()}
-                disabled={dangXuat || loading || !data}
-                title="Xuất sổ chi tiết của riêng đối tượng này ra .xlsx (kèm TK đối ứng)"
-              >
-                <Icon name="table" size={13} />{" "}
-                {dangXuat ? "Đang xuất…" : "Xuất Excel"}
-              </button>
-              <button
-                type="button"
-                className="purchase__hero-x"
-                onClick={onClose}
-                aria-label="Đóng"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-          <div className="purchase__hero-meta">
-            {data?.ma && (
-              <>
-                <span className="purchase__hero-dot">•</span>
-                <span>Mã {data.ma}</span>
-              </>
-            )}
-            <span className="purchase__hero-dot">•</span>
-            <span>
-              {fmtDate(tuNgay)} – {fmtDate(denNgay)}
-            </span>
-          </div>
-        </div>
-
-        <div className="rc-drawer__body">
-          {error && (
-            <div className="alert alert--error" role="alert">
-              {error}
-            </div>
-          )}
-          {loading && <EmptyState trangThai="dang-tai" inline />}
-
-          {!loading && data && (
-            <>
-              <div className="bccn__soct-toolbar">
-                <div className="bccn__soct-toolbar-info">
-                  Phát sinh trong kỳ: <b>{dongHien.length}</b> chứng từ
-                </div>
-                {soTrang > 1 && (
-                  <div className="bccn__soct-mini-pt" aria-label="Phân trang chứng từ">
-                    <button
-                      type="button"
-                      className="bccn__soct-mini-btn"
-                      disabled={trangAnToan <= 1}
-                      onClick={() => setTrang((t) => Math.max(1, t - 1))}
-                      title="Trang trước"
-                      aria-label="Trang trước"
-                    >
-                      ‹
-                    </button>
-                    <span className="bccn__soct-mini-text">
-                      Trang <b>{trangAnToan}</b>/{soTrang}
-                    </span>
-                    <button
-                      type="button"
-                      className="bccn__soct-mini-btn"
-                      disabled={trangAnToan >= soTrang}
-                      onClick={() => setTrang((t) => Math.min(soTrang, t + 1))}
-                      title="Trang sau"
-                      aria-label="Trang sau"
-                    >
-                      ›
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="bccn__soct-tablewrap">
-                <table className="pay-table bccn__soct">
-                  <thead>
+    <NganPhai
+      duongDan={
+        <>
+          {c.man}
+          <ChevronRight size={14} aria-hidden="true" />
+          {c.doiTac}
+        </>
+      }
+      tieuDe={ten}
+      phuDe={
+        <span className="bccn-phu">
+          {maHien ? <TheNho>{maHien}</TheNho> : doiTuongId == null ? <TheNho>ngoài danh mục</TheNho> : null}
+          <span>{`${ngay(tuNgay)} – ${ngay(denNgay)}`}</span>
+          <TheNho>{trangThaiKy}</TheNho>
+        </span>
+      }
+      hanhDong={
+        <button type="button" className="kt-btn kt-btn--nho" onClick={() => void xuatExcel()} disabled={dangXuat || !so}
+          title="Sổ chi tiết của riêng đối tượng này ra .xlsx (kèm tài khoản đối ứng)">
+          {dangXuat ? "Đang xuất…" : "Xuất Excel"}
+        </button>
+      }
+      soLon={phepTinh}
+      tabs={[
+        { id: "so", nhan: "Sổ chi tiết" },
+        { id: "dot", nhan: c.tabKhoan },
+      ]}
+      tab={tab}
+      onTab={(id) => setTab(id as TabSo)}
+      len={len}
+      xuong={xuong}
+      onDong={onClose}
+    >
+      {tab === "so" ? (
+        <>
+          {loi && <p className="kt-do" role="alert">{loi}</p>}
+          {!so && dangTai && <p className="kt-mo">Đang tải sổ chi tiết…</p>}
+          {so && (
+            <div className={`lds-bang kt-sk-khung${dangTai ? " kt-sk-khung--tai" : ""}`} aria-busy={dangTai}>
+              <table className="lds-g">
+                {/* Số chứng từ rộng 190: "DMH-261007-VBF4 đợt 1" đo 189px. Diễn giải co giãn. */}
+                <colgroup>
+                  <col style={{ width: 98 }} />
+                  <col style={{ width: 64 }} />
+                  <col style={{ width: 112 }} />
+                  <col style={{ width: 190 }} />
+                  <col />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 120 }} />
+                  {/* "đã trả trước 216.000.000" đo ~150px. */}
+                  <col style={{ width: 168 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Ngày</th>
+                    <th>Giờ</th>
+                    <th>Loại</th>
+                    <th>Số chứng từ</th>
+                    <th>Diễn giải</th>
+                    <th className="n">{c.tang}</th>
+                    <th className="n">{c.giam}</th>
+                    <th className="n">Còn nợ sau</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="lds-cong">
+                    <td colSpan={5}>
+                      Còn nợ đầu kỳ <span className="lds-mu">{`trước ${ngay(tuNgay)}`}</span>
+                    </td>
+                    <td />
+                    <td />
+                    <td className="n">{oDu(dau, c.traTruoc)}</td>
+                  </tr>
+                  {so.dong.length === 0 ? (
                     <tr>
-                      <th>Ngày · giờ</th>
-                      <th>Chứng từ</th>
-                      <th className="pay-num">Nợ</th>
-                      <th className="pay-num">Có</th>
-                      <th className="pay-num">Luỹ kế</th>
+                      <td colSpan={8} className="lds-trong">Kỳ này không có chứng từ nào.</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {/* 1) SỐ DƯ ĐẦU KỲ: Cố định ở đầu bảng tại MỌI trang */}
-                    <tr className="bccn__soct-moc">
-                      <td colSpan={2}>
-                        Số dư đầu kỳ <small>trước {fmtDate(tuNgay)}</small>
-                      </td>
-                      <td className="pay-num"><So v={data.dau_no} manh /></td>
-                      <td className="pay-num"><So v={data.dau_co} manh /></td>
-                      <td className="pay-num">
-                        <So v={data.dau_no || data.dau_co} manh />
-                        {(data.dau_no || data.dau_co) > 0 && (
-                          <small className="bccn__soct-ben">{data.dau_no ? "Nợ" : "Có"}</small>
-                        )}
-                      </td>
-                    </tr>
-
-                    {/* 2) PHÁT SINH TRONG KỲ: Cố định ở MỌI trang */}
-                    <tr className="bccn__soct-khoi">
-                      <td colSpan={2}>
-                        Phát sinh trong kỳ <small>{dongHien.length} chứng từ</small>
-                      </td>
-                      <td className="pay-num"><So v={data.ps_no} manh /></td>
-                      <td className="pay-num"><So v={data.ps_co} manh /></td>
-                      <td className="pay-num"></td>
-                    </tr>
-
-                  {dongHien.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="bccn__trong">
-                        Kỳ này không có chứng từ nào của đối tượng này.
-                      </td>
-                    </tr>
+                  ) : (
+                    so.dong.map((d, i) => {
+                      const t = ben === "payables" ? d.co : d.no;
+                      const g = ben === "payables" ? d.no : d.co;
+                      const nhan = NHAN_LOAI[d.loai] ?? d.loai;
+                      return (
+                        <tr key={`${d.so_ct}-${d.ngay}-${i}`}>
+                          <td>{ngay(d.ngay)}</td>
+                          <td className="lds-mu">{gioPhut(d.luc)}</td>
+                          <td>{nhan}</td>
+                          <td title={d.so_ct}>{d.so_ct}</td>
+                          <td title={d.dien_giai}>{DIEN_GIAI_MAC_DINH.has(d.dien_giai) ? "" : d.dien_giai}</td>
+                          <td className="n">{oSo(t)}</td>
+                          <td className="n">{oSo(g)}</td>
+                          <td className="n">{oDu(chieu(d.luy_ke_no, d.luy_ke_co), c.traTruoc)}</td>
+                        </tr>
+                      );
+                    })
                   )}
-
-                  {dongTrang.map((d, i) => (
-                    <tr key={`${d.ngay}-${d.so_ct}-${i}`}>
-                      <td>
-                        {fmtDate(d.ngay)}
-                        {gioPhut(d.luc) && (
-                          <small className="bccn__soct-gio">{gioPhut(d.luc)}</small>
-                        )}
-                      </td>
-                      <td>
-                        <div className="bccn__soct-ct-dau">
-                          <span className="bccn__soct-loai">
-                            {NHAN_LOAI[d.loai] ?? d.loai}
-                          </span>
-                          <span className="bccn__soct-ct">{d.so_ct}</span>
-                        </div>
-                        {/* Diễn giải cắt một dòng + `title` giữ nguyên văn: nội dung phiếu do
-                            người dùng gõ, dài ngắn tuỳ hứng, để nó xuống dòng tự do là bảng vỡ. */}
-                        {d.dien_giai && d.dien_giai !== (NHAN_LOAI[d.loai] ?? "") && (
-                          <div className="bccn__soct-dg" title={d.dien_giai}>
-                            {d.dien_giai}
-                          </div>
-                        )}
-                      </td>
-                      <td className="pay-num"><So v={d.no} /></td>
-                      <td className="pay-num"><So v={d.co} /></td>
-                      <td className="pay-num">
-                        <So v={d.luy_ke_no || d.luy_ke_co} />
-                        {(d.luy_ke_no || d.luy_ke_co) > 0 && (
-                          <small className="bccn__soct-ben">
-                            {d.luy_ke_no ? "Nợ" : "Có"}
-                          </small>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {/* 3) SỐ DƯ CUỐI KỲ: Cố định ở cuối bảng tại MỌI trang */}
-                  <tr className="bccn__soct-moc">
-                    <td colSpan={2}>
-                      Số dư cuối kỳ <small>{fmtDate(denNgay)}</small>
+                  <tr className="lds-cong">
+                    <td colSpan={5}>
+                      Còn nợ cuối kỳ <span className="lds-mu">{`hết ngày ${ngay(denNgay)}`}</span>
                     </td>
-                    <td className="pay-num"><So v={data.cuoi_no} manh /></td>
-                    <td className="pay-num"><So v={data.cuoi_co} manh /></td>
-                    <td className="pay-num">
-                      <So v={data.cuoi_no || data.cuoi_co} manh />
-                      {(data.cuoi_no || data.cuoi_co) > 0 && (
-                        <small className="bccn__soct-ben">{data.cuoi_no ? "Nợ" : "Có"}</small>
-                      )}
-                    </td>
+                    <td className="n">{soVN(tang)}</td>
+                    <td className="n">{soVN(giam)}</td>
+                    <td className="n">{oDu(cuoi, c.traTruoc)}</td>
                   </tr>
                 </tbody>
               </table>
-              </div>
-
-              <p className="bccn__soct-foot">
-                <Icon name="fileText" size={13} />{" "}
-                Cần file lưu trữ? Nút <strong>Xuất Excel</strong> ở trên xuất riêng
-                sổ này; nút <strong>Xuất Excel chi tiết</strong> ở sổ tổng hợp xuất
-                mọi đối tượng trong kỳ.
-              </p>
-            </>
+              {soDong > size && (
+                <PhanTrangDayDu trang={trang} size={size} tong={soDong} soDong={so.dong.length} onTrang={setTrang}
+                  onSize={(n) => {
+                    setSize(n);
+                    setTrang(1);
+                  }}
+                  loading={dangTai} donVi="chứng từ" ariaLabel="Phân trang sổ chi tiết" />
+              )}
+            </div>
           )}
-        </div>
-      </aside>
-    </div>
+          {so && (
+            <p className="bccn-ghi-chan lds-mu">
+              {`${soVN(soDong)} chứng từ trong kỳ, mới nhất lên đầu. Dòng còn nợ cuối kỳ khớp số ở bảng tổng hợp.`}
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          {loiKhoan && <p className="kt-do" role="alert">{loiKhoan}</p>}
+          {!khoan && !loiKhoan && <p className="kt-mo">Đang tải…</p>}
+          {khoan && (
+            <div className="lds-bang kt-sk-khung">
+              <table className="lds-g">
+                <colgroup>
+                  <col style={{ width: 240 }} />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 120 }} />
+                  <col style={{ width: 150 }} />
+                  <col style={{ width: 140 }} />
+                  <col />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>{c.ctKhoan}</th>
+                    <th>{c.ngayKhoan}</th>
+                    <th>{c.han}</th>
+                    <th>Tình trạng</th>
+                    <th className="n">Còn nợ</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {soKhoan === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="lds-trong">
+                        {`Tại ngày ${ngay(khoan.den_ngay)} không còn ${c.khoan} nào chưa ${ben === "payables" ? "trả" : "thu"} hết.`}
+                      </td>
+                    </tr>
+                  ) : (
+                    khoan.items.map((k, i) => (
+                      <tr key={`${k.so_ct}-${i}`}>
+                        <td title={k.so_ct}>{k.so_ct}</td>
+                        <td>{ngay(k.ngay)}</td>
+                        <td>{k.han ? ngay(k.han) : <span className="lds-mu3">chưa đặt hạn</span>}</td>
+                        <td>
+                          {k.tre_ngay == null ? null : k.tre_ngay > 0 ? (
+                            <span className="lds-do">{`trễ ${soVN(k.tre_ngay)} ngày`}</span>
+                          ) : k.tre_ngay < 0 ? (
+                            <span className="lds-mu">{`còn ${soVN(-k.tre_ngay)} ngày`}</span>
+                          ) : (
+                            <span className="lds-mu">tới hạn hôm đó</span>
+                          )}
+                        </td>
+                        <td className="n">{soVN(k.con_no)}</td>
+                        <td />
+                      </tr>
+                    ))
+                  )}
+                  {soKhoan > 0 && (
+                    <tr className="lds-cong">
+                      <td colSpan={4}>{`Cộng ${soVN(soKhoan)} ${c.khoan}`}</td>
+                      <td className="n">{soVN(khoan.tong)}</td>
+                      <td />
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {khoan && (
+            <p className="bccn-ghi-chan lds-mu">
+              {`Tính tại ngày cuối kỳ ${ngay(khoan.den_ngay)}, hạn sớm nhất lên đầu. Cộng các ${c.khoan} khớp các cột chia theo hạn ở bảng tổng hợp.`}
+            </p>
+          )}
+        </>
+      )}
+    </NganPhai>
   );
 }

@@ -20,7 +20,7 @@ def _h(client, seed_credentials):
 def _giay_theo_to() -> int:
     db = SessionLocal()
     try:
-        g = GiayNguyen(ma="GY-TO-MA", ten="Giay dem to", gsm=150, kho_dai=860, kho_rong=650,
+        g = GiayNguyen(don_vi_them=["to"], ma="GY-TO-MA", ten="Giay dem to", gsm=150, kho_dai=860, kho_rong=650,
                        don_vi_gia="to")
         db.add(g)
         db.commit()
@@ -35,7 +35,7 @@ def _ncc(client, h, gid, unit):
         "phone": "0901000001", "email": "ncc@example.com", "address": "HCM", "contact_name": "Lan",
         "supplier_group": "paper", "payment_terms": "30 ngay",
         "items": [{"hang_loai": "giay", "hang_id": gid, "item_name": "Giay dem to", "unit": unit,
-                   "dang_ban": "to", "kho_rong": 650, "kho_dai": 860,
+                   "kho_rong": 650, "kho_dai": 860,
                    "unit_price": 900, "vat_percent": 8}],
     }, headers=h)
     assert r.status_code == 201, r.text

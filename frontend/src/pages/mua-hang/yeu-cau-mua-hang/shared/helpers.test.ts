@@ -1,17 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { dangGiayDong } from "./helpers";
+import { laGiayDong } from "./helpers";
 
-// ĐVT dòng yêu cầu mua theo dạng giấy (spec giấy theo khổ §4.4): KHVT gửi 5.000 tờ nguyên kèm
-// khổ — ô ĐVT phải hiện "tờ nguyên", không phải đơn vị gốc kg của mã.
-describe("dangGiayDong", () => {
-  it("giấy đủ hai cạnh khổ là tờ", () => {
-    expect(dangGiayDong({ hang_loai: "giay", kho_rong: 780, kho_dai: 905 })).toBe("to");
+// 10/10/2026 bỏ dạng cuộn/tờ: dòng giấy chỉ còn khổ + ĐVT tự chọn — khổ KHÔNG còn quyết dạng.
+describe("laGiayDong", () => {
+  it("dòng giấy", () => {
+    expect(laGiayDong({ hang_loai: "giay" })).toBe(true);
   });
-  it("giấy thiếu khổ là cuộn", () => {
-    expect(dangGiayDong({ hang_loai: "giay", kho_rong: 780, kho_dai: 0 })).toBe("cuon");
-    expect(dangGiayDong({ hang_loai: "giay" })).toBe("cuon");
-  });
-  it("không phải giấy thì không có dạng", () => {
-    expect(dangGiayDong({ hang_loai: "vat_tu", kho_rong: 780, kho_dai: 905 })).toBeNull();
+  it("hàng khác không phải giấy", () => {
+    expect(laGiayDong({ hang_loai: "vat_tu" })).toBe(false);
+    expect(laGiayDong({ hang_loai: null })).toBe(false);
   });
 });

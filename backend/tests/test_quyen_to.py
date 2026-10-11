@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import text
 
-from app.db_migrations import chuyen_quyen_san_xuat_sang_to
+from app.db_migrations import chuyen_quyen_san_xuat_sang_to, day_quyen_nhom_xuong_to_la
 from app.models.department import Department
 from app.models.module import Module
 from app.models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN, Role, RolePermission
@@ -26,6 +26,7 @@ from app.models.user import User
 from app.repositories.rbac_repo import RoleRepository
 from app.services.quyen_to import (
     MUC_CUA_TOI,
+    MUC_NHOM,
     MUC_TAT_CA,
     dong_bo_dong_quyen_to,
     khoa_to,
@@ -188,3 +189,69 @@ def test_migration_chep_quyen_san_xuat_cu_sang_dong_to(db, cay):
     assert db.execute(text(
         "SELECT COUNT(*) FROM role_permissions WHERE role_id = :r AND module_key LIKE 'to_sx_%'"),
         {"r": truong.id}).scalar() == 1
+
+
+
+def test_menu_thay_nhieu_ban_thi_kem_nhom_to_tien(db, cay):
+    """Chỉ tổ lá nhận việc (10/10/2026): quyền cấp ở tổ lá, menu vẫn ra cây nhờ kèm các nhóm tổ
+    tiên (mức `nhom`, không có bàn). Thấy một bàn thì khỏi dãy nhóm."""
+    u = _nguoi(db, "gd_la", cay["sx"])
+    cap_quyen_to(db, u, cay["dem"], scope=SCOPE_ALL, viec=())
+    assert [(d, m) for d, _, m in quyen_to_cua(db, u).ban_thay_duoc()] == [(cay["dem"].id, MUC_TAT_CA)]
+
+    cap_quyen_to(db, u, cay["cat"], scope=SCOPE_ALL, viec=())
+    ban = [(d, m) for d, _, m in quyen_to_cua(db, u).ban_thay_duoc()]
+    assert ban == [
+        (cay["sx"].id, MUC_NHOM), (cay["in"].id, MUC_NHOM), (cay["nhom2"].id, MUC_NHOM),
+        (cay["dem"].id, MUC_TAT_CA), (cay["cat"].id, MUC_TAT_CA),
+    ]
+    q = quyen_to_cua(db, u)
+    assert q.muc("read", cay["in"].id) is None
+
+
+def test_migration_day_quyen_to_cha_xuong_to_la(db, cay):
+    """Dòng tổ cha có quyền ⇒ chép xuống từng tổ lá trong vùng (cộng ô, phạm vi rộng hơn) rồi xoá
+    trắng dòng cha. Chạy lại không đổi gì."""
+    roles = RoleRepository(db)
+    gd = Role(name="GĐ test", department_id=cay["sx"].id)
+    db.add(gd)
+    db.flush()
+    roles.set_permission(role_id=gd.id, module_key=khoa_to(cay["sx"].id), can_read=True,
+                         scope=SCOPE_ALL, can_run_order=True, commit=False)
+    roles.set_permission(role_id=gd.id, module_key=khoa_to(cay["cat"].id), can_read=True,
+                         scope=SCOPE_OWN, can_warehouse=True, commit=False)
+    db.commit()
+
+    day_quyen_nhom_xuong_to_la(db)
+    day_quyen_nhom_xuong_to_la(db)
+
+    def dong(dept):
+        p = roles.get_permission(gd.id, khoa_to(dept.id))
+        return None if p is None else (p.can_read, p.scope, p.can_run_order, p.can_warehouse)
+
+    assert dong(cay["dem"]) == (True, SCOPE_ALL, True, False)
+    assert dong(cay["cat"]) == (True, SCOPE_ALL, True, True)
+    assert dong(cay["sx"]) == (False, SCOPE_OWN, False, False)
+    assert dong(cay["in"]) is None or dong(cay["in"])[0] is False
+
+
+def test_luu_vai_bo_trang_dong_to_cha(db, cay):
+    from app.repositories.audit_repo import AuditLogRepository
+    from app.repositories.rbac_repo import DepartmentRepository, ModuleRepository
+    from app.repositories.user_repo import UserRepository
+    from app.services.role_service import RoleService
+
+    roles = RoleRepository(db)
+    vai = Role(name="Vai lưu", department_id=cay["sx"].id)
+    db.add(vai)
+    db.commit()
+    svc = RoleService(roles, ModuleRepository(db), DepartmentRepository(db), AuditLogRepository(db),
+                      UserRepository(db))
+    svc.save_matrix(role_id=vai.id, actor_id=None, rows=[
+        {"module_key": khoa_to(cay["in"].id), "can_read": True, "scope": SCOPE_ALL, "can_run_order": True},
+        {"module_key": khoa_to(cay["cat"].id), "can_read": True, "scope": SCOPE_ALL, "can_run_order": True},
+    ])
+    p = roles.get_permission(vai.id, khoa_to(cay["in"].id))
+    assert (p.can_read, p.can_run_order, p.scope) == (False, False, SCOPE_OWN)
+    p = roles.get_permission(vai.id, khoa_to(cay["cat"].id))
+    assert (p.can_read, p.can_run_order, p.scope) == (True, True, SCOPE_ALL)

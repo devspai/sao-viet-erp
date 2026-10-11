@@ -245,10 +245,10 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
     sl = SanXuatSanLuongRepository(db)
     b = sl.batch(batch_id)
     if b is None:
-        raise ValueError("Không tìm thấy mẻ.")
+        raise ValueError("Không tìm thấy lần ghi sản lượng.")
     cv = sl.cong_viec(b.cong_viec_id)
     if cv is None:
-        raise ValueError("Không tìm thấy công việc của mẻ.")
+        raise ValueError("Không tìm thấy công việc của lần ghi sản lượng.")
     _gate(db, user, cv)
     if b.khoan_cong_doan_id:
         khoan = sl.khoan_cong_doan(b.khoan_cong_doan_id)
@@ -286,7 +286,7 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
             "batch_id": b.id, "ket_qua_lsx": [],
         }
     if not b.piece_rate_id:
-        raise ValueError("Mẻ này chưa khai công việc khoán — không có gì để cập nhật.")
+        raise ValueError("Lần ghi này chưa khai công việc khoán — không có gì để cập nhật.")
 
     repo = CongViecKhoanRepository(db)
     rate = next(

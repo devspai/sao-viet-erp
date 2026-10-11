@@ -221,7 +221,7 @@ describe("lưới Từng món", () => {
     expect(tieuDe().slice(0, 2)).toEqual(["", "Vật tư"]);
     expect(screen.getByLabelText("Chọn Giấy 1")).toBeTruthy();
     expect(screen.queryByLabelText("Chọn Giấy 2")).toBeNull();
-    expect(screen.getAllByText("Tờ 65 × 86")).toHaveLength(2);
+    expect(screen.getAllByText("65 × 86 mm")).toHaveLength(2);
     unmount();
     render(<ManMon khoa="t-mon2" rows={[mon(2, false)]} />);
     expect(tieuDe()[0]).toBe("Vật tư");

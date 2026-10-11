@@ -40,7 +40,7 @@ _BAC = {BUOC_MOI: 0, BUOC_TRA: 1, BUOC_LAP: 2, BUOC_DUYET: 3, BUOC_DAT: 4, BUOC_
 #: Dưới ngưỡng này coi như 0 — cùng biên `EPS_GIU` của giữ chỗ (Numeric(14,2)).
 EPS = 0.004
 
-OKey = tuple  # ((loai, id, rộng, dài), lsx_id, bai_ghep_id)
+OKey = tuple  # ((loai, id, rộng, dài, đơn vị gốc), lsx_id, bai_ghep_id)
 
 
 def _f(v) -> float:
@@ -51,7 +51,9 @@ def _f(v) -> float:
 
 
 def khoa_dong_mua(ln) -> tuple:
-    """Khoá tồn của một dòng yêu cầu / đơn mua (giấy: mã + khổ; cuộn và hàng khác: khổ 0 · 0)."""
+    """Khoá tồn của một dòng yêu cầu / đơn mua KHÔNG mang đơn vị gốc (giấy: mã + khổ, gốc ""; hàng
+    khác: khổ 0 · 0). Nơi cần tách tờ/kg truyền `khoa=` vào `dung_mach` (Kế hoạch vật tư suy gốc từ
+    `unit` dòng qua `KeHoachVatTuService._khoa_mua`)."""
     return khoa_ton(ln.hang_loai, int(ln.hang_id), kho_rong=getattr(ln, "kho_rong", 0) or 0,
                     kho_dai=getattr(ln, "kho_dai", 0) or 0)
 
@@ -84,17 +86,19 @@ def _da_nhan(pr, ln) -> float:
     return _f(ln.quantity) if pr.status == PR_RECEIVED else 0.0
 
 
-def dung_mach(ycs, dong_don, *, ve_goc, can_o) -> dict:
+def dung_mach(ycs, dong_don, *, ve_goc, can_o, khoa=None) -> dict:
     """Dựng mọi mạch từ các YCMH còn mở (`dang_de_nghi`, đã nạp `lines` + `nguon_lenh`) và các dòng
     đơn lập từ chúng (`dong_tu_yeu_cau`).
 
     `ve_goc(hang, dvt, sl) -> float | None` quy về đơn vị gốc của mặt hàng. `can_o(okey) -> float`
-    là số cần hiện tại của ô — dùng khi liên kết cũ không ghi số.
+    là số cần hiện tại của ô — dùng khi liên kết cũ không ghi số. `khoa(ln) -> khoá tồn` của dòng
+    yêu cầu / đơn (mặc định `khoa_dong_mua`, không tách đơn vị gốc).
 
     Trả `{"mach": [...], "theo_o": {okey: {"phieu": mach|None, "trung": [mach]}},
     "dat_cho": {pr_line_id: {okey: so}}, "peg": {pr_line_id: {okey: con_ve}}}`:
     `dat_cho` = phần đặt cho ô trên dòng đơn (cả phần đã về), `peg` = phần đặt cho ô CÒN ĐANG VỀ.
     """
+    khoa = khoa or khoa_dong_mua
     don_theo_dong: dict[int, list] = {}
     for d in dong_don:
         if d.department_request_line_id is not None:
@@ -109,13 +113,18 @@ def dung_mach(ycs, dong_don, *, ve_goc, can_o) -> dict:
                 continue
             if not ln.hang_loai or not ln.hang_id:
                 continue
-            hang = khoa_dong_mua(ln)
+            hang = khoa(ln)
             o_list = []
             for n in getattr(yc, "nguon_lenh", None) or []:
                 if (n.hang_loai, int(n.hang_id)) != (hang[0], hang[1]):
                     continue
                 kr, kd = int(n.kho_rong or 0), int(n.kho_dai or 0)
                 if (kr or kd) and (kr, kd) != (hang[2], hang[3]):
+                    continue
+                # Ô mang đơn vị gốc (mg 0391): keo kg và keo thùng cùng một yêu cầu thì liên kết
+                # "cho lệnh" chỉ nối vào dòng cùng gốc. Rỗng (liên kết cũ) ⇒ khớp như trước.
+                goc = (getattr(n, "don_vi_goc", "") or "").strip().lower()
+                if goc and len(hang) >= 5 and goc != hang[4]:
                     continue
                 okey = (hang, n.lsx_id, n.bai_ghep_id)
                 sl = None if n.so_luong is None else _f(n.so_luong)
@@ -129,7 +138,7 @@ def dung_mach(ycs, dong_don, *, ve_goc, can_o) -> dict:
             don = []
             for d in don_theo_dong.get(int(ln.id), []):
                 pr = d.request
-                hang_d = khoa_dong_mua(d) if d.hang_loai and d.hang_id else None
+                hang_d = khoa(d) if d.hang_loai and d.hang_id else None
                 so_dat = ve_goc(hang_d, d.unit, _f(d.quantity)) if hang_d else None
                 nhan_dv = _da_nhan(pr, d)
                 nhan = ve_goc(hang_d, d.unit, nhan_dv) if hang_d else None

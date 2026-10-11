@@ -119,6 +119,15 @@ class PhieuThanhPhan(Base):
     # cũ không đổi một chữ. Gắn trên từng thành phần vì nhóm chỉ là cái nhãn, không có bảng riêng —
     # mọi dòng cùng nhãn mang cùng giá trị, màn Tính giá ghi đồng loạt.
     dvt_nhom: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # SẢN PHẨM TÁI BẢN đang gắn (soft → vat_tu_in_an.id, thành phẩm của khách, mg 0394): người lập
+    # phiếu chọn ở ô "Sản phẩm tái bản" ⇒ chốt đơn gắn cụm vào ĐÚNG mã này. NULL = sản phẩm mới
+    # (chốt đơn đẻ mã mới) — kể cả khi đã chọn rồi bấm "Tách thành sản phẩm mới".
+    tai_ban_thanh_pham_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tai_ban_thanh_pham = relationship(
+        "VatTuInAn",
+        primaryjoin="foreign(PhieuThanhPhan.tai_ban_thanh_pham_id) == VatTuInAn.id",
+        viewonly=True, lazy="selectin",
+    )
 
     # --- Giấy ---
     giay_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → giay_nguyen.id (soft)
@@ -282,7 +291,11 @@ class PhieuThanhPham(Base):
 
 
 class SanPhamTaiBan(Base):
-    """Kho cấu hình sản phẩm ĐÃ TỪNG chốt đơn — tra theo TÊN để tái bản (docs/spec-san-pham-tai-ban.md).
+    """⚠️ NGƯNG GHI/ĐỌC từ 11/10/2026 (mg 0394): cấu hình tái bản nay nằm trên chính mã thành phẩm
+    của khách (`vat_tu_in_an.cau_hinh_tai_ban`), tra theo KHÁCH chứ không theo tên. Giữ bảng theo lệ
+    không drop; mg 0394 chép cấu hình từ đây sang mã thành phẩm một lần.
+
+    Kho cấu hình sản phẩm ĐÃ TỪNG chốt đơn — tra theo TÊN để tái bản (docs/spec-san-pham-tai-ban.md).
 
     1 dòng = ảnh chụp NGUYÊN cấu hình kỹ thuật của 1 `phieu_thanh_phan` (giấy/in/màu/công đoạn/vật
     tư) tại thời điểm CHỐT ĐƠN — dạng `ThanhPhanIn`, KHÔNG có số lượng của đơn / giá vốn đã tính /

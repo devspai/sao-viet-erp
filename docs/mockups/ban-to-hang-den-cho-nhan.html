@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bàn tổ — hàng chờ nhận</title>
+<style>
+  :root { --ink:#1f2933; --ash:#52606d; --ash2:#7b8794; --mo3:#9aa5b1; --rule:#d9dee4; --soft:#e8ecf0; --hair:#f1f3f5;
+    --paper:#f8fafc; --la-dot:#22c55e; --vang:#a16207; --vang-bg:#fef3c7;
+    --xanh:#1d4ed8; --xanh-bg:#dbeafe; --slate:#94a3b8; --cam-dot:#f97316; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 40px; background: #eef1f4; color: var(--ink);
+    font: 14px/1.45 "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 4px; }
+  .phu { color: var(--ash2); margin: 0 0 20px; }
+  .the { background: #fff; border: 1px solid var(--soft); border-radius: 14px; margin-bottom: 18px; overflow: hidden; }
+  .dau { padding: 14px 16px 12px; border-bottom: 1px solid var(--soft); }
+  .hang { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .o { border: 1px solid var(--rule); border-radius: 10px; padding: 7px 12px; color: var(--ash); }
+  .o.tim { flex: 1 1 260px; color: var(--mo3); }
+  .chips { margin-top: 10px; }
+  .cd { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule); border-radius: 999px; padding: 3px 12px; font-size: 13px; }
+  .cd i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .cd b { font-weight: 400; font-variant-numeric: tabular-nums; }
+  .cd.moi { border-color: var(--vang); color: var(--vang); background: var(--vang-bg); margin-left: 8px; }
+  .tw { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 960px; }
+  th { text-align: left; font-weight: 400; color: var(--ash2); font-size: 13px; padding: 10px 14px; border-bottom: 1px solid var(--soft); background: var(--paper); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  .l2 { display: block; font-size: 12.5px; color: var(--ash2); margin-top: 2px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 999px; font-size: 12.5px; white-space: nowrap; }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .xanh { background: var(--xanh-bg); color: var(--xanh); }
+  .vang { background: var(--vang-bg); color: var(--vang); }
+  .moi { outline: 2px dashed #f59e0b; outline-offset: -4px; border-radius: 6px; }
+  .so { font-variant-numeric: tabular-nums; }
+  .tk { position: relative; display: block; width: 180px; height: 14px; margin: 3px 0 4px; }
+  .tk__ln { position: absolute; left: 5px; right: 5px; top: 6px; height: 2px; background: var(--soft); }
+  .tk__fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--la-dot); }
+  .dt { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: #fff; border: 1.5px solid var(--rule); }
+  .dt.xong { background: var(--slate); border-color: var(--slate); }
+  .dt.dang { background: var(--la-dot); border-color: var(--la-dot); }
+  .dt.ngoai { border-color: var(--cam-dot); }
+  .dt.me { top: -1px; width: 16px; height: 16px; margin-left: -8px; border: 3px solid var(--ash); }
+  .cau { font-size: 13px; color: var(--xanh); }
+  .ghi { font-size: 13px; color: var(--ash); background: var(--paper); border-top: 1px solid var(--soft); padding: 12px 16px; }
+  .ghi ul { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Bàn tổ Nhóm thợ in máy 4 màu: hàng tới mà mình chưa nhận</h1>
+  <p class="phu">Chỉ trả lời một câu: lệnh nào có hàng giao tới mà tổ mình chưa bấm nhận. Ô có khung vàng nét đứt là chỗ đổi. Không so với kế hoạch (hao hụt là chuyện thường).</p>
+
+  <div class="the">
+    <div class="dau">
+      <div class="hang">
+        <span class="o tim">Tìm mã / khách / công đoạn / máy…</span>
+        <span class="o">Mọi thời gian ▾</span>
+        <span class="o">Lọc</span>
+      </div>
+      <div class="hang chips">
+        <span class="cd">Tất cả <b>3</b></span>
+        <span class="cd"><i style="background:#22c55e"></i>Đang chạy <b>0</b></span>
+        <span class="cd"><i style="background:#f59e0b"></i>Tạm dừng <b>0</b></span>
+        <span class="cd"><i style="background:#3b82f6"></i>Chờ làm <b>3</b></span>
+        <span class="cd"><i style="background:#94a3b8"></i>Hoàn thành <b>0</b></span>
+        <span class="cd moi"><i style="background:#a16207"></i>Hàng chờ nhận <b>1</b></span>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Lệnh</th><th>Sản phẩm</th><th>Công đoạn</th><th>Trạng thái</th><th>Hàng đang tới đâu</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>LSX26-0005<span class="l2">Nhận 10/10 08:10</span></td>
+            <td>Hộp giấy 3 lớp<span class="l2">CÔNG TY TNHH AN PHÁT</span></td>
+            <td>Bài in 3 màu 4 màu</td>
+            <td class="moi"><span class="chip xanh">Chờ làm</span>
+              <span class="l2"><span class="chip vang">Hàng chờ nhận</span></span>
+              <span class="l2 so">120 tờ in từ Cắt tờ</span></td>
+            <td><span class="tk"><span class="tk__ln"><span class="tk__fill" style="width:33%"></span></span>
+              <i class="dt xong" style="left:0%"></i><i class="dt dang" style="left:33%"></i><i class="dt me" style="left:66%"></i><i class="dt ngoai" style="left:100%"></i></span>
+              <span class="cau">Còn 1 bước tới mình</span></td>
+          </tr>
+          <tr>
+            <td>LSX26-0004<span class="l2">Nhận 9/10 09:57</span></td>
+            <td>Bìa sách A5<span class="l2">CÔNG TY CỔ PHẦN BIBICA</span></td>
+            <td>Bài in 3 màu 4 màu</td>
+            <td><span class="chip xanh">Chờ làm</span><span class="l2">chưa giao thợ</span></td>
+            <td><span class="tk"><span class="tk__ln"><span class="tk__fill" style="width:33%"></span></span>
+              <i class="dt xong" style="left:0%"></i><i class="dt dang" style="left:33%"></i><i class="dt me" style="left:66%"></i><i class="dt ngoai" style="left:100%"></i></span>
+              <span class="cau">Còn 1 bước tới mình</span></td>
+          </tr>
+          <tr>
+            <td>LSX26-0003<span class="l2">Nhận 9/10 09:57</span></td>
+            <td>Ruột sách A5 64 trang<span class="l2">CÔNG TY CỔ PHẦN BIBICA</span></td>
+            <td>Bài in 1 màu</td>
+            <td><span class="chip xanh">Chờ làm</span><span class="l2">chưa giao thợ</span></td>
+            <td><span class="tk"><span class="tk__ln"><span class="tk__fill" style="width:25%"></span></span>
+              <i class="dt dang" style="left:0%"></i><i class="dt me" style="left:25%"></i><i class="dt ngoai" style="left:50%"></i><i class="dt" style="left:75%"></i><i class="dt" style="left:100%"></i></span>
+              <span class="cau">Còn 1 bước tới mình</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="ghi">
+      <ul>
+        <li>Chip “Hàng chờ nhận N” trên đầu lưới: chỉ hiện khi N &gt; 0, bấm là lọc ra đúng các lệnh đó (lọc ở máy chủ — điều kiện này máy chủ đã có sẵn).</li>
+        <li>Dòng có hàng chờ: cột Trạng thái thêm chip vàng “Hàng chờ nhận” + số và bước giao. Thay cho chấm đỏ không chữ đang nằm khuất ở cột Công đoạn.</li>
+        <li>Bấm dòng ⇒ ngăn mở thẳng tab Giao và nhận, nút Xác nhận ở đó (đã có sẵn). Nhận xong thì chip tự rụng.</li>
+        <li>Đã nhận rồi thì không hiện gì thêm trên lưới — xem lại ở tab Giao và nhận.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</body>
+</html>

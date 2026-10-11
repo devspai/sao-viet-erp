@@ -15,11 +15,14 @@ import {
   ApiError,
   api,
   type DepartmentPurchaseRequestRow,
+  type DonViDungDuoc,
+  type HangLoai,
   type NhomTien,
   type PurchaseDeliveryRow,
   type PurchaseRequestRow,
   type SupplierRow,
 } from "../../../api/client";
+import { coDonViGoc } from "../../../lib/khoGiay";
 import { useDebounced } from "../../../utils/useDebounced";
 import { useAuth } from "../../../auth/useAuth";
 import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
@@ -129,7 +132,16 @@ export function PurchaseRequestsPage({
     const dongTheoId = new Map(row.lines.map((pl) => [pl.id, pl]));
     const seed: SeedLine[] = dot.lines.map((dl) => {
       const pl = dongTheoId.get(dl.purchase_request_line_id);
+      // MUA CHO LỆNH NÀO (11/10/2026): dòng đơn mua cho đúng MỘT lệnh / bài thì dòng nhập mang lệnh
+      // đó. Thiếu nó thì đơn có cùng một vật tư ở hai dòng (một cho lệnh, một theo yêu cầu) lên máy
+      // chủ thành hai dòng y hệt ⇒ bị chặn "gộp số lượng lại" mà form khoá không gộp được. Dòng gom
+      // cho nhiều lệnh thì để trống như cũ.
+      const lenh = pl?.mua_cho.length === 1 ? pl.mua_cho[0] : null;
       return {
+        lsx_id: lenh?.loai === "lsx" ? lenh.id : null,
+        bai_ghep_id: lenh?.loai === "bai" ? lenh.id : null,
+        lsx_ma: lenh?.loai === "lsx" ? lenh.ma : null,
+        bai_ghep_ma: lenh?.loai === "bai" ? lenh.ma : null,
         hang_loai: pl?.hang_loai ?? null,
         hang_id: pl?.hang_id ?? null,
         hang_ma: pl?.hang_ma ?? null,
@@ -494,7 +506,7 @@ export function PurchaseRequestsPage({
     const src = sourceRows.find((r) => r.code === code);
     if (!src) return;
     daMoLapDon.current = code;
-    openCreatePurchaseRequest(src);
+    void openCreatePurchaseRequest(src);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lapDonTuYeuCau, focusRequestCode, sourceRows, nccDaNap]);
 
@@ -550,13 +562,13 @@ export function PurchaseRequestsPage({
     if (!token || theoYeuCau.size === 0) return;
     try {
       const srcs = await Promise.all([...theoYeuCau.keys()].map((id) => api.departmentPurchaseRequests.get(token, id)));
-      openCreatePurchaseRequest(srcs, new Set([...theoYeuCau.values()].flat()));
+      await openCreatePurchaseRequest(srcs, new Set([...theoYeuCau.values()].flat()));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Không mở được yêu cầu để lập đơn.");
     }
   }
 
-  function openCreatePurchaseRequest(
+  async function openCreatePurchaseRequest(
     picked: DepartmentPurchaseRequestRow | DepartmentPurchaseRequestRow[],
     chiDong?: Set<number>,
   ) {
@@ -601,15 +613,35 @@ export function PurchaseRequestsPage({
     // Máy gán sẵn NCC RẺ NHẤT cho TỪNG DÒNG (không phải một NCC cho cả phiếu): phần lớn dòng chỉ
     // có một nơi bán nên tự khớp, người thu mua chỉ phải xử lý mấy chỗ có nhiều lựa chọn.
     // Dòng nào chưa ai bán thì để trống — ô chọn sẽ nói rõ, không im lặng.
+    //
+    // Giấy (10/10/2026): chỉ gán NCC bán CÙNG khổ + CÙNG HỌ đơn vị với dòng, giá QUY về ĐVT dòng;
+    // vật tư khác khai nhiều đơn vị cũng theo nhóm đơn vị (không có khổ). Trước đây lấy `unit_price`
+    // thô của dòng giá đầu tiên — NCC báo đ/kg mà dòng tính tờ là đơn giá sai cả trăm lần. Cần danh
+    // sách đơn vị của mã để biết họ ⇒ nạp trước (gộp một request). Khoá `loai:id` — giấy và vật tư
+    // đánh số độc lập.
+    const dsDonVi = new Map<string, DonViDungDuoc[]>();
+    const maHang = [...new Set(lines
+      .filter((l) => coDonViGoc(l.hang_loai) && l.hang_id)
+      .map((l) => `${l.hang_loai}:${l.hang_id}`))];
+    if (token && maHang.length) {
+      await Promise.all(maHang.map((k) => {
+        const [hl, id] = k.split(":");
+        return api.matHang.donVi(token, hl as HangLoai, Number(id))
+          .then((r) => { dsDonVi.set(k, r.ds); })
+          // Không nạp được: dòng khác ĐVT coi là khác họ ⇒ không tự gán, người lập tự chọn.
+          .catch(() => undefined);
+      }));
+    }
     const daGan: FormLine[] = lines.map((line) => {
-      // Chỉ gán sẵn NCC bán CÙNG dạng + khổ — nhóm khác khổ không có giá để so.
-      const re = chaoGiaChoMatHang(line, suppliers).find((c) => !c.khac_kho);
+      const ds = coDonViGoc(line.hang_loai) && line.hang_id ? dsDonVi.get(`${line.hang_loai}:${line.hang_id}`) : undefined;
+      // Rẻ nhất trong nhóm cùng họ đã có giá quy được; không quy được thì không gán đại.
+      const re = chaoGiaChoMatHang(line, suppliers, ds).find((c) => c.cung_ho && c.gia_dong != null);
       if (!re) return { ...line, supplier_id: null };
       return {
         ...line,
         supplier_id: re.supplier_id,
         unit: line.unit || re.unit,
-        expected_unit_price: re.unit_price,
+        expected_unit_price: re.gia_dong ?? 0,
         vat_percent: re.vat_percent,
       };
     });

@@ -1,7 +1,7 @@
 """Thực hiện sản xuất — KCS theo LỆNH (`docs/design-kcs-theo-lenh.md`, mg `0306`).
 
 Soi tầng service `services/san_xuat/kcs.py` + `kho.tao_yeu_cau_nhap_kho_cong_doan`, không qua HTTP:
-  · ai là KCS: thành viên phòng ban `is_kcs` — kiểm được công đoạn của MỌI tổ, không cần dòng quyền
+  · ai là KCS: vai có dòng `kcs` (mg 0383) — kiểm được công đoạn của MỌI tổ, không cần dòng quyền
     theo tổ nào; admin không đứng trong tổ KCS thì bị chặn; đóng thiếu chỉ trưởng tổ KCS;
   · MỘT hành động `kiem_cong_doan`: công đoạn đang chạy / tạm dừng / đã xong, lặp nhiều lần; không đẻ
     mẻ sản lượng, không đổi trạng thái; lỗi > 0 ⇒ mô tả + ≥1 ảnh, tổ chịu = tổ của công đoạn; công
@@ -45,7 +45,7 @@ from app.repositories.audit_repo import AuditLogRepository
 from app.repositories.san_xuat_kcs_repo import SanXuatKcsRepository
 from app.services.san_xuat.vat_tu_de_nghi import _hang_service, _req_service
 from app.services.san_xuat import kcs, kho
-from tests.quyen_to_fixtures import cap_quyen_to
+from tests.quyen_to_fixtures import cap_kcs, cap_quyen_to
 
 # Fixtures + helper luồng thật (kéo cả cây fixture xếp lịch).
 from tests.test_san_xuat_thuc_thi import (  # noqa: F401
@@ -89,9 +89,9 @@ def _cv_production(db, orders, lsx_svc, admin, customer, *, ma="TO-SX-DX", trang
 
 
 def _to_kiem(db, ten="Tổ KCS", ma="TO-KCS-KIEM", *, truong: bool = False) -> tuple[Department, User]:
-    """Một phòng ban `is_kcs` + MỘT thành viên (`department_id` trỏ đúng phòng). Không cấp dòng quyền
-    theo tổ nào — là KCS chỉ nhờ đứng trong phòng. `truong` thì người này đứng đầu phòng."""
-    d = Department(name=ten, code=ma, is_kcs=True)
+    """Một phòng ban + MỘT thành viên có dòng `kcs` (Xem + Thao tác, mg 0383). Không cấp dòng quyền
+    theo tổ nào — là KCS nhờ ô của vai. `truong` thì người này đứng đầu phòng."""
+    d = Department(name=ten, code=ma)
     db.add(d)
     db.flush()
     u = User(username=f"kcs_{ma.lower()}", name=f"KCS {ma}", password_hash="x", department_id=d.id)
@@ -99,8 +99,16 @@ def _to_kiem(db, ten="Tổ KCS", ma="TO-KCS-KIEM", *, truong: bool = False) -> t
     db.flush()
     if truong:
         d.head_user_id = u.id
-    db.commit()
+    cap_kcs(db, u)
     return d, u
+
+
+def _ngoai_kcs(db, username="ngoai_kcs") -> User:
+    """Tài khoản KHÔNG có dòng `kcs` (không vai) — admin seed giữ toàn quyền nên không dùng được."""
+    u = User(username=username, name=f"Ngoài KCS {username}", password_hash="x")
+    db.add(u)
+    db.commit()
+    return u
 
 
 def _to_chiu(db, ten="Tổ Bế Bị Đổ", ma="TO-CHIU") -> tuple[Department, User]:
@@ -167,19 +175,21 @@ def _dem_me(db, cv) -> int:
 
 
 # --- Ai là KCS ------------------------------------------------------------------------------
-def test_gate_kcs_chi_thanh_vien_phong_is_kcs(db, orders, lsx_svc, admin, customer):
+def test_gate_kcs_theo_o_cua_dong_kcs(db, orders, lsx_svc, admin, customer):
+    """Kiểm = ô Thao tác ở dòng `kcs` (mg 0383) — đủ quyền theo tổ hay chỉ Xem KCS đều không đủ."""
     to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer, cuoi=True)
     _ghi_tot(db, cv, 10)
-    # Admin có đủ quyền theo tổ trên tổ chạy việc nhưng không đứng trong tổ KCS nào.
-    with pytest.raises(PermissionError):
-        kcs.kiem_cong_doan(db, user=admin, cong_viec_id=cv.id, so_dat=10)
     tho = _nguoi_o_to(db, to, "tho_cung_to", viec=("run_order", "confirm_output", "warehouse"))
+    with pytest.raises(PermissionError):
+        kcs.kiem_cong_doan(db, user=tho, cong_viec_id=cv.id, so_dat=10)
+    assert not kcs.xem_kcs(db, tho)
+    cap_kcs(db, tho, thao_tac=False)
+    assert kcs.xem_kcs(db, tho)
     with pytest.raises(PermissionError):
         kcs.kiem_cong_doan(db, user=tho, cong_viec_id=cv.id, so_dat=10)
     assert db.query(SanXuatKcsBatch).count() == 0
 
     _d, thanh_vien = _to_kiem(db)
-    assert kcs.la_nguoi_kcs(db, thanh_vien)
     kcs.kiem_cong_doan(db, user=thanh_vien, cong_viec_id=cv.id, so_dat=10)
 
 
@@ -266,7 +276,8 @@ def test_luat_so(db, orders, lsx_svc, admin, customer, dat, loi, loi_msg):
 
 
 def test_co_loi_bat_buoc_mo_ta_va_anh(db, orders, lsx_svc, admin, customer):
-    _to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer)
+    """Bước cuối: có lỗi thì mô tả + ảnh (công đoạn giữa ảnh không bắt buộc từ 09/10/2026)."""
+    _to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer, cuoi=True)
     _ghi_tot(db, cv, 6)
     _d, nguoi = _to_kiem(db)
     with pytest.raises(ValueError, match="mô tả lỗi"):
@@ -346,15 +357,16 @@ def test_so_dat_tuong_minh_cung_khong_vuot_phan_chua_kiem(db, orders, lsx_svc, a
     assert SanXuatKcsRepository(db).tong_kiem_nhieu([cv.id])[cv.id] == (2, 44.0, 6.0)
 
 
-# --- Công đoạn GIỮA chỉ ghi lỗi (19/09/2026): không đạt, không tiêu chí, trần Σ lỗi ≤ Σ tốt ------
+# --- Công đoạn GIỮA chỉ ghi lỗi (19/09/2026): không đạt, không tiêu chí; đã bắt đầu là ghi được,
+# không chờ tổ ghi mẻ, không trần theo số tổ đã ghi (10/10/2026) ---------------------------------
 def test_cong_doan_giua_chi_ghi_loi(db, orders, lsx_svc, admin, customer):
     _to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer)
     assert not cv.la_kcs_cuoi
     cv.kcs_tieu_chi_json = [{"thu_tu": 1, "ten": "Đúng màu", "bat_buoc": True}]
     db.commit()
     _d, nguoi = _to_kiem(db)
-    with pytest.raises(ValueError, match="chưa ghi sản lượng"):
-        kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_loi=1, loi_mo_ta="Lem", anh=_anh())
+    # Tổ chưa ghi mẻ nào vẫn ghi lỗi được.
+    kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_loi=1, loi_mo_ta="Lem", anh=_anh())
     _ghi_tot(db, cv, 20)
     # Không lỗi thì không có gì để ghi — dù gửi số đạt.
     with pytest.raises(ValueError, match="ít nhất một dòng lỗi"):
@@ -365,12 +377,92 @@ def test_cong_doan_giua_chi_ghi_loi(db, orders, lsx_svc, admin, customer):
     kb = db.get(SanXuatKcsBatch, r1["kcs_batch_id"])
     assert r1["so_dat"] == 0 and float(kb.so_luong_dat) == 0 and kb.checklist_json is None
     kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_loi=15, loi_mo_ta="Xước", anh=_anh())
-    # Trần: Σ lỗi không vượt số tốt tổ đã ghi.
-    with pytest.raises(ValueError, match=r"Tổng lỗi \(21\) vượt số tốt tổ đã ghi \(20\)"):
-        kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_loi=1, loi_mo_ta="Móp", anh=_anh())
-    assert SanXuatKcsRepository(db).tong_kiem_nhieu([cv.id])[cv.id] == (2, 0.0, 20.0)
+    # Không trần theo số tổ đã ghi: tổng lỗi 1 + 5 + 15 + 2 = 23 > 20 tốt vẫn ghi được.
+    kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, so_loi=2, loi_mo_ta="Móp", anh=_anh())
+    assert SanXuatKcsRepository(db).tong_kiem_nhieu([cv.id])[cv.id] == (4, 0.0, 23.0)
     out = kcs.ket_qua_kcs_cong_viec(db, nguoi, cv.id)
     assert out["la_kcs_cuoi"] is False and out["cuoi"] is None
+
+
+# --- Công đoạn GIỮA tick tiêu chí không đạt (09/10/2026, design-kcs-ghi-loi-giua.md) ----------
+def test_cong_doan_giua_tick_tieu_chi(db, orders, lsx_svc, admin, customer):
+    from app.services.rbac_service import AuthorizationService
+    from app.services.san_xuat import kcs_bao_cao
+
+    _to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer, ma="TO-TICK")
+    cv.kcs_tieu_chi_json = [{"thu_tu": 2, "ten": "Không lem mực"},
+                            {"thu_tu": 1, "ma": "TC1", "ten": "Màu đúng mẫu đã ký"}]
+    db.commit()
+    _d, nguoi = _to_kiem(db)
+    _ghi_tot(db, cv, 50)
+    lid = cv.lsx_id
+
+    # Danh sách tick = tiêu chí của CHÍNH công đoạn, theo thứ tự.
+    [c] = [c for c in kcs.chuoi_cong_doan_kcs(db, nguoi, lid)["cong_doan"] if c["cong_viec_id"] == cv.id]
+    assert c["tieu_chi"] == [{"thu_tu": 1, "ma": "TC1", "ten": "Màu đúng mẫu đã ký"},
+                             {"thu_tu": 2, "ma": None, "ten": "Không lem mực"}]
+
+    def ghi(cac_loi):
+        return kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=cv.id, lsx_id=lid, cac_loi=cac_loi)
+
+    with pytest.raises(ValueError, match="Lỗi khác: ghi chú lỗi gì"):
+        ghi([{"so_luong": 1, "mo_ta": " "}])
+    with pytest.raises(ValueError, match="không còn trong lệnh"):
+        ghi([{"thu_tu": 9, "so_luong": 1}])
+    with pytest.raises(ValueError, match="hai lần"):
+        ghi([{"thu_tu": 1, "so_luong": 1}, {"thu_tu": 1, "so_luong": 2}])
+    with pytest.raises(ValueError, match="Màu đúng mẫu đã ký: số lỗi phải lớn hơn 0"):
+        ghi([{"thu_tu": 1, "so_luong": 0}])
+    assert db.query(SanXuatKcsBatch).count() == 0
+
+    # Ảnh không bắt buộc; ghi chú nối sau câu tiêu chí; Lỗi khác không vào checklist.
+    res = ghi([
+        {"thu_tu": 1, "so_luong": 12, "mo_ta": "góc phải tờ", "anh": []},
+        {"thu_tu": 2, "so_luong": 3},
+        {"thu_tu": None, "so_luong": 2, "mo_ta": "Nhăn mép", "anh": _anh()},
+    ])
+    assert res["so_loi"] == 17 and res["so_dat"] == 0 and res["so_loi_cua_to"] == 17
+    kb = db.get(SanXuatKcsBatch, res["kcs_batch_id"])
+    assert kb.checklist_json == [
+        {"cong_viec_id": cv.id, "thu_tu": 1, "dat": False, "so_luong": 12},
+        {"cong_viec_id": cv.id, "thu_tu": 2, "dat": False, "so_luong": 3},
+    ]
+    loi = db.query(SanXuatKcsLoi).filter_by(kcs_batch_id=kb.id).all()
+    assert sorted(l.mo_ta for l in loi) == ["Không lem mực", "Màu đúng mẫu đã ký: góc phải tờ", "Nhăn mép"]
+    assert {l.cong_doan_ref_id for l in loi} == {cv.id}
+
+    # Báo cáo Theo tiêu chí: số lỗi ghi ở công đoạn, không đếm là lần xét của bước cuối.
+    bc = kcs_bao_cao.bao_cao_kcs(db, nguoi, AuthorizationService(db))
+    theo = {r["ten"]: r for r in bc["tieu_chi"]}
+    assert theo["Màu đúng mẫu đã ký"]["loi_o_cong_doan"] == 12
+    assert theo["Màu đúng mẫu đã ký"]["lan_xet"] == 0 and theo["Màu đúng mẫu đã ký"]["don_vi"] == "cái"
+
+
+def test_tep_cua_lenh_cho_kcs(db, orders, lsx_svc, admin, customer):
+    """KCS không giữ quyền tổ nào vẫn xem được tệp của lệnh — gác ô Xem của dòng `kcs`."""
+    from app.doi_tuong_nhan import KCS
+    from app.models.lsx import LsxDinhKem
+    from app.routers.lsx import _NGHE_DINH_KEM
+    from app.services.san_xuat import tep_lenh
+
+    # Tệp đổi thì màn KCS cũng phải nghe sự kiện để tự nạp lại (không bắt KCS tải lại trang).
+    assert KCS in _NGHE_DINH_KEM
+
+    _to, cv = _cv_kcs(db, orders, lsx_svc, admin, customer, ma="TO-TEP")
+    _d, nguoi = _to_kiem(db)
+    db.add(LsxDinhKem(lsx_id=cv.lsx_id, ten_tep="maket.pdf",
+                      file_url=f"/api/files/san-xuat/lsx/{cv.lsx_id}/ab_maket.pdf",
+                      content_type="application/pdf", kich_thuoc=10, nguoi_tai_id=admin.id))
+    db.commit()
+    with pytest.raises(PermissionError):
+        tep_lenh.tep_nhom_kcs(db, _ngoai_kcs(db, "ngoai_tep"), lsx_id=cv.lsx_id)
+    with pytest.raises(PermissionError):
+        tep_lenh.tep_cua_cong_viec(db, nguoi, cong_viec_id=cv.id)
+    nhom = tep_lenh.tep_nhom_kcs(db, nguoi, lsx_id=cv.lsx_id)
+    [n] = [n for n in nhom if n["lsx_id"] == cv.lsx_id]
+    assert [t["ten_tep"] for t in n["items"]] == ["maket.pdf"]
+    with pytest.raises(ValueError):
+        tep_lenh.tep_nhom_kcs(db, nguoi, lsx_id=999999)
 
 
 # --- Form KCS chỉ gõ SỐ LỖI (18/09/2026): đạt = phần tổ đã làm chưa kiểm − lỗi ----------------
@@ -479,7 +571,7 @@ def test_ket_qua_kcs_cong_viec(db, orders, lsx_svc, admin, customer):
 def test_chuoi_cong_doan_kcs(db, orders, lsx_svc, admin, customer):
     to, cv, res = _batch(db, orders, lsx_svc, admin, customer, cuoi=True, tot=100)
     with pytest.raises(PermissionError):
-        kcs.chuoi_cong_doan_kcs(db, admin, cv.lsx_id)
+        kcs.chuoi_cong_doan_kcs(db, _ngoai_kcs(db), cv.lsx_id)
     with pytest.raises(ValueError):
         kcs.chuoi_cong_doan_kcs(db, res["nguoi_kcs"], 999_999)
 
@@ -522,31 +614,31 @@ def test_chuoi_cong_doan_kcs_kem_boi_canh_form_kiem(db, orders, lsx_svc, admin, 
     assert dong["quy_cach"] == {"giay": "C300", "so_mau": 4}
     assert [m["so_luong"] for m in dong["me"]] == [30, 100]
     dau = dong["me"][0]
-    assert dau["id"] == moi.id and dau["viec"] == "Bế hộp" and dau["nguoi_ghi"] == admin.name
+    assert dau["id"] == moi.id and dau["nguoi_ghi"] == admin.name
+    assert "viec" not in dau  # thôi trả tên "việc khoán" (10/10/2026) — chỉ là tên công đoạn
     assert dau["nguoi"] == [] and dau["don_vi"] == cv.don_vi_ra
 
 
 def test_danh_sach_lenh_kcs(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer)
     with pytest.raises(PermissionError):
-        kcs.danh_sach_lenh_kcs(db, admin)
+        kcs.danh_sach_lenh_kcs(db, _ngoai_kcs(db))
 
-    out = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], gom_da_dong=True)
+    out = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"])
     assert out["trang"] == 1 and out["tong"] >= 1
     dong = next(i for i in out["items"] if i["lsx_id"] == cv.lsx_id)
     assert dong["ma"] == res["lsx_ma"] and dong["so_da_kiem"] == 1 and dong["so_loi"] == 10
     assert dong["so_cong_doan"] >= 1
 
-    tim = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], tim=res["lsx_ma"], gom_da_dong=True)
+    tim = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], tim=res["lsx_ma"])
     assert [i["lsx_id"] for i in tim["items"]] == [cv.lsx_id]
-    assert kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], tim="KHONG-CO-LENH-NAY",
-                                  gom_da_dong=True)["items"] == []
+    assert kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], tim="KHONG-CO-LENH-NAY")["items"] == []
 
 
 def test_danh_sach_lenh_kcs_co_trang(db, orders, lsx_svc, admin, customer):
     """Chân bảng KCS có ô Dòng/trang — máy chủ phải cắt theo cỡ người dùng chọn, không cố định 30."""
     _to, _cv, res = _batch(db, orders, lsx_svc, admin, customer)
-    out = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], gom_da_dong=True, co_trang=1)
+    out = kcs.danh_sach_lenh_kcs(db, res["nguoi_kcs"], co_trang=1)
     assert out["co_trang"] == 1 and len(out["items"]) <= 1
 
 
@@ -558,7 +650,11 @@ def test_nhap_kho_chi_cong_doan_cuoi_va_chi_nguoi_kcs(db, orders, lsx_svc, admin
     cv.la_kcs_cuoi = True
     db.commit()
     with pytest.raises(PermissionError):
-        kho.tao_yeu_cau_nhap_kho_cong_doan(db, user=admin, cong_viec_id=cv.id)
+        kho.tao_yeu_cau_nhap_kho_cong_doan(db, user=_ngoai_kcs(db), cong_viec_id=cv.id)
+    # Chỉ Xem KCS cũng không gửi được — gửi nhập kho là ô Thao tác.
+    with pytest.raises(PermissionError):
+        kho.tao_yeu_cau_nhap_kho_cong_doan(
+            db, user=cap_kcs(db, _ngoai_kcs(db, "chi_xem_kcs"), thao_tac=False), cong_viec_id=cv.id)
     assert db.query(StockRequest).filter_by(san_xuat_cong_viec_id=cv.id).count() == 0
 
 
@@ -634,10 +730,25 @@ def test_api_kiem_can_dang_nhap(client):
     assert client.get("/api/san-xuat/kcs/lenh").status_code == 401
 
 
-def test_api_kiem_admin_khong_thuoc_to_kcs_403(client):
-    """Admin seed không đứng trong phòng ban `is_kcs` nào → service chặn trước khi lưu ảnh."""
+def test_api_kiem_khong_co_o_kcs_403(client):
+    """Tài khoản không có dòng `kcs` → service chặn trước khi lưu ảnh; danh sách lệnh KCS cũng 403."""
+    from app.db import SessionLocal
+    from app.repositories.rbac_repo import DepartmentRepository
+    from app.repositories.user_repo import UserRepository
+    from app.security import hash_password
+
+    s = SessionLocal()
+    try:
+        d = DepartmentRepository(s).create(name="Tổ không KCS api")
+        s.commit()
+        users = UserRepository(s)
+        u = users.create(username="khong-kcs-api", name="Không KCS",
+                         password_hash=hash_password("matkhau123"))
+        users.set_assignment(u, department_id=d.id, role_id=None, is_active=True)
+    finally:
+        s.close()
     tok = client.post(
-        "/api/auth/login", json={"username": "admin", "password": "admin123"}
+        "/api/auth/login", json={"username": "khong-kcs-api", "password": "matkhau123"}
     ).json()["access_token"]
     h = {"Authorization": f"Bearer {tok}"}
     resp = client.post(
@@ -648,9 +759,6 @@ def test_api_kiem_admin_khong_thuoc_to_kcs_403(client):
     )
     assert resp.status_code == 403
     assert client.get("/api/san-xuat/kcs/lenh", headers=h).status_code == 403
-    me = client.get("/api/auth/permissions", headers=h)
-    if me.status_code == 200:
-        assert me.json()["kcs"] is False
 
 
 def test_api_kiem_dong_loi_so_anh_khong_khop_400(client):
@@ -760,8 +868,8 @@ def test_kiem_quy_loi_chan_sai(db, orders, lsx_svc, admin, customer):
     _ghi_tot(db, truoc, 50)
     lid = truoc.lsx_id
 
-    # Không quy lỗi về công đoạn đứng SAU.
-    with pytest.raises(ValueError, match="đứng trước"):
+    # Công đoạn giữa chỉ ghi lỗi của chính nó (09/10/2026) — không quy về bước nào khác.
+    with pytest.raises(ValueError, match="chỉ ghi lỗi của chính nó"):
         kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=truoc.id, lsx_id=lid, cac_loi=[
             {"cong_viec_id": sau.id, "so_luong": 1, "mo_ta": "x", "anh": _anh()}])
     # Dòng thiếu ảnh / thiếu mô tả / số 0.
@@ -781,3 +889,107 @@ def test_kiem_quy_loi_chan_sai(db, orders, lsx_svc, admin, customer):
     assert db.query(SanXuatKcsBatch).count() == 0
 
 
+
+
+# --- Phương án B nâng cấp (09/10/2026): danh sách, sơ đồ nhóm, báo cáo --------------------------
+def test_danh_sach_lenh_chuoi_loi_gay_tinh_trang_loc_nhanh(db, orders, lsx_svc, admin, customer):
+    truoc, sau, _to_chiu, _tt, nguoi = _chuoi_hai_to(db, orders, lsx_svc, admin, customer, "KCS-B1")
+    sau.so_luong_ra = 200
+    db.commit()
+    lid = truoc.lsx_id
+
+    def dong(**k):
+        out = kcs.danh_sach_lenh_kcs(db, nguoi, **k)
+        return out, next((i for i in out["items"] if i["lsx_id"] == lid), None)
+
+    def co(nhanh):
+        return lid in [i["lsx_id"] for i in kcs.danh_sach_lenh_kcs(db, nguoi, nhanh=nhanh)["items"]]
+
+    # 100 tốt ở bước cuối, chưa kiểm ⇒ Chờ kiểm; mục tiêu + đơn vị lấy ở bước cuối.
+    out, d = dong()
+    assert d["tinh_trang"] == "cho_kiem" and d["cuoi"]["cho_kiem"] == 100
+    assert d["cuoi"]["muc_tieu"] == 200 and d["cuoi"]["don_vi"] == "cái"
+    assert d["chuoi"][-1] == {"ten": sau.ten_cong_doan, "trang_thai": "chay", "la_kcs_cuoi": True}
+    assert d["la_lenh_phu"] is False and d["loi_gay"] == []
+    assert out["dem"]["cho_kiem"] >= 1 and out["dem"]["tat_ca"] >= out["dem"]["cho_kiem"]
+    assert co("cho_kiem") and not co("chua_gui_kho") and not co("da_dong")
+
+    kcs.kiem_cong_doan(db, user=nguoi, cong_viec_id=sau.id, lsx_id=lid, cac_loi=[
+        {"cong_viec_id": truoc.id, "so_luong": 8, "mo_ta": "Lem mực", "anh": _anh()}])
+    _out, d = dong()
+    # Bước trước GÂY lỗi (bắt ở bước cuối) ⇒ ô chuỗi đỏ, lỗi đứng dưới tên bước gây.
+    assert {n["ten"]: n["trang_thai"] for n in d["chuoi"]}[truoc.ten_cong_doan] == "loi"
+    assert d["loi_gay"] == [{"ten": truoc.ten_cong_doan, "don_vi": "cái", "so_luong": 8.0}]
+    # Kiểm hết, còn 92 đạt chưa gửi kho.
+    assert d["tinh_trang"] == "chua_gui_kho" and d["cuoi"]["cho_kiem"] == 0
+    assert co("chua_gui_kho") and not co("cho_kiem")
+
+    from app.models.san_xuat import NHOM_DONG, SanXuatNhom
+
+    nhom = db.get(SanXuatNhom, sau.nhom_id or truoc.nhom_id)
+    nhom.trang_thai = NHOM_DONG
+    db.commit()
+    out, d = dong(nhanh="da_dong")
+    assert d is not None and d["tinh_trang"] == "da_dong" and out["dem"]["da_dong"] >= 1
+    assert not co("chua_gui_kho")
+
+
+@pytest.mark.parametrize("trang_thai, cuoi, mong", [
+    (["completed", "completed"], {"cho_kiem": 0, "con_gui_kho": 0}, "cho_dong"),
+    (["completed", "running"], {"cho_kiem": 0, "con_gui_kho": 0}, "cho_to"),
+    (["completed", "completed"], {"cho_kiem": 5, "con_gui_kho": 3}, "cho_kiem"),
+    (["completed", "running"], None, "dang_lam"),
+    (["released", "released"], None, "cho_to"),
+    (["completed", "completed"], None, "da_xong"),
+])
+def test_tinh_trang_lenh(trang_thai, cuoi, mong):
+    from types import SimpleNamespace as N
+
+    cvs = [N(trang_thai=t) for t in trang_thai]
+    assert kcs._tinh_trang_lenh(N(trang_thai="in_production"), cvs, cuoi) == mong
+    assert kcs._tinh_trang_lenh(N(trang_thai="closed"), cvs, cuoi) == "da_dong"
+
+
+def test_so_do_nhom_va_bao_cao_theo_tieu_chi(db, orders, lsx_svc, admin, customer):
+    from app.services.rbac_service import AuthorizationService
+    from app.services.san_xuat import kcs_bao_cao
+
+    truoc, sau, to_chiu, _tt, nguoi = _chuoi_hai_to(db, orders, lsx_svc, admin, customer, "KCS-B2")
+    truoc.kcs_tieu_chi_json = [{"thu_tu": 1, "ten": "Màu đúng mẫu"}, {"thu_tu": 2, "ten": "Không lem"}]
+    db.commit()
+    lid = truoc.lsx_id
+
+    with pytest.raises(PermissionError):
+        kcs.so_do_nhom_kcs(db, _ngoai_kcs(db, "ngoai_b2"), lid)
+    with pytest.raises(ValueError):
+        kcs.so_do_nhom_kcs(db, nguoi, 999_999)
+
+    kcs.kiem_cong_doan(
+        db, user=nguoi, cong_viec_id=sau.id, lsx_id=lid,
+        checklist_ket_qua=[{"cong_viec_id": truoc.id, "thu_tu": 1, "dat": True},
+                           {"cong_viec_id": truoc.id, "thu_tu": 2, "dat": False}],
+        cac_loi=[{"cong_viec_id": truoc.id, "so_luong": 8, "mo_ta": "Không lem: lem góc",
+                  "anh": _anh()}],
+    )
+
+    sd = kcs.so_do_nhom_kcs(db, nguoi, lid)
+    assert sd["nhom"]["trang_thai"] == "in_production"
+    lan = {l["lsx"]["id"]: l for l in sd["lenh"]}
+    assert lid in lan
+    # Lệnh phụ đứng trước lệnh chính; lệnh chính không có điểm nối.
+    phu = [l["la_lenh_phu"] for l in sd["lenh"]]
+    assert phu == sorted(phu, reverse=True)
+    assert all(l["noi_vao_cong_viec_id"] is None for l in sd["lenh"] if not l["la_lenh_phu"])
+    cuoi = next(c for c in lan[lid]["cong_doan"] if c["cong_viec_id"] == sau.id)
+    assert [(t["cong_viec_id"], t["thu_tu"]) for t in cuoi["checklist"]] == [(truoc.id, 1), (truoc.id, 2)]
+
+    bc = kcs_bao_cao.bao_cao_kcs(db, nguoi, AuthorizationService(db))
+    tc = [(r["ten"], r["cong_doan"], r["lan_xet"], r["hong"]) for r in bc["tieu_chi"]]
+    assert tc == [("Không lem", truoc.ten_cong_doan, 1, 1), ("Màu đúng mẫu", truoc.ten_cong_doan, 1, 0)]
+    assert bc["tieu_chi"][0]["to_ten"] == to_chiu.name
+    assert bc["so_lan_ghi_loi"] == 1 and len(bc["nhiet_cot"]) == 1
+    khoa = bc["nhiet_cot"][0]["khoa"]
+    [cd] = bc["nhiet_cong_doan"]
+    assert (cd["ten"], cd["don_vi"], cd["tong"], cd["o"]) == (truoc.ten_cong_doan, "cái", 8.0, {khoa: 8.0})
+    [to] = bc["nhiet_to"]
+    assert (to["ten"], to["tong"]) == (to_chiu.name, 8.0)

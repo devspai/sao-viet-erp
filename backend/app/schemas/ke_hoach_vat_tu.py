@@ -67,6 +67,9 @@ class CanDoiDong(BaseModel):
     nguon_dang_ve: list[dict] | None = None
     canh_bao: list[str] = Field(default_factory=list)
     ly_do_canh_bao: str | None = None
+    #: [MỚI 10/10/2026] Nhu cầu ra đơn vị mã CHƯA khai ở danh mục (cùng cờ của nhóm) — không lập
+    #: mua được dòng này (`/de-nghi-mua` chặn 400).
+    don_vi_chua_khai: bool = False
 
 
 class PhieuMuaTom(BaseModel):
@@ -91,6 +94,16 @@ class PhieuMuaTom(BaseModel):
     ngay_ve: date | None = None
 
 
+class CungKhoKhacDonVi(BaseModel):
+    """Tồn / hàng đang về của CÙNG mã + CÙNG khổ nhưng KHÁC đơn vị gốc với nhóm (vd nhóm đếm tờ, bên
+    cạnh là kg) — chỉ để bày cạnh nhau, máy không trừ chéo (tờ và kg không quy đổi)."""
+
+    don_vi_goc: str
+    don_vi_goc_ten: str
+    ton: float = 0
+    dang_ve: float = 0
+
+
 class CanDoiNhom(BaseModel):
     """Gom theo MẶT HÀNG: một khối = một thứ phải lo, các dòng bên trong là các lệnh giành nhau nó."""
 
@@ -99,11 +112,22 @@ class CanDoiNhom(BaseModel):
     hang_id: int
     hang_ma: str | None = None
     hang_ten: str | None = None
-    #: Khổ giấy của nhóm (mm) — giấy so tồn theo (mã, khổ), hai khổ là hai nhóm. Hàng khác 0 · 0.
+    #: Khổ giấy của nhóm (mm) — giấy so tồn theo (mã, khổ, đơn vị gốc), hai khổ là hai nhóm. Hàng
+    #: khác 0 · 0.
     kho_rong: int = 0
     kho_dai: int = 0
+    #: MÃ đơn vị gốc của nhóm. Giấy: phần thứ năm của khoá (`to` cho họ tờ, đơn vị giá của mã cho
+    #: kg/tấn…) — cùng mã cùng khổ khác đơn vị gốc là hai nhóm. Vật tư khác (mg 0390): đơn vị đã
+    #: khai mà nhóm của nó chứa ĐVT nhu cầu (kg / thùng là hai nhóm). Hàng khác: đơn vị giá của mã.
     don_vi_goc: str | None = None
     ton: float | None = None
+    #: Giấy / vật tư: cùng mã + cùng khổ, KHÁC đơn vị gốc — bày cạnh `ton`, không trừ.
+    cung_kho_khac_don_vi: list[CungKhoKhacDonVi] = Field(default_factory=list)
+    #: [MỚI 10/10/2026] `don_vi_goc` của nhóm không thuộc nhóm đơn vị nào mã đã khai ở danh mục
+    #: (nhu cầu tờ của giấy chỉ khai kg). Bảng báo `ly_do_chua_khai` thay nút lập mua.
+    don_vi_chua_khai: bool = False
+    #: "Chưa khai đơn vị “tờ” ở danh mục Giấy cho “C150”." — chỉ có khi `don_vi_chua_khai`.
+    ly_do_chua_khai: str | None = None
     tong_can: float | None = None
     so_dong_do: int = 0
     #: Số dòng KHÔNG đánh giá được. Bộ lọc "chỉ mặt hàng đang thiếu" GIỮ LẠI nhóm có số này > 0 —
@@ -152,9 +176,12 @@ class DeNghiMuaDong(BaseModel):
     #: Khổ của nhóm (giấy) — một phần của khoá; hàng khác gửi 0 · 0.
     kho_rong: int = Field(default=0, ge=0)
     kho_dai: int = Field(default=0, ge=0)
+    #: Đơn vị gốc của nhóm (giấy) — phần thứ năm của khoá (10/10/2026). Gửi lại nguyên giá trị máy
+    #: chủ phát; bỏ trống thì máy chủ tự dò khi mã + khổ + lệnh + bước chỉ có một đơn vị gốc.
+    don_vi_goc: str = Field(default="", max_length=16)
     lsx_id: int | None = None
     bai_ghep_id: int | None = None
-    #: Bước tiêu thụ — phần thứ năm của khoá. Client gửi lại đúng giá trị nhận được ở `CanDoiDong`.
+    #: Bước tiêu thụ — phần cuối của khoá. Client gửi lại đúng giá trị nhận được ở `CanDoiDong`.
     #: Thiếu nó thì hai dòng của cùng một lệnh (cùng món, hai công đoạn) tra ra cùng một chỗ và
     #: yêu cầu mua ra một nửa số cần.
     buoc_id: int | None = None
@@ -172,11 +199,12 @@ class TheoLenhHang(BaseModel):
 
     hang_loai: str
     hang_id: int
-    #: Khổ giấy tờ (mm) — giữ chỗ khoá (mã, khổ); vật tư và giấy cuộn 0 · 0.
+    #: Khổ giấy (mm) — giữ chỗ khoá (mã, khổ, đơn vị gốc); hàng khác 0 · 0.
     kho_rong: int = 0
     kho_dai: int = 0
     hang_ma: str | None = None
     hang_ten: str | None = None
+    #: Giấy: MÃ đơn vị gốc — phần thứ năm của khoá. Hàng khác: đơn vị giá của mã.
     don_vi_goc: str | None = None
     #: Theo ĐƠN VỊ GỐC. `can` = tổng `con_phai_co` của mọi bước (đã trừ phần kho cấp rồi).
     can: float = 0
@@ -206,7 +234,7 @@ class TheoLenhHang(BaseModel):
     #: khác đang thiếu" trong khi thật ra có ba, và người dùng quyết dựa trên con số do chính bộ
     #: lọc của họ tạo ra.
     so_lenh_khac_thieu: int = 0
-    #: Khoá 5 phần của TỪNG dòng đỏ, để nút "Đề nghị mua" trên thẻ đi lại đúng cửa `/de-nghi-mua`.
+    #: Khoá dòng của TỪNG dòng đỏ, để nút "Đề nghị mua" trên thẻ đi lại đúng cửa `/de-nghi-mua`.
     #: Cố ý không gộp: một lệnh ăn cùng món ở hai công đoạn là hai dòng, gộp là mua một nửa.
     khoa_do: list[DeNghiMuaDong] = Field(default_factory=list)
 
@@ -382,12 +410,14 @@ class LuoiDong(BaseModel):
     lsx_id: int | None = None
     bai_ghep_id: int | None = None
     ma: str
-    #: `<loai>:<id>:<rộng>:<dài>`
+    #: `<loai>:<id>:<rộng>:<dài>:<đơn vị gốc>` (giấy; hàng khác phần cuối rỗng)
     hang: str
     hang_loai: str
     hang_id: int
     kho_rong: int = 0
     kho_dai: int = 0
+    #: MÃ đơn vị gốc của khoá (giấy `to` / đơn vị giá…; hàng khác ""). `dvt` là TÊN để hiện.
+    don_vi_goc: str = ""
     hang_ma: str | None = None
     hang_ten: str
     dvt: str
@@ -409,8 +439,12 @@ class LuoiDong(BaseModel):
     tinh_trang: str
     ghi_chu: list[str] = Field(default_factory=list)
     buoc: list[LuoiBuoc] = Field(default_factory=list)
-    #: Khoá dòng bảng cân đối để gửi `/de-nghi-mua/xem-truoc` — chỉ dòng "Cần mua".
+    #: Khoá dòng bảng cân đối để gửi `/de-nghi-mua/xem-truoc` — chỉ dòng "Cần mua" và đơn vị
+    #: đã khai (`don_vi_chua_khai` ⇒ rỗng).
     khoa_mua: list[DeNghiMuaDong] = Field(default_factory=list)
+    #: [MỚI 10/10/2026] Đơn vị của ô chưa khai ở danh mục — FE hiện `ly_do_chua_khai` thay nút mua.
+    don_vi_chua_khai: bool = False
+    ly_do_chua_khai: str | None = None
 
 
 class LuoiLichSu(BaseModel):
@@ -460,12 +494,19 @@ class LuoiHang(BaseModel):
     hang_id: int
     kho_rong: int = 0
     kho_dai: int = 0
+    #: MÃ đơn vị gốc của khoá (xem `LuoiDong.don_vi_goc`).
+    don_vi_goc: str = ""
     kho: str | None = None
     hang_ma: str | None = None
     hang_ten: str
     dvt: str
     ton: float = 0
     dang_ve: float = 0
+    #: Giấy / vật tư: tồn / đang về cùng mã + cùng khổ, KHÁC đơn vị gốc — bày cạnh, không trừ.
+    cung_kho_khac_don_vi: list[CungKhoKhacDonVi] = Field(default_factory=list)
+    #: [MỚI 10/10/2026] Xem `LuoiDong.don_vi_chua_khai`.
+    don_vi_chua_khai: bool = False
+    ly_do_chua_khai: str | None = None
     can: float = 0
     da_giu: float = 0
     con_thieu: float = 0

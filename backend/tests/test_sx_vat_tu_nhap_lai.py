@@ -50,16 +50,16 @@ def test_tao_yeu_cau_nhap_lai_giay_khac_kho(db, orders, lsx_svc, admin, customer
     cv, k0 = _cv_giay_da_cap(db, orders, lsx_svc, admin, customer, "TO-NL1")
     ra = _nhap_lai(db, admin, cv, [{
         "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(), "so_luong": 70,
-        "dang_giay": "to", "kho_rong": 790, "kho_dai": 1090}])
+        "kho_rong": 790, "kho_dai": 1090}])
 
     req = db.get(StockRequest, ra["id"])
     assert req.loai == REQ_NHAP
     assert req.vat_tu_tra_cong_viec_id == cv.id
     assert req.san_xuat_cong_viec_id is None
-    assert req.bo_phan_id == cv.department_id
+    assert req.bo_phan_id == admin.department_id and req.bo_phan_id != cv.department_id
     assert req.ghi_chu.startswith("Nhập lại vật tư từ ")
     [ln] = req.lines
-    assert (ln.dang_giay, ln.kho_rong, ln.kho_dai) == ("to", 790, 1090)
+    assert (ln.don_vi_goc, ln.kho_rong, ln.kho_dai) == ("to", 790, 1090)
     assert float(ln.sl_de_nghi) == 70
     assert ra["ma"] == req.ma and ra["trang_thai"] == req.trang_thai
 
@@ -72,7 +72,24 @@ def test_nhap_lai_vat_tu_thuong(db, orders, lsx_svc, admin, customer):
                                     "so_luong": 2}])
     [ln] = db.get(StockRequest, ra["id"]).lines
     assert (ln.hang_loai, ln.dvt, float(ln.sl_de_nghi)) == ("vat_tu", "kg", 2)
-    assert (ln.dang_giay, ln.kho_rong, ln.kho_dai) == (None, 0, 0)
+    # Vật tư mang đơn vị gốc (mg 0390, nhiều ĐVT): mực khai kg ⇒ gốc kg.
+    assert (ln.don_vi_goc, ln.kho_rong, ln.kho_dai) == ("kg", 0, 0)
+
+
+def test_nhap_lai_co_gio_can(db, orders, lsx_svc, admin, customer):
+    """Tổ nhập giờ trả hàng ⇒ yêu cầu nhập lại mang `ngay_can` + `can_luc` (mg 0384)."""
+    from datetime import date, datetime
+
+    from app.services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL-GIO")
+    db.commit()
+    muc = _khai_them_vat_tu_vao_buoc(db, cv, ma="VT-NL-GIO", ten="Mực đen", so_luong=5)
+    ra = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": "kg",
+                                    "so_luong": 2}], can_luc=datetime(2026, 10, 9, 16, 15))
+    req = db.get(StockRequest, ra["id"])
+    assert req.ngay_can == date(2026, 10, 9)
+    assert can_luc_hien_thi(req.can_luc) == datetime(2026, 10, 9, 16, 15)
 
 
 def test_giay_to_thieu_kho_bi_chan(db, orders, lsx_svc, admin, customer):
@@ -82,11 +99,7 @@ def test_giay_to_thieu_kho_bi_chan(db, orders, lsx_svc, admin, customer):
     with pytest.raises(ValueError, match="hai cạnh khổ"):
         _nhap_lai(db, admin, cv, [{
             "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(),
-            "so_luong": 10, "dang_giay": "to", "kho_rong": 790, "kho_dai": 0}])
-    with pytest.raises(ValueError, match="dạng"):
-        _nhap_lai(db, admin, cv, [{
-            "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(),
-            "so_luong": 10, "kho_rong": 790, "kho_dai": 1090}])
+            "so_luong": 10, "kho_rong": 790, "kho_dai": 0}])
     assert db.query(StockRequest).filter(StockRequest.vat_tu_tra_cong_viec_id.is_not(None)).count() == 0
 
 
@@ -162,7 +175,8 @@ def test_don_gia_la_binh_quan_gia_von_phan_da_xuat(db, orders, lsx_svc, admin, c
         db.add(lot)
         db.flush()
         db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai="vat_tu",
-                                hang_id=muc.id, lot_id=lot.id, so_luong=100, sl_goc=100))
+                                hang_id=muc.id, lot_id=lot.id, so_luong=100, sl_goc=100,
+                                don_vi_goc="kg"))
     db.commit()
 
     nl = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": km["dvt"],
@@ -240,7 +254,7 @@ def test_tra_khac_kho_tru_vao_dong_da_xuat_cung_ma_dang(db, orders, lsx_svc, adm
     kr, kd = k0["kho_rong"] - 10, k0["kho_dai"]
     nl = _nhap_lai(db, admin, cv, [{
         "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(), "so_luong": 70,
-        "dang_giay": "to", "kho_rong": kr, "kho_dai": kd}])
+        "kho_rong": kr, "kho_dai": kd}])
     _ghi_so_phieu_nhap(db, admin, nl["id"], 70)
 
     ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
@@ -259,7 +273,7 @@ def test_tra_khac_kho_tru_vao_dong_da_xuat_cung_ma_dang(db, orders, lsx_svc, adm
 
 def test_tra_giay_khong_co_dong_da_xuat_cung_ma_dang_thi_dung_rieng(db, orders, lsx_svc, admin,
                                                                        customer):
-    """Trả CUỘN trong khi chỉ xuất TỜ ⇒ không có dòng đích: dòng trả đứng riêng, thực dùng âm
+    """Trả theo đơn vị giá (kg — giấy khổ rộng) trong khi chỉ xuất TỜ ⇒ không có dòng đích: dòng trả đứng riêng, thực dùng âm
     (bất thường thật) — và vẫn mang đơn vị gốc."""
     from app.services.san_xuat import board
 
@@ -268,11 +282,11 @@ def test_tra_giay_khong_co_dong_da_xuat_cung_ma_dang_thi_dung_rieng(db, orders, 
     g = db.get(GiayNguyen, k0["hang_id"])
     nl = _nhap_lai(db, admin, cv, [{
         "hang_loai": "giay", "hang_id": g.id, "dvt": g.don_vi_gia, "so_luong": 5,
-        "dang_giay": "cuon", "kho_rong": 790}])
+        "kho_rong": 790}])
     _ghi_so_phieu_nhap(db, admin, nl["id"], 5)
     ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
     cuon = next(d for d in ct["vat_tu_cap"]["doi_chieu"]
-                if d["hang_loai"] == "giay" and d["dang_giay"] == "cuon")
+                if d["hang_loai"] == "giay" and d["don_vi_goc"] not in ("", "to"))
     assert cuon["sl_thuc_dung"] == pytest.approx(-cuon["sl_nhap_lai"])
     assert cuon["nhap_lai_vao"] is None and cuon["dvt_goc"]
 
@@ -294,16 +308,16 @@ def test_don_gia_khac_kho_lay_binh_quan_cung_ma_dang(db, orders, lsx_svc, admin,
     db.flush()
     lot = StockLot(ma_lo="L-NL11", hang_loai="giay", hang_id=k0["hang_id"], kho_id=1,
                    ngay_nhap=_T0.date(), don_gia_nhap=50000, sl_ban_dau=100, sl_con_lai=100,
-                   dang_giay="to", kho_rong=k0["kho_rong"], kho_dai=k0["kho_dai"])
+                   don_vi_goc="to", kho_rong=k0["kho_rong"], kho_dai=k0["kho_dai"])
     db.add(lot)
     db.flush()
     db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai="giay",
-                            hang_id=k0["hang_id"], dang_giay="to", kho_rong=k0["kho_rong"],
+                            hang_id=k0["hang_id"], don_vi_goc="to", kho_rong=k0["kho_rong"],
                             kho_dai=k0["kho_dai"], lot_id=lot.id, so_luong=100, sl_goc=100))
     db.commit()
     nl = _nhap_lai(db, admin, cv, [{
         "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(), "so_luong": 10,
-        "dang_giay": "to", "kho_rong": k0["kho_rong"] - 10, "kho_dai": k0["kho_dai"]}])
+        "kho_rong": k0["kho_rong"] - 10, "kho_dai": k0["kho_dai"]}])
     [ln] = db.get(StockRequest, nl["id"]).lines
     assert ln.don_gia == 50000
 
@@ -333,3 +347,78 @@ def test_loi_phan_loai_404_va_400(db, orders, lsx_svc, admin, customer):
     db.commit()
     with pytest.raises(NL.VatTuNhapLaiError):
         NL.tao(db, user=admin, cong_viec_id=cv.id, lines=[], ghi_chu=None)
+
+
+def test_ngan_vat_tu_hien_yeu_cau_nhap_vua_gui(db, orders, lsx_svc, admin, customer):
+    """Tổ vừa gửi yêu cầu nhập (kho chưa ghi sổ) ⇒ ngăn đã có dòng chứng từ đó, chỉ số lượng."""
+    from app.services.san_xuat import board
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL20")
+    db.commit()
+    muc = _khai_them_vat_tu_vao_buoc(db, cv, ma="VT-NL20", ten="Mực xanh", so_luong=5)
+    nl = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": "kg",
+                                    "so_luong": 2}])
+
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    [r] = ct["vat_tu_cap"]["cac_nhap_lai"]
+    assert (r["id"], r["ma"], r["trang_thai"]) == (nl["id"], nl["ma"], nl["trang_thai"])
+    assert r["created_by_ten"] == admin.name
+    [d] = r["dongs"]
+    assert (d["ten"], d["dvt"], d["sl"]) == ("Mực xanh", "kg", 2)
+    assert "don_gia" not in d
+
+
+def test_kho_lam_yeu_cau_cua_to_thi_bao_ban_to(db, orders, lsx_svc, admin, customer, monkeypatch):
+    """Kho đổi yêu cầu nhập của tổ ⇒ đẩy `san_xuat_cong_viec_changed` tới đúng tổ của việc."""
+    from app.services.san_xuat import kho as K
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL21")
+    db.commit()
+    muc = _khai_them_vat_tu_vao_buoc(db, cv, ma="VT-NL21", ten="Mực vàng", so_luong=5)
+    nl = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": "kg",
+                                    "so_luong": 1}])
+    gui = []
+    monkeypatch.setattr(K.hub, "gui", lambda ev, **kw: gui.append((ev, kw)))
+
+    K.phat_su_kien_kho(db.get(StockRequest, nl["id"]), bao_nguoi_tao=False)
+
+    [(ev, kw)] = gui
+    assert ev["type"] == "san_xuat_cong_viec_changed"
+    assert kw["to"] == [cv.department_id]
+
+
+def test_yeu_cau_nhap_lai_gan_kho_da_xuat(db, orders, lsx_svc, admin, customer):
+    """Tổ trả hàng ⇒ yêu cầu nhập mang sẵn kho đã xuất hàng cho việc (phiếu nhập mở ra đúng kho)."""
+    from app.services.kho_giay import don_vi_goc_to
+
+    cv, k0 = _cv_giay_da_cap(db, orders, lsx_svc, admin, customer, "TO-NL22")
+    ra = _nhap_lai(db, admin, cv, [{
+        "hang_loai": "giay", "hang_id": k0["hang_id"], "dvt": don_vi_goc_to(), "so_luong": 5,
+        "kho_rong": 800, "kho_dai": 1090}])
+    assert db.get(StockRequest, ra["id"]).kho_id == 1       # `_phieu_xuat_khop_yeu_cau` xuất ở kho 1
+
+
+def test_chua_xuat_gi_thi_khong_gan_kho(db, orders, lsx_svc, admin, customer):
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL23")
+    db.commit()
+    muc = _khai_them_vat_tu_vao_buoc(db, cv, ma="VT-NL23", ten="Mực tím", so_luong=5)
+    ra = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": "kg",
+                                    "so_luong": 1}])
+    assert db.get(StockRequest, ra["id"]).kho_id is None
+
+
+def test_phieu_nhap_ghi_so_nam_cung_yeu_cau(db, orders, lsx_svc, admin, customer):
+    """Kho ghi sổ phiếu nhập ⇒ ngăn đặt phiếu đó vào đúng yêu cầu nhập sinh ra nó."""
+    from app.services.san_xuat import board
+
+    _to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-NL24")
+    db.commit()
+    muc = _khai_them_vat_tu_vao_buoc(db, cv, ma="VT-NL24", ten="Mực hồng", so_luong=5)
+    nl = _nhap_lai(db, admin, cv, [{"hang_loai": "vat_tu", "hang_id": muc.id, "dvt": "kg",
+                                    "so_luong": 2}])
+    _ghi_so_phieu_nhap(db, admin, nl["id"], 2)
+
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv.id)
+    [r] = ct["vat_tu_cap"]["cac_nhap_lai"]
+    [p] = r["cac_phieu"]
+    assert p["ma"].startswith("PNK") and p["nguoi_nhap"] == admin.name and p["nhap_luc"]

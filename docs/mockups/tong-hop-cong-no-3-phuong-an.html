@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tổng hợp công nợ: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;--tt-xanh-dot:#3b82f6;
+  --tt-la-bg:#dcfce7;--tt-la-fg:#15803d;--tt-la-dot:#22c55e;
+  --tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;--tt-cam-dot:#f97316;
+  --tt-do-fg:#b91c1c;--tt-vang-fg:#b45309;
+  --tt-tim-bg:#ede9fe;--tt-tim-fg:#6d28d9;
+  --kt-ngan-w:1180px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+
+/* ---------- phần giải thích ---------- */
+.doc{max-width:1680px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.refs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:1620px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink);font-weight:500}
+.words{border-collapse:collapse;background:#fff;border:1px solid var(--rule-soft);margin:6px 0;font-size:13px}
+.words th,.words td{padding:5px 12px;border-bottom:1px solid var(--rule-hair);text-align:left;vertical-align:top}
+.words th{color:var(--ash-2);font-weight:500;font-size:12px;background:#f8fafc}
+.words td:first-child{color:var(--ash-2);text-decoration:line-through;text-decoration-color:var(--ash-3)}
+
+/* ---------- thanh chọn phương án ---------- */
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:22px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px;max-width:1620px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.desc .ref-mini{float:right;width:300px;margin:0 0 6px 16px;border:1px solid var(--rule-soft);border-radius:6px}
+.pa{display:none}.pa.on{display:block}
+
+/* ---------- khung app ---------- */
+.frame{width:1620px;height:820px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.tabs{display:flex;gap:22px;padding:0 24px;background:#fff;border-bottom:1px solid var(--rule-soft);flex:none}
+.tabs span{padding:10px 0 9px;color:var(--ash-2);font-size:13.5px;cursor:default;border-bottom:2px solid transparent}
+.tabs span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.body{padding:14px 24px 16px;flex:1;display:flex;flex-direction:column;min-height:0}
+
+/* thanh công cụ */
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex:none}
+.tool h2{font-size:18px;font-weight:500;margin:0 8px 0 0;white-space:nowrap}
+.tool .sp{flex:1}
+.ky{position:relative}
+.ky-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 10px;font-size:13px;cursor:pointer;white-space:nowrap}
+.ky-btn:hover{background:var(--rule-hair)}
+.ky-btn .lb{color:var(--ash-2)}
+.ky-btn svg{color:var(--ash-3)}
+.ky-menu{display:none;position:absolute;top:34px;left:0;z-index:20;background:#fff;border:1px solid var(--rule);border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.14);width:360px;padding:6px}
+.ky.open .ky-menu{display:block}
+.ky-menu .it{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:6px;font-size:13px;border:1px solid transparent}
+.ky-menu .it:hover{background:var(--rule-hair)}
+.ky-menu .it.on{border-color:var(--rule)}
+.ky-menu .it .sp{flex:1}
+.ky-menu .it .d{color:var(--ash-2);font-size:12.5px}
+.ky-menu .hint{color:var(--ash-2);font-size:12.5px;padding:8px 9px 4px;border-top:1px solid var(--rule-hair);margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;white-space:nowrap}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.chip.mo{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}.chip.mo i{background:var(--tt-xanh-dot)}
+.chip.chot{background:var(--tt-la-bg);color:var(--tt-la-fg)}.chip.chot i{background:var(--tt-la-dot)}
+.chip.motphan{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}.chip.motphan i{background:var(--tt-cam-dot)}
+.search{display:flex;align-items:center;gap:7px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:230px;color:var(--ash-3);font-size:13px;white-space:nowrap;overflow:hidden}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ash)}
+.btn.ghost:hover{background:var(--rule-hair)}
+.btn svg{color:var(--ash-2)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.flt{display:flex;gap:2px}
+.flt button{border:1px solid transparent;background:transparent;border-radius:7px;padding:3px 10px;font-size:13px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.flt button:hover{background:var(--rule-hair)}
+.flt button.on{border-color:var(--rule);background:#fff;color:var(--ink)}
+.flt .n{color:var(--ash-3);font-size:12px;margin-left:4px}
+.cnt{color:var(--ash-2);font-size:12.5px;white-space:nowrap}
+
+/* dòng phép tính — cột mở, không khung */
+.calc{display:flex;align-items:flex-end;gap:22px;padding:2px 2px 12px;flex:none;flex-wrap:nowrap}
+.calc .c{display:flex;flex-direction:column;gap:1px;white-space:nowrap}
+.calc .c .l{font-size:12px;color:var(--ash-2)}
+.calc .c .v{font-size:17px;letter-spacing:-.01em}
+.calc .op{color:var(--ash-3);font-size:16px;padding-bottom:2px}
+.calc .c.cuoi .v{color:var(--rust)}
+.calc .gap{flex:1}
+.calc .c.phu .v{font-size:14px;color:var(--ash)}
+.calc .c.phu .v small{font-size:12px;color:var(--ash-2);margin-left:6px}
+
+/* ---------- lưới ---------- */
+.wrap{flex:1;min-height:0;overflow:auto;background:#fff;border:1px solid var(--rule-soft);border-radius:8px}
+table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.g th,.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--rule-hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.g thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:var(--ash-2);font-weight:400;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:32px}
+.g thead tr.h2 th{top:32px;height:28px}
+.g thead th.cum{text-align:center;border-bottom:1px solid var(--rule-hair)}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .mu{color:var(--ash-3)}
+.g .ma{color:var(--ash-2)}
+.g .cuoi{color:var(--ink)}
+.g tbody tr{cursor:pointer}
+.g tbody tr:hover td{background:var(--rule-hair)}
+.g tbody tr.sel td{background:#fff;border-top:1px solid var(--ink);border-bottom:1px solid var(--ink)}
+.g tbody tr.sel td:first-child{border-left:1px solid var(--ink)}
+.g tbody tr.sel td:last-child{border-right:1px solid var(--ink)}
+.g tfoot td{position:sticky;bottom:0;background:#f8fafc;border-top:1px solid var(--rule-soft);border-bottom:0;color:var(--ink);height:34px}
+.g .gc{color:var(--ash);font-size:12.5px}
+.g .gc .tag{margin-right:6px}
+.tag{display:inline-block;border-radius:5px;padding:0 6px;font-size:12px;background:var(--rule-hair);color:var(--ash);line-height:20px}
+.tag.tre{color:var(--tt-do-fg)}
+.tag.truoc{background:var(--tt-tim-bg);color:var(--tt-tim-fg)}
+.do{color:var(--tt-do-fg)}
+.vang{color:var(--tt-vang-fg)}
+.chan{display:flex;justify-content:space-between;color:var(--ash-2);font-size:12px;padding-top:8px;flex:none}
+
+/* B: dòng mở tại chỗ */
+.g .tw{display:inline-block;width:16px;color:var(--ash-3);transition:transform .12s}
+tr.mo .tw{transform:rotate(90deg)}
+tr.con td{background:#fcfdfe;color:var(--ash);height:30px}
+tr.con td:first-child{padding-left:36px}
+tr.con.moc td{color:var(--ash-2)}
+tr.con.them td{color:var(--tt-xanh-fg)}
+tr.tong td{background:#f8fafc;color:var(--ink);position:sticky;top:32px;z-index:1;border-bottom:1px solid var(--rule-soft)}
+.loai{display:inline-flex;align-items:center;gap:6px}
+.loai i{width:7px;height:7px;border-radius:2px;display:inline-block}
+.loai.nhan i{background:var(--tt-xanh-dot)}
+.loai.chi i{background:var(--tt-la-dot)}
+.lk{color:var(--tt-xanh-fg);text-decoration:none}
+.lk:hover{text-decoration:underline}
+
+/* C: cột tuổi nợ */
+.g th.ag,.g td.ag{background:#fbfcfd}
+.g tbody tr:hover td.ag{background:var(--rule-hair)}
+.g th.sep,.g td.sep{border-left:1px solid var(--rule-soft)}
+.g td.ag.z{color:var(--rule)}
+
+/* ---------- ngăn phải ---------- */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28);display:none;z-index:30}
+.frame.dw .scrim{display:block}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:var(--kt-ngan-w);background:#fff;z-index:31;display:none;flex-direction:column;box-shadow:-12px 0 30px rgba(15,23,42,.14)}
+.frame.dw .ngan{display:flex}
+.ngan .keo{position:absolute;left:-3px;top:0;bottom:0;width:6px;cursor:col-resize}
+.ng-dau{padding:16px 24px 0;flex:none}
+.ng-r1{display:flex;align-items:center;gap:10px}
+.ng-r1 .ten{font-size:18px;font-weight:500;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ng-r1 .sp{flex:1}
+.ng-x{width:30px;height:30px;border-radius:7px;border:1px solid transparent;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--ash)}
+.ng-x:hover{background:var(--rule-hair)}
+.ng-r2{display:flex;gap:10px;align-items:center;color:var(--ash-2);font-size:12.5px;margin-top:4px}
+.ng-so{display:flex;gap:40px;padding:14px 0 12px;border-bottom:1px solid var(--rule-soft)}
+.ng-so .c{display:flex;flex-direction:column;gap:1px}
+.ng-so .l{font-size:12px;color:var(--ash-2)}
+.ng-so .v{font-size:17px}
+.ng-so .c.cuoi .v{color:var(--rust)}
+.ng-so .op{align-self:flex-end;color:var(--ash-3);font-size:16px;margin:0 -26px;padding-bottom:2px}
+.ng-tab{display:flex;gap:20px;padding:0 24px;border-bottom:1px solid var(--rule-soft);flex:none}
+.ng-tab span{padding:9px 0 8px;font-size:13.5px;color:var(--ash-2);border-bottom:2px solid transparent;cursor:pointer}
+.ng-tab span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.ng-than{flex:1;min-height:0;overflow:auto;padding:12px 24px 20px}
+.ng-than .wrap{border-radius:8px}
+.g tr.moc td{background:#f8fafc;color:var(--ash);cursor:default}
+.g tr.moc:hover td{background:#f8fafc}
+.ng-chan{display:flex;justify-content:space-between;align-items:center;color:var(--ash-2);font-size:12px;padding-top:8px}
+.trong{padding:40px;text-align:center;color:var(--ash-2)}
+.can{color:var(--tt-vang-fg);font-size:12px;margin-left:6px}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Tổng hợp công nợ phải trả và sổ chi tiết: 3 phương án</h1>
+<p>Số liệu là số thật trong hai ảnh chụp ngày 11/10/2026 (8 nhà cung cấp, kỳ 01/01 – 11/10/2026). Hai dòng cuối (Mực in Đông Dương, Kẽm in Minh Long) và tuổi nợ từng nhà cung cấp là <b>giả định</b> để cộng ra đúng tổng 1.692.270.994 / 472.784.200 / 1.289.506.794 trên màn thật; ảnh chỉ hiện 6 dòng đầu.</p>
+
+<h2>Đã đọc gì trước khi vẽ</h2>
+<ul>
+<li><code>pages/ke-toan/bao-cao-cong-no/BaoCaoCongNoPage.tsx</code> và <code>SoChiTietDrawer.tsx</code>: máy chủ trả mỗi dòng 6 số Nợ/Có + <b>tuổi nợ của riêng nhà cung cấp đó tại ngày cuối kỳ</b> (<code>aging</code>) mà màn hiện tại chưa dùng.</li>
+<li>Kiểu dữ liệu <code>BaoCaoCongNo</code>, <code>SoChiTietCongNo</code>, <code>CongNoKyRow</code> ở <code>api/client.ts</code>: sổ chi tiết có ngày, giờ, loại, số chứng từ, diễn giải, nợ, có, luỹ kế.</li>
+<li>Mockup Kế toán gọn phương án A đã chọn (08/10): bảng phẳng, chữ thường, ngăn 1180px.</li>
+</ul>
+
+<h2>Logic giữ nguyên (đã chốt, không đổi)</h2>
+<ol>
+<li>Kỳ là <b>kỳ chốt sổ</b>, không phải tháng lịch: kỳ mới luôn nối tiếp ngày chốt cuối; kỳ đã có kỳ chốt sau thì niêm luôn, không mở lại.</li>
+<li>Mỗi nhà cung cấp: <b>còn nợ đầu kỳ + nhận hàng − đã trả = còn nợ cuối kỳ</b>. Trả nhiều hơn nhận thì ra số "đã trả trước" (bên Nợ của 331), không phải số âm.</li>
+<li>Bấm một nhà cung cấp là ra sổ chi tiết của đúng kỳ đó: đầu kỳ, các chứng từ mới nhất lên trên, cuối kỳ; cột còn nợ chạy dồn, dòng cuối khớp số ở bảng tổng hợp.</li>
+<li>Xuất Excel tổng hợp và Excel chi tiết vẫn đúng mẫu MISA (Nợ/Có). Khoá kỳ là quyền riêng, người không có quyền không thấy nút.</li>
+</ol>
+
+<h2>Chỗ bỏ, chỗ thêm so với màn hiện tại</h2>
+<p>Bỏ 4 thẻ số to (đổi thành một dòng phép tính), bỏ chip "8 đối tượng" và dòng "Số dòng = 8" trùng nhau, bỏ dòng "Phát sinh trong kỳ: 5 chứng từ" lặp hai lần ở sổ chi tiết, bỏ câu "Cần file lưu trữ?" và "khớp 100% MISA", bỏ dấu • ở đầu ngăn, tên nhà cung cấp không xuống dòng nữa (dòng thấp 34px). Thêm: cột Quá hạn lấy từ tuổi nợ máy chủ đã có, số "đã trả trước" tách riêng, lọc nhanh, bấm số chứng từ mở phiếu gốc.</p>
+<table class="words">
+<tr><th>Chữ cũ</th><th>Chữ mới</th><th>Vì sao</th></tr>
+<tr><td>Dư nợ đầu kỳ</td><td>Còn nợ đầu kỳ</td><td>Bên phải trả "dư nợ" thật ra là dư Có, đọc dễ hiểu ngược.</td></tr>
+<tr><td>Phát sinh tăng (Có) / Nhận hàng / Ghi có</td><td>Nhận hàng</td><td>Gần như toàn bộ số này là đợt hàng đã nhận; tiền nhà cung cấp hoàn lại ghi ở chú thích ô.</td></tr>
+<tr><td>Đã trả trong kỳ / Phiếu chi / Giảm nợ</td><td>Đã trả</td><td>Kỳ đã ghi ở thanh trên, khỏi nhắc lại.</td></tr>
+<tr><td>Dư nợ cuối kỳ</td><td>Còn nợ cuối kỳ</td><td></td></tr>
+<tr><td>Số dư cuối kỳ Nợ (khi có)</td><td>Đã trả trước</td><td>Trả dư hoặc ứng trước, nhà cung cấp còn nợ hàng mình.</td></tr>
+<tr><td>Mã đối tượng / 8 đối tượng</td><td>Mã / 8 nhà cung cấp</td><td>Màn phải thu đổi thành "khách hàng" (máy chủ đã gửi nhãn).</td></tr>
+<tr><td>Luỹ kế (160.741.800 Có)</td><td>Còn nợ sau</td><td>Đọc thẳng: sau chứng từ này mình còn nợ bao nhiêu.</td></tr>
+<tr><td>Hàng đã nhận</td><td>Nhận hàng</td><td>Cùng chữ với cột ở bảng tổng hợp.</td></tr>
+</table>
+<p>Kế toán quen Nợ/Có vẫn có nút <b>Kiểu sổ Nợ/Có</b> (phương án A) để đối chiếu từng ô với file MISA.</p>
+
+<h2>Ảnh tham khảo (đã mở trang, tải ảnh gốc)</h2>
+<div class="refs">
+  <div class="ref"><img src="tham-khao-tong-hop-cong-no/ref-odoo-so-cai-mo-dong.png" alt="Odoo General Ledger"><p><span class="t">Odoo 17, Sổ cái (dùng cho A).</span> Dòng "Initial Balance" nằm chung lưới với chứng từ, cột Balance chạy dồn ở mép phải, số 0 để mờ; không có thẻ số nào phía trên bảng.</p></div>
+  <div class="ref"><img src="tham-khao-tong-hop-cong-no/ref-odoo-so-doi-tac.png" alt="Odoo Partner Ledger"><p><span class="t">Odoo 17, Sổ đối tác (dùng cho B).</span> Bấm tam giác là chứng từ của đối tác mở ngay dưới dòng tổng, không rời trang; dòng tổng của đối tác vẫn là dòng chính.</p></div>
+  <div class="ref"><img src="tham-khao-tong-hop-cong-no/ref-odoo-tuoi-no.png" alt="Odoo Aged Receivable"><p><span class="t">Odoo 17, Tuổi nợ (dùng cho C).</span> Các mốc trễ hạn là cột ngang hàng với số tiền; dòng tổng ở đầu bảng; ô bằng 0 mờ hẳn nên mắt chỉ dừng ở ô có nợ.</p></div>
+  <div class="ref"><img src="tham-khao-tong-hop-cong-no/ref-misa-tong-hop-cong-no-phai-tra.png" alt="MISA AMIS danh mục báo cáo công nợ"><p><span class="t">MISA AMIS, danh mục báo cáo công nợ nhà cung cấp.</span> MISA tách Tổng hợp, Chi tiết, Tuổi nợ, Biên bản đối chiếu thành 4 báo cáo riêng; ở đây gom về một màn nên cả ba phương án đều có lối sang sổ chi tiết và tuổi nợ ngay tại chỗ.</p></div>
+</div>
+<p style="font-size:12.5px">Đã mở mà bỏ: trang Zoho Books "Payables reports" (không có ảnh giao diện), bài Xero Aged Payables của helpdesk bên thứ ba (trang đã gỡ), các trang MISA khác (chỉ chụp menu).</p>
+
+<div class="sw">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Bảng phẳng + ngăn sổ chi tiết</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Mở chứng từ ngay trong bảng</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Bảng có cột tuổi nợ</button>
+</div>
+
+<!-- ======================= A ======================= -->
+<section class="pa on" id="pa-A">
+<div class="desc">
+  <img class="ref-mini" src="tham-khao-tong-hop-cong-no/ref-odoo-so-cai-mo-dong.png" alt="">
+  <h3>A. Bảng phẳng một lưới + ngăn sổ chi tiết kiểu sổ cái</h3>
+  <p>Giữ cách làm cũ (bấm dòng mở ngăn) nhưng gọn như bảng tính: 4 thẻ số đổi thành <span class="man">một dòng phép tính</span> đầu kỳ + nhận hàng − đã trả = còn nợ cuối kỳ; bảng một hàng tiêu đề, cột Ghi chú gom thứ lệch (quá hạn, trả trước, chưa có mã). Nút <span class="man">Kiểu sổ Nợ/Có</span> đổi sang đúng 6 cột MISA khi cần đối chiếu.</p>
+  <p>Ngăn sổ chi tiết theo khuôn sổ cái Odoo: dòng đầu kỳ và cuối kỳ nằm trong lưới, cột "Còn nợ sau" chạy dồn ở mép phải, số chứng từ bấm được để mở phiếu gốc. Bấm thử dòng Tân Mai (dòng có chứng từ thật), bấm nút Kỳ để xem menu kỳ.</p>
+  <p>Cần máy chủ: không. Mọi số đều có trong API hiện tại (cột Quá hạn lấy từ <code>aging</code> từng dòng).</p>
+</div>
+<div class="frame" id="fA">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="tabs"><span class="on">Công nợ phải trả</span><span>Công nợ phải thu</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Tổng hợp công nợ phải trả</h2>
+        <div class="ky">
+          <button class="ky-btn" data-ky><span class="lb">Kỳ</span>01/01 – 11/10/2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+          <div class="ky-menu">
+            <div class="it on"><span>Kỳ đang chạy</span><span class="d">01/01 – 11/10/2026</span><span class="sp"></span><span class="chip mo"><i></i>Chưa chốt</span></div>
+            <div class="hint">Chưa chốt kỳ nào. Bấm Khoá kỳ để chốt sổ tới một ngày; kỳ sau tự bắt đầu ngay ngày hôm sau.</div>
+          </div>
+        </div>
+        <span class="chip mo"><i></i>Chưa chốt</span>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm nhà cung cấp</div>
+        <div class="flt"><button class="on">Tất cả<span class="n">8</span></button><button>Còn nợ<span class="n">7</span></button><button>Có quá hạn<span class="n">4</span></button></div>
+        <span class="sp"></span>
+        <div class="seg" data-kieu><button class="on" data-k="de">Dễ đọc</button><button data-k="noco">Kiểu sổ Nợ/Có</button></div>
+        <button class="btn" title="Tổng hợp hoặc Chi tiết mọi nhà cung cấp, đúng mẫu MISA">Xuất Excel<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0"/></svg>Khoá kỳ</button>
+      </div>
+      <div class="calc">
+        <div class="c"><span class="l">Còn nợ đầu kỳ</span><span class="v">0</span></div>
+        <span class="op">+</span>
+        <div class="c"><span class="l">Nhận hàng</span><span class="v">1.692.270.994</span></div>
+        <span class="op">−</span>
+        <div class="c"><span class="l">Đã trả</span><span class="v">472.784.200</span></div>
+        <span class="op">=</span>
+        <div class="c cuoi"><span class="l">Còn nợ cuối kỳ</span><span class="v">1.289.506.794</span></div>
+        <span class="gap"></span>
+        <div class="c phu"><span class="l">Trong đó quá hạn</span><span class="v do">234.281.600<small>4 nhà cung cấp</small></span></div>
+        <div class="c phu"><span class="l">Đã trả trước</span><span class="v">70.020.000<small>1 nhà cung cấp</small></span></div>
+      </div>
+      <div class="wrap">
+        <table class="g" data-bang="de">
+          <colgroup><col style="width:92px"><col style="width:340px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:140px"><col style="width:124px"><col></colgroup>
+          <thead><tr><th>Mã</th><th>Nhà cung cấp</th><th class="n">Còn nợ đầu kỳ</th><th class="n">Nhận hàng</th><th class="n">Đã trả</th><th class="n">Còn nợ cuối kỳ</th><th class="n">Đã trả trước</th><th>Ghi chú</th></tr></thead>
+          <tbody id="A-rows"></tbody>
+          <tfoot><tr><td></td><td>Cộng 8 nhà cung cấp</td><td class="n mu">—</td><td class="n">1.692.270.994</td><td class="n">472.784.200</td><td class="n">1.289.506.794</td><td class="n">70.020.000</td><td class="gc"><span class="do">quá hạn 234.281.600</span></td></tr></tfoot>
+        </table>
+        <table class="g" data-bang="noco" style="display:none">
+          <colgroup><col style="width:92px"><col style="width:340px"><col style="width:124px"><col style="width:124px"><col style="width:124px"><col style="width:124px"><col style="width:124px"><col style="width:132px"><col></colgroup>
+          <thead>
+            <tr><th rowspan="2">Mã</th><th rowspan="2">Nhà cung cấp</th><th colspan="2" class="cum">Số dư đầu kỳ</th><th colspan="2" class="cum">Số phát sinh</th><th colspan="2" class="cum">Số dư cuối kỳ</th><th rowspan="2">Ghi chú</th></tr>
+            <tr class="h2"><th class="n">Nợ</th><th class="n">Có</th><th class="n">Nợ</th><th class="n">Có</th><th class="n">Nợ</th><th class="n">Có</th></tr>
+          </thead>
+          <tbody id="A-rows-noco"></tbody>
+          <tfoot><tr><td></td><td>Cộng 8 nhà cung cấp</td><td class="n mu">—</td><td class="n mu">—</td><td class="n">472.784.200</td><td class="n">1.692.270.994</td><td class="n">70.020.000</td><td class="n">1.289.506.794</td><td></td></tr></tfoot>
+        </table>
+      </div>
+      <div class="chan"><span>Đơn vị: đồng. Bấm một dòng để xem sổ chi tiết.</span><span>Số tính tới hết ngày 11/10/2026</span></div>
+    </div>
+    <div class="scrim" data-dong></div>
+    <aside class="ngan" data-ngan="A"></aside>
+  </div>
+</div>
+</section>
+
+<!-- ======================= B ======================= -->
+<section class="pa" id="pa-B">
+<div class="desc">
+  <img class="ref-mini" src="tham-khao-tong-hop-cong-no/ref-odoo-so-doi-tac.png" alt="">
+  <h3>B. Mở chứng từ ngay trong bảng (khuôn Sổ đối tác của Odoo)</h3>
+  <p>Không có ngăn: bấm mũi tên ở một nhà cung cấp là các chứng từ của nó mở ngay bên dưới, thụt vào, cùng cột tiền; mở mấy nhà cung cấp cùng lúc cũng được, nút <span class="man">Mở hết</span> biến cả màn thành sổ chi tiết của mọi nhà cung cấp (giống file Excel chi tiết). Dòng cộng nằm ngay dưới tiêu đề và đứng yên khi cuộn, nên bỏ luôn dòng phép tính phía trên.</p>
+  <p>Mỗi nhà cung cấp mở ra tối đa 10 chứng từ mới nhất, còn nữa thì có dòng "Xem thêm". Cột "Ngày" và "Số chứng từ" chỉ có chữ ở dòng chứng từ, dòng nhà cung cấp để trống.</p>
+  <p>Cần máy chủ: tải chứng từ khi mở từng nhà cung cấp (dùng lại route sổ chi tiết hiện có); "Mở hết" cần một route trả chứng từ của mọi nhà cung cấp trong kỳ (máy chủ đã dựng sẵn cho Excel chi tiết).</p>
+</div>
+<div class="frame" id="fB">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="tabs"><span class="on">Công nợ phải trả</span><span>Công nợ phải thu</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Tổng hợp công nợ phải trả</h2>
+        <div class="ky"><button class="ky-btn"><span class="lb">Kỳ</span>01/01 – 11/10/2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></div>
+        <span class="chip mo"><i></i>Chưa chốt</span>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm nhà cung cấp, số chứng từ</div>
+        <div class="flt"><button class="on">Tất cả<span class="n">8</span></button><button>Còn nợ<span class="n">7</span></button><button>Có quá hạn<span class="n">4</span></button></div>
+        <span class="sp"></span>
+        <button class="btn ghost" data-mohet>Mở hết</button>
+        <button class="btn ghost" data-thuhet>Thu hết</button>
+        <button class="btn" title="Tổng hợp hoặc Chi tiết mọi nhà cung cấp, đúng mẫu MISA">Xuất Excel<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="btn">Khoá kỳ</button>
+      </div>
+      <div class="wrap">
+        <table class="g" id="B-g">
+          <colgroup><col style="width:416px"><col style="width:140px"><col style="width:190px"><col style="width:120px"><col style="width:120px"><col style="width:120px"><col style="width:130px"><col></colgroup>
+          <thead><tr><th>Nhà cung cấp / chứng từ</th><th>Ngày</th><th>Số chứng từ</th><th class="n">Còn nợ đầu kỳ</th><th class="n">Nhận hàng</th><th class="n">Đã trả</th><th class="n">Còn nợ</th><th>Ghi chú</th></tr></thead>
+          <tbody id="B-rows"></tbody>
+        </table>
+      </div>
+      <div class="chan"><span>Đơn vị: đồng. Cột "Còn nợ" ở dòng chứng từ là số còn nợ ngay sau chứng từ đó.</span><span>Số tính tới hết ngày 11/10/2026</span></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ======================= C ======================= -->
+<section class="pa" id="pa-C">
+<div class="desc">
+  <img class="ref-mini" src="tham-khao-tong-hop-cong-no/ref-odoo-tuoi-no.png" alt="">
+  <h3>C. Một bảng gồm cả sổ kỳ lẫn tuổi nợ (khuôn Tuổi nợ của Odoo)</h3>
+  <p>Bốn cột sổ của kỳ, tiếp theo là sáu cột "còn nợ cuối kỳ chia theo hạn": chưa tới hạn, trễ 1–7, 8–15, 16–30, 31–60, trên 60 ngày (đúng sáu mốc máy chủ đang tính). Liếc một hàng là biết nợ bao nhiêu và gấp tới đâu; ô bằng 0 mờ hẳn, chỉ ô trễ có số mới đỏ. Dòng cộng đứng yên ngay dưới tiêu đề.</p>
+  <p>Bấm dòng mở ngăn có hai tab: <span class="man">Sổ chi tiết</span> (như A) và <span class="man">Đợt còn nợ</span> liệt kê từng đợt nhận hàng chưa trả hết với hạn trả và số ngày còn hoặc trễ. Bấm thử dòng Tân Mai.</p>
+  <p>Cần máy chủ: tab Đợt còn nợ tính tại ngày cuối kỳ (máy chủ đã có số này để chia rổ tuổi nợ, chỉ chưa trả ra từng đợt). Bảng tổng hợp thì không cần gì thêm.</p>
+</div>
+<div class="frame" id="fC">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="tabs"><span class="on">Công nợ phải trả</span><span>Công nợ phải thu</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Tổng hợp công nợ phải trả</h2>
+        <div class="ky"><button class="ky-btn"><span class="lb">Kỳ</span>01/01 – 11/10/2026<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></div>
+        <span class="chip mo"><i></i>Chưa chốt</span>
+        <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Tìm nhà cung cấp</div>
+        <div class="flt"><button class="on">Tất cả<span class="n">8</span></button><button>Còn nợ<span class="n">7</span></button><button>Có quá hạn<span class="n">4</span></button></div>
+        <span class="sp"></span>
+        <button class="btn" title="Tổng hợp hoặc Chi tiết mọi nhà cung cấp, đúng mẫu MISA">Xuất Excel<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button class="btn">Khoá kỳ</button>
+      </div>
+      <div class="wrap">
+        <table class="g">
+          <colgroup><col style="width:80px"><col><col style="width:112px"><col style="width:120px"><col style="width:116px"><col style="width:124px"><col style="width:120px"><col style="width:96px"><col style="width:96px"><col style="width:96px"><col style="width:96px"><col style="width:96px"></colgroup>
+          <thead>
+            <tr><th rowspan="2">Mã</th><th rowspan="2">Nhà cung cấp</th><th colspan="4" class="cum">Trong kỳ</th><th colspan="6" class="cum sep">Còn nợ cuối kỳ chia theo hạn trả</th></tr>
+            <tr class="h2"><th class="n">Còn nợ đầu kỳ</th><th class="n">Nhận hàng</th><th class="n">Đã trả</th><th class="n">Còn nợ cuối kỳ</th><th class="n ag sep">Chưa tới hạn</th><th class="n ag">Trễ 1–7</th><th class="n ag">8–15</th><th class="n ag">16–30</th><th class="n ag">31–60</th><th class="n ag">Trên 60</th></tr>
+          </thead>
+          <tbody id="C-rows"></tbody>
+        </table>
+      </div>
+      <div class="chan"><span>Đơn vị: đồng. Số trễ hạn tính tại ngày cuối kỳ 11/10/2026, in lại kỳ cũ vẫn ra đúng số cũ. Số đã trả trước của Minh Long không chia theo hạn.</span><span></span></div>
+    </div>
+    <div class="scrim" data-dong></div>
+    <aside class="ngan" data-ngan="C"></aside>
+  </div>
+</div>
+</section>
+</div>
+
+<script>
+// ---------- dữ liệu ----------
+// [mã, tên, đầu, nhận hàng, đã trả, còn nợ cuối, trả trước, aging[6], giả định?]
+const NCC = [
+  [null,'Công ty CP Giấy Việt Trì',0,307141200,28958000,278183200,0,[198183200,0,80000000,0,0,0]],
+  [null,'Công ty CP Màng và Keo Đông Á',0,357239314,233854000,123385314,0,[123385314,0,0,0,0,0]],
+  ['NCC001','Công ty TNHH Giấy Tân Mai Sài Gòn',0,231503400,70761600,160741800,0,[160741800,0,0,0,0,0]],
+  ['NCC006','Công ty TNHH Nhũ ép kim Kim Long',0,16095200,8047600,8047600,0,[0,0,0,8047600,0,0]],
+  ['NCC003','Công ty TNHH Thương mại Giấy An Phát',0,539714880,53795000,485919880,0,[352119880,98000000,0,0,35800000,0]],
+  ['NCC007','Công ty TNHH Tổng hợp In ấn Phương Nam',0,158143000,7348000,150795000,0,[150795000,0,0,0,0,0]],
+  ['NCC004','Công ty TNHH Mực in Đông Dương',0,82434000,0,82434000,0,[70000000,0,0,0,0,12434000],1],
+  ['NCC005','Công ty TNHH Kẽm in Minh Long',0,0,70020000,0,70020000,[0,0,0,0,0,0],1],
+];
+// sổ chi tiết thật của Tân Mai (mới nhất lên trên — đúng thứ tự đã chốt)
+const CT = [
+  ['11/10/2026','05:10','nhan','DMH-261008-VTJL','đợt 1','',1787400,0,160741800],
+  ['11/10/2026','05:09','nhan','DMH-261007-C31U','đợt 1','',132256800,0,158954400],
+  ['10/10/2026','21:48','nhan','DMH-261010-6YO5','đợt 1','',26697600,0,26697600],
+  ['06/10/2026','07:00','chi','UNC-261007-8F2L','','Thanh toán đủ đợt 1 DMH-261007-0R7L',0,70761600,0],
+  ['05/10/2026','08:59','nhan','DMH-261007-0R7L','đợt 1','',70761600,0,70761600],
+];
+const f = v => v ? Math.round(v).toLocaleString('vi-VN') : '';
+const o = (v,cls='') => v ? `<td class="n ${cls}">${f(v)}</td>` : `<td class="n mu">—</td>`;
+const tre = a => a.slice(1).reduce((s,x)=>s+x,0);
+const ghiChu = r => {
+  const p=[];
+  const q=tre(r[7]);
+  if(q) p.push(`<span class="tag tre">quá hạn ${f(q)}</span>`);
+  if(r[6]) p.push(`<span class="tag truoc">trả trước ${f(r[6])}</span>`);
+  if(!r[0]) p.push(`<span class="tag">chưa có mã</span>`);
+  return p.join('');
+};
+const maO = r => r[0] ? `<td class="ma">${r[0]}</td>` : `<td class="mu">—</td>`;
+const tenO = r => `<td title="${r[1]}">${r[1]}${r[8]?' <span class="can">giả định</span>':''}</td>`;
+const loaiO = l => l==='nhan' ? '<span class="loai nhan"><i></i>Nhận hàng</span>' : '<span class="loai chi"><i></i>Phiếu chi</span>';
+
+// ---------- A ----------
+document.getElementById('A-rows').innerHTML = NCC.map((r,i)=>`<tr data-i="${i}">${maO(r)}${tenO(r)}${o(r[2])}${o(r[3])}${o(r[4])}${o(r[5],'cuoi')}${o(r[6])}<td class="gc">${ghiChu(r).replace(/<span class="tag truoc">[^<]*<\/span>/,'')}</td></tr>`).join('');
+document.getElementById('A-rows-noco').innerHTML = NCC.map((r,i)=>`<tr data-i="${i}">${maO(r)}${tenO(r)}${o(0)}${o(r[2])}${o(r[4])}${o(r[3])}${o(r[6])}${o(r[5],'cuoi')}<td class="gc">${ghiChu(r).replace(/<span class="tag truoc">[^<]*<\/span>/,'')}</td></tr>`).join('');
+
+function soChiTiet(cotHan){
+  return `<div class="wrap"><table class="g">
+    <colgroup><col style="width:100px"><col style="width:64px"><col style="width:118px"><col style="width:184px"><col><col style="width:124px"><col style="width:124px"><col style="width:140px"></colgroup>
+    <thead><tr><th>Ngày</th><th>Giờ</th><th>Loại</th><th>Số chứng từ</th><th>Diễn giải</th><th class="n">Nhận hàng</th><th class="n">Đã trả</th><th class="n">Còn nợ sau</th></tr></thead>
+    <tbody>
+      <tr class="moc"><td colspan="5">Còn nợ đầu kỳ <span class="mu">trước 01/01/2026</span></td><td class="n mu">—</td><td class="n mu">—</td><td class="n mu">0</td></tr>
+      ${CT.map(c=>`<tr><td>${c[0]}</td><td class="mu">${c[1]}</td><td>${loaiO(c[2])}</td><td><a class="lk" href="#" onclick="return false">${c[3]}</a>${c[4]?` <span class="mu">${c[4]}</span>`:''}</td><td title="${c[5]}">${c[5]||''}</td>${o(c[6])}${o(c[7])}<td class="n">${f(c[8])||'0'}</td></tr>`).join('')}
+      <tr class="moc"><td colspan="5">Còn nợ cuối kỳ <span class="mu">hết ngày 11/10/2026</span></td><td class="n">231.503.400</td><td class="n">70.761.600</td><td class="n cuoi">160.741.800</td></tr>
+    </tbody></table></div>
+    <div class="ng-chan"><span>5 chứng từ. Dòng còn nợ cuối kỳ khớp số ở bảng tổng hợp.</span><span>Bấm số chứng từ để mở phiếu gốc</span></div>`;
+}
+function dotConNo(){
+  const d=[['DMH-261008-VTJL','đợt 1','11/10/2026','10/11/2026',1787400,'còn 30 ngày'],['DMH-261007-C31U','đợt 1','11/10/2026','10/11/2026',132256800,'còn 30 ngày'],['DMH-261010-6YO5','đợt 1','10/10/2026','09/11/2026',26697600,'còn 29 ngày']];
+  return `<div class="wrap"><table class="g">
+    <colgroup><col style="width:220px"><col style="width:130px"><col style="width:130px"><col style="width:150px"><col style="width:150px"><col></colgroup>
+    <thead><tr><th>Đơn mua</th><th>Ngày nhận</th><th>Hạn trả</th><th>Tình trạng</th><th class="n">Còn nợ</th><th></th></tr></thead>
+    <tbody>${d.map(x=>`<tr><td><a class="lk" href="#" onclick="return false">${x[0]}</a> <span class="mu">${x[1]}</span></td><td>${x[2]}</td><td>${x[3]}</td><td class="mu">${x[5]}</td><td class="n">${f(x[4])}</td><td></td></tr>`).join('')}
+    <tr class="moc"><td colspan="4">Cộng 3 đợt</td><td class="n cuoi">160.741.800</td><td></td></tr></tbody></table></div>
+    <div class="ng-chan"><span>Hạn trả là <b>giả định</b> 30 ngày sau ngày nhận. Đợt DMH-261007-0R7L đã trả đủ nên không còn ở đây.</span><span></span></div>`;
+}
+function moNgan(frameId, i, coTab){
+  const fr=document.getElementById(frameId), ng=fr.querySelector('.ngan'), r=NCC[i];
+  fr.querySelectorAll('tbody tr').forEach(t=>t.classList.toggle('sel', t.dataset.i==String(i)));
+  const co = i===2;
+  ng.innerHTML = `<div class="keo" title="Kéo để nới rộng"></div>
+   <div class="ng-dau">
+    <div class="ng-r1"><span class="ten">${r[1]}</span>${r[0]?`<span class="tag">${r[0]}</span>`:'<span class="tag">chưa có mã</span>'}<span class="sp"></span>
+      <button class="btn">Xuất Excel</button><button class="btn">In biên bản đối chiếu</button><button class="ng-x" data-dong title="Đóng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <div class="ng-r2"><span>Sổ chi tiết công nợ phải trả</span><span>01/01 – 11/10/2026</span><span class="chip mo"><i></i>Chưa chốt</span></div>
+    <div class="ng-so">
+      <div class="c"><span class="l">Còn nợ đầu kỳ</span><span class="v">0</span></div><span class="op">+</span>
+      <div class="c"><span class="l">Nhận hàng</span><span class="v">${f(r[3])||'0'}</span></div><span class="op">−</span>
+      <div class="c"><span class="l">Đã trả</span><span class="v">${f(r[4])||'0'}</span></div><span class="op">=</span>
+      <div class="c cuoi"><span class="l">${r[6]?'Đã trả trước':'Còn nợ cuối kỳ'}</span><span class="v">${f(r[5]||r[6])||'0'}</span></div>
+      ${tre(r[7])?`<div class="c"><span class="l">Trong đó quá hạn</span><span class="v do">${f(tre(r[7]))}</span></div>`:''}
+    </div>
+   </div>
+   ${coTab?`<div class="ng-tab"><span class="on" data-t="so">Sổ chi tiết</span><span data-t="dot">Đợt còn nợ</span></div>`:''}
+   <div class="ng-than">${co?soChiTiet():`<div class="trong">Mockup chỉ có chứng từ thật của Tân Mai. Bấm dòng Tân Mai để xem sổ chi tiết.</div>`}</div>`;
+  if(coTab) ng.querySelectorAll('.ng-tab span').forEach(s=>s.onclick=()=>{
+    ng.querySelectorAll('.ng-tab span').forEach(x=>x.classList.toggle('on',x===s));
+    ng.querySelector('.ng-than').innerHTML = !co ? `<div class="trong">Mockup chỉ có chứng từ thật của Tân Mai.</div>` : (s.dataset.t==='so'?soChiTiet():dotConNo());
+  });
+  ng.querySelectorAll('[data-dong]').forEach(b=>b.onclick=()=>dongNgan(fr));
+  fr.classList.add('dw');
+}
+function dongNgan(fr){fr.classList.remove('dw');fr.querySelectorAll('tr.sel').forEach(t=>t.classList.remove('sel'))}
+document.querySelectorAll('#fA tbody').forEach(tb=>tb.addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]'); if(tr) moNgan('fA',+tr.dataset.i,false)}));
+document.querySelectorAll('.scrim').forEach(s=>s.onclick=()=>dongNgan(s.closest('.frame')));
+document.querySelector('[data-kieu]').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('[data-kieu] button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('#fA table[data-bang]').forEach(t=>t.style.display = t.dataset.bang===b.dataset.k?'':'none');
+});
+document.querySelectorAll('[data-ky]').forEach(b=>b.onclick=e=>{e.stopPropagation();b.parentElement.classList.toggle('open')});
+document.addEventListener('click',()=>document.querySelectorAll('.ky.open').forEach(k=>k.classList.remove('open')));
+
+// ---------- B ----------
+const moB = new Set([2]);
+function veB(){
+  let h = `<tr class="tong"><td>Cộng 8 nhà cung cấp</td><td></td><td></td><td class="n mu">—</td><td class="n">1.692.270.994</td><td class="n">472.784.200</td><td class="n">1.289.506.794</td><td class="gc"><span class="do">quá hạn 234.281.600</span></td></tr>`;
+  NCC.forEach((r,i)=>{
+    const mo=moB.has(i);
+    h+=`<tr data-b="${i}" class="${mo?'mo':''}"><td title="${r[1]}"><span class="tw">▸</span>${r[1]}${r[0]?` <span class="ma">${r[0]}</span>`:''}${r[8]?' <span class="can">giả định</span>':''}</td><td></td><td></td>${o(r[2])}${o(r[3])}${o(r[4])}${o(r[5],'cuoi')}<td class="gc">${ghiChu(r)}</td></tr>`;
+    if(mo){
+      if(i!==2){h+=`<tr class="con moc"><td colspan="8">Mockup chỉ có chứng từ thật của Tân Mai.</td></tr>`;return}
+      h+=`<tr class="con moc"><td>Còn nợ đầu kỳ</td><td></td><td></td><td class="n mu">0</td><td></td><td></td><td class="n mu">0</td><td></td></tr>`;
+      CT.forEach(c=>{h+=`<tr class="con"><td>${loaiO(c[2])}${c[5]?` <span class="mu" style="margin-left:8px">${c[5]}</span>`:''}</td><td>${c[0]} <span class="mu">${c[1]}</span></td><td><a class="lk" href="#" onclick="return false">${c[3]}</a>${c[4]?` <span class="mu">${c[4]}</span>`:''}</td><td></td>${o(c[6])}${o(c[7])}<td class="n">${f(c[8])||'0'}</td><td></td></tr>`});
+    }
+  });
+  document.getElementById('B-rows').innerHTML=h;
+}
+veB();
+document.getElementById('B-rows').addEventListener('click',e=>{
+  const tr=e.target.closest('tr[data-b]'); if(!tr) return;
+  const i=+tr.dataset.b; moB.has(i)?moB.delete(i):moB.add(i); veB();
+});
+document.querySelector('[data-mohet]').onclick=()=>{NCC.forEach((_,i)=>moB.add(i));veB()};
+document.querySelector('[data-thuhet]').onclick=()=>{moB.clear();veB()};
+
+// ---------- C ----------
+const agO = (v,k) => v ? `<td class="n ag${k===0?' sep':''}${k>0?' do':''}">${f(v)}</td>` : `<td class="n ag z${k===0?' sep':''}">—</td>`;
+document.getElementById('C-rows').innerHTML =
+  `<tr class="tong"><td></td><td>Cộng 8 nhà cung cấp</td><td class="n mu">—</td><td class="n">1.692.270.994</td><td class="n">472.784.200</td><td class="n">1.289.506.794</td>${[1055225194,98000000,80000000,8047600,35800000,12434000].map(agO).join('')}</tr>` +
+  NCC.map((r,i)=>`<tr data-i="${i}">${maO(r)}<td title="${r[1]}">${r[1]}${r[6]?` <span class="tag truoc" title="Đã trả trước ${f(r[6])}">trả trước</span>`:''}${r[8]?' <span class="can">giả định</span>':''}</td>${o(r[2])}${o(r[3])}${o(r[4])}${o(r[5],'cuoi')}${r[7].map(agO).join('')}</tr>`).join('');
+document.querySelector('#fC tbody').addEventListener('click',e=>{const tr=e.target.closest('tr[data-i]'); if(tr) moNgan('fC',+tr.dataset.i,true)});
+
+// ---------- chọn phương án ----------
+document.querySelectorAll('.sw .pill').forEach(p=>p.onclick=()=>{
+  document.querySelectorAll('.sw .pill').forEach(x=>x.classList.toggle('on',x===p));
+  document.querySelectorAll('.pa').forEach(s=>s.classList.toggle('on', s.id==='pa-'+p.dataset.pa));
+});
+</script>
+</body>
+</html>

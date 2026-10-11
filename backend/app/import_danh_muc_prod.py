@@ -98,7 +98,7 @@ def _import_don_vi_bo_sung(db: Session) -> int:
 # ---------------------------------------------------------------------------------------------
 def _giay(ma, ten, dai, rong, gsm, cal, tho, don_gia):
     return dict(ma=ma, ten=ten, kho_dai=dai, kho_rong=rong, gsm=gsm,
-                caliper_micron=cal, tho=tho, don_vi_gia="kg", don_gia=don_gia)
+                caliper_micron=cal, tho=tho, don_vi_gia="kg", don_vi_them=["to"], don_gia=don_gia)
 
 
 _GIAY = [

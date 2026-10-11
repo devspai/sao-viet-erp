@@ -11,6 +11,7 @@ import {
   ApiError,
   api,
   type BuocPhieu,
+  type CungKhoKhacDonVi,
   type DeNghiMuaXemTruoc,
   type LuoiDong,
   type LuoiHang,
@@ -25,7 +26,7 @@ import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { EmptyRow } from "../../components/EmptyState";
 import { ChipTT, CuonLuoi, LocNhanhTrangThai, OTim, type MauTT, type MucLocNhanh } from "../../components/LuoiDs";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
-import { nhanKho } from "../../lib/khoGiay";
+import { nhanKho, tenGoc } from "../../lib/khoGiay";
 import { NganPhai } from "../ke-toan/shared/NganPhai";
 import {
   LOC_KHVT_HANG_TRONG,
@@ -122,6 +123,25 @@ function TenHang({ d }: { d: { hang_ten: string; hang_loai: string; kho_rong: nu
   );
 }
 
+/** Tồn + đang về của CÙNG mã + CÙNG khổ nhưng khác đơn vị gốc (nhóm tính tờ, kho còn giấy cùng khổ
+ *  nhập theo kg). Chỉ bày cạnh số chính bằng chữ nhỏ — tờ và kg không quy đổi nên máy KHÔNG trừ
+ *  vào thiếu; người lập kế hoạch nhìn rồi tự quyết (10/10/2026). */
+function CungKhoKhac({ ds }: { ds: CungKhoKhacDonVi[] | undefined }) {
+  const co = (ds ?? []).filter((x) => x.ton > 0 || x.dang_ve > 0);
+  if (!co.length) return null;
+  return (
+    <span className="lvt-khac" title="Cùng mã (giấy thì cùng khổ) nhưng đếm theo đơn vị khác, không trừ vào số thiếu">
+      <span>Khác đơn vị:</span>
+      {co.map((x) => (
+        <span key={x.don_vi_goc} className="lvt-khac__so">
+          {x.ton > 0 && <span>{so(x.ton)} {x.don_vi_goc_ten || x.don_vi_goc} tồn</span>}
+          {x.dang_ve > 0 && <span>{so(x.dang_ve)} {x.don_vi_goc_ten || x.don_vi_goc} đang về</span>}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function GhiChu({ ds }: { ds: string[] }) {
   if (!ds.length) return null;
   return (
@@ -162,6 +182,19 @@ function OPhieu({ d, moPhieu }: { d: LuoiDong; moPhieu: MoPhieu }) {
   return <span className="lvt-mu3">—</span>;
 }
 
+/** Dòng mà nhu cầu ra đơn vị mã CHƯA khai ở danh mục (spec 2026-10-10 mặt hàng nhiều ĐVT §3): thay ô
+ *  lập mua bằng câu nói rõ phải khai đơn vị nào — tick vào cũng chỉ ăn lỗi ở máy chủ. */
+function ChuaKhaiDonVi({ d }: { d: LuoiDong }) {
+  const dv = tenGoc(d.don_vi_goc || d.dvt) || d.dvt;
+  const cau = `Chưa khai đơn vị «${dv}» ở danh mục`;
+  return (
+    <span className="lvt-warn" title={`${cau} — khai thêm đơn vị này ở danh mục mặt hàng rồi mới lập mua được`}>
+      <AlertTriangle size={12} aria-hidden="true" />
+      {cau}
+    </span>
+  );
+}
+
 // ============================================================================
 export function LuoiVatTu({
   eventTick,
@@ -197,7 +230,7 @@ export function LuoiVatTu({
   const [chon, setChon] = useState<Map<string, LuoiDong>>(new Map());
   const [ban, setBan] = useState<string | null>(null);
   const [ngLenh, setNgLenh] = useState<{ lsx_id: number | null; bai_ghep_id: number | null } | null>(null);
-  const [ngHang, setNgHang] = useState<{ hang_loai: "giay" | "vat_tu"; hang_id: number; kho_rong: number; kho_dai: number } | null>(null);
+  const [ngHang, setNgHang] = useState<{ hang_loai: "giay" | "vat_tu"; hang_id: number; kho_rong: number; kho_dai: number; don_vi_goc: string } | null>(null);
   const [nap, setNap] = useState(0);
 
   useEffect(() => {
@@ -431,7 +464,7 @@ export function LuoiVatTu({
                     chon={chon} onChon={bat} canMua={canDeNghiMua} coGiu={coGiu} ban={ban}
                     onGiu={giuHang} moPhieu={moPhieu}
                     onMoLenh={(d) => setNgLenh({ lsx_id: d.lsx_id, bai_ghep_id: d.bai_ghep_id })}
-                    onMoHang={(d) => setNgHang({ hang_loai: d.hang_loai, hang_id: d.hang_id, kho_rong: d.kho_rong, kho_dai: d.kho_dai })} />
+                    onMoHang={(d) => setNgHang({ hang_loai: d.hang_loai, hang_id: d.hang_id, kho_rong: d.kho_rong, kho_dai: d.kho_dai, don_vi_goc: d.don_vi_goc ?? "" })} />
                 );
               })}
             </tbody>
@@ -545,6 +578,7 @@ function NhomDong({
             <span className="lvt-cap">
               <span className="lvt-mu">Tồn kho {so(h.ton)}</span>
               <span className="lvt-mu">Đang về {so(h.dang_ve)}</span>
+              <CungKhoKhac ds={h.cung_kho_khac_don_vi} />
               <GhiChu ds={h.ghi_chu} />
             </span>
           </td>
@@ -552,15 +586,20 @@ function NhomDong({
       )}
       {mo &&
         n.dong.map((d) => {
-          const tickDuoc = canMua && d.tinh_trang === "can_mua";
+          // Nhu cầu ra đơn vị mà mã chưa khai ở danh mục: không lập mua được dòng này (máy chủ cũng
+          // chặn) — ô tick nhường chỗ cho câu nói rõ phải khai gì, ghi ở cột Phiếu.
+          const chuaKhai = !!(d.don_vi_chua_khai || h?.don_vi_chua_khai);
+          const tickDuoc = canMua && d.tinh_trang === "can_mua" && !chuaKhai;
           const da = chon.has(d.khoa);
           return (
             <tr key={d.khoa} className={`row lds-dong${da ? " sel" : ""}`}>
               <td>
-                <input type="checkbox" className="lvt-cb" checked={da} disabled={!tickDuoc}
-                  aria-label={`Chọn ${d.hang_ten} của ${d.ma}`}
-                  title={tickDuoc ? "Chọn để đề nghị mua" : d.tinh_trang === "dang_mua" ? "Đã có phiếu mua" : undefined}
-                  onChange={() => onChon(d.khoa)} />
+                {!chuaKhai && (
+                  <input type="checkbox" className="lvt-cb" checked={da} disabled={!tickDuoc}
+                    aria-label={`Chọn ${d.hang_ten} của ${d.ma}`}
+                    title={tickDuoc ? "Chọn để đề nghị mua" : d.tinh_trang === "dang_mua" ? "Đã có phiếu mua" : undefined}
+                    onChange={() => onChon(d.khoa)} />
+                )}
               </td>
               <td>
                 {xem === "lenh" ? (
@@ -577,7 +616,7 @@ function NhomDong({
               <td className="n">{so(d.can)}</td>
               <td className={`n${d.da_giu ? "" : " lvt-mu"}`}>{so(d.da_giu)}</td>
               <td className={`n${d.con_thieu > 0 ? " red" : " lvt-mu"}`}>{so(d.con_thieu)}</td>
-              <td><OPhieu d={d} moPhieu={moPhieu} /></td>
+              <td>{chuaKhai && !d.phieu ? <ChuaKhaiDonVi d={d} /> : <OPhieu d={d} moPhieu={moPhieu} />}</td>
               <td>{d.phieu ? <Buoc b={d.phieu.buoc} /> : <span className="lvt-mu3">—</span>}</td>
               <td><NgayCoHang d={d} /></td>
               <td><Chip t={d.tinh_trang} /></td>
@@ -872,7 +911,7 @@ function NganLenh({
 function NganHang({
   h, eventTick, coHuy, moPhieu, onMoLenh, onDong, onDoi,
 }: {
-  h: { hang_loai: "giay" | "vat_tu"; hang_id: number; kho_rong: number; kho_dai: number };
+  h: { hang_loai: "giay" | "vat_tu"; hang_id: number; kho_rong: number; kho_dai: number; don_vi_goc: string };
   eventTick: number;
   coHuy: boolean;
   moPhieu: MoPhieu;
@@ -907,6 +946,7 @@ function NganHang({
           <span>Tồn kho<b>{so(v.ton)}</b></span>
           <span>Đang về<b>{so(v.dang_ve)}</b></span>
           <span className="lvt-mu">{v.dvt}</span>
+          <CungKhoKhac ds={v.cung_kho_khac_don_vi} />
           {v.ghi_chu.length > 0 && <GhiChu ds={v.ghi_chu} />}
         </span>
       )}

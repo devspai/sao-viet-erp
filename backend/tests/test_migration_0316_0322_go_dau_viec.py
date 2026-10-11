@@ -141,12 +141,10 @@ def test_db_trang_khong_no():
 def test_model_khong_con_tang_dau_viec_va_chia():
     import app.models as m
     from app.models.lsx import LsxCongDoan
-    from app.models.san_xuat_phan_bo import SanXuatHoTro
 
     for ten in ("CongDoanDauViec", "CongDoanDauViecVatTu", "SanXuatPhanBo", "SanXuatPhanBoDong",
-                "SanXuatPhanBoBuTru", "SanXuatPhanBoLoaiTru"):
+                "SanXuatPhanBoBuTru", "SanXuatPhanBoLoaiTru", "SanXuatHoTro"):
         assert not hasattr(m, ten), ten
     assert not {"so_nhan_cong_tieu_chuan", "khoan_json", "nang_suat", "don_vi_nang_suat"} \
         & set(LsxCongDoan.__table__.columns.keys())
     assert "so_gio_ke_hoach" in LsxCongDoan.__table__.columns
-    assert "ty_le_phan_tram" not in SanXuatHoTro.__table__.columns

@@ -13,7 +13,7 @@ from tests.test_ke_hoach_vat_tu import (  # noqa: F401
 )
 
 
-def _buoc_giay(db, l, *, thu_tu, ten, giay, so_luong, kho, don_vi_vao="to_nguyen", dang="to",
+def _buoc_giay(db, l, *, thu_tu, ten, giay, so_luong, kho, don_vi_vao="to_nguyen", goc="to",
                dvt=None):
     b = LsxCongDoan(lsx_id=l.id, thu_tu=thu_tu, ten=ten, loai_buoc="may",
                     don_vi_vao=don_vi_vao, don_vi_ra="to", so_luong_vao=so_luong,
@@ -25,7 +25,7 @@ def _buoc_giay(db, l, *, thu_tu, ten, giay, so_luong, kho, don_vi_vao="to_nguyen
         lsx_cong_doan_id=b.id, hang_loai="giay", vat_tu_id=giay.id,
         vat_tu_ma_snapshot=giay.ma, vat_tu_ten_snapshot=giay.ten,
         don_vi_snapshot=dvt or don_vi_goc_to(), so_luong=so_luong, kho_rong=kr, kho_dai=kd,
-        thu_tu=0, tu_dong=False, dang_giay=dang,
+        thu_tu=0, tu_dong=False, don_vi_goc=goc,
     ))
     db.commit()
     return b
@@ -122,12 +122,16 @@ def test_buoc_nhan_tu_bo_qua_lenh_tron_goi(db, svc, customer):
     assert svc.buoc_nhan_tu(l.id) == {}
 
 
-def test_cuon_gom_theo_ma(db, svc, customer):
+def test_giay_kg_kho_rong_la_mot_nhom_rieng(db, svc, customer):
+    """Giấy khổ rộng đếm kg (bỏ dạng cuộn 10/10/2026): nhóm mang khổ chỉ-rộng + đơn vị gốc kg —
+    không còn gom mọi khổ của mã về `(0, 0)`."""
     g = _giay(db)
     l = _lenh(db, customer, ma="LSX-CU", giay_id=g.id, so_to_nguyen=100, han=MAI, buoc=False)
     _buoc_giay(db, l, thu_tu=1, ten="Cắt cuộn", giay=g, so_luong=300, kho=(790, 0),
-               don_vi_vao="kg", dang="cuon", dvt="kg")
-    assert _khoa_giay(svc.can_doi(), g) == {("giay", g.id, 0, 0): pytest.approx(300)}
+               don_vi_vao="kg", goc="kg", dvt="kg")
+    bang = svc.can_doi()
+    assert _khoa_giay(bang, g) == {("giay", g.id, 790, 0): pytest.approx(300)}
+    assert [i["don_vi_goc"] for i in bang["items"] if i["hang_id"] == g.id] == ["kg"]
 
 
 def _bai_voi_buoc_chung(db, customer, g, *, don_vi_vao, so_luong_vao=0):

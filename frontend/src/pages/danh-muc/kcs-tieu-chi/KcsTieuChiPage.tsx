@@ -186,7 +186,9 @@ export function KcsTieuChiPage() {
       </div>
 
       <footer className="ktc-chan">
-        Sửa ở đây áp cho lệnh phát hành từ nay. Lệnh đã phát hành giữ bộ tiêu chí lúc phát hành.
+        Sửa ở đây áp cho lệnh phát hành từ nay. Lệnh đã phát hành giữ bộ tiêu chí lúc phát hành: hồ sơ lệnh sẽ báo
+        tiêu chí đã đổi, bấm Cập nhật tiêu chí ở đó để lấy bộ mới, kể cả công đoạn đang làm. Công đoạn mà tiêu chí
+        đã có kết quả kiểm thì giữ bộ cũ.
       </footer>
 
       {bao && <div className="ktc-bao" role="status">{bao}</div>}
@@ -338,15 +340,18 @@ function OPhai({
         <ChipGd nhom={cd.nhom} />
         {suaDuoc && (
           <div className="ktc-dau__phai">
-            <button type="button" className="ktc-nut" onClick={onChep}>
-              <Copy size={16} aria-hidden /> {ds.length ? "Chép sang…" : "Chép từ công đoạn khác"}
+            {/* Nút phụ của ô sửa: nhẹ (không khung) để không tranh với nút "Xem KCS cuối thấy gì" ở đầu
+                màn; chữ nói đủ việc, không bỏ lửng bằng dấu "…". */}
+            <button type="button" className="ktc-nut ktc-nut--nhe" onClick={onChep}
+              title={ds.length ? `Chép ${ds.length} tiêu chí của ${cd.ten} sang một hay nhiều công đoạn khác` : undefined}>
+              <Copy size={15} aria-hidden /> {ds.length ? "Chép sang công đoạn khác" : "Chép từ công đoạn khác"}
             </button>
           </div>
         )}
       </div>
       <p className="ktc-phai__phu">
         {ds.length
-          ? `${ds.length} tiêu chí. KCS cuối sẽ thấy nhóm này khi lệnh có chạy ${cd.ten.charAt(0).toLowerCase()}${cd.ten.slice(1)}.`
+          ? `${ds.length} tiêu chí. KCS cuối xét nhóm này ở các lệnh có chạy ${cd.ten.charAt(0).toLowerCase()}${cd.ten.slice(1)} phát hành từ nay.`
           : suaDuoc
             ? "Chưa có tiêu chí. Gõ tiêu chí đầu tiên bên dưới hoặc chép từ công đoạn khác."
             : "Chưa có tiêu chí."}

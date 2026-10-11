@@ -534,3 +534,30 @@ def test_employee_id_khong_noi_pham_vi_quyen(client):
     stoken = _sales_token()
     lach = client.get(f"/api/leaves?employee_id={admin_eid}", headers=_h(stoken)).json()
     assert lach["items"] == [] and lach["total"] == 0
+
+
+def test_danh_sach_co_ten_nv_duyet_va_loc_theo_nv_duyet(client):
+    """Dòng đơn mang tên người duyệt/từ chối; điều kiện "NV duyệt" lọc ở máy chủ và menu lọc chỉ
+    liệt kê người đã từng quyết, kèm số đơn (10/10/2026)."""
+    token = _admin_token(client)
+    tid = _make_type(client, token)
+    _link_admin_employee(client, token)
+    ids = []
+    for ngay in ("2026-08-10", "2026-08-17", "2026-08-24"):
+        ids.append(client.post("/api/leaves", json={"leave_type_id": tid, "start_date": ngay, "end_date": ngay},
+                               headers=_h(token)).json()["id"])
+    assert client.post(f"/api/leaves/{ids[0]}/approve", json={}, headers=_h(token)).status_code == 200
+    assert client.post(f"/api/leaves/{ids[1]}/reject", json={"note": "Trùng lịch"},
+                       headers=_h(token)).status_code == 200
+
+    items = {x["id"]: x for x in client.get("/api/leaves?size=100", headers=_h(token)).json()["items"]}
+    assert items[ids[0]]["decided_by_name"] == "NV Nghỉ"
+    assert items[ids[1]]["decided_by_name"] == "NV Nghỉ"
+    assert items[ids[2]]["decided_by_name"] is None
+
+    admin_uid = _uid("admin")
+    loc = client.get(f"/api/leaves?nguoi_duyet={admin_uid}&size=100", headers=_h(token)).json()
+    assert loc["total"] == 2 and {x["id"] for x in loc["items"]} == {ids[0], ids[1]}
+
+    chon = client.get("/api/leaves/loc/nguoi_duyet", headers=_h(token)).json()
+    assert chon == [{"id": admin_uid, "ten": "NV Nghỉ", "so": 2}]

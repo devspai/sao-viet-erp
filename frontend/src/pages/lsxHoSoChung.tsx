@@ -7,7 +7,7 @@
 import type { ReactNode } from "react";
 
 import type { LenhSxSanLuongBatch } from "../api/client";
-import { nhanDonVi } from "./lsxBuoc";
+import { nhanChangLenh, nhanDonVi } from "./lsxBuoc";
 
 /** Số thập phân của xưởng: bỏ đuôi `,0`, giữ tối đa 2 chữ số lẻ. */
 export function so(v: number | null | undefined): string {
@@ -151,6 +151,9 @@ export function tongMeTheoDonVi(batch: LenhSxSanLuongBatch[]): TongDonVi[] {
 }
 
 /** "480 tờ" — số kèm TÊN đơn vị (không bày mã). */
-export function soDv(v: number, dv: string | null): string {
-  return dv ? `${so(v)} ${nhanDonVi(dv)}` : so(v);
+/** `dvt` (đơn vị tính của lệnh) chỉ truyền cho số ĐẾM THEO CHẶNG (mẻ tổ, lần KCS): chặng Thành
+ *  phẩm khi ấy đọc là "cuốn" thay cho mã `cai`. Số theo đơn vị KHO thì để trống — mã kho là thật. */
+export function soDv(v: number, dv: string | null, dvt?: string | null): string {
+  if (!dv) return so(v);
+  return `${so(v)} ${dvt !== undefined ? nhanChangLenh(dv, dvt) : nhanDonVi(dv)}`;
 }

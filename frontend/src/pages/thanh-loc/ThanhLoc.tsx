@@ -1,11 +1,12 @@
 /** Thanh lọc dùng chung của mọi danh sách chứng từ — phương án 2 "nút Lọc + menu" (khuôn Linear).
  *
- *  Đặt NGAY TRONG thanh công cụ của màn, sau ô tìm: [Kỳ ▾] [khối điều kiện đã áp…] [Lọc] [Xoá lọc].
+ *  Đặt NGAY TRONG thanh công cụ của màn, sau ô tìm: [Kỳ ▾] [Lọc N]; điều kiện đã áp xuống một hàng
+ *  riêng dưới thanh (mockup ban-to-ngan-A-tinh-chinh, 10/10/2026): [khối…] [Xoá bộ lọc].
  *  - Nút kỳ: "Tháng này theo ngày tạo". Mở ra chọn "Tính theo" (mốc ngày) và kỳ; "Tuỳ chọn" thêm
  *    hai ô Từ ngày / Đến ngày có nhãn.
  *  - Nút "Lọc": menu các điều kiện có ô gõ tìm; chọn một điều kiện thì cột bên phải ra các giá trị
  *    (kèm số bản ghi nếu máy chủ đếm). Chọn là ÁP NGAY, không có bước nháp.
- *  - Điều kiện đã áp thành khối "trường | giá trị | ×": bấm giá trị để sửa, × để bỏ.
+ *  - Điều kiện đã áp thành khối "icon trường là | giá trị | ×": bấm giá trị để sửa, × để bỏ.
  *  Khổ điện thoại: lớp nổi thành tấm sát đáy màn, menu con thay chỗ menu (có nút quay lại).
  */
 import { ChonNgay } from "../../components/ChonNgay";
@@ -34,7 +35,7 @@ import "./thanh-loc.css";
 
 /** Đóng lớp nổi khi bấm ra ngoài vùng `ref` hoặc nhấn Esc. Esc bắt ở pha capture để không lọt
  *  xuống ngăn chi tiết đang mở bên dưới; `onEsc` trả true = đã tự xử lý (vd lùi từ menu con). */
-function useDongKhiRaNgoai(ref: RefObject<HTMLElement | null>, mo: boolean, dong: () => void, onEsc?: () => boolean) {
+export function useDongKhiRaNgoai(ref: RefObject<HTMLElement | null>, mo: boolean, dong: () => void, onEsc?: () => boolean) {
   const dongRef = useRef(dong);
   dongRef.current = dong;
   const escRef = useRef(onEsc);
@@ -96,7 +97,7 @@ const chonKhongCuon = (n: HTMLElement | null) => n?.focus({ preventScroll: true 
 
 /** Lớp nổi neo dưới nút; tràn mép phải thì lùi sang trái cho vừa. Canh lại mỗi khi lớp nổi đổi cỡ
  *  (mở menu con làm nó rộng ra) hay cửa sổ đổi cỡ. */
-function LopNoi({ children, className }: { children: ReactNode; className?: string }) {
+export function LopNoi({ children, className }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = ref.current;
@@ -136,7 +137,9 @@ function khoangNgan(tu: string, den: string): string {
   return `${ngan(tu)} – ${ngan(den)}`;
 }
 
-function NutKy({ ky, moc, onKy }: { ky: KyDS; moc: [string, string][]; onKy: (k: KyDS) => void }) {
+function NutKy({ ky, moc, onKy, boLoai }: {
+  ky: KyDS; moc: [string, string][]; onKy: (k: KyDS) => void; boLoai?: LoaiKyDS[];
+}) {
   const [mo, setMo] = useState(false);
   const vung = useRef<HTMLDivElement>(null);
   useDongKhiRaNgoai(vung, mo, () => setMo(false));
@@ -187,7 +190,7 @@ function NutKy({ ky, moc, onKy }: { ky: KyDS; moc: [string, string][]; onKy: (k:
             )}
             <div className="tl-nhom">Kỳ</div>
             <div role="radiogroup" aria-label="Kỳ">
-              {LOAI_KY_DS.map(([l]) => {
+              {LOAI_KY_DS.filter(([l]) => !boLoai?.includes(l)).map(([l]) => {
                 const k = l === "tat_ca" || l === "tuy" ? null : khoangKy({ loai: l, moc: ky.moc });
                 return (
                   <button key={l} type="button" role="radio" aria-checked={ky.loai === l}
@@ -415,14 +418,16 @@ function NutLoc<L>({ dieuKien, loc, onLoc }: { dieuKien: DieuKien<L>[]; loc: L; 
 
   const ds = dieuKien.filter((d) => khopChu(d.nhan, go));
   const dk = dieuKien.find((d) => d.khoa === chon);
-  const coDK = soDaAp(dieuKien, loc) > 0;
+  const so = soDaAp(dieuKien, loc);
 
   return (
     <div className="tl-neo" ref={vung}>
-      <button type="button" className={`tl-nut${coDK ? " tl-nut--chu" : ""}${mo ? " is-mo" : ""}`} aria-haspopup="menu"
-        aria-expanded={mo} onClick={() => (mo ? dong() : setMo(true))}>
+      <button type="button" className={`tl-nut${mo ? " is-mo" : ""}`} aria-haspopup="menu" aria-expanded={mo}
+        onClick={() => (mo ? dong() : setMo(true))}>
         <ListFilter size={15} aria-hidden="true" />
         Lọc
+        {/* Số chỉ để mắt đếm — hàng khối ngay dưới đã đọc đủ từng điều kiện cho trình đọc màn hình. */}
+        {so > 0 && <span className="tl-nut__so" aria-hidden="true">{so}</span>}
       </button>
       {mo && (
         <LopNoi className={`tl-pop--menu${dk ? " co-con" : ""}`}>
@@ -467,10 +472,17 @@ function KhoiDieuKien<L>({ dk, loc, onLoc }: { dk: DieuKien<L>; loc: L; onLoc: (
   const [mo, setMo] = useState(false);
   const vung = useRef<HTMLDivElement>(null);
   useDongKhiRaNgoai(vung, mo, () => setMo(false));
+  const Icon = dk.icon;
+  // "là một trong" khi chọn nhiều giá trị (mockup); khoảng số tự đọc "từ … đến …" trong giá trị.
+  const nhieu = dk.kieu === "nhieu" && dk.doc(loc).length > 1;
   return (
     <div className="tl-neo" ref={vung}>
       <span className={`tl-dk${mo ? " is-mo" : ""}`}>
-        <span className="tl-dk__truong">{dk.nhan}</span>
+        <span className="tl-dk__truong">
+          <Icon size={13} aria-hidden="true" />
+          {dk.nhan}
+        </span>
+        {dk.kieu !== "khoang" && <span className="tl-dk__la">{nhieu ? "là một trong" : "là"}</span>}
         <button type="button" className="tl-dk__gt" title={tomTatDu(dk, loc)} aria-haspopup="dialog" aria-expanded={mo}
           aria-label={`${dk.nhan}: ${tomTatDu(dk, loc)}. Bấm để sửa`} onClick={() => setMo(!mo)}>
           {tomTat(dk, loc)}
@@ -495,32 +507,42 @@ export function ThanhLoc<L>({
   ky,
   moc,
   onKy,
+  boLoaiKy,
   dieuKien,
   loc,
   onLoc,
+  onXoaHet,
 }: {
   /** Bỏ trống `ky` khi màn không có trục thời gian (bảng điều phối có cửa sổ ngày riêng). */
   ky?: KyDS;
   /** [mã, nhãn] các mốc ngày kỳ tính theo; một mốc thì không hiện phần "Tính theo". */
   moc?: [string, string][];
   onKy?: (k: KyDS) => void;
+  /** Loại kỳ không cho chọn — vd màn mà máy chủ chặn khoảng ngày (không có "Mọi thời gian"). */
+  boLoaiKy?: LoaiKyDS[];
   dieuKien: DieuKien<L>[];
   loc: L;
   onLoc: (l: L) => void;
+  /** Màn tự có "Xoá bộ lọc" xoá cả ô tìm / kỳ / tab thì truyền vào đây — link trên hàng điều kiện
+   *  gọi nó, màn khỏi vẽ nút thứ hai cạnh đó. Bỏ trống: link chỉ bỏ các điều kiện đang áp. */
+  onXoaHet?: () => void;
 }) {
   const daDat = dieuKien.filter((d) => daAp(d, loc) && !d.anKhoi);
   return (
     <>
-      {ky && onKy && <NutKy ky={ky} moc={moc ?? [["tao", "Ngày tạo"]]} onKy={onKy} />}
-      {daDat.map((d) => (
-        <KhoiDieuKien key={d.khoa} dk={d} loc={loc} onLoc={onLoc} />
-      ))}
+      {ky && onKy && <NutKy ky={ky} moc={moc ?? [["tao", "Ngày tạo"]]} onKy={onKy} boLoai={boLoaiKy} />}
       {/* Màn chỉ có kỳ (vd Phiếu tăng ca của tôi) thì không bày nút Lọc với menu rỗng. */}
       {dieuKien.length > 0 && <NutLoc dieuKien={dieuKien} loc={loc} onLoc={onLoc} />}
-      {daDat.length >= 2 && (
-        <button type="button" className="tl-nut-chu" onClick={() => onLoc(daDat.reduce((l, d) => boDK(d, l), loc))}>
-          Xoá lọc
-        </button>
+      {/* Trong `.tl-thanh` hàng này rớt xuống dòng riêng dưới thanh công cụ; ngoài đó nó tan vào thanh. */}
+      {daDat.length > 0 && (
+        <div className="tl-hang-dk" role="group" aria-label="Điều kiện đang lọc">
+          {daDat.map((d) => (
+            <KhoiDieuKien key={d.khoa} dk={d} loc={loc} onLoc={onLoc} />
+          ))}
+          <button type="button" className="tl-xoa" onClick={onXoaHet ?? (() => onLoc(daDat.reduce((l, d) => boDK(d, l), loc)))}>
+            Xoá bộ lọc
+          </button>
+        </div>
       )}
     </>
   );

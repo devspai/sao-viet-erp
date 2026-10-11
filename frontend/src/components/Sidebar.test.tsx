@@ -48,7 +48,7 @@ describe("Menu trái — id phải là duy nhất", () => {
 });
 
 /** Gập nhánh cây tổ: 11 tổ + 5 nhóm in đẩy menu dài quá màn hình, nên hàng CHA phải đóng/mở được
- *  con — mà bấm vào TÊN tổ cha thì vẫn mở bàn của chính tổ đó (nó là tổ thật, có việc, có badge). */
+ *  con. Từ 10/10/2026 tổ cha chỉ là nhóm — bấm tên cũng là gập/mở, chỉ tổ lá mở bàn. */
 describe("Menu trái — gập nhánh tổ", () => {
   const TO: NavItem[] = [
     { id: "thuc-hien-sx:1", label: "Tổ in", icon: "users", module: "to_sx", indent: 0 },
@@ -93,13 +93,19 @@ describe("Menu trái — gập nhánh tổ", () => {
     expect(screen.getByRole("button", { name: "Ca đêm máy 5 màu" })).toBeInTheDocument();
   });
 
-  it("bấm TÊN tổ cha vẫn mở bàn của tổ đó, không phải gập nhánh", async () => {
+  it("bấm TÊN tổ cha là gập/mở nhánh, không mở bàn — chỉ tổ lá nhận việc", async () => {
     const chon = vi.fn();
     ve("thuc-hien-sx:4", chon);
 
     await userEvent.click(screen.getByRole("button", { name: "Tổ in" }));
-    expect(chon).toHaveBeenCalledWith("thuc-hien-sx:1");
+    expect(chon).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Nhóm in máy 5 màu" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Tổ in" }));
     expect(screen.getByRole("button", { name: "Nhóm in máy 5 màu" })).toBeInTheDocument();
+    // Tổ lá vẫn mở bàn.
+    await userEvent.click(screen.getByRole("button", { name: "Ca đêm máy 5 màu" }));
+    expect(chon).toHaveBeenCalledWith("thuc-hien-sx:3");
   });
 
   it("nhớ nhánh đã gập qua lần vào sau", async () => {

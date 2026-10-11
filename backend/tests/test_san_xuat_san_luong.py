@@ -21,7 +21,7 @@ import pytest
 from app.models.san_xuat import CV_DANG_CHAY
 from app.models.san_xuat_san_luong import SanXuatBatch, SanXuatBatchLotVao
 from app.services.san_xuat import san_luong
-from tests.san_xuat_me_fixtures import canh_me, cham_cong, khoang, tao_me
+from tests.san_xuat_me_fixtures import canh_me, cham_cong, co_mat, tao_me
 
 # Fixtures + helper luồng thật (kéo cả cây fixture xếp lịch).
 from tests.test_san_xuat_thuc_thi import (  # noqa: F401
@@ -401,8 +401,7 @@ def test_ghi_me_chi_ghi_nhan_so_va_nguoi_khong_chia(db, orders, lsx_svc, admin, 
     cham_cong(db, e1)
     cham_cong(db, e2)
     db.commit()
-    khoang(db, cv, e1, batch.bat_dau, batch.ket_thuc)
-    khoang(db, cv, e2, batch.bat_dau, batch.ket_thuc)
+    co_mat(db, batch, e1, e2)
     db.commit()
 
     d = board.chi_tiet_cong_viec(db, admin, _authz_sl(db), cong_viec_id=cv.id)

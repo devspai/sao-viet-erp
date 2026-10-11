@@ -12,15 +12,18 @@ import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { OMuaCho } from "../mua-cho/OMuaCho";
 import { ChipNhan, DongRong, type CotBang, type CotMH } from "../luoi-mua-hang";
-import { ChamTT, TT_DON, TT_TIEN } from "../trang-thai-mua";
+import { ChamTT, TT_TIEN, nhanHangDon } from "../trang-thai-mua";
 import "../trang-thai-mua.css";
 
-/** Cột của lưới Đơn mua: Mã → Ngày → Nhà cung cấp → chứng từ nguồn → Mua cho → Tiền → Hàng → Tiền (trả). */
+/** Cột của lưới Đơn mua: Mã → Ngày → Nhà cung cấp → NV yêu cầu, NV mua hàng, NV duyệt → chứng từ nguồn → Mua cho → Tiền → Hàng → Tiền (trả). */
 export const COT_DON: CotMH[] = [
   { key: "ma", label: "Mã đơn", coDinh: true, w: 150 },
   { key: "ngay", label: "Ngày tạo", w: 104 },
   { key: "can", label: "Ngày cần", w: 104 },
   { key: "ncc", label: "Nhà cung cấp", w: 220 },
+  { key: "nv_yc", label: "NV yêu cầu", w: 140 },
+  { key: "nguoi_lap", label: "NV mua hàng", w: 130 },
+  { key: "nguoi_duyet", label: "NV duyệt", w: 130 },
   { key: "yc", label: "Yêu cầu", w: 160 },
   { key: "mua_cho", label: "Mua cho", w: 160 },
   { key: "tong", label: "Tổng đơn", w: 120, n: true },
@@ -46,12 +49,14 @@ function OHang({ row }: { row: PurchaseRequestRow }) {
   let phu: ReactNode = null;
   if (row.status === "partially_received" && row.total_estimate > 0) {
     phu = `${Math.min(99, Math.round((row.gia_tri_da_giao / row.total_estimate) * 100))}%`;
+    // Về một phần mà có đợt đã về chưa bấm Gửi kho — việc của mua hàng, nói ngay ở dòng.
+    if (row.deliveries.some((d) => d.kho === "cho_gui_kho")) phu = <>{phu}<span style={{ marginLeft: 8 }}>chưa gửi kho</span></>;
   } else if ((row.status === "purchased" || row.status === "approved") && row.expected_receipt_date) {
     phu = `hẹn ${ngayNgan(row.expected_receipt_date)}`;
   }
   return (
     <>
-      <ChipNhan nhan={TT_DON[row.status]} />
+      <ChipNhan nhan={nhanHangDon(row)} />
       {phu && <span className="lds-mu" style={{ marginLeft: 6 }}>{phu}</span>}
     </>
   );
@@ -180,6 +185,29 @@ export function BangDonMua({
                           return (
                             <td key={c.key} title={row.supplier_name ?? undefined}>
                               {row.supplier_name || <span className="lds-mu3">Chưa chọn</span>}
+                            </td>
+                          );
+                        case "nv_yc": {
+                          // Đơn gom món của nhiều yêu cầu ⇒ có thể nhiều người: hiện người đầu, còn lại "+N".
+                          const ten = [...new Set(row.sources.map((s) => s.requested_by_name).filter((t): t is string => !!t))];
+                          return (
+                            <td key={c.key} title={ten.join(", ") || undefined}>
+                              {ten[0] ?? ""}
+                              {ten.length > 1 && <span className="lds-mu3"> +{ten.length - 1}</span>}
+                            </td>
+                          );
+                        }
+                        case "nguoi_lap":
+                          return (
+                            <td key={c.key} title={row.created_by_name ?? undefined}>
+                              {row.created_by_name || <span className="lds-mu3">Không rõ</span>}
+                            </td>
+                          );
+                        case "nguoi_duyet":
+                          // Chưa duyệt thì để trống — trạng thái Hàng đã nói đơn đang ở bước nào.
+                          return (
+                            <td key={c.key} title={row.approved_at ? fmtDateTime(row.approved_at) : undefined}>
+                              {row.approved_by_name ?? ""}
                             </td>
                           );
                         case "yc":

@@ -1,7 +1,7 @@
 // Khối "Chờ chốt giấy" trên bàn tổ Cắt (spec dòng giấy theo đầu vào §3.0–3.3).
 //
 // Lệnh / bài ghép có giấy, sau phát hành, hiện ở đây: dòng giấy của bước LẤY giấy (mã · khổ · số),
-// tồn tờ ĐÚNG khổ và các lô cuộn cùng mã để tổ tự xem — máy không kết luận. Tổ Cắt CHỈ thấy công
+// tồn ĐÚNG khổ và các lô cùng mã khác khổ để tổ tự xem — máy không kết luận. Tổ Cắt CHỈ thấy công
 // đoạn Trước In của tổ mình: thêm (chèn ngay trước In) hoặc xoá được — kể cả bước người lập lệnh đặt
 // sẵn. Chưa có công đoạn nào thì chọn "Không cần cắt". Lệnh chưa có bước cắt mà chưa chốt thì bước
 // In bị khoá (cổng "chờ tổ Cắt"); lệnh đặt sẵn bước cắt thì không khoá gì.
@@ -15,6 +15,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { ngay, ngayGio, num } from "./keHoachSxShared";
 import { nhanDonVi } from "./lsxBuoc";
+import { nhanKho } from "../lib/khoGiay";
 
 export function ThsxChotGiay({
   teamId, eventTick, onDaGhi,
@@ -88,11 +89,11 @@ export function ThsxChotGiay({
                   : <>tồn đúng khổ <b className="thsx-num">{num(g.ton_to_dung_kho)}</b></>}
               </p>
             ))}
-            {d.cuon_cung_ma.length > 0 && (
+            {(d.lo_cung_ma ?? []).length > 0 && (
               <p className="thsx-chot__cuon">
-                Cuộn cùng mã:{" "}
-                {d.cuon_cung_ma.map((c) =>
-                  `${c.ma_lo} (khổ ${c.kho_rong} mm, còn ${num(c.sl_con_lai)} ${nhanDonVi(c.don_vi)}, ${c.kho_ten})`,
+                Lô cùng mã khác khổ:{" "}
+                {(d.lo_cung_ma ?? []).map((c) =>
+                  `${c.ma_lo} (${nhanKho(c.kho_rong, c.kho_dai)}, còn ${num(c.sl_con_lai)} ${nhanDonVi(c.don_vi)}, ${c.kho_ten})`,
                 ).join(" · ")}
               </p>
             )}

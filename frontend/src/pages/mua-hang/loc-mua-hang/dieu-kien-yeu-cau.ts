@@ -1,6 +1,6 @@
 /** Thanh lọc danh sách Yêu cầu mua hàng (06/10/2026) — dùng ở HAI chỗ: màn Yêu cầu mua hàng của phòng
  *  ban và tab "Yêu cầu chờ xử lý" của màn Mua hàng. Kỳ theo Ngày tạo (mặc định) hoặc Ngày cần hàng;
- *  điều kiện Phòng ban, Người yêu cầu, Mặt hàng. Lọc và đếm tab ở máy chủ.
+ *  điều kiện Phòng ban, NV yêu cầu, Mặt hàng. Lọc và đếm tab ở máy chủ.
  *
  *  `tienTo` của hai hàm URL: màn Mua hàng chứa HAI danh sách dưới cùng một dấu `?man=mua-hang`, nên
  *  khoá của danh sách yêu cầu mang tiền tố (`yc_ky`, `yc_pb`…) để không đè khoá của danh sách đơn.
@@ -128,7 +128,7 @@ export function useDieuKienYeuCau(): DieuKien<LocYeuCau>[] {
       ghi: (l, v) => ({ ...l, phong_ban: chuThanhId(v) }),
     },
     {
-      khoa: "nguoi", nhan: "Người yêu cầu", icon: UserRound, kieu: "mot", tim: true, giaTri: nguoi,
+      khoa: "nguoi", nhan: "NV yêu cầu", icon: UserRound, kieu: "mot", tim: true, giaTri: nguoi,
       doc: (l) => idThanhChu(l.nguoi),
       ghi: (l, v) => ({ ...l, nguoi: chuThanhId(v) }),
     },

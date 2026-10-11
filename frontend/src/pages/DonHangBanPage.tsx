@@ -19,7 +19,7 @@ import {
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import {
-  BangSanXuatMon, BuocGiaoHang, CanhBaoTre, SanXuatO, napTruocTienDo, tomTatTienDo, useTienDoDon,
+  BangSanXuatMon, BuocGiaoHang, CanhBaoTre, DaiSo, SanXuatO, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
   viecTiepTheo,
 } from "./giao-hang/tien-do-don";
 import {
@@ -43,6 +43,7 @@ import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { gopTheoNhom } from "../utils/gop-nhom";
 import "./don-hang-ban.css";
+import { fmtDateTime } from "../utils/format";
 
 function vnd(v: number | null | undefined): string {
   if (v == null) return "—";
@@ -507,35 +508,6 @@ function ODon({ cot, o, mocNgay, onMoLenh, onMoDon }: {
   }
 }
 
-function DepositBar({ o }: { o: OrderRow }) {
-  if (!o.deposit_required)
-    return <span className="dhb__mono" style={{ color: "var(--ash)" }}>—</span>;
-  const pct = Math.min(100, Math.round((o.deposit_received / o.deposit_required) * 100));
-  return (
-    <div className="dhb__deposit-container">
-      <div className="dhb__deposit-header">
-        <span>{vnd(o.deposit_received)}</span>
-        {o.deposit_ok ? (
-          <span className="dhb__deposit-ok">
-            <Icon name="check" size={11} /> đủ
-          </span>
-        ) : (
-          <span>/ {vnd(o.deposit_required)}</span>
-        )}
-      </div>
-      <div className="dhb__deposit-progress-bg">
-        <div
-          className="dhb__deposit-progress-bar"
-          style={{
-            width: `${pct}%`,
-            background: o.deposit_ok ? "var(--moss)" : "var(--amber)",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
 // --- Drawer chi tiết ----------------------------------------------------------
 /** Thanh kéo mép trái của ngăn đơn — dùng CHUNG độ rộng `--kt-ngan-w` với mọi ngăn mở từ bên phải
  *  (mặc định 1180px, nhớ trong localStorage): kéo ngăn này thì ngăn Kế toán cũng theo và ngược lại.
@@ -665,6 +637,8 @@ function OrderDrawer({
   const giaoDone = td != null && tt.giaoXong;
   const sxState: "chua" | "cho_kh" | "chay" =
     !sxReleased ? "chua" : lenhs.length === 0 ? "cho_kh" : "chay";
+  // Món có lệnh đã đóng hết mà hàng chưa đủ (máy chủ chốt `o = dong_thieu`) — không còn "đang chạy".
+  const soMonDongThieu = (td?.cum ?? []).filter((c) => c.o === "dong_thieu").length;
   // Chỉ BÁO thiếu nguồn khi Kế hoạch đã bắt đầu lên lệnh: trước đó mọi món đều chưa có lệnh, báo
   // "4 món chưa có nguồn" lúc vừa chuyển xuống chỉ là báo động giả.
   const baoThieuNguon = sxState === "chay" && thieuNguon > 0;
@@ -676,6 +650,7 @@ function OrderDrawer({
     : sxDone ? "xong"
     : baoThieuNguon ? `${thieuNguon} món chưa có nguồn`
     : sxState === "cho_kh" ? "chờ lệnh"
+    : soMonDongThieu > 0 ? `đóng thiếu ${soMonDongThieu} món`
     : td ? `kho đủ ${tt.soMonDuHang}/${tt.soMon} món` : "…";
   const giaoText = giaoDone ? "đã giao đủ" : td && tt.giaoPct > 0 ? `giao ${Math.round(tt.giaoPct)}%`
     : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} yêu cầu mở` : "—";
@@ -900,9 +875,14 @@ function OrderDrawer({
               <Section title="Vòng đời đơn">
                 <CanhBaoTre td={order.status === "ordered" && !giaoDone ? td : null} />
 
-                {/* Thanh chặng (phương án A, 05/10/2026): Chốt → Cọc → Sản xuất (gồm nhập kho) → Giao →
-                    Hóa đơn. Bấm một chặng để xem khung chi tiết bên dưới. */}
+                {/* Thanh chặng (phương án 2, 10/10/2026 — khuôn Atlassian progress tracker): năm chấm
+                    trên một trục, đoạn đã đi tô xanh tới chặng đang chạy. Bấm chặng để xem khung bên
+                    dưới. Mockup: docs/mockups/vong-doi-don-phuong-an-2-du-5-chang.html. */}
                 <div className="dhb__path" role="tablist" aria-label="Các chặng của đơn">
+                  <span className="dhb__path-truc" aria-hidden="true">
+                    <i style={{ width: `${(buocDang == null ? (order.status === "cancelled" ? 0 : 1)
+                      : CHANG.findIndex((c) => c.k === buocDang) / (CHANG.length - 1)) * 100}%` }} />
+                  </span>
                   {CHANG.map((c) => {
                     const dang = c.k === buocDang;
                     // Giao đã có phần trong lúc Sản xuất chưa xong ⇒ "dở dang song song".
@@ -912,6 +892,9 @@ function OrderDrawer({
                         aria-label={`${c.nhan}: ${c.sub}`}
                         className={`dhb__path-buoc${c.xong ? " is-done" : dang ? " is-dang" : doDang ? " is-do" : ""}${activeStep === c.k ? " is-selected" : ""}`}
                         onClick={() => setActiveStep(c.k)}>
+                        <span className="dhb__path-cham">
+                          {c.xong && <Icon name="check" size={10} />}
+                        </span>
                         <span className="dhb__path-o">
                           <b>{c.nhan}</b>
                           <small className={c.canhBao ? "is-warn" : undefined}>{c.sub}</small>
@@ -921,31 +904,46 @@ function OrderDrawer({
                   })}
                 </div>
 
-                {/* Việc tiếp theo: đơn đang chờ AI làm gì, từ bao giờ — luôn ở đầu, chặng nào cũng thấy. */}
-                {viec && (
-                  <div className="dhb__viec">
-                    <div className="dhb__viec-chu">
-                      <span className="dhb__viec-cau">{viec.cau}</span>
-                      {viec.the.length > 0 && (
-                        <span className="dhb__viec-the">
-                          {viec.the.map((t) => (
-                            <span key={t.nhan} className={`dhb__sx-tag${t.tone ? ` dhb__sx-tag--${t.tone}` : ""}`}>{t.nhan}</span>
-                          ))}
-                        </span>
+                {/* Thẻ tóm tắt: trái là đơn đang chờ AI làm gì, phải là hạn giao + số ngày còn lại —
+                    hạn giao chỉ nói một lần ở đây, khung Giao không lặp lại. */}
+                {viec && (() => {
+                  const theHan = viec.the.find((t) => t.loai === "han");
+                  const theKhac = viec.the.filter((t) => t.loai !== "han");
+                  const coHan = order.delivery_committed_date && order.status !== "cancelled";
+                  return (
+                    <div className="dhb__viec">
+                      <div className="dhb__viec-chu">
+                        <span className="dhb__viec-cau">{viec.cau}</span>
+                        {theKhac.length > 0 && (
+                          <span className="dhb__viec-the">
+                            {theKhac.map((t) => (
+                              <span key={t.nhan} className={`dhb__sx-tag${t.tone ? ` dhb__sx-tag--${t.tone}` : ""}`}>{t.nhan}</span>
+                            ))}
+                          </span>
+                        )}
+                        {viec.nut && (viec.nut.toi !== activeStep) && (
+                          <Button variant="secondary" className="dhb__viec-nut"
+                            onClick={() => {
+                              const toi = viec.nut!.toi;
+                              if (toi === "ke-hoach-sx") navigate?.("ke-hoach-sx", { openSxOrderId: order.id });
+                              else setActiveStep(toi);
+                            }}>
+                            {viec.nut.nhan}
+                          </Button>
+                        )}
+                      </div>
+                      {coHan && (
+                        <div className="dhb__viec-han">
+                          <small>Hạn giao cam kết</small>
+                          <span className="dhb__mono">{fmtDate(order.delivery_committed_date)}</span>
+                          {theHan
+                            ? <em className={theHan.tone ? `is-${theHan.tone}` : undefined}>{theHan.nhan.replace(" tới hạn giao", "")}</em>
+                            : giaoDone ? <em>đã giao đủ</em> : null}
+                        </div>
                       )}
                     </div>
-                    {viec.nut && (viec.nut.toi !== activeStep) && (
-                      <Button variant="secondary" className="dhb__viec-nut"
-                        onClick={() => {
-                          const toi = viec.nut!.toi;
-                          if (toi === "ke-hoach-sx") navigate?.("ke-hoach-sx", { openSxOrderId: order.id });
-                          else setActiveStep(toi);
-                        }}>
-                        {viec.nut.nhan}
-                      </Button>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Khung chi tiết từng chặng: chỉ khung đang chọn hiện, ô cao theo đúng chặng đó (xem
                     `.dhb__chang-o` trong don-hang-ban.css vì sao bỏ kiểu chồng cao bằng chặng dài nhất). */}
@@ -954,18 +952,34 @@ function OrderDrawer({
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Chốt đơn hàng</h4>
-                      <span className={`dhb__lifecycle-badge ${isChotDone ? "dhb__lifecycle-badge--done" : "dhb__lifecycle-badge--active"}`}>
-                        {order.status === "draft" ? "BẢN NHÁP" : (order.status === "ordered" ? "ĐÃ CHỐT" : "ĐÃ HỦY")}
+                      <span className={`dhb__lifecycle-badge ${order.status === "cancelled" ? "dhb__lifecycle-badge--cancelled" : isChotDone ? "dhb__lifecycle-badge--done" : "dhb__lifecycle-badge--upcoming"}`}>
+                        {order.status === "draft" ? "Bản nháp" : (order.status === "ordered" ? "Đã chốt" : "Đã hủy")}
                       </span>
                     </div>
-                    <div style={{ marginTop: 4 }}>
+                    <div>
                       {/* Chốt đơn đi theo quyền SỬA đơn (05/10/2026) — không có ô quyền riêng, khớp máy chủ. */}
                       {isDraft ? (
                         <ConfirmPanel order={order} canManage={canUpdate} canExtend={canUpdate} onSaved={onSaved} />
                       ) : order.status === "ordered" ? (
                         <>
-                          <KV k="Đã chốt lúc" v={<span className="dhb__mono">{fmtDate(order.ordered_at)}</span>} />
-                          <p style={{ color: "var(--ash)", fontSize: 12, margin: "6px 0 0" }}>Đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất.</p>
+                          <DaiSo o={[
+                            { nhan: "Chốt lúc", so: fmtDateTime(order.ordered_at), vua: true },
+                            ...(order.quotation_code ? [{
+                              nhan: "Theo báo giá", vua: true,
+                              so: (
+                                <button type="button" className="dhb__td-link"
+                                  onClick={() => navigate?.("bao-gia", { openQuoteId: order.quotation_id })}>
+                                  {order.quotation_code} ↗
+                                </button>
+                              ),
+                              phu: order.quotation_version != null ? `bản ${order.quotation_version}` : undefined,
+                            }] : []),
+                            { nhan: "Giá trị đơn, gồm thuế", so: vnd(order.total_with_vat), vua: true },
+                            { nhan: "Hẹn giao", so: fmtDate(order.delivery_committed_date), vua: true,
+                              phu: order.delivery_committed_date && order.ordered_at
+                                ? `${Math.round((Date.parse(order.delivery_committed_date.slice(0, 10)) - Date.parse(order.ordered_at.slice(0, 10))) / 86_400_000)} ngày sau chốt`
+                                : undefined },
+                          ]} />
                         </>
                       ) : order.status === "cancelled" ? (
                         <div style={{ display: "grid", gap: 4 }}>
@@ -984,22 +998,28 @@ function OrderDrawer({
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Cọc &amp; thu tiền</h4>
-                      <span className={`dhb__lifecycle-badge ${isCocDone ? "dhb__lifecycle-badge--done" : !isChotDone ? "dhb__lifecycle-badge--upcoming" : "dhb__lifecycle-badge--active"}`}>
-                        {!isChotDone ? "CHƯA TỚI" : isCocDone ? "ĐỦ CỌC" : "CHỜ CỌC"}
+                      <span className={`dhb__lifecycle-badge ${isCocDone ? "dhb__lifecycle-badge--done" : !isChotDone ? "dhb__lifecycle-badge--upcoming" : "dhb__lifecycle-badge--vang"}`}>
+                        {!isChotDone ? "Chưa tới" : noDeposit ? "Không cần cọc" : isCocDone ? "Đủ cọc" : "Chờ cọc"}
                       </span>
                     </div>
-                    <div className="dhb__stat-trio">
-                      <div className="dhb__stat"><div className="dhb__stat-l">Cần thu{order.deposit_pct != null ? ` (${order.deposit_pct}%)` : ""}</div><div className="dhb__stat-n">{vnd(order.deposit_required)}</div></div>
-                      <div className="dhb__stat"><div className="dhb__stat-l">Đã thu</div><div className="dhb__stat-n" style={{ color: isCocDone ? "var(--moss-deep)" : undefined }}>{vnd(order.deposit_received)}</div></div>
-                      <div className="dhb__stat"><div className="dhb__stat-l">Còn thiếu</div><div className="dhb__stat-n" style={{ color: remaining > 0 ? "var(--amber-deep)" : undefined }}>{vnd(remaining)}</div></div>
-                    </div>
-                    <div style={{ margin: "4px 0" }}><DepositBar o={order} /></div>
+                    {isChotDone && noDeposit && order.deposits.length === 0 ? (
+                      <p className="dhb__td-note">Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt.</p>
+                    ) : (<>
+                    <DaiSo o={[
+                      { nhan: `Cần thu${order.deposit_pct != null ? `, ${order.deposit_pct}% giá trị đơn` : ""}`, so: vnd(order.deposit_required) },
+                      { nhan: "Đã thu", so: vnd(order.deposit_received),
+                        phu: order.deposits.length > 0 ? `${order.deposits.length} phiếu thu` : undefined,
+                        tone: isCocDone && order.deposit_required > 0 ? "ok" : undefined },
+                      { nhan: "Còn thiếu", so: vnd(remaining), tone: remaining > 0 && isChotDone ? "chu" : undefined,
+                        phu: remaining > 0 ? "thiếu là chưa xuống sản xuất" : undefined },
+                    ]} />
+                    {/* Thanh tiến độ cọc đã gỡ (11/10/2026): ba ô số trên nói đúng điều đó. */}
                     {order.deposits.length > 0 && (
-                      <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
+                      <div className="dhb__coc-phieu">
                         {order.deposits.map((d) => (
                           <div key={d.id} className="dhb__receipt-row">
                             <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
-                              <strong className="dhb__mono" style={{ fontSize: 14, color: "var(--ink)" }}>{vnd(d.amount)}</strong>
+                              <span className="dhb__mono" style={{ fontSize: 13, color: "var(--ink)" }}>{vnd(d.amount)}</span>
                               <span style={{ color: "var(--ash-2)" }}>{RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method}</span>
                               {d.status === "received" && (
                                 <span style={{ color: "var(--moss)", display: "inline-flex", gap: 2, alignItems: "center" }}><Icon name="check" size={12} /> đã thu</span>
@@ -1007,7 +1027,7 @@ function OrderDrawer({
                               {d.receipt_date && <span style={{ color: "var(--ash-2)" }} className="dhb__mono">{fmtDate(d.receipt_date)}</span>}
                               <div style={{ flex: 1 }} />
                               <button type="button" className="link dhb__mono"
-                                style={{ color: "var(--rust)", background: "none", border: 0, padding: 0, cursor: "pointer", fontWeight: 600 }}
+                                style={{ color: "var(--rust)", background: "none", border: 0, padding: 0, cursor: "pointer" }}
                                 title="Mở phiếu thu này bên Kế toán"
                                 onClick={() => navigate?.("ke-toan-phieu-thu", { focusReceiptQuery: d.code })}>
                                 {d.doc_no ?? d.code} ↗
@@ -1017,22 +1037,16 @@ function OrderDrawer({
                         ))}
                       </div>
                     )}
-                    {order.deposits.length === 0 && (
-                      <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--ash-2)" }}>Chưa có phiếu thu cọc nào.</p>
-                    )}
                     {!isChotDone ? (
                       <p style={{ color: "var(--ash)", fontSize: 12, margin: "4px 0 0" }}>
                         Đơn phải CHỐT (đủ thông tin) trước — sau chốt kế toán thu cọc ở bước này.
                       </p>
-                    ) : isCocDone ? (
-                      <p style={{ color: "var(--moss-deep)", fontSize: 12, margin: "4px 0 0" }}>
-                        Đã đủ cọc — đơn đã tự xuống hàng chờ Kế hoạch sản xuất.
-                      </p>
-                    ) : canRecordDeposit ? (
+                    ) : isCocDone ? null : canRecordDeposit ? (
                       <DepositForm order={order} onSaved={onSaved} />
                     ) : (
                       <p style={{ color: "var(--ash)", fontSize: 12, margin: "4px 0 0" }}>Chờ kế toán thu cọc.</p>
                     )}
+                    </>)}
                   </div>
                 </div>
  
@@ -1041,7 +1055,17 @@ function OrderDrawer({
                   <div className="dhb__lifecycle-box">
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Sản xuất</h4>
-                      <span className="dhb__sx-goi-y">xong khi mọi món đã đủ hàng</span>
+                      {sxReleased && order.status === "ordered" && (
+                        <span className={`dhb__lifecycle-badge ${sxDone ? "dhb__lifecycle-badge--done" : soMonDongThieu > 0 ? "dhb__lifecycle-badge--do" : sxState === "chay" ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--vang"}`}>
+                          {sxDone ? "Đủ hàng" : soMonDongThieu > 0 ? "Đóng thiếu" : sxState === "chay" ? "Đang chạy" : "Chờ lên lệnh"}
+                        </span>
+                      )}
+                      {sxReleased && order.status === "ordered" && (
+                        <button type="button" className="dhb__td-link dhb__khung-lien-ket"
+                          onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
+                          Mở bàn Kế hoạch sản xuất ↗
+                        </button>
+                      )}
                     </div>
                     {order.status === "cancelled" ? (
                       <p className="dhb__td-note">
@@ -1057,16 +1081,41 @@ function OrderDrawer({
                       </p>
                     ) : (
                       <>
+                        {td && td.cum.length > 0 && (() => {
+                          const mot = td.cum.length === 1 ? td.cum[0] : null;
+                          const lenhAll = td.cum.flatMap((c) => c.lenh);
+                          const chay = lenhAll.filter((l) => !l.xong);
+                          const dangLam = td.cum.reduce((a, c) => a + Math.max(0, c.dat - Math.min(c.dat, coHangCum(c))), 0);
+                          const vuong = new Set(chay.flatMap((l) => l.canh_bao)).size;
+                          return (
+                            <DaiSo o={[
+                              mot
+                                ? { nhan: "Kho đã nhận", so: `${soVN(Math.min(mot.dat, coHangCum(mot)))} / ${soVN(mot.dat)}`,
+                                    dv: mot.don_vi ?? undefined, tone: tt.khoXong ? "ok" : undefined }
+                                : { nhan: "Món đủ hàng", so: `${tt.soMonDuHang} / ${tt.soMon}`, tone: tt.khoXong ? "ok" : undefined },
+                              mot
+                                ? mot.o === "dong_thieu"
+                                  // Lệnh đã đóng: không ai "còn phải làm" nữa — đó là phần THIẾU.
+                                  ? { nhan: "Thiếu", so: soVN(dangLam), dv: mot.don_vi ?? undefined, tone: "chu", phu: "lệnh đã đóng" }
+                                  : { nhan: "Còn phải làm", so: soVN(dangLam), dv: mot.don_vi ?? undefined }
+                                : { nhan: "Món còn thiếu", so: String(tt.soMon - tt.soMonDuHang) },
+                              { nhan: "Lệnh sản xuất", so: String(lenhAll.length),
+                                phu: lenhAll.length === 0 ? "chưa lên lệnh"
+                                  : chay.length === 0 && soMonDongThieu > 0 ? "đã đóng hết"
+                                  : chay.length === 0 ? "đã xong hết"
+                                  : chay.every((l) => l.da_xuong_xuong) ? `${chay.length} đang chạy ở xưởng`
+                                  : `${chay.filter((l) => !l.da_xuong_xuong).length} chưa xuống xưởng` },
+                              { nhan: "Dự kiến xong", vua: true,
+                                so: td.du_kien_xong ? fmtDate(td.du_kien_xong) : soMonDongThieu > 0 ? "đã đóng" : tt.sxXong ? "đã xong" : "chưa ước được",
+                                tone: (td.tre_ngay ?? 0) > 0 || (!td.du_kien_xong && !tt.sxXong && lenhAll.length > 0) ? "chu" : undefined,
+                                phu: (td.tre_ngay ?? 0) > 0 ? `trễ ${td.tre_ngay} ngày so với hạn giao`
+                                  : vuong > 0 ? `${vuong} vướng mắc đang mở`
+                                  : td.du_kien_xong ? "kịp hạn giao" : undefined },
+                            ]} />
+                          );
+                        })()}
                         <BangSanXuatMon td={td}
                           onMoLenh={navigate && can("san_xuat", "read") ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
-                        <button
-                          type="button"
-                          className="link dhb__mono"
-                          style={{ color: "var(--rust)", background: "none", border: 0, padding: 0, cursor: "pointer", fontWeight: 600, justifySelf: "start", alignSelf: "flex-start" }}
-                          onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}
-                        >
-                          Mở bàn Kế hoạch sản xuất ↗
-                        </button>
                       </>
                     )}
                   </div>
@@ -1077,10 +1126,10 @@ function OrderDrawer({
                     <div className="dhb__lifecycle-box-header">
                       <h4 className="dhb__lifecycle-box-title">Giao hàng</h4>
                       <span className={`dhb__lifecycle-badge ${giaoDone ? "dhb__lifecycle-badge--done" : tt.giaoPct > 0 || tt.soYeuCauMo > 0 ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--upcoming"}`}>
-                        {giaoText === "—" ? "CHƯA GIAO" : giaoText.toUpperCase()}
+                        {giaoText === "—" ? "Chưa giao" : giaoText.charAt(0).toUpperCase() + giaoText.slice(1)}
                       </span>
                     </div>
-                    <KV k="Hạn giao cam kết" v={<span className="dhb__mono">{fmtDate(order.delivery_committed_date)}</span>} />
+                    {/* Hạn giao cam kết nằm ở thẻ tóm tắt đầu Vòng đời đơn — không lặp ở đây (10/10/2026). */}
                     <BuocGiaoHang order={order} td={td} taiLai={taiTienDo} onIn={setInYc} navigate={navigate} />
                   </div>
                 </div>
@@ -1295,7 +1344,7 @@ function InvoicePanel({
     : book.uninvoiced_amount > 0
       ? "partial"
       : "full";
-  const stageLabel = stage === "full" ? "ĐÃ GHI ĐỦ" : stage === "partial" ? "ĐÃ GHI MỘT PHẦN" : "CHƯA GHI";
+  const stageLabel = stage === "full" ? "Đã ghi đủ" : stage === "partial" ? "Đã ghi một phần" : "Chưa ghi";
   const depositAlreadyOffset = issued.reduce((sum, item) => sum + item.deposit_offset_amount, 0);
   const depositAvailable = Math.max(0, (book?.deposit_received ?? 0) - depositAlreadyOffset);
   const enteredAmount = Math.max(0, Number(amount || 0));
@@ -1377,7 +1426,7 @@ function InvoicePanel({
     <div className="dhb__lifecycle-box dhb__invoice-panel">
       <div className="dhb__lifecycle-box-header">
         <h4 className="dhb__lifecycle-box-title">Hóa đơn &amp; công nợ</h4>
-        <span className={`dhb__lifecycle-badge ${stage === "full" ? "dhb__lifecycle-badge--done" : stage === "partial" ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--upcoming"}`}>
+        <span className={`dhb__lifecycle-badge ${stage === "full" ? "dhb__lifecycle-badge--done" : stage === "partial" ? "dhb__lifecycle-badge--vang" : "dhb__lifecycle-badge--upcoming"}`}>
           {stageLabel}
         </span>
       </div>
@@ -1388,17 +1437,20 @@ function InvoicePanel({
 
       {book && (
         <>
-          <div className="dhb__invoice-metrics">
-            <div><span>Tổng đơn</span><strong>{vnd(book.order_total)}</strong></div>
-            <div><span>Đã ghi HĐ</span><strong>{vnd(book.invoiced_amount)}</strong></div>
-            <div><span>Chưa ghi HĐ</span><strong>{vnd(book.uninvoiced_amount)}</strong></div>
-            <div><span>Còn phải thu</span><strong>{vnd(outstanding)}</strong></div>
-          </div>
+          <DaiSo o={[
+            { nhan: "Tổng đơn", so: vnd(book.order_total) },
+            { nhan: "Đã ghi hóa đơn", so: vnd(book.invoiced_amount),
+              phu: issued.length > 0 ? `${issued.length} hóa đơn` : undefined },
+            { nhan: "Chưa ghi hóa đơn", so: vnd(book.uninvoiced_amount),
+              tone: book.uninvoiced_amount > 0 ? (stage === "none" ? undefined : "chu") : "ok",
+              phu: book.uninvoiced_amount <= 0 ? "đã ghi đủ" : undefined },
+            { nhan: "Còn phải thu", so: vnd(outstanding), tone: outstanding > 0 ? "chu" : undefined },
+          ]} />
 
           <div className="dhb__invoice-toolbar">
             <p>Chỉ hóa đơn đã ghi nhận mới phát sinh công nợ phải thu.</p>
             {order.status === "ordered" && canCreate && book.uninvoiced_amount > 0 && (
-              <button type="button" className="btn btn--primary" onClick={() => { setFormError(null); setShowCreate(true); }}>
+              <button type="button" className="btn btn--secondary" onClick={() => { setFormError(null); setShowCreate(true); }}>
                 <Icon name="fileText" size={14} /> Ghi nhận hóa đơn
               </button>
             )}
@@ -1498,12 +1550,12 @@ function InvoicePanel({
                 {book.items.length === 0 && <tr><td colSpan={8}>Chưa ghi nhận hóa đơn.</td></tr>}
                 {book.items.map((item) => (
                   <tr key={item.id} className={item.status === "cancelled" ? "is-cancelled" : ""}>
-                    <td><strong>{item.invoice_symbol ? `${item.invoice_symbol} · ` : ""}{item.invoice_number}</strong><small>{item.created_by_name ?? "—"}</small></td>
+                    <td><span className="dhb__hd-so">{item.invoice_symbol && <span>{item.invoice_symbol}</span>}<span>{item.invoice_number}</span></span><small>{item.created_by_name ?? "—"}</small></td>
                     <td>{fmtDate(item.invoice_date)}<small>Hạn {fmtDate(item.due_date)}</small></td>
                     <td>{vnd(item.amount_vnd)}</td>
                     <td>{vnd(item.deposit_offset_amount)}</td>
                     <td>{vnd(item.direct_received_amount)}</td>
-                    <td><strong>{vnd(item.remaining_amount)}</strong></td>
+                    <td>{vnd(item.remaining_amount)}</td>
                     <td>
                       <span className={`dhb__invoice-status ${item.status === "issued" ? "is-issued" : "is-cancelled"}`}>
                         {item.status === "issued" ? "Đã ghi" : "Đã hủy"}

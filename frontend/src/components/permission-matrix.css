@@ -474,3 +474,27 @@
   align-items: center;
   gap: var(--sp-2);
 }
+
+/* Dòng tổ CHA = NHÓM (10/10/2026), y như thanh bên: chỉ tên + mũi tên gập/mở, không công tắc
+   Xem / Phạm vi / chi tiết. Ô tích bên trái bật/tắt hết quyền các tổ lá bên trong. */
+.rdx-perm__row--nhom .rdx-perm__cell--mod {
+  grid-column: 1 / -1;
+}
+.rdx-perm__nhom {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.rdx-perm__nhom-caret {
+  color: var(--ash);
+  transition: transform var(--duration-base) var(--easing-standard);
+}
+.rdx-perm__nhom-caret.is-collapsed {
+  transform: rotate(-90deg);
+}

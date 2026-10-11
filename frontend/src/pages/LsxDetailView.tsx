@@ -80,17 +80,6 @@ const TABS: { key: TabKey; label: string }[] = [
 /** Khớp `MAX_BYTES` của `services/lsx_dinh_kem.py` — máy chủ vẫn là nơi chặn thật. */
 const DINH_KEM_MAX_BYTES = 50 * 1024 * 1024;
 
-const ACTION_LABEL: Record<string, string> = {
-  create_lsx: "Tạo lệnh",
-  update_lsx: "Sửa thông tin",
-  update_lsx_routing: "Sửa công đoạn",
-  update_lsx_danh_muc: "Cập nhật theo danh mục",
-  lsx_trang_thai: "Đổi trạng thái",
-  delete_lsx: "Xoá lệnh",
-  lsx_dinh_kem_them: "Đính kèm tệp",
-  lsx_dinh_kem_xoa: "Xoá tệp đính kèm",
-};
-
 /** Một dòng gọn cho băng vàng: bước này lệch những gì. Bảng cũ → mới đầy đủ nằm trong dialog —
  *  băng chỉ cần đủ để người lập kế hoạch quyết CÓ MỞ RA XEM hay không. */
 function tomTatBuoc(b: DanhMucDoiBuoc): string {
@@ -355,6 +344,28 @@ export function LsxDetailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [d]);
 
+  /** Thẻ việc của lệnh lấy bộ tiêu chí KCS mới của danh mục — đúng các công đoạn bảng cũ → mới
+   *  vừa liệt kê. Không đụng lịch hay phân công. */
+  const [xemTcDoi, setXemTcDoi] = useState(false);
+  const [capNhatTc, setCapNhatTc] = useState(false);
+  const [capNhatTcErr, setCapNhatTcErr] = useState<string | null>(null);
+  const capNhatTieuChi = useCallback(async () => {
+    if (!token) return;
+    setCapNhatTc(true);
+    setCapNhatTcErr(null);
+    try {
+      const r = await api.lsx.capNhatTieuChiKcs(token, lsxId);
+      setD(r);
+      setForm(toForm(r));
+      setXemTcDoi(false);
+      onChanged();
+    } catch (e: unknown) {
+      setCapNhatTcErr(e instanceof ApiError ? e.message : String(e));
+    } finally {
+      setCapNhatTc(false);
+    }
+  }, [token, lsxId, onChanged]);
+
   /** Lấy số mới nhất của danh mục cho CẢ lệnh. Server không xoá dòng vật tư nào và không đụng số
    *  nhân công đã sắp — bảng cũ → mới người dùng vừa đọc là ĐÚNG những gì sẽ ghi. */
   const capNhatTheoDanhMuc = useCallback(async () => {
@@ -501,6 +512,8 @@ export function LsxDetailView({
   const daQuaKeHoach = d?.trang_thai === "da_lap_ke_hoach" || d?.trang_thai === "da_phat_hanh" || d?.trang_thai === "da_dong";
   // Danh mục đã đổi sau lúc lệnh chụp ảnh. `null` = còn khớp hết ⇒ KHÔNG băng, không chỗ trống.
   const dmDoi = d?.danh_muc_doi ?? null;
+  // Tiêu chí KCS đổi sau lúc phát hành — bấm "Cập nhật tiêu chí" mở bảng cũ → mới, đồng ý mới ghi.
+  const tcDoi = d?.tieu_chi_kcs_doi ?? null;
   // QUY CÁCH Ở LỆNH = CHỈ XEM, không chừa ô nào (07/09/2026). Cụm này là thứ đã chốt với khách ở
   // phiếu tính giá — giấy, khổ, cách in, số trang, bleed, khe cắt, bình bài đều là số đã tính ra
   // giá và đã báo. Phiếu tính ra sao thì lệnh chạy y như vậy; gõ lại ở lệnh là lệnh chạy một đằng,
@@ -864,6 +877,38 @@ export function LsxDetailView({
           <p className="khsx-luuy__foot">
             Giữ số cũ KHÔNG chặn gì cả — lệnh vẫn xếp lịch và chạy được. Chỉ là định
             mức đang tính theo bản danh mục lúc bung lệnh.
+          </p>
+        </div>
+      )}
+
+      {/* BĂNG "tiêu chí KCS đã đổi" (09/10/2026) — lệnh ĐÃ phát hành: tiêu chí chép vào thẻ việc lúc
+          phát hành nên khai thêm ở danh mục Tiêu chí KCS thì thẻ việc vẫn giữ bộ cũ. Cùng khuôn băng
+          "Danh mục đã đổi": nút chỉ MỞ bảng cũ → mới, đồng ý trong bảng mới ghi (server soi cùng luật). */}
+      {tcDoi && (
+        <div className="khsx-luuy khsx-dmdoi khsx-tcdoi" role="status">
+          <p className="khsx-luuy__title">
+            <Icon name="listChecks" size={15} />
+            Tiêu chí KCS đã đổi sau lúc phát hành, {tcDoi.so_cong_doan} công đoạn đang giữ bộ cũ
+            {canUpdate && (
+              <span className="khsx-dmdoi__nut">
+                <button type="button" className="khsx-dmdoi__btn" onClick={() => { setCapNhatTcErr(null); setXemTcDoi(true); }}>
+                  Cập nhật tiêu chí
+                </button>
+              </span>
+            )}
+          </p>
+          <ul className="khsx-luuy__list">
+            {tcDoi.cong_doans.map((c) => (
+              <li key={c.cong_viec_id}>
+                <span className="khsx-tcdoi__ten">{c.ten}</span>
+                {c.them.map((x) => <span key={`t${x}`} className="khsx-tcdoi__the">Thêm: {x}</span>)}
+                {c.bo.map((x) => <span key={`b${x}`} className="khsx-tcdoi__the khsx-tcdoi__the--bo">Bỏ: {x}</span>)}
+                {c.doi_thu_tu && <span className="khsx-tcdoi__the">Đổi thứ tự</span>}
+              </li>
+            ))}
+          </ul>
+          <p className="khsx-luuy__foot">
+            Giữ bộ cũ không chặn gì, chỉ là bước KCS cuối sẽ xét theo bộ tiêu chí lúc phát hành.
           </p>
         </div>
       )}
@@ -1421,10 +1466,10 @@ export function LsxDetailView({
                   <div className="khsx-spec__card-icon">
                     <Icon name="grid" size={16} />
                   </div>
-                  <h4 className="khsx-spec__title">Máy tự tính</h4>
+                  <h4 className="khsx-spec__title">Tính từ thông số ở trên</h4>
                   {/* Khối HỆ QUẢ. Không ô nào sửa được ở đây — muốn số khác thì sửa THÔNG SỐ ở
                       khối trên. Sửa xong là mọi số dưới này tính lại, kể cả số ai đó từng gõ tay. */}
-                  <span className="khsx-spec__hint">theo thông số ở trên</span>
+                  <span className="khsx-spec__hint">không sửa ở đây</span>
                 </div>
                 <div className="khsx-spec__card-body">
                   <div className="khsx-kvgrid">
@@ -1439,7 +1484,7 @@ export function LsxDetailView({
                         className="khsx-kv__key"
                         title={dvTo ? `Số con trên 1 ${dvTo}` : undefined}
                       >
-                        Con / tờ in
+                        Sản phẩm trên 1 tờ in
                       </span>
                       <span className="khsx-kv__val khsx-num">
                         {num(Number(form.so_con) || 0)}
@@ -1448,16 +1493,16 @@ export function LsxDetailView({
                     {laSach && (
                       <p className="khsx-nhom__sub khsx-kv--span">{giaiThichSach}</p>
                     )}
-                    <KVSoDv k="Số mảnh xả" v={n("so_manh_xa")} />
-                    <KVSoDv k="Số kẽm" v={n("so_kem")} />
-                    <KVSoDv k="Số lượt in" v={n("so_luot")} />
+                    <KVSoDv k="1 tờ nguyên xả thành" dv={dvTo} v={n("so_manh_xa")} />
+                    <KVSoDv k="Kẽm cần ra" v={n("so_kem")} />
+                    <KVSoDv k="Lượt chạy máy" v={n("so_luot")} />
                     {/* NHÃN nói CHẶNG, ĐƠN VỊ đi với con số — cùng luật với thanh KPI. Trước đây
                         nhãn lấy thẳng tên đơn vị nên lệnh KHÔNG có bước xả (tờ nguyên = tờ in) đẻ
                         ra hai dòng "SỐ TỜ CHẠY MÁY KẾ HOẠCH" và "SỐ TỜ CHẠY MÁY" cùng một con số —
                         nhìn như một chỗ bị lặp, trong khi chúng là hai chặng khác nhau. */}
-                    <KVSoDv k="Vào máy" dv={dvTo} v={d.so_to_ke_hoach} />
-                    <KVSoDv k="Giấy nguyên" dv={dvToNguyen} v={d.so_to_nguyen} />
-                    <KVSoDv k="Số bài in" dv={dvTay} v={n("so_to_per_sp") || 1} />
+                    <KVSoDv k="Tờ in chạy máy" dv={dvTo} v={d.so_to_ke_hoach} />
+                    <KVSoDv k="Giấy nguyên lấy kho" dv={dvToNguyen} v={d.so_to_nguyen} />
+                    <KVSoDv k="Số bài in cho 1 sản phẩm" dv={dvTay} v={n("so_to_per_sp") || 1} />
                     {/* GỠ 07/09/2026: ô "Cách bình" (`con_auto`). Nó chỉ nói ENGINE đã bình bài kiểu
                         nào — máy tự xếp hay ép đúng số con khai ở phiếu tính giá — mà kết quả của cả
                         hai kiểu đã nằm ngay ô "Con / tờ in" phía trên. Ở lệnh thì không ai chọn được
@@ -1636,9 +1681,10 @@ export function LsxDetailView({
                     <Timeline
                       emptyText="Chưa có hoạt động."
                       items={acts.map((a) => ({
-                        title: a.detail || ACTION_LABEL[a.action] || a.action,
-                        meta: `${a.actor_name ?? "—"} · ${ngayGio(a.at)}`,
-                        accent: a.action === "create_lsx" || a.action === "lsx_trang_thai",
+                        title: a.tieu_de,
+                        tags: a.buoc ? [a.buoc, ...a.the] : a.the,
+                        meta: `${a.actor_name ?? "—"} · ${a.at ? ngayGio(a.at) : "—"}`,
+                        tone: a.tone ?? undefined,
                       }))}
                     />
                   )}
@@ -1668,6 +1714,56 @@ export function LsxDetailView({
           onMoNhaCungCap={navigate ? () => { setMoTronGoi(false); navigate("nha-cung-cap"); } : undefined}
         />
       )}
+
+      {/* Bảng tiêu chí CŨ → MỚI của băng "Tiêu chí KCS đã đổi". Mỗi câu một dòng: đang giữ có hay
+          chưa, danh mục nay có hay đã bỏ. */}
+      <ConfirmDialog
+        open={xemTcDoi && !!tcDoi}
+        wide
+        title={`Lấy tiêu chí KCS mới cho ${d.ma}?`}
+        confirmLabel="Đồng ý cập nhật"
+        cancelLabel="Để nguyên bộ cũ"
+        busy={capNhatTc}
+        error={capNhatTcErr}
+        onConfirm={capNhatTieuChi}
+        onCancel={() => { setXemTcDoi(false); setCapNhatTcErr(null); }}
+      >
+        <div className="khsx-dmdoi__bang">
+          {(tcDoi?.cong_doans ?? []).map((c) => {
+            const dong = [...c.moi, ...c.bo];
+            return (
+              <section key={c.cong_viec_id} className="khsx-dmdoi__buoc">
+                <h4>
+                  {c.ten}
+                  {c.da_bat_dau && <span className="khsx-tcdoi__the khsx-tcdoi__the--chay">Đang làm</span>}
+                </h4>
+                <table className="khsx-dmdoi__tbl khsx-tcdoi__tbl">
+                  <thead>
+                    <tr><th>Tiêu chí</th><th>Đang giữ</th><th>Danh mục nay</th></tr>
+                  </thead>
+                  <tbody>
+                    {dong.map((x, i) => {
+                      const cu = c.cu.indexOf(x);
+                      const moi = c.moi.indexOf(x);
+                      return (
+                        <tr key={`${i}${x}`}>
+                          <td>{x}</td>
+                          <td className={cu >= 0 ? undefined : "khsx-tcdoi__trong"}>{cu >= 0 ? `Số ${cu + 1}` : "chưa có"}</td>
+                          <td className={moi >= 0 ? undefined : "khsx-tcdoi__trong"}>{moi >= 0 ? `Số ${moi + 1}` : "bỏ"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </section>
+            );
+          })}
+          <p className="khsx-dmdoi__foot">
+            Chỉ đổi bộ tiêu chí bước KCS cuối xét. Không đổi lịch, không huỷ phân công, tổ không phải
+            xác nhận lại. Công đoạn mà tiêu chí đã có kết quả kiểm thì giữ bộ cũ và không nằm trong bảng này.
+          </p>
+        </div>
+      </ConfirmDialog>
 
       {/* Bảng CŨ → MỚI. Bấm "Cập nhật theo danh mục" ở băng chỉ MỞ cái này; ghi thật là nút trong
           đây. Người lập kế hoạch phải nhìn thấy định mức đổi từ đâu sang đâu trước khi đồng ý. */}

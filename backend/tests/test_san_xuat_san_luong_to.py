@@ -19,15 +19,14 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from app.models.employee import Employee
+from app.models.lsx import Lsx
 from app.models.role import SCOPE_OWN
 from app.models.san_xuat import SanXuatCongViec
-from app.models.san_xuat_phan_bo import HT_CHO_HAI_BEN, HT_XAC_NHAN, SanXuatHoTro
-from app.models.san_xuat_san_luong import SanXuatBatch
+from app.models.san_xuat_san_luong import SanXuatBatch, SanXuatBatchNguoi
 from app.models.user import User
 from app.services.gio_xuong import ve_utc_that
 from app.services.san_xuat import san_luong_to
 from tests.quyen_to_fixtures import cap_quyen_to
-from tests.san_xuat_me_fixtures import khoang
 from tests.test_san_xuat_thuc_thi import (  # noqa: F401
     _cvs,
     _phat_hanh_vao_to,
@@ -50,13 +49,16 @@ def _gio_xuong(y, m, d, h=8, mi=0) -> datetime:
 
 
 def _me(db, cv, bat_dau, tot, hong=0, don_vi="tờ", viec=None, *co_mat) -> SanXuatBatch:
-    """`co_mat` = người có khoảng tham gia phủ trọn mẻ."""
+    """`co_mat` = người tổ tick làm lần ghi này (ảnh chụp `san_xuat_batch_nguoi`); người khác tổ
+    của bước là người hỗ trợ."""
     b = SanXuatBatch(cong_viec_id=cv.id, bat_dau=bat_dau, ket_thuc=bat_dau + timedelta(hours=1),
                      tong=tot + hong, tot=tot, hong=hong, don_vi=don_vi, ten_khoan_snapshot=viec)
     db.add(b)
     db.flush()
     for e in co_mat:
-        khoang(db, cv, e, b.bat_dau, b.ket_thuc)
+        db.add(SanXuatBatchNguoi(batch_id=b.id, employee_id=e.id, department_id=e.department_id,
+                                 la_ho_tro=e.department_id != cv.department_id))
+    db.flush()
     return b
 
 
@@ -173,45 +175,19 @@ def test_me_mot_chu_to_khach_thay_cung_so_nhung_khong_cong_vao_tong(db, admin, x
     assert 140 + 200 == xuong_tong["tờ"]
 
 
-def _ho_tro(db, cv, emp, ngay, trang_thai=HT_XAC_NHAN) -> SanXuatHoTro:
-    h = SanXuatHoTro(cong_viec_id=cv.id, employee_id=emp.id, to_goc_id=emp.department_id,
-                     to_thuc_hien_id=cv.department_id, ngay_lam_viec=ngay, trang_thai=trang_thai)
-    db.add(h)
-    db.flush()
-    return h
-
-
-def test_nguoi_sang_giup_qua_ho_tro_cheo_khong_co_khoang_van_co_mat(db, admin, xuong):
-    """Ô "Giao người" chỉ bày người trong tổ ⇒ người tổ khác vào mẻ bằng HỖ TRỢ CHÉO, không có
-    khoảng tham gia. Thỏa thuận đủ hai bên xác nhận, đúng công việc + đúng NGÀY xưởng của mẻ ⇒ có
-    mặt: tổ chủ thấy tên kèm nhãn tổ gốc, tổ của người đi giúp thấy mẻ ở mục khách (cùng số, không
-    cộng tổng). Lệch ngày hoặc chưa đủ hai bên thì không."""
-    cv_b = db.get(SanXuatCongViec, xuong["m4"].cong_viec_id)
-    tho_in, tho_in2, tho_cat = xuong["tho_in"], xuong["tho_in2"], xuong["tho_cat"]
-    m5 = _me(db, cv_b, _gio_xuong(2026, 9, 10), 300, 0, "tờ", "Cắt thành phẩm", tho_cat)
-    m6 = _me(db, cv_b, _gio_xuong(2026, 9, 11), 40, 0, "tờ", "Cắt thành phẩm", tho_cat)
-    _ho_tro(db, cv_b, tho_in2, date(2026, 9, 10))                       # đúng ngày m5
-    _ho_tro(db, cv_b, tho_in, date(2026, 9, 12))                        # lệch ngày m6
-    _ho_tro(db, cv_b, tho_in, date(2026, 9, 11), HT_CHO_HAI_BEN)        # chưa đủ hai bên
+def test_nguoi_doi_to_sau_lan_ghi_van_tinh_cho_to_luc_ghi(db, admin, xuong):
+    """Người làm là ẢNH CHỤP lúc ghi (mg 0386): thợ in sang hẳn Tổ cắt sau đó thì lần ghi họ đã
+    giúp Tổ cắt vẫn hiện ở mục khách của Tổ in, nhãn tổ gốc vẫn là Tổ in."""
+    xuong["tho_in2"].department_id = xuong["to_cat"].id
     db.commit()
-
-    to_cat = _xem(db, admin, xuong["x"].id, to_id=xuong["to_cat"].id)
-    me_cat = {m["batch_id"]: m for m in _lenh(to_cat, xuong["b"])["cong_doan"][0]["me"]}
-    assert {n["employee_id"]: n["to_ten"] for n in me_cat[m5.id]["nguoi"]} == {
-        tho_cat.id: None, tho_in2.id: xuong["to_in"].name}
-    assert [n["employee_id"] for n in me_cat[m6.id]["nguoi"]] == [tho_cat.id]
 
     to_in = _xem(db, admin, xuong["x"].id, to_id=xuong["to_in"].id)
     cd_khach = _lenh(to_in, xuong["b"])["cong_doan"][0]
-    assert cd_khach["la_khach"] is True
-    assert sorted((m["batch_id"], m["tot"]) for m in cd_khach["me"]) == sorted(
-        [(xuong["m4"].id, 200.0), (m5.id, 300.0)])
-    assert {t["don_vi"]: t["tot"] for t in to_in["tong"]} == {"tờ": 140, "cái": 7}
-
-    # Thợ chỉ "Của tôi" cũng thấy mẻ mình sang giúp — và chỉ mẻ đó.
-    rieng = _xem(db, xuong["tho2"], xuong["to_in"].id)
-    ids = {m["batch_id"] for l in rieng["lenh"] for c in l["cong_doan"] for m in c["me"]}
-    assert m5.id in ids and m6.id not in ids
+    assert [m["batch_id"] for m in cd_khach["me"]] == [xuong["m4"].id]
+    to_cat = _xem(db, admin, xuong["x"].id, to_id=xuong["to_cat"].id)
+    m4 = _lenh(to_cat, xuong["b"])["cong_doan"][0]["me"][0]
+    assert {n["employee_id"]: n["to_ten"] for n in m4["nguoi"]} == {
+        xuong["tho_cat"].id: None, xuong["tho_in2"].id: xuong["to_in"].name}
 
 
 def test_ngay_la_ngay_bat_dau_me_theo_gio_xuong(db, admin, xuong):
@@ -304,3 +280,45 @@ def test_lenh_mang_giay_va_ba_kho_tach_dai_rong(db, admin, xuong):
     assert qc["to_nguyen"] == {"dai": 790, "rong": 1090}
     assert qc["to_in"] == {"dai": 785, "rong": 595}
     assert qc["con"] == {"dai": 200, "rong": 150}
+
+
+def test_nut_loc_cong_doan_nguoi_phat_sinh_loai_gap(db, admin, xuong):
+    """Nút "Lọc" (10/10/2026): điều kiện tầng mẻ lọc cả trang lệnh lẫn dòng mẻ; tầng lệnh chỉ chọn lệnh."""
+    from app.models.san_xuat_san_luong import SanXuatBatchPhatSinh
+
+    cv_a = db.get(SanXuatCongViec, xuong["m1"].cong_viec_id)
+    cv_b = db.get(SanXuatCongViec, xuong["m4"].cong_viec_id)
+    cv_b.ten_cong_doan = "Cắt thành phẩm"
+    db.add(SanXuatBatchPhatSinh(batch_id=xuong["m2"].id, phat_sinh_id=1, so_luong=1,
+                                ten_snapshot="Thay kẽm", don_vi_snapshot="kem", don_gia_snapshot=0))
+    db.commit()
+    x = xuong["x"].id
+
+    def me_ids(res):
+        return {m["batch_id"] for l in res["lenh"] for c in l["cong_doan"] for m in c["me"]}
+
+    res = _xem(db, admin, x)
+    assert "Cắt thành phẩm" in res["lua_chon"]["cong_doan"]
+    assert cv_a.ten_cong_doan in res["lua_chon"]["cong_doan"]
+    assert {n["id"] for n in res["lua_chon"]["nguoi"]} >= {
+        xuong["tho_in"].id, xuong["tho_in2"].id, xuong["tho_cat"].id}
+
+    res = _xem(db, admin, x, cong_doan=["Cắt thành phẩm"])
+    assert res["tong_lenh"] == 1 and me_ids(res) == {xuong["m4"].id}
+
+    # Người tham gia: thợ in 2 có mặt ở m1 (Tổ in) và m4 (sang giúp Tổ cắt) — m2, m3 bị lọc khỏi dòng.
+    res = _xem(db, admin, x, nguoi=[xuong["tho_in2"].id])
+    assert me_ids(res) == {xuong["m1"].id, xuong["m4"].id}
+
+    assert me_ids(_xem(db, admin, x, phat_sinh="co")) == {xuong["m2"].id}
+    assert xuong["m2"].id not in me_ids(_xem(db, admin, x, phat_sinh="khong"))
+
+    assert _xem(db, admin, x, loai="bai_ghep")["tong_lenh"] == 0
+    assert _xem(db, admin, x, loai="lsx")["tong_lenh"] == 2
+
+    a = db.get(Lsx, xuong["a"].id)
+    a.is_rush = True
+    db.commit()
+    res = _xem(db, admin, x, gap="gap")
+    assert [l["nguon_id"] for l in res["lenh"]] == [a.id]
+    assert [l["nguon_id"] for l in _xem(db, admin, x, gap="thuong")["lenh"]] == [xuong["b"].id]

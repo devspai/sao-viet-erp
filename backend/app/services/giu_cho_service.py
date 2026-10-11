@@ -52,9 +52,10 @@ from ..doi_tuong_nhan import MAN_KHVT, MAN_THEO_LENH, hop
 from ..realtime import hub
 from .can_doi_cache import xoa_cache_can_doi
 from ..repositories.giu_cho_repo import GiuChoRepository
-from .kho_giay import Khoa
+from .kho_giay import Khoa, co_don_vi_goc
 
-#: Khoá giữ chỗ = khoá tồn (loai, id, kho_rong, kho_dai) — vật tư và giấy cuộn khổ 0 · 0.
+#: Khoá giữ chỗ = khoá tồn (loai, id, kho_rong, kho_dai, don_vi_goc) — vật tư `(loai, id, 0, 0, gốc)`
+#: (mg 0390); giấy tách theo khổ + đơn vị gốc (tờ và kg cùng khổ là hai món, không giữ chéo).
 Hang = Khoa
 
 #: Giữ quá ngần này ngày mà chưa đưa vào kế hoạch ⇒ vào danh sách "giữ lâu chưa chạy".
@@ -101,13 +102,16 @@ def _f(v) -> float:
 
 def _k_dong(r) -> Hang:
     """Khoá của một dòng `VatTuGiuCho`."""
-    return (r.hang_loai, int(r.hang_id), int(r.kho_rong or 0), int(r.kho_dai or 0))
+    return (r.hang_loai, int(r.hang_id), int(r.kho_rong or 0), int(r.kho_dai or 0),
+            (r.don_vi_goc or "").strip().lower())
 
 
 def _k_nhom(nhom: dict) -> Hang:
-    """Khoá của một nhóm bảng cân đối — nhóm đã là (mã, khổ)."""
+    """Khoá của một nhóm bảng cân đối — nhóm đã là (mã, khổ, đơn vị gốc); giấy + vật tư mang đơn vị
+    gốc, hàng khác gốc "" ."""
+    goc = (nhom.get("don_vi_goc") or "").strip().lower() if co_don_vi_goc(nhom["hang_loai"]) else ""
     return (nhom["hang_loai"], int(nhom["hang_id"]), int(nhom.get("kho_rong") or 0),
-            int(nhom.get("kho_dai") or 0))
+            int(nhom.get("kho_dai") or 0), goc)
 
 
 def _aware(dt: datetime) -> datetime:
@@ -318,8 +322,7 @@ class GiuChoService:
             lsx_id, bg_id = chu
             tt = tt_by_chu[chu]
             hangs = list(o["hang"].values())
-            for h in hangs:
-                k = (h["hang_loai"], h["hang_id"], h["kho_rong"], h["kho_dai"])
+            for k, h in o["hang"].items():
                 h["dang_giu"] = round(_f(tt["dang_giu"].get(k)), 4)
                 h["can"] = round(h["can"], 4)
                 h["thieu"] = round(h["thieu"], 4)
@@ -453,7 +456,7 @@ class GiuChoService:
                 hang.setdefault(k, {
                     "hang_loai": k[0], "hang_id": k[1], "kho_rong": k[2], "kho_dai": k[3],
                     "hang_ma": getattr(obj, "ma", None), "hang_ten": getattr(obj, "ten", None),
-                    "don_vi_goc": getattr(obj, "don_vi_gia", None),
+                    "don_vi_goc": k[4] or getattr(obj, "don_vi_gia", None),
                     # `can = 0` là ĐÚNG, không phải thiếu dữ liệu: lệnh đã rơi khỏi kế hoạch nên
                     # hệ không còn biết nó cần bao nhiêu. Chỉ `dang_giu` là có thật.
                     "can": 0.0, "thieu": 0.0, "dang_giu": 0.0, "so_buoc": 0,
@@ -534,8 +537,8 @@ class GiuChoService:
                 if d.get("trang_thai") == "do":
                     h["khoa_do"].append({
                         "hang_loai": hang[0], "hang_id": hang[1],
-                        # Khổ là một phần khoá dòng của bảng cân đối (`_khoa_dong`).
-                        "kho_rong": hang[2], "kho_dai": hang[3],
+                        # Khổ + đơn vị gốc là một phần khoá dòng của bảng cân đối (`_khoa_dong`).
+                        "kho_rong": hang[2], "kho_dai": hang[3], "don_vi_goc": hang[4],
                         "lsx_id": d.get("lsx_id"), "bai_ghep_id": d.get("bai_ghep_id"),
                         "buoc_id": d.get("buoc_id"),
                     })
@@ -804,7 +807,8 @@ class GiuChoService:
         Cũ nhất trước (`created_at` tăng dần) — cùng luật "cam kết cũ được bảo vệ" của mọi chỗ nhả
         khác trong file này. Cố ý KHÔNG neo theo `purchase_request_line_id` cụ thể: giữ chỗ chỉ ăn
         theo (mặt hàng, số lượng), không đích danh lô/dòng phiếu nào (luật ② docstring model).
-        `hang` là khoá tồn 4 phần tử — giấy tờ nhập khổ nào chỉ chuyển phần hứa của đúng khổ đó.
+        `hang` là khoá tồn 5 phần tử — giấy nhập khổ + đơn vị gốc nào chỉ chuyển phần hứa của đúng
+        khoá đó.
 
         `commit=False`: người gọi đang giữa một giao dịch của chính nó (ghi sổ phiếu) — KHÔNG commit
         hộ, và tự gọi `sau_ghi_so()` sau khi CHÍNH nó commit.
@@ -817,6 +821,7 @@ class GiuChoService:
             self.db.query(VatTuGiuCho)
             .filter(VatTuGiuCho.hang_loai == hang[0], VatTuGiuCho.hang_id == hang[1],
                     VatTuGiuCho.kho_rong == hang[2], VatTuGiuCho.kho_dai == hang[3],
+                    VatTuGiuCho.don_vi_goc == hang[4],
                     VatTuGiuCho.nguon == NGUON_DANG_VE)
             .order_by(VatTuGiuCho.created_at.asc())
             .all()
@@ -836,7 +841,7 @@ class GiuChoService:
                 r.so_luong = round(_f(r.so_luong) - bot, 2)
                 self.db.add(VatTuGiuCho(
                     hang_loai=hang[0], hang_id=hang[1], kho_rong=hang[2], kho_dai=hang[3],
-                    lsx_id=r.lsx_id,
+                    don_vi_goc=hang[4], lsx_id=r.lsx_id,
                     bai_ghep_id=r.bai_ghep_id, so_luong=bot, nguon=NGUON_KHO, ngay_ve=None,
                     purchase_request_line_id=None,
                 ))
@@ -1146,7 +1151,7 @@ class GiuChoService:
               purchase_request_line_id: int | None = None) -> VatTuGiuCho:
         return VatTuGiuCho(
             hang_loai=hang[0], hang_id=hang[1], kho_rong=hang[2], kho_dai=hang[3],
-            lsx_id=chu[0], bai_ghep_id=chu[1],
+            don_vi_goc=hang[4], lsx_id=chu[0], bai_ghep_id=chu[1],
             so_luong=round(sl, 2), nguon=nguon, ngay_ve=ngay,
             purchase_request_line_id=purchase_request_line_id,
         )

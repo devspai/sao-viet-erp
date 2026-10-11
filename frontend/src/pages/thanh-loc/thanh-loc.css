@@ -12,8 +12,9 @@
 .tl-nut--ky { font-weight: 500; }
 .tl-nut__phu { color: var(--ash-2); font-size: var(--fs-xs); font-weight: 400; }
 .tl-nut__mui { color: var(--ash-2); }
-.tl-nut--chu { border-color: transparent; background: none; color: var(--ash); }
-.tl-nut--chu.is-mo { border-color: var(--rule); background: var(--canvas); }
+/* Số điều kiện đang áp trên nút Lọc (mockup ban-to-ngan-A-tinh-chinh). */
+.tl-nut__so { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--ink); color: var(--canvas); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
 
 .tl-nut-chu { border: 0; background: none; padding: 0 6px; height: 30px; font: inherit; font-size: var(--fs-sm); color: var(--ash);
   text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; cursor: pointer; white-space: nowrap; }
@@ -23,13 +24,23 @@
 .tl-nut-chinh:hover { background: var(--rust-deep); }
 .tl-nut-chinh:disabled { opacity: .5; cursor: default; }
 
-/* khối điều kiện đã áp: trường | giá trị | × */
-.tl-dk { display: inline-flex; align-items: stretch; height: 32px; max-width: 100%; border: 1px solid var(--rule);
+/* Hàng điều kiện đã áp: trong `.tl-thanh` (thanh công cụ xuống dòng được) rớt xuống dòng riêng dưới
+   thanh; khung khác thì tan vào thanh như các nút. */
+.tl-hang-dk { display: contents; }
+.tl-thanh > .tl-hang-dk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; order: 99; flex: 1 0 100%; min-width: 0; }
+.tl-xoa { border: 0; background: none; padding: 0 4px; font: inherit; font-size: var(--fs-sm); color: var(--tt-xanh-fg);
+  white-space: nowrap; cursor: pointer; }
+.tl-xoa:hover { text-decoration: underline; }
+
+/* khối điều kiện đã áp: icon trường | là | giá trị | × */
+.tl-dk { display: inline-flex; align-items: stretch; height: 32px; max-width: 100%; border: 1px solid var(--rule-soft);
   border-radius: var(--r-3); background: var(--canvas); font-size: var(--fs-sm); overflow: hidden; white-space: nowrap; }
 .tl-dk.is-mo { border-color: var(--ink); }
-.tl-dk > * + * { border-left: 1px solid var(--rule-soft); }
-.tl-dk__truong { display: inline-flex; align-items: center; padding: 0 9px; color: var(--ash-2); }
-.tl-dk__gt { min-width: 0; max-width: 240px; padding: 0 9px; border: 0; background: none; font: inherit; font-weight: 600;
+.tl-dk > * + * { border-left: 1px solid var(--rule-hair); }
+.tl-dk__truong { display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; color: var(--ash); }
+.tl-dk__truong > svg { flex: none; color: var(--ash-2); }
+.tl-dk__la { display: inline-flex; align-items: center; padding: 0 9px; color: var(--ash-2); }
+.tl-dk__gt { min-width: 0; max-width: 240px; padding: 0 9px; border: 0; background: none; font: inherit; font-weight: 400;
   color: var(--ink); overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .tl-dk__gt:hover, .tl-dk__bo:hover { background: var(--rule-hair); }
 .tl-dk__bo { display: inline-grid; place-items: center; width: 30px; padding: 0; border: 0; background: none; color: var(--ash-2); cursor: pointer; }
@@ -114,10 +125,3 @@
 @media (max-width: 640px) {
   .tl-thanh > .khsx__search, .tl-thanh > .lsc-search, .tl-thanh > .kh__search, .tl-thanh > .purchase__search-wrap, .tl-thanh > .q-search, .tl-thanh > .ptg-search, .tl-thanh > .dhb__search-wrapper, .tl-thanh > .rc__search-wrapper, .tl-thanh > .kt-tim, .tl-thanh > .acct-toolbar__search-wrap, .tl-thanh > .ns-search-wrapper, .tl-thanh > .rdx-tree__search, .tl-thanh > .nq-search, .tl-thanh > .lg-search-wrapper, .tl-thanh > .act-search, .tl-thanh > .ts-tim, .tl-thanh > .thsx-search, .tl-thanh > .kkb-searchbox, .tl-thanh > .cc-sp-search { flex-basis: 100%; max-width: none; }
 }
-
-/* Màn XƯỞNG (bàn tổ, 06/10/2026 — memory "đa vai"): người đứng máy bấm bằng tay to, nhìn từ xa ⇒
-   nút kỳ / nút Lọc / khối điều kiện cao 40px, chữ lớn hơn. Đặt `tl--xuong` lên thanh công cụ. */
-.tl--xuong .tl-nut { height: 40px; padding: 0 14px; font-size: var(--fs-lg); }
-.tl--xuong .tl-dk { height: 40px; font-size: var(--fs-lg); }
-.tl--xuong .tl-nut-chu { height: 40px; font-size: var(--fs-lg); }
-.tl--xuong .tl-dong { min-height: 40px; }

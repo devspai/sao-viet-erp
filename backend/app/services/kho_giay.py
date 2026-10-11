@@ -1,12 +1,19 @@
-"""Khổ + dạng của giấy (spec 2026-10-01-giay-dem-to-theo-kho). MỘT nơi chuẩn hoá — đừng tự min/max."""
+"""Khổ + đơn vị gốc của giấy (spec 2026-10-01-giay-dem-to-theo-kho; bỏ dạng cuộn/tờ 10/10/2026).
+MỘT nơi chuẩn hoá — đừng tự min/max."""
 from __future__ import annotations
 
-DANG_TO = "to"
-DANG_CUON = "cuon"
-DANG_GIAY = (DANG_TO, DANG_CUON)
+#: Khoá so tồn / giữ chỗ / nhu cầu: (hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc).
+#: Giấy KHÔNG còn DẠNG cuộn/tờ (chủ chốt 10/10/2026): một mã giấy tách theo KHỔ + ĐƠN VỊ GỐC của dòng.
+#: Vật tư khác (cả thành phẩm — kho mang `vat_tu`) tách theo ĐƠN VỊ GỐC, khổ 0 · 0 (mg 0390). Đơn vị
+#: gốc = đơn vị đã khai ở danh mục mà nhóm của nó chứa ĐVT dòng (`GocMatHang`). Hàng khác: "".
+Khoa = tuple[str, int, int, int, str]
 
-#: Khoá so tồn / giữ chỗ / nhu cầu: (hang_loai, hang_id, kho_rong, kho_dai).
-Khoa = tuple[str, int, int, int]
+#: `hang_loai` mà dòng kho / mua / nhu cầu mang ĐƠN VỊ GỐC (danh mục khai được nhiều đơn vị).
+CO_DON_VI_GOC = frozenset({"giay", "vat_tu"})
+
+
+def co_don_vi_goc(hang_loai: str | None) -> bool:
+    return hang_loai in CO_DON_VI_GOC
 
 
 def _mm(x) -> int:
@@ -25,39 +32,102 @@ def chuan_kho(a, b) -> tuple[int, int]:
     return (x or y, 0)
 
 
-def dang_tu_kho(kho_rong: int, kho_dai: int) -> str:
-    """Đủ hai cạnh ⇒ tờ, còn lại ⇒ cuộn. Chỉ dùng để ĐIỀN SẴN (chép từ dòng mua sang yêu cầu nhập)."""
-    return DANG_TO if kho_rong and kho_dai else DANG_CUON
+def _goc(goc) -> str:
+    return (goc or "").strip().lower()
 
 
-def khoa_ton(hang_loai: str, hang_id: int, *, dang: str | None = None,
+def khoa_ton(hang_loai: str, hang_id: int, *, goc: str | None = None,
              kho_rong=0, kho_dai=0) -> Khoa:
-    """Vật tư: (loai, id, 0, 0). Giấy tờ: (giay, id, rộng, dài). Giấy cuộn: (giay, id, 0, 0) — cuộn
-    gom theo mã, khổ rộng chỉ để xem. Giấy tờ thiếu khổ cũng ra (giay, id, 0, 0): nơi cần TỜ phải hỏi
-    `la_khoa_to` trước khi tra tồn."""
+    """Giấy: (giay, id, rộng, dài, đơn vị gốc) — khổ chỉ-rộng là (rộng, 0) và KHÔNG khớp khổ hai
+    cạnh; cùng khổ khác đơn vị gốc (tờ vs kg) là hai món. Vật tư: (vat_tu, id, 0, 0, đơn vị gốc).
+    Hàng khác: (loai, id, 0, 0, "")."""
+    if hang_loai == "vat_tu":
+        return ("vat_tu", int(hang_id), 0, 0, _goc(goc))
     if hang_loai != "giay":
-        return (hang_loai, int(hang_id), 0, 0)
+        return (hang_loai, int(hang_id), 0, 0, "")
     kr, kd = chuan_kho(kho_rong, kho_dai)
-    if (dang or dang_tu_kho(kr, kd)) == DANG_CUON:
-        return ("giay", int(hang_id), 0, 0)
-    return ("giay", int(hang_id), kr, kd)
+    return ("giay", int(hang_id), kr, kd, _goc(goc))
 
 
-def la_khoa_to(k) -> bool:
-    return len(k) == 4 and k[0] == "giay" and k[2] > 0 and k[3] > 0
-
-
-def khoa_dong(hang_loai: str, hang_id: int, dang: str | None, kho_rong=0, kho_dai=0) -> tuple:
-    """Khoá CHỐNG TRÙNG dòng trên một chứng từ (yêu cầu kho, phiếu, đề nghị cấp): cùng mã khác dạng/khổ
-    là hai dòng hợp lệ."""
+def khoa_dong(hang_loai: str, hang_id: int, goc: str | None, kho_rong=0, kho_dai=0) -> tuple:
+    """Khoá CHỐNG TRÙNG dòng trên một chứng từ (yêu cầu kho, phiếu, đề nghị cấp): cùng mã khác
+    khổ / khác đơn vị gốc là hai dòng hợp lệ (vật tư: cùng mã khác đơn vị gốc)."""
+    if hang_loai == "vat_tu":
+        return ("vat_tu", int(hang_id), _goc(goc) or None, 0, 0)
     if hang_loai != "giay":
         return (hang_loai, int(hang_id), None, 0, 0)
     kr, kd = chuan_kho(kho_rong, kho_dai)
-    return ("giay", int(hang_id), dang or dang_tu_kho(kr, kd), kr, kd)
+    return ("giay", int(hang_id), _goc(goc), kr, kd)
+
+
+def don_vi_khai(obj) -> list[str]:
+    """Danh sách đơn vị KHAI ở danh mục của một mã: ĐVT chính (`don_vi_gia`) rồi `don_vi_them`, chữ
+    thường, bỏ rỗng / trùng. Mỗi đơn vị là gốc của một nhóm quy đổi (spec 2026-10-10 nhiều ĐVT)."""
+    ra: list[str] = []
+    for u in [getattr(obj, "don_vi_gia", None), *(getattr(obj, "don_vi_them", None) or [])]:
+        g = _goc(u)
+        if g and g not in ra:
+            ra.append(g)
+    return ra
+
+
+class GocMatHang:
+    """ĐƠN VỊ GỐC của một dòng (giấy / vật tư) suy từ ĐVT dòng + danh sách đơn vị đã khai — MỘT luật
+    cho kho, mua hàng, kế hoạch vật tư (spec 2026-10-10-mat-hang-nhieu-don-vi-tinh): gốc là đơn vị đã
+    khai mà nhóm quy đổi của nó (module Đơn vị) chứa ĐVT dòng; không thuộc nhóm nào ⇒ None (người gọi
+    chặn "đơn vị chưa khai"). Mã chặng tờ của lệnh (`to_nguyen`) tính như `to`. Dựng một lần mỗi lượt
+    (đọc bảng đơn vị + cặp)."""
+
+    def __init__(self, dvs: dict, cap_rows) -> None:
+        self._dvs, self._cap = dvs, list(cap_rows or [])
+        self._ho: dict[str, frozenset] = {}
+
+    @classmethod
+    def tu_db(cls, db) -> "GocMatHang":
+        from ..repositories.don_vi_do_repo import DonViDoRepository
+        from .quy_doi_service import don_vi_map
+
+        repo = DonViDoRepository(db)
+        return cls(don_vi_map(repo.all_rows()), repo.cap_rows())
+
+    def ho(self, goc: str) -> frozenset:
+        """Mã + tên (chữ thường) mọi đơn vị đổi được về `goc`."""
+        g = _goc(goc)
+        if g not in self._ho:
+            from .quy_doi_service import don_vi_dung_duoc
+
+            ds = don_vi_dung_duoc(g, self._dvs, self._cap, None)
+            ten = {_goc(d.get("ten")) for d in ds if d.get("ten")}
+            self._ho[g] = frozenset({_goc(d["ma"]) for d in ds} | ten | {g})
+        return self._ho[g]
+
+    def goc(self, dvt: str | None, khai) -> str | None:
+        """`khai`: danh sách đơn vị đã khai (`don_vi_khai`). ĐVT trống ⇒ ĐVT chính."""
+        ds = [g for g in (_goc(u) for u in (khai or [])) if g]
+        m = _goc(dvt)
+        if not m:
+            return ds[0] if ds else None
+        if la_ma_to_giay(m):
+            m = DON_VI_TO_KHO
+        for u in ds:
+            if m == u or m in self.ho(u):
+                return u
+        return None
+
+    def cung_nhom(self, a: str | None, b: str | None) -> bool:
+        """Hai đơn vị cùng một nhóm quy đổi (khai thêm đơn vị cùng nhóm là thừa — bị chặn)."""
+        x, y = _goc(a), _goc(b)
+        if not x or not y:
+            return False
+        if la_ma_to_giay(x):
+            x = DON_VI_TO_KHO
+        if la_ma_to_giay(y):
+            y = DON_VI_TO_KHO
+        return x == y or y in self.ho(x) or x in self.ho(y)
 
 
 def nhan_kho(kho_rong: int, kho_dai: int) -> str:
-    """"780 × 905 mm" · cuộn "khổ 1000 mm" · không có ⇒ "chưa có khổ"."""
+    """"780 × 905 mm" · khổ chỉ-rộng "khổ 1000 mm" · không có ⇒ "chưa có khổ"."""
     if kho_rong and kho_dai:
         return f"{kho_rong} × {kho_dai} mm"
     if kho_rong:
@@ -126,8 +196,9 @@ def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_lu
     """Dòng giấy của MỘT bước, dẫn xuất từ ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4).
 
     Bước nhận tờ in (`TRAM_TO`) ⇒ tờ khổ in; nhận tờ nguyên (`TRAM_TO_NGUYEN`) ⇒ tờ khổ nguyên; còn lại
-    (đơn vị vào có khai nhưng KHÔNG phải mã chặng giấy — bước nhận cuộn, vd Cắt cuộn) ⇒ cuộn, đếm bằng **kg** = tờ nguyên ra × diện tích × gsm. Cuộn luôn trả
-    `don_vi="kg"` — bên gọi đổi sang đơn vị của mã giấy. Thiếu khổ / gsm ⇒ `so_luong=None` + `ly_do`.
+    (đơn vị vào có khai nhưng KHÔNG phải mã chặng giấy — bước nhận giấy khổ rộng, vd Cắt cuộn) ⇒
+    khổ rộng, đếm bằng **kg** = tờ nguyên ra × diện tích × gsm, luôn trả `don_vi="kg"` — bên gọi đổi
+    sang đơn vị của mã giấy. Thiếu khổ / gsm ⇒ `so_luong=None` + `ly_do`.
     """
     from ..models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
     from .dong_giay import ban_do_tram, tram_cua
@@ -145,7 +216,7 @@ def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_lu
     ng_r, ng_d = chuan_kho(so("kho_nguyen_rong"), so("kho_nguyen_dai"))
     in_r, in_d = chuan_kho(so("kho_in_rong"), so("kho_in_dai"))
     tram = tram_cua(don_vi_vao, ban_do_tram()) if don_vi_vao else None
-    out = {"dang": DANG_TO, "so_luong": None, "don_vi": don_vi_vao or "", "kho_rong": 0,
+    out = {"so_luong": None, "don_vi": don_vi_vao or "", "kho_rong": 0,
            "kho_dai": 0, "ly_do": None}
     if tram == TRAM_TO:
         kr, kd = (in_r, in_d) if (in_r and in_d) else (ng_r, ng_d)
@@ -162,26 +233,24 @@ def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_lu
         out.update(ly_do="Bước chưa khai đơn vị vào.")
         return out
     if tram is not None:
-        # Chặng giấy nhưng không phải tờ (con / cai / tay): đầu vào không còn là tờ hay cuộn giấy.
-        out.update(ly_do="Đầu vào của bước không phải tờ hay cuộn giấy nên không tính được dòng giấy.")
+        # Chặng giấy nhưng không phải tờ (con / cai / tay): đầu vào không còn là giấy nguyên liệu.
+        out.update(ly_do="Đầu vào của bước không phải giấy nguyên liệu nên không tính được dòng giấy.")
         return out
-    out.update(dang=DANG_CUON, don_vi="kg", kho_rong=ng_r, kho_dai=0)
+    out.update(don_vi="kg", kho_rong=ng_r, kho_dai=0)
     if not (ng_r and ng_d):
-        out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên để tính kg cuộn.")
+        out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên để tính số kg giấy.")
     elif not gsm or float(gsm) <= 0:
-        out.update(so_luong=None, ly_do="Giấy chưa khai định lượng (gsm) nên không tính được kg cuộn.")
+        out.update(so_luong=None, ly_do="Giấy chưa khai định lượng (gsm) nên không tính được số kg.")
     else:
         out["so_luong"] = float(so_luong_ra or 0) * (ng_r / 1000) * (ng_d / 1000) * float(gsm) / 1000
     return out
 
 
 def khoa_ton_cua(obj) -> tuple:
-    """Khoá tra tồn của một lô / dòng (có `hang_loai`, `hang_id`, `dang_giay`, `kho_rong`, `kho_dai`).
-    Giấy đã có dạng ⇒ `khoa_ton` (tờ đúng khổ / cuộn theo mã). Hàng khác, hoặc giấy CŨ chưa có dạng
-    (dữ liệu kg trước mg 0349) ⇒ cặp `(loai, id)` — gom mọi lô của mã như trước."""
+    """Khoá tra tồn của một lô / dòng (có `hang_loai`, `hang_id`, `don_vi_goc`, `kho_rong`, `kho_dai`).
+    Giấy + vật tư ⇒ `khoa_ton` 5 phần tử. Hàng khác ⇒ cặp `(loai, id)` — gom mọi lô của mã."""
     loai, hid = obj.hang_loai, int(obj.hang_id)
-    dang = getattr(obj, "dang_giay", None)
-    if loai != "giay" or not dang:
+    if not co_don_vi_goc(loai):
         return (loai, hid)
-    return khoa_ton(loai, hid, dang=dang, kho_rong=getattr(obj, "kho_rong", 0) or 0,
-                    kho_dai=getattr(obj, "kho_dai", 0) or 0)
+    return khoa_ton(loai, hid, goc=getattr(obj, "don_vi_goc", "") or "",
+                    kho_rong=getattr(obj, "kho_rong", 0) or 0, kho_dai=getattr(obj, "kho_dai", 0) or 0)

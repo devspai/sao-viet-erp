@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo lỗi KCS bảng và biểu đồ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --nen:#f8fafc; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8; --chu-5:#cbd5e1;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --vien-3:#f3f5f8; --hair:#f1f5f9;
+  --rust:#c5400a; --la:#15803d; --do:#b91c1c; --cam:#c2410c; --xanh:#1d4ed8;
+  /* màu biểu đồ: bảng phân loại đã chạy validator (xanh, cam, ngọc) — một chuỗi số thì chỉ xanh */
+  --s1:#2a78d6; --s1-nhat:#b7d3f6; --s2:#eb6834; --s3:#1baf7a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1480px;margin:0 auto;padding:28px 20px 120px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--chu-2);margin:0 0 16px;max-width:1150px}
+.hop{background:var(--trang);border-radius:12px;padding:16px 22px;margin:0 0 16px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ul,.hop ol{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:3px 0}
+.hop p{margin:4px 0;color:var(--chu-2)}
+.ref-luoi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:10px}
+.ref{border:1px solid var(--vien);border-radius:10px;overflow:hidden;background:#fbfcfd}
+.ref img{display:block;width:100%;height:190px;object-fit:cover;object-position:top left;border-bottom:1px solid var(--vien);cursor:zoom-in}
+.ref div{padding:8px 12px;font-size:12.5px;color:var(--chu-2)}
+.ref div b{display:block;font-weight:500;color:var(--chu);font-size:13px;margin-bottom:2px}
+.ref .dung{color:var(--la)} .ref .bo{color:var(--do)}
+
+.quyen{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0f172a;color:#e2e8f0;padding:9px 16px;border-radius:10px;margin:0 0 18px;font-size:13px}
+.quyen .q-nut{height:28px;padding:0 12px;border-radius:7px;border:1px solid #334155;background:transparent;color:#cbd5e1;font:inherit;font-size:13px;cursor:pointer}
+.quyen .q-nut.on{background:#fff;color:#0f172a;border-color:#fff}
+.quyen .q-giai{color:#94a3b8;font-size:12.5px;flex:1;min-width:260px}
+.quyen .q-sep{width:1px;height:20px;background:#334155}
+
+.man-nhan{font-size:13px;color:var(--chu-3);margin:4px 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.man-nhan b{font-weight:500;color:var(--chu);font-size:15px}
+.app{background:var(--nen);border-radius:12px;border:1px solid #dfe3e8;overflow:hidden;position:relative;min-height:900px}
+.app-than{padding:18px 22px 22px}
+svg.i{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:-3px}
+
+.dau{display:flex;align-items:center;gap:12px;margin:0 0 4px}
+.dau h3{margin:0;font-size:22px;font-weight:500}
+.gian{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:7px;font:inherit;font-size:13px;color:var(--chu);white-space:nowrap;cursor:pointer}
+.btn--lk{border:0;background:none;padding:0;height:auto;color:var(--xanh);cursor:pointer;font:inherit;font-size:13px}
+.tabs{display:flex;gap:28px;border-bottom:1px solid var(--vien);margin:6px 0 12px}
+.tabs span{padding:6px 0 9px;color:var(--chu-3);font-size:15px}
+.tabs span.on{color:var(--chu);border-bottom:2px solid var(--chu);margin-bottom:-1px}
+.loc{background:var(--trang);border:1px solid var(--vien);border-radius:10px;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.o-tim{flex:0 1 340px;height:32px;border:1px solid var(--vien);border-radius:7px;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--chu-4);font-size:13px;background:#fff}
+.ky small{color:var(--chu-3);font-size:12px}
+.chip-loc{display:inline-flex;align-items:center;height:28px;border:1px solid var(--chu-5);border-radius:7px;font-size:12.5px;overflow:hidden;background:#fff}
+.chip-loc span{padding:0 9px;color:var(--chu-3)}
+.chip-loc span + span{border-left:1px solid var(--vien);color:var(--chu)}
+.chip-loc button{border:0;border-left:1px solid var(--vien);background:none;height:100%;padding:0 8px;cursor:pointer;color:var(--chu-3);font:inherit}
+.seg{display:inline-flex;border:1px solid var(--vien);border-radius:7px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;height:30px;padding:0 12px;font:inherit;font-size:13px;color:var(--chu-2);cursor:pointer}
+.seg button + button{border-left:1px solid var(--vien)}
+.seg button.on{background:var(--hair);color:var(--chu)}
+
+.so{display:flex;gap:30px;flex-wrap:wrap;background:var(--trang);border:1px solid var(--vien);border-radius:10px;padding:10px 16px;margin:10px 0}
+.so > span{display:flex;align-items:baseline;gap:8px;color:var(--chu-3);font-size:13px;white-space:nowrap}
+.so b{font-weight:400;font-size:19px;color:var(--chu);font-variant-numeric:tabular-nums}
+.so small{font-size:12px}
+.tang-xau{color:var(--do)} .tang-tot{color:var(--la)} .ngang{color:var(--chu-4)}
+
+.khung{background:var(--trang);border:1px solid var(--vien);border-radius:10px;padding:12px 14px}
+.khung h4{margin:0 0 2px;font-size:13.5px;font-weight:500}
+.khung .phu{color:var(--chu-3);font-size:12px;margin:0 0 8px}
+.luoi-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0}
+.hang-dau{display:flex;align-items:baseline;gap:8px}
+
+/* xếp hạng thanh ngang */
+.xh{display:flex;flex-direction:column;gap:2px}
+.xh-dong{display:grid;grid-template-columns:minmax(0,1fr) 110px 112px;align-items:center;gap:10px;height:40px;padding:0 6px;border-radius:6px;cursor:pointer;font-size:13px}
+.xh-dong:hover{background:var(--hair)}
+.xh-dong.on{outline:1px solid var(--chu);outline-offset:-1px}
+.xh-dong .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xh-dong .vach{height:10px;background:var(--vien-3);border-radius:0 4px 4px 0;position:relative}
+.xh-dong .vach i{position:absolute;left:0;top:0;bottom:0;background:var(--s1);border-radius:0 4px 4px 0}
+.xh-dong .so-lan{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.xh-dong .so-lan small{color:var(--chu-3);font-size:11.5px;display:block;line-height:1.1}
+.xh-dong.mo .vach i{background:var(--s1-nhat)}
+.ngan .xh-dong{grid-template-columns:minmax(0,1fr) 60px 92px}
+.xh-them{font-size:12.5px;margin:4px 6px 0}
+
+table.g{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
+.g th{height:32px;padding:0 10px;text-align:left;font-weight:400;font-size:12px;color:var(--chu-3);background:#fbfcfd;border-bottom:1px solid var(--vien);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--vien-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g th + th,.g td + td{border-left:1px solid var(--vien-3)}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .c{text-align:center}
+.g tbody tr:hover td{background:var(--hair)}
+.g tbody tr.bam{cursor:pointer}
+.g tfoot td{background:#fbfcfd;color:var(--chu-3);font-size:12px;border-bottom:0;border-top:1px solid var(--vien)}
+.sheet{background:var(--trang);border:1px solid var(--vien);border-radius:10px;overflow:hidden}
+.sheet-dau{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--vien)}
+.sheet-dau h4{margin:0;font-size:13.5px;font-weight:500}
+.sheet-chan{display:flex;align-items:center;gap:10px;padding:8px 12px;color:var(--chu-3);font-size:12.5px;border-top:1px solid var(--vien)}
+.mu{color:var(--chu-3)} .mu4{color:var(--chu-4)} .do{color:var(--do)} .la{color:var(--la)}
+.the{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--vien-3);color:var(--chu-2);font-size:11.5px;white-space:nowrap;vertical-align:1px}
+.the + .the{margin-left:6px}
+.tt{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.tt::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tt--xanh{background:#dbeafe;color:#1d4ed8}
+.tt--cyan{background:#cffafe;color:#0e7490}
+.tt--la{background:#dcfce7;color:#15803d}
+.tt--cam{background:#ffedd5;color:#c2410c}
+.tt--slate{background:#f1f5f9;color:#475569}
+.tt--tim{background:#ede9fe;color:#6d28d9}
+.anh{display:inline-flex;gap:4px;vertical-align:middle}
+.anh i{width:24px;height:24px;border-radius:4px;background:linear-gradient(135deg,#e2e8f0,#cbd5e1);display:inline-block;border:1px solid var(--vien)}
+.trong{padding:26px 14px;text-align:center;color:var(--chu-3);font-size:13px}
+
+/* biểu đồ */
+.bd{width:100%;display:block;overflow:visible}
+.bd text{font:11px "Be Vietnam Pro",system-ui,sans-serif;fill:var(--chu-3)}
+.bd .luoi-ngang{stroke:var(--vien-2);stroke-width:1}
+.bd .truc{stroke:var(--vien);stroke-width:1}
+.bd .cot{fill:var(--s1);cursor:pointer}
+.bd .cot.mo{fill:var(--s1-nhat)}
+.bd .cot-nen{fill:transparent;cursor:pointer}
+.bd .duong{fill:none;stroke:var(--s1);stroke-width:2;stroke-linejoin:round}
+.bd .tham-chieu{stroke:var(--chu-4);stroke-dasharray:4 4;stroke-width:1}
+.bd .cham{fill:var(--s1);stroke:#fff;stroke-width:2}
+.bd .chu-thich{fill:var(--chu-2)}
+.chu-giai{display:flex;gap:14px;font-size:12px;color:var(--chu-2);margin:0 0 6px;flex-wrap:wrap}
+.chu-giai span{display:inline-flex;align-items:center;gap:6px}
+.chu-giai i{width:10px;height:10px;border-radius:3px;display:inline-block}
+#goi-y{position:fixed;z-index:200;pointer-events:none;background:#0f172a;color:#f1f5f9;font-size:12px;line-height:1.45;padding:7px 10px;border-radius:7px;max-width:320px;display:none;box-shadow:0 4px 16px rgba(15,23,42,.18)}
+#goi-y .mu4{color:#94a3b8}
+
+/* phương án B — bảng điều khiển bên phải */
+.b-than{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:10px;margin:10px 0}
+.b-ben{background:var(--trang);border:1px solid var(--vien);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:14px;align-self:start}
+.b-ben label{display:block;font-size:12px;color:var(--chu-3);margin-bottom:5px}
+.b-ben select{width:100%;height:32px;border:1px solid var(--vien);border-radius:7px;padding:0 8px;font:inherit;font-size:13px;background:#fff;color:var(--chu)}
+.b-ben .tong{font-size:13px;color:var(--chu-3)} .b-ben .tong b{font-weight:400;font-size:20px;color:var(--chu)}
+.b-ben p{margin:0;font-size:12px;color:var(--chu-3)}
+
+/* phương án C */
+.c-tab{display:flex;gap:6px;margin:10px 0 8px}
+.c-tab button{height:28px;padding:0 11px;border:1px solid var(--vien);border-radius:7px;background:var(--trang);font:inherit;font-size:12.5px;color:var(--chu-2);cursor:pointer}
+.c-tab button span{color:var(--chu-4);margin-left:4px}
+.c-tab button.on{border-color:var(--chu);color:var(--chu)}
+.ngan-phu{position:absolute;inset:0;background:rgba(15,23,42,.18);display:none}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:min(1180px,94%);background:var(--trang);border-left:1px solid var(--vien);box-shadow:-8px 0 24px rgba(15,23,42,.08);display:none;overflow:auto}
+.ngan.mo,.ngan-phu.mo{display:block}
+.ngan-dau{display:flex;align-items:flex-start;gap:12px;padding:16px 20px 10px;border-bottom:1px solid var(--vien)}
+.ngan-dau h4{margin:0 0 6px;font-size:18px;font-weight:500}
+.ngan-than{padding:14px 20px;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px}
+.lan{border:1px solid var(--vien);border-radius:9px;padding:10px 12px;margin-bottom:8px}
+.lan-dau{display:flex;gap:10px;align-items:center;font-size:13px}
+.lan-than{font-size:12.5px;color:var(--chu-2);margin-top:6px;display:flex;gap:10px;align-items:flex-start}
+.lan-than .anh i{width:56px;height:42px}
+.dl{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:13px}
+.dl dt{color:var(--chu-3)} .dl dd{margin:0}
+.an{display:none}
+.luoi-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}
+.seg button svg{margin-right:4px}
+.seg--dang button{display:inline-flex;align-items:center}
+.cuon{overflow-x:auto}
+.g.nhiet td.ghim,.g.nhiet th.ghim{position:sticky;left:0;z-index:1;background:#fff}
+.g.nhiet th.ghim,.g.nhiet tfoot td.ghim{background:#fbfcfd}
+.g.nhiet td.o{padding:0 4px}
+.g.nhiet th.c{padding:0 2px;text-overflow:clip}
+.g.nhiet td.o.h1{background:#fee2e2}
+.g.nhiet td.o.h2{background:#fecaca}
+.g.nhiet td.o.h3{background:#fca5a5;color:#7f1d1d}
+.g.nhiet tbody tr:hover td.o.h1,.g.nhiet tbody tr:hover td.o.h2,.g.nhiet tbody tr:hover td.o.h3{filter:brightness(.97)}
+.ghi{margin:8px 2px 0;color:var(--chu-3);font-size:12.5px}
+.vach-tl{display:inline-block;height:8px;border-radius:0 4px 4px 0;background:var(--do);opacity:.55;margin-right:8px;vertical-align:0}
+.vach--hai{display:flex;gap:2px;background:none !important}
+.vach--hai i{position:static !important;height:10px;border-radius:0}
+.vach--hai i:last-child{border-radius:0 4px 4px 0}
+.chu-giai i{flex:none}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Báo cáo lỗi KCS: một màn, hai dạng xem Bảng và Biểu đồ</h1>
+<p class="lead">Mockup tĩnh bấm thử được. Một thanh lọc, một hàng số, ba cách xem như hiện nay (Theo công đoạn, Theo tổ, Theo tiêu chí); nút <b style="font-weight:500">Bảng | Biểu đồ</b> ở thanh lọc đổi dạng xem, giữ nguyên lọc và cách xem. Chưa đụng code.</p>
+
+<div class="hop">
+  <h2>Logic</h2>
+  <ol>
+    <li>Thanh lọc như hiện nay (tìm, kỳ theo ngày kiểm, Lọc khách và công đoạn), thêm nút Bảng | Biểu đồ. Máy nhớ dạng xem lần trước của từng người.</li>
+    <li>Hàng số chung cho cả hai dạng, mỗi số có so với kỳ trước liền kề cùng độ dài.</li>
+    <li><b style="font-weight:500">Bảng</b>: giữ ba bảng hiện có (bảng ngày theo công đoạn, theo tổ; bảng tiêu chí), thêm cột Lần ghi lỗi. Bấm một dòng là lọc theo dòng đó.</li>
+    <li><b style="font-weight:500">Biểu đồ</b>: cùng cách xem đang chọn. Lỗi mỗi ngày tách màu theo 4 mục nhiều nhất cộng "Khác", xếp hạng các mục, bắt tại công đoạn hay lọt tới KCS cuối, tỷ lệ đạt ở bước cuối. Bấm một thanh hay một cột ngày là lọc.</li>
+    <li>Cả hai dạng có chung bảng "Các lần ghi lỗi" ở cuối: lệnh, khách, công đoạn gây, tiêu chí hoặc mô tả, bắt ở đâu, số, tổ, ảnh, người ghi.</li>
+  </ol>
+  <p>Thanh và cột đếm theo số lần ghi lỗi vì tờ in, tay sách, cái không cộng được; số lượng hiện bên cạnh theo từng đơn vị. Không Pareto cộng dồn, không biểu đồ hai trục. Số mặc định là 30 ngày GIẢ ĐỊNH dựng từ tên thật trong DB dev (LSX26-0008, LSX26-0009, Bế hộp, Dán hộp và tên người ghi là giả định); nút "Số thật DB dev" cho xem màn với 2 lần ghi lỗi đang có. Ảnh tham khảo và 3 phương án bố cục cũ ở <a href="kcs-bao-cao-loi-3-phuong-an.html">kcs-bao-cao-loi-3-phuong-an.html</a>; dạng Biểu đồ ở đây lấy khuôn phương án A (FlowFuse, Stripe).</p>
+</div>
+
+<div class="quyen">
+  <span>Thử nhanh</span>
+  <button class="q-nut on" data-so="gia">Số giả định 30 ngày</button>
+  <button class="q-nut" data-so="that">Số thật DB dev</button>
+  <span class="q-giai" id="q-giai"></span>
+</div>
+<div class="app"><div class="app-than" id="man"></div></div>
+</div>
+<div id="goi-y"></div>
+
+<script>
+/* ===================== DỮ LIỆU ===================== */
+const NGAY_CUOI = new Date(2026, 9, 11);          // 11/10/2026
+const SO_NGAY = 30;
+const ngayCua = (i) => { const d = new Date(NGAY_CUOI); d.setDate(d.getDate() - (SO_NGAY - 1 - i)); return d; };
+const dd = (d) => String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0");
+const so = (v, p = 0) => v.toLocaleString("vi-VN", { maximumFractionDigits: p });
+
+const CD = {
+  in4:  { ten: "Bài in 3 màu 4 màu (CMYK)", to: "Nhóm thợ in máy 4 màu", dv: "tờ in", gd: "In",
+          tc: ["Chồng màu khớp, không lệch dấu", "Màu đúng mẫu đã ký", "Không lem mực, không bẩn nền", "Chữ rõ, không mất nét"] },
+  can:  { ten: "Cán màng", to: "Tổ Cán màng", dv: "tờ in", gd: "Sau in", tc: ["Không bọt khí", "Màng không bong, không nhăn"] },
+  catto:{ ten: "Cắt tờ", to: "Cắt 1", dv: "tờ", gd: "Trước in", tc: ["Cắt đúng kích thước", "Mép cắt thẳng, không xơ"] },
+  be:   { ten: "Bế hộp", to: "Tổ bế", dv: "tờ in", gd: "Sau in", tc: ["Bế đúng đường, không lệch hình in", "Đường cấn gấp không nứt"] },
+  dan:  { ten: "Dán hộp", to: "Dán - nhóm 1", dv: "cái", gd: "Sau in", tc: ["Dán chắc, không bung keo"] },
+  bat:  { ten: "Bắt tay + vào keo", to: "Thành phầm / KCS", dv: "tay sách", gd: "Sau in", tc: ["Dán chắc, không bung keo"] },
+  xen:  { ten: "Xén 3 mặt", to: "Cắt 2", dv: "tay sách", gd: "Sau in", tc: ["Mép không xơ"] },
+  cattp:{ ten: "Cắt thành phẩm", to: "Cắt 1", dv: "tờ", gd: "Sau in", tc: ["Cắt đúng kích thước", "Mép cắt thẳng, không xơ"] },
+};
+const LENH = [
+  { ma: "LSX26-0002", sp: "Hộp kem 50ml", khach: "CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM", chuoi: ["in4", "can", "be", "dan"] },
+  { ma: "LSX26-0003", sp: "Ruột sách A5 64 trang", khach: "CÔNG TY CỔ PHẦN BIBICA", chuoi: ["in4", "bat", "xen"] },
+  { ma: "LSX26-0004", sp: "Bìa sách A5", khach: "CÔNG TY CỔ PHẦN BIBICA", chuoi: ["in4", "can", "cattp"] },
+  { ma: "LSX26-0005", sp: "Tờ rơi A4 4/4", khach: "CÔNG TY CỔ PHẦN CAFÉ KATINAT", chuoi: ["catto", "in4", "cattp"] },
+  { ma: "LSX26-0008", sp: "Hộp bánh trung thu", khach: "CÔNG TY CỔ PHẦN BIBICA", chuoi: ["in4", "can", "be", "dan"] },
+  { ma: "LSX26-0009", sp: "Túi giấy Katinat", khach: "CÔNG TY CỔ PHẦN CAFÉ KATINAT", chuoi: ["in4", "can", "be", "dan"] },
+];
+const NGUOI = ["Phạm Thu Hà", "Lê Văn Đức", "Ngô Mai Anh"];
+const GHI_CHU = {
+  "Chồng màu khớp, không lệch dấu": ["Lệch dấu màu M khoảng 0,3 mm", "Lệch dấu ở mép nhíp", ""],
+  "Màu đúng mẫu đã ký": ["Màu đỏ nhạt hơn mẫu ký", "Nền xanh ngả xám", ""],
+  "Không lem mực, không bẩn nền": ["Bẩn nền góc phải", ""],
+  "Không bọt khí": ["Bọt khí rải rác giữa tờ", "Bọt khí ở vùng nền đậm", ""],
+  "Bế đúng đường, không lệch hình in": ["Lệch 1 mm so với hình in", ""],
+};
+
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const chon = (ds) => ds[Math.floor(rnd() * ds.length)];
+const chonTrongSo = (ds) => { const t = ds.reduce((s, x) => s + x[1], 0); let r = rnd() * t; for (const x of ds) { r -= x[1]; if (r <= 0) return x[0]; } return ds[0][0]; };
+
+function sinhKy(batDau, soNgay, kyTruoc) {
+  const loi = [], kiem = [];
+  for (let i = 0; i < soNgay; i++) {
+    const ngay = batDau + i;
+    const cuoi = !kyTruoc && i >= soNgay - 8;          // 8 ngày cuối: Cán màng bọt khí tăng
+    const mau = [
+      [["in4", 0], kyTruoc ? 10 : 8], [["in4", 1], kyTruoc ? 7 : 6], [["in4", 2], 4], [["in4", 3], 1],
+      [["can", 0], cuoi ? 14 : 2], [["can", 1], 2], [["be", 0], 4], [["be", 1], 2], [["dan", 0], 3],
+      [["bat", 0], 2], [["cattp", 1], 2], [["catto", 0], 1], [["in4", -1], 1], [["dan", -1], 1],
+    ];
+    if (!kyTruoc && i >= soNgay - 4) mau.push([["xen", 0], 9]);  // lỗi mới xuất hiện 4 ngày cuối
+    const soLan = Math.floor(rnd() * 3) + (cuoi ? 2 : 1) + (rnd() < 0.15 ? 2 : 0) - (rnd() < 0.2 ? 1 : 0);
+    for (let k = 0; k < soLan; k++) {
+      const [cdk, tci] = chonTrongSo(mau);
+      const cd = CD[cdk];
+      const lenh = chon(LENH.filter((l) => l.chuoi.includes(cdk)));
+      const cuoiChuoi = CD[lenh.chuoi[lenh.chuoi.length - 1]];
+      const taiCho = rnd() < 0.6 || cdk === lenh.chuoi[lenh.chuoi.length - 1];
+      const dv = taiCho ? cd.dv : cuoiChuoi.dv;
+      const tc = tci < 0 ? null : cd.tc[tci];
+      const moTa = tc ? chon(GHI_CHU[tc] || [""]) : chon(cdk === "in4" ? ["Xước bề mặt do lô giấy ẩm", "Thiếu tờ trong xấp"] : ["Hộp móp góc khi xếp thùng", "Keo dính ra mặt hộp"]);
+      const n = dv === "tờ in" || dv === "tờ" ? 20 + Math.floor(rnd() * 260) : dv === "cái" ? 10 + Math.floor(rnd() * 150) : 4 + Math.floor(rnd() * 30);
+      loi.push({ ngay, gio: 7 + Math.floor(rnd() * 10), phut: Math.floor(rnd() * 60), lenh, cdk, tc, moTa, so: n, dv,
+        noiBat: taiCho ? "Tại công đoạn" : "KCS cuối (" + cuoiChuoi.ten + ")", nguoi: chon(NGUOI), anh: rnd() < 0.55 ? 1 + Math.floor(rnd() * 2) : 0 });
+    }
+    const luot = 2 + Math.floor(rnd() * 3);
+    for (let k = 0; k < luot; k++) {
+      const nhan = 300 + Math.floor(rnd() * 2500);
+      const tl = (cuoi ? 0.955 : 0.975) + rnd() * 0.02;
+      kiem.push({ ngay, nhan, dat: Math.round(nhan * tl) });
+    }
+  }
+  return { loi, kiem };
+}
+seed = 7;
+const KY_TRUOC = sinhKy(-SO_NGAY, SO_NGAY, true);
+const KY_NAY = sinhKy(0, SO_NGAY, false);
+const L3 = LENH[1], L4 = LENH[2];
+const THAT = {
+  loi: [
+    { ngay: 29, gio: 9, phut: 12, lenh: L3, cdk: "bat", tc: "Chồng màu khớp, không lệch dấu", moTa: "oki ghi chú", so: 10, dv: "tay sách", noiBat: "KCS cuối (Xén 3 mặt)", nguoi: "Quản trị", anh: 1 },
+    { ngay: 29, gio: 10, phut: 40, lenh: L4, cdk: "can", tc: "Không bọt khí", moTa: "", so: 1, dv: "tờ in", noiBat: "Tại công đoạn", nguoi: "Quản trị", anh: 0 },
+  ],
+  kiem: [{ ngay: 29, nhan: 250, dat: 240 }],
+  luot: 2,
+};
+const THAT_TRUOC = { loi: [], kiem: [], luot: 0 };
+
+/* ===================== TRẠNG THÁI ===================== */
+const st = { dang: "bieu_do", xem: "cd", nguon: "gia", loc: {} };
+const CHIEU = {
+  cd: { nhan: "Công đoạn gây lỗi", lay: (r) => CD[r.cdk].ten },
+  to: { nhan: "Tổ chịu", lay: (r) => CD[r.cdk].to },
+  tc: { nhan: "Tiêu chí", lay: (r) => r.tc || "Lỗi khác" },
+};
+const CACH_XEM = [["cd", "Theo công đoạn"], ["to", "Theo tổ"], ["tc", "Theo tiêu chí"]];
+const MAU = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"], MAU_KHAC = "#cbd5e1";
+const NOI = [["Tại công đoạn", "#94a3b8"], ["Lọt tới KCS cuối", "#334155"]];
+const laTaiCho = (r) => r.noiBat.startsWith("Tại");
+
+function nguon() { return st.nguon === "gia" ? [KY_NAY, KY_TRUOC] : [THAT, THAT_TRUOC]; }
+function loc(ds, tru) {
+  return ds.filter((r) => Object.entries(st.loc).every(([k, v]) => k === tru || (k === "ngayIdx" ? r.ngay === v : CHIEU[k].lay(r) === v)));
+}
+function nhom(ds, lay) {
+  const m = new Map();
+  for (const r of ds) { const k = lay(r); const a = m.get(k) || { ten: k, lan: 0, dv: {}, lenh: new Set(), gan: -1e9, rows: [] }; a.lan++; a.dv[r.dv] = (a.dv[r.dv] || 0) + r.so; a.lenh.add(r.lenh.ma); a.gan = Math.max(a.gan, r.ngay); a.rows.push(r); m.set(k, a); }
+  return [...m.values()].sort((a, b) => b.lan - a.lan || a.ten.localeCompare(b.ten));
+}
+const soDv = (dv) => Object.entries(dv).map(([k, v]) => `${so(v)} ${k}`);
+const gioPhut = (r) => `${String(r.gio).padStart(2, "0")}:${String(r.phut).padStart(2, "0")}`;
+/* màu đi theo MỤC, tính trên cả kỳ chưa lọc theo chính chiều đó — bấm lọc không tô lại mục khác */
+function bangMau() {
+  const ds = nhom(loc(nguon()[0].loi, st.xem), CHIEU[st.xem].lay);
+  const m = new Map(); ds.slice(0, 4).forEach((a, i) => m.set(a.ten, MAU[i]));
+  return m;
+}
+
+/* ===================== MẢNH DÙNG CHUNG ===================== */
+const RONG = () => document.getElementById("man").clientWidth - 76;
+const IC = {
+  tim: '<svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  lich: '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
+  loc: '<svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg>',
+  xuat: '<svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+  bang: '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>',
+  bd: '<svg class="i" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>',
+  cot: '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>',
+  len: '<svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  xuong: '<svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
+};
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+
+function dauMan() {
+  return `<div class="dau"><h3>KCS</h3><span class="gian"></span><button class="btn">${IC.xuat} Xuất Excel</button></div>
+  <div class="tabs"><span>Lệnh</span><span class="on">Báo cáo lỗi</span></div>`;
+}
+function thanhLoc() {
+  const chips = Object.entries(st.loc).map(([k, v]) => {
+    const nhan = k === "ngayIdx" ? "Ngày" : CHIEU[k].nhan;
+    const gt = k === "ngayIdx" ? dd(ngayCua(v)) : v;
+    return `<span class="chip-loc"><span>${nhan}</span><span>${esc(gt)}</span><button data-bo="${k}" title="Bỏ điều kiện">×</button></span>`;
+  }).join("");
+  return `<div class="loc">
+    <span class="o-tim">${IC.tim} Tìm mã lệnh, sản phẩm, khách hàng…</span>
+    <button class="btn ky">${IC.lich} 30 ngày qua <small>theo ngày kiểm</small></button>
+    <button class="btn">${IC.loc} Lọc</button>
+    ${chips}${chips ? '<button class="btn--lk" data-bo="*">Xoá bộ lọc</button>' : ""}
+    <span class="gian"></span>
+    <span class="seg">${CACH_XEM.map(([k, t]) => `<button data-xem="${k}" class="${st.xem === k ? "on" : ""}">${t}</button>`).join("")}</span>
+    <span class="seg seg--dang" role="group" aria-label="Dạng xem">
+      <button data-dang="bang" class="${st.dang === "bang" ? "on" : ""}">${IC.bang} Bảng</button><button data-dang="bieu_do" class="${st.dang === "bieu_do" ? "on" : ""}">${IC.bd} Biểu đồ</button>
+    </span>
+    ${st.dang === "bang" ? `<button class="btn">${IC.cot} Cột</button>` : ""}
+  </div>`;
+}
+function delta(nay, truoc, { tot = "giam", donVi = "", p = 0 } = {}) {
+  if (st.nguon === "that") return `<small class="ngang">kỳ trước chưa có số</small>`;
+  const d = nay - truoc;
+  if (Math.abs(d) < (p ? 0.05 : 0.5)) return `<small class="ngang">bằng kỳ trước</small>`;
+  const xau = (d > 0) === (tot === "giam");
+  return `<small class="${xau ? "tang-xau" : "tang-tot"}">${d > 0 ? IC.len : IC.xuong}${so(Math.abs(d), p)}${donVi} so với kỳ trước</small>`;
+}
+function hangSo() {
+  const [nay, truoc] = nguon();
+  const L = loc(nay.loi), LT = loc(truoc.loi);
+  const tyLe = (k) => { const n = k.reduce((s, x) => s + x.nhan, 0); return n ? k.reduce((s, x) => s + x.dat, 0) / n * 100 : null; };
+  const tl = tyLe(nay.kiem), tlT = tyLe(truoc.kiem);
+  const luot = nay.luot ?? nay.kiem.length + new Set(nay.loi.map((r) => r.ngay + r.cdk)).size;
+  const luotT = truoc.luot ?? truoc.kiem.length + new Set(truoc.loi.map((r) => r.ngay + r.cdk)).size;
+  const lenh = new Set(L.map((r) => r.lenh.ma)).size, lenhT = new Set(LT.map((r) => r.lenh.ma)).size;
+  return `<div class="so">
+    <span>Lượt kiểm<b>${so(luot)}</b>${delta(luot, luotT, { tot: "tang" })}</span>
+    <span>Tỷ lệ đạt ở bước cuối<b>${tl == null ? "—" : so(tl, 1) + "%"}</b>${tl == null ? "" : delta(tl, tlT, { tot: "tang", donVi: " điểm", p: 1 })}</span>
+    <span>Lần ghi lỗi<b class="${L.length ? "do" : ""}">${so(L.length)}</b>${delta(L.length, LT.length)}</span>
+    <span>Lệnh có lỗi<b>${so(lenh)}</b>${delta(lenh, lenhT)}</span>
+  </div>`;
+}
+
+/* gợi ý khi rê chuột */
+const goiY = document.getElementById("goi-y");
+document.addEventListener("mousemove", (e) => {
+  const t = e.target.closest("[data-gy]");
+  if (!t) { goiY.style.display = "none"; return; }
+  goiY.innerHTML = t.getAttribute("data-gy");
+  goiY.style.display = "block";
+  goiY.style.left = Math.min(e.clientX + 14, innerWidth - goiY.offsetWidth - 8) + "px";
+  goiY.style.top = (e.clientY + 14) + "px";
+});
+
+/* bảng từng lần ghi lỗi — chung cho hai dạng */
+function bangLan(L, toiDa = 10) {
+  const ds = [...L].sort((a, b) => b.ngay - a.ngay || b.gio - a.gio || b.phut - a.phut);
+  if (!ds.length) return `<p class="trong">Không có lần ghi lỗi nào khớp điều kiện đang lọc.</p>`;
+  const cot = [["Lúc", 100], ["Lệnh", 116], ["Khách hàng", 190], ["Công đoạn gây lỗi", 190], ["Tiêu chí hoặc mô tả", 0], ["Bắt ở", 170], ["Số lỗi", 110], ["Tổ chịu", 170], ["Ảnh", 64], ["Người ghi", 120]];
+  return `<table class="g"><colgroup>${cot.map(([, w]) => `<col${w ? ` style="width:${w}px"` : ""}>`).join("")}</colgroup>
+  <thead><tr>${cot.map(([t]) => `<th class="${t === "Số lỗi" ? "n" : ""}">${t}</th>`).join("")}</tr></thead><tbody>
+  ${ds.slice(0, toiDa).map((r) => `<tr>
+    <td class="mu">${dd(ngayCua(r.ngay))} ${gioPhut(r)}</td><td>${r.lenh.ma}</td>
+    <td class="mu" title="${esc(r.lenh.khach)}">${r.lenh.khach}</td>
+    <td title="${esc(CD[r.cdk].ten)}">${CD[r.cdk].ten}</td>
+    <td title="${esc((r.tc || "Lỗi khác") + (r.moTa ? ": " + r.moTa : ""))}">${r.tc ? r.tc : '<span class="the">Lỗi khác</span>'}${r.moTa ? ` <span class="mu">${r.tc ? "(" + r.moTa + ")" : r.moTa}</span>` : ""}</td>
+    <td class="mu" title="${esc(r.noiBat)}">${r.noiBat}</td>
+    <td class="n do">${so(r.so)} <span class="mu">${r.dv}</span></td>
+    <td class="mu">${CD[r.cdk].to}</td>
+    <td>${r.anh ? `<span class="anh">${"<i></i>".repeat(r.anh)}</span>` : '<span class="mu4">—</span>'}</td>
+    <td class="mu">${r.nguoi}</td></tr>`).join("")}
+  </tbody></table>
+  <div class="sheet-chan">1–${Math.min(toiDa, ds.length)} trong ${ds.length} lần<span class="gian"></span>${ds.length > toiDa ? '<button class="btn">Trang sau</button>' : ""}</div>`;
+}
+function khungLan(L) {
+  return `<div class="sheet" style="margin-top:10px"><div class="sheet-dau"><h4>Các lần ghi lỗi</h4><span class="mu" style="font-size:12px">mới nhất trước</span></div>${bangLan(L)}</div>`;
+}
+
+/* ===================== DẠNG BẢNG ===================== */
+function bac(v, max) { if (!v || max <= 0) return ""; const r = v / max; return r > 0.6 ? " h3" : r > 0.25 ? " h2" : " h1"; }
+function bangNgay(L) {
+  // dòng: theo công đoạn thì (lệnh, công đoạn, đơn vị); theo tổ thì (tổ, đơn vị) — như `_bang_nhiet`
+  const coLenh = st.xem === "cd";
+  const key = (r) => coLenh ? `${r.lenh.ma}\u0001${CD[r.cdk].ten}\u0001${r.dv}` : `${CD[r.cdk].to}\u0001${r.dv}`;
+  const dong = nhom(L, key).map((a) => {
+    const p = a.ten.split("\u0001");
+    const o = {}; a.rows.forEach((r) => { o[r.ngay] = (o[r.ngay] || 0) + r.so; });
+    return { ...a, tenHien: coLenh ? p[1] : p[0], lenhMa: coLenh ? p[0] : null, dvHien: coLenh ? p[2] : p[1], o, tong: a.rows.reduce((s, r) => s + r.so, 0), giaTriLoc: coLenh ? p[1] : p[0] };
+  }).sort((a, b) => b.lan - a.lan || b.tong - a.tong);
+  if (!dong.length) return `<p class="trong">Không có lỗi nào khớp điều kiện đang lọc.</p>`;
+  const ngay = [...new Set(L.map((r) => r.ngay))].sort((a, b) => a - b);
+  const cotDau = [[CHIEU[st.xem].nhan, coLenh ? 220 : 240], ...(coLenh ? [["Lệnh", 112]] : []), ["Đơn vị", 80], ["Lần", 58]];
+  const rong = cotDau.reduce((s, c) => s + c[1], 0) + ngay.length * 50 + 80;
+  return `<div class="cuon"><table class="g nhiet" style="min-width:${rong}px"><colgroup>${cotDau.map(([, w]) => `<col style="width:${w}px">`).join("")}${ngay.map(() => `<col style="width:50px">`).join("")}<col style="width:80px"></colgroup>
+  <thead><tr>${cotDau.map(([t], i) => `<th class="${t === "Lần" ? "n" : ""}${i === 0 ? " ghim" : ""}">${t}</th>`).join("")}${ngay.map((i) => `<th class="c">${dd(ngayCua(i))}</th>`).join("")}<th class="n">Cộng</th></tr></thead>
+  <tbody>${dong.map((r) => { const max = Math.max(...Object.values(r.o)); return `<tr class="bam" data-chieu="${st.xem}" data-gt="${esc(r.giaTriLoc)}">
+    <td class="ghim" title="${esc(r.tenHien)}">${r.tenHien}</td>${coLenh ? `<td class="mu">${r.lenhMa}</td>` : ""}<td class="mu">${r.dvHien}</td><td class="n">${r.lan}</td>
+    ${ngay.map((i) => `<td class="c o${bac(r.o[i] || 0, max)}">${r.o[i] ? so(r.o[i]) : ""}</td>`).join("")}
+    <td class="n do">${so(r.tong)}</td></tr>`; }).join("")}</tbody>
+  <tfoot><tr><td class="ghim">${dong.length} dòng</td>${coLenh ? "<td></td>" : ""}<td></td><td class="n">${L.length}</td>${ngay.map((i) => `<td class="c">${L.filter((r) => r.ngay === i).length || ""}</td>`).join("")}<td class="mu">lần/ngày</td></tr></tfoot></table></div>`;
+}
+function bangTieuChi(L, kiem) {
+  const nhomTc = nhom(L.filter((r) => r.tc), (r) => `${r.tc}\u0001${CD[r.cdk].ten}\u0001${r.lenh.ma}`);
+  if (!nhomTc.length) return `<p class="trong">Không có lỗi gắn tiêu chí nào khớp điều kiện đang lọc.</p>`;
+  const lanXetLenh = (ma) => 2 + (ma.charCodeAt(9) % 5);   // GIẢ ĐỊNH: số lần kiểm bước cuối của lệnh
+  const dong = nhomTc.map((a) => {
+    const [tc, cd, ma] = a.ten.split("\u0001"); const r0 = a.rows[0];
+    const taiCho = a.rows.filter(laTaiCho), hong = a.rows.length - taiCho.length;
+    const dvTaiCho = {}; taiCho.forEach((r) => { dvTaiCho[r.dv] = (dvTaiCho[r.dv] || 0) + r.so; });
+    return { tc, cd, ma, to: CD[r0.cdk].to, lan: a.lan, dvTaiCho, xet: Math.max(lanXetLenh(ma), hong), hong };
+  });
+  const cot = [["Tiêu chí", 260], ["Công đoạn", 200], ["Lệnh", 112], ["Tổ chịu", 170], ["Lần ghi lỗi", 96], ["Lỗi ghi ở công đoạn", 150], ["Lần xét ở bước cuối", 140], ["Hỏng", 70], ["Tỷ lệ hỏng", 0]];
+  return `<table class="g"><colgroup>${cot.map(([, w]) => `<col${w ? ` style="width:${w}px"` : ""}>`).join("")}</colgroup>
+  <thead><tr>${cot.map(([t]) => `<th class="${["Lần ghi lỗi", "Lỗi ghi ở công đoạn", "Lần xét ở bước cuối", "Hỏng"].includes(t) ? "n" : ""}">${t}</th>`).join("")}</tr></thead>
+  <tbody>${dong.map((r) => { const p = r.xet ? Math.round(r.hong / r.xet * 100) : 0; return `<tr class="bam" data-chieu="tc" data-gt="${esc(r.tc)}">
+    <td title="${esc(r.tc)}">${r.tc}</td><td class="mu" title="${esc(r.cd)}">${r.cd}</td><td class="mu">${r.ma}</td><td class="mu">${r.to}</td>
+    <td class="n do">${r.lan}</td>
+    <td class="n ${Object.keys(r.dvTaiCho).length ? "do" : "mu4"}">${Object.keys(r.dvTaiCho).length ? soDv(r.dvTaiCho).join(" ") : "0"}</td>
+    <td class="n">${r.xet}</td><td class="n ${r.hong ? "do" : "mu4"}">${r.hong}</td>
+    <td>${r.hong ? `<span class="vach-tl" style="width:${Math.max(4, p * 1.2)}px"></span><span class="do">${p}%</span>` : '<span class="mu4">0%</span>'}</td></tr>`; }).join("")}</tbody></table>`;
+}
+function veBang() {
+  const [nay] = nguon();
+  const L = loc(nay.loi);
+  const ghi = {
+    cd: "Mỗi ô là số lỗi do công đoạn đó gây ra trong ngày, bắt ở đâu cũng tính, đếm theo đơn vị nơi bắt. Ô đậm dần theo số so với ngày nhiều nhất của dòng. Bấm một dòng để lọc.",
+    to: "Mỗi ô là số lỗi báo về tổ đó trong ngày. Lỗi chưa rõ tổ không có trong bảng này. Bấm một dòng để lọc.",
+    tc: "Lỗi ghi ở công đoạn: số KCS tick theo tiêu chí ngay ở công đoạn. Lần xét và Hỏng đếm ở các lần kiểm bước cuối. Lỗi khác không gắn tiêu chí nên chỉ có ở Theo công đoạn. (Lần xét trong mockup là số giả định.)",
+  }[st.xem];
+  return `<div class="sheet">${st.xem === "tc" ? bangTieuChi(L, nay.kiem) : bangNgay(L)}</div><p class="ghi">${ghi}</p>${khungLan(L)}`;
+}
+
+/* ===================== DẠNG BIỂU ĐỒ ===================== */
+function bieuDoNgay(L, LT, mau) {
+  const W = RONG(), H = 170, T = 14, B = 22, Lp = 30;
+  const lay = CHIEU[st.xem].lay;
+  const nhomMau = [...mau.keys()];
+  const dem = Array.from({ length: SO_NGAY }, () => ({ tong: 0, phan: new Map() }));
+  L.forEach((r) => { const k = mau.has(lay(r)) ? lay(r) : "Khác"; const o = dem[r.ngay]; o.tong++; o.phan.set(k, (o.phan.get(k) || 0) + 1); });
+  const max = Math.max(4, ...dem.map((o) => o.tong));
+  const bw = (W - Lp) / SO_NGAY, y = (v) => T + (H - T - B) * (1 - v / max);
+  const tb = LT.length / SO_NGAY;
+  let s = `<svg class="bd" viewBox="0 0 ${W} ${H}" style="height:${H}px">`;
+  for (const v of [0, Math.round(max / 2), max]) s += `<line class="luoi-ngang" x1="${Lp}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${Lp - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  dem.forEach((o, i) => {
+    const x = Lp + i * bw + 3, w = bw - 6;
+    const mo = st.loc.ngayIdx != null && st.loc.ngayIdx !== i;
+    const thu = [...nhomMau, "Khác"].filter((k) => o.phan.get(k));
+    const gy = esc(`${dd(ngayCua(i))}: ${o.tong} lần ghi lỗi<br>${thu.map((k) => `${k} ${o.phan.get(k)}`).join("<br>")}<br><span class="mu4">Bấm để lọc theo ngày này</span>`);
+    s += `<rect class="cot-nen" x="${Lp + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" data-ngay="${i}" data-gy="${gy}"/>`;
+    let acc = 0;
+    thu.forEach((k, j) => {
+      const v = o.phan.get(k), y0 = y(acc) - (j ? 2 : 0), y1 = y(acc + v); acc += v;
+      const fill = k === "Khác" ? MAU_KHAC : mau.get(k);
+      const cuoi = j === thu.length - 1;
+      s += cuoi
+        ? `<path style="fill:${fill};opacity:${mo ? .3 : 1}" data-ngay="${i}" data-gy="${gy}" d="M${x},${y0} V${y1 + 3} q0,-3 3,-3 h${w - 6} q3,0 3,3 V${y0} Z"/>`
+        : `<rect style="fill:${fill};opacity:${mo ? .3 : 1}" data-ngay="${i}" data-gy="${gy}" x="${x}" y="${y1}" width="${w}" height="${Math.max(0, y0 - y1)}"/>`;
+    });
+    if (i % 3 === 0 || i === SO_NGAY - 1) s += `<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${dd(ngayCua(i))}</text>`;
+  });
+  if (LT.length) s += `<line class="tham-chieu" x1="${Lp}" x2="${W}" y1="${y(tb)}" y2="${y(tb)}" data-gy="Trung bình kỳ trước ${so(tb, 1)} lần/ngày"/>`;
+  return s + `</svg>`;
+}
+function bieuDoTyLe(kiem, W) {
+  const H = 150, T = 12, B = 22, Lp = 36;
+  const n = Array(SO_NGAY).fill(0), d = Array(SO_NGAY).fill(0);
+  kiem.forEach((k) => { n[k.ngay] += k.nhan; d[k.ngay] += k.dat; });
+  const tl = n.map((v, i) => v ? d[i] / v * 100 : null), co = tl.filter((v) => v != null);
+  if (!co.length) return `<p class="trong">Chưa có lần kiểm bước cuối nào.</p>`;
+  const lo = Math.min(94, Math.floor(Math.min(...co))), hi = 100;
+  const bw = (W - Lp) / SO_NGAY, x = (i) => Lp + i * bw + bw / 2, y = (v) => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  let s = `<svg class="bd" viewBox="0 0 ${W} ${H}" style="height:${H}px">`;
+  for (const v of [lo, (lo + hi) / 2, hi]) s += `<line class="luoi-ngang" x1="${Lp}" x2="${W}" y1="${y(v)}" y2="${y(v)}"/><text x="${Lp - 6}" y="${y(v) + 4}" text-anchor="end">${so(v)}%</text>`;
+  const pts = tl.map((v, i) => v == null ? null : [x(i), y(v)]).filter(Boolean);
+  if (pts.length > 1) s += `<path class="duong" d="M${pts.map((p) => p.join(",")).join(" L")}"/>`;
+  tl.forEach((v, i) => { if (v != null) s += `<circle class="cham" cx="${x(i)}" cy="${y(v)}" r="${pts.length > 1 ? 3 : 5}"/><rect class="cot-nen" x="${Lp + i * bw}" y="${T}" width="${bw}" height="${H - T - B}" data-gy="${esc(`${dd(ngayCua(i))}: tỷ lệ đạt ${so(v, 1)}%<br><span class="mu4">${so(d[i])} đạt trên ${so(n[i])} kiểm</span>`)}"/>`; });
+  for (let i = 0; i < SO_NGAY; i += 6) s += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${dd(ngayCua(i))}</text>`;
+  return s + `</svg>`;
+}
+function xepHang(L, mau, toiDa = 8) {
+  const ds = nhom(L, CHIEU[st.xem].lay);
+  if (!ds.length) return `<p class="trong">Không có lỗi nào.</p>`;
+  const max = ds[0].lan, chon = st.loc[st.xem];
+  return `<div class="xh">${ds.slice(0, toiDa).map((a) => {
+    const gy = esc(`${a.ten}<br>${a.lan} lần ghi lỗi<br>${soDv(a.dv).join("<br>")}<br><span class="mu4">${a.lenh.size} lệnh dính</span>`);
+    return `<div class="xh-dong${chon === a.ten ? " on" : ""}" data-chieu="${st.xem}" data-gt="${esc(a.ten)}" data-gy="${gy}">
+      <span class="ten">${a.ten}</span>
+      <span class="vach"><i style="width:${Math.max(3, a.lan / max * 100)}%;background:${mau.get(a.ten) || MAU_KHAC};opacity:${chon && chon !== a.ten ? .35 : 1}"></i></span>
+      <span class="so-lan">${a.lan} lần<small>${soDv(a.dv)[0]}${Object.keys(a.dv).length > 1 ? " +" + (Object.keys(a.dv).length - 1) + " đơn vị" : ""}</small></span>
+    </div>`;
+  }).join("")}</div>${ds.length > toiDa ? `<button class="btn--lk xh-them">Xem cả ${ds.length}</button>` : ""}`;
+}
+function batODau(L, toiDa = 8) {
+  const ds = nhom(L, CHIEU[st.xem].lay);
+  if (!ds.length) return `<p class="trong">Không có lỗi nào.</p>`;
+  const max = ds[0].lan;
+  return `<div class="xh">${ds.slice(0, toiDa).map((a) => {
+    const tai = a.rows.filter(laTaiCho).length, lot = a.lan - tai;
+    const gy = esc(`${a.ten}<br>Tại công đoạn ${tai} lần<br>Lọt tới KCS cuối ${lot} lần`);
+    return `<div class="xh-dong xh-dong--hai" data-chieu="${st.xem}" data-gt="${esc(a.ten)}" data-gy="${gy}">
+      <span class="ten">${a.ten}</span>
+      <span class="vach vach--hai">${tai ? `<i style="width:${tai / max * 100}%;background:${NOI[0][1]}"></i>` : ""}${lot ? `<i style="width:${lot / max * 100}%;background:${NOI[1][1]}"></i>` : ""}</span>
+      <span class="so-lan">${lot ? `<span class="do">${lot} lọt</span>` : '<span class="mu4">0 lọt</span>'}<small>${Math.round(lot / a.lan * 100)}% số lần</small></span>
+    </div>`;
+  }).join("")}</div>`;
+}
+function veBieuDo() {
+  const [nay, truoc] = nguon();
+  const L = loc(nay.loi);
+  const mau = bangMau();
+  const nhanXem = CHIEU[st.xem].nhan.toLowerCase();
+  const chuGiai = `<div class="chu-giai">${[...mau.entries()].map(([t, m]) => `<span><i style="background:${m}"></i>${esc(t)}</span>`).join("")}${nhom(loc(nay.loi, st.xem), CHIEU[st.xem].lay).length > 4 ? `<span><i style="background:${MAU_KHAC}"></i>Khác</span>` : ""}<span><i style="height:0;border-top:1px dashed var(--chu-4);border-radius:0;width:16px"></i>Trung bình kỳ trước</span></div>`;
+  return `
+  <div class="khung">
+    <div class="hang-dau"><h4>Lần ghi lỗi mỗi ngày theo ${nhanXem}</h4><span class="gian"></span><span class="mu" style="font-size:12px">Bấm một cột để xem riêng ngày đó</span></div>
+    ${chuGiai}
+    ${bieuDoNgay(loc(nay.loi, "ngayIdx"), loc(truoc.loi, "ngayIdx"), mau)}
+  </div>
+  <div class="luoi-2">
+    <div class="khung"><h4>${CHIEU[st.xem].nhan} nhiều lỗi nhất</h4><p class="phu">Đếm số lần ghi lỗi; số lượng theo đơn vị ở dòng dưới. Bấm một thanh để lọc.</p>${xepHang(loc(nay.loi, st.xem), mau)}</div>
+    <div class="khung"><h4>Bắt tại công đoạn hay lọt tới KCS cuối</h4>
+      <div class="chu-giai" style="margin-top:2px">${NOI.map(([t, m]) => `<span><i style="background:${m}"></i>${t}</span>`).join("")}</div>
+      ${batODau(loc(nay.loi, st.xem))}</div>
+  </div>
+  <div class="khung"><div class="hang-dau"><h4>Tỷ lệ đạt ở bước cuối</h4><span class="gian"></span><span class="mu" style="font-size:12px">Chỉ tính lần kiểm bước cuối, công đoạn giữa chỉ ghi lỗi</span></div>${bieuDoTyLe(nay.kiem, RONG())}</div>
+  ${khungLan(L)}`;
+}
+
+/* ===================== VẼ + SỰ KIỆN ===================== */
+function ve() {
+  const man = document.getElementById("man");
+  man.innerHTML = dauMan() + thanhLoc() + hangSo() + `<div id="than"></div>`;
+  document.getElementById("than").innerHTML = st.dang === "bang" ? veBang() : veBieuDo();
+  document.getElementById("q-giai").textContent = st.nguon === "gia" ? "Số giả định: 30 ngày 12/09–11/10, tên công đoạn, tổ, tiêu chí, lệnh, khách lấy từ DB dev" : "Số thật DB dev svn_erp_trong: 2 lần ghi lỗi ngày 11/10, chưa có kỳ trước";
+  document.querySelectorAll("[data-so]").forEach((b) => b.classList.toggle("on", b.dataset.so === st.nguon));
+}
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  const sn = t.closest("[data-so]"); if (sn) { st.nguon = sn.dataset.so; st.loc = {}; ve(); return; }
+  const dg = t.closest("[data-dang]"); if (dg) { st.dang = dg.dataset.dang; ve(); return; }
+  const xm = t.closest("[data-xem]"); if (xm) { st.xem = xm.dataset.xem; ve(); return; }
+  const bo = t.closest("[data-bo]"); if (bo) { if (bo.dataset.bo === "*") st.loc = {}; else delete st.loc[bo.dataset.bo]; ve(); return; }
+  const ng = t.closest("[data-ngay]"); if (ng) { const i = +ng.dataset.ngay; if (st.loc.ngayIdx === i) delete st.loc.ngayIdx; else st.loc.ngayIdx = i; ve(); return; }
+  const ch = t.closest("[data-chieu]"); if (ch) { const k = ch.dataset.chieu, v = ch.dataset.gt; if (st.loc[k] === v) delete st.loc[k]; else st.loc[k] = v; ve(); return; }
+});
+ve();
+</script>
+</body>
+</html>

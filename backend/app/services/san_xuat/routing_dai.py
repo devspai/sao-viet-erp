@@ -29,11 +29,11 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from ...models.san_xuat_san_luong import BG_DIEU_CHINH, BG_XAC_NHAN
+from ...models.san_xuat_san_luong import BG_XAC_NHAN
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 
-_DA_CHOT = (BG_XAC_NHAN, BG_DIEU_CHINH)
+_DA_CHOT = (BG_XAC_NHAN,)
 
 
 def _gop_trang_thai(tts: list[str]) -> str:
@@ -136,6 +136,7 @@ def dung_routing(
                            else to_ten.get(dau.department_id or 0)),
                 "la_cua_toi": bool(cua_toi),
                 "la_kcs_cuoi": any(c.la_kcs_cuoi for c in cvs),
+                "thue_ngoai": dau.loai_buoc == "thue_ngoai",
                 "trang_thai": _gop_trang_thai([c.trang_thai for c in cvs]),
                 "phan_doan_tong": max(c.phan_doan_tong for c in cvs),
                 "chay_chung": dau.bai_ghep_cong_doan_id is not None,
@@ -159,3 +160,78 @@ def dung_routing(
         if len(dai) > 1:
             ra[("lsx", lsx_id)] = dai
     return ra
+
+
+def o_duoi(db: Session, dai: list[dict], cvs_lenh: list) -> dict | None:
+    """Ô ĐUÔI của dải (11/10/2026) — làm xong bước cuối của lệnh thì hàng đi đâu.
+
+    CHỈ ngăn chi tiết gọi (một việc một lần), không đi vào trang bàn tổ — nên được đọc thêm vài
+    truy vấn mà không đụng chặn N+1 của `dung_routing`.
+
+    `cvs_lenh` = công việc của lệnh trong gói (cùng nguồn `dung_routing` đọc). Ba nhánh:
+      · bước cuối THUÊ NGOÀI: theo lần gia công — chờ mang đi / ở ngoài / đã chốt về đâu;
+      · bước cuối tự làm mà có CHẶNG SAU ở lệnh khác (lệnh đi kèm nhập vào lệnh chính): về bước đó;
+      · còn lại: nhập kho thành phẩm, kèm số KCS đã gửi kho.
+    """
+    from ...models.san_xuat_san_luong import BG_DE_XUAT
+    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+    from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
+    from ..gia_cong_ngoai import TT_CHO_MANG_DI, TT_DA_XONG, TT_DANG_O_NGOAI, trang_thai
+    from ..gio_xuong import thuc_te_hien_thi
+    from .kho import dong_nhap_kho_cua_cong_viec, so_da_de_nghi_kcs
+
+    if not dai:
+        return None
+    sk = dai[-1]["step_key"]
+    cuoi = sorted((c for c in cvs_lenh if c.step_key == sk and c.bai_ghep_cong_doan_id is None),
+                  key=lambda c: c.id)
+    if not cuoi:
+        return None
+    sl = SanXuatSanLuongRepository(db)
+    gcn_repo = GiaCongNgoaiRepository(db)
+
+    def ve_buoc(nguon: list, chang_sau: list) -> dict:
+        """Hàng đi sang bước của lệnh khác — số đã xác nhận + phần còn chờ bên nhận bấm."""
+        dich = chang_sau[0]
+        bgs = [b for c in nguon for b in gcn_repo.ban_giao_tu(c.id)]
+        da = sum(float(b.so_luong) for b in bgs if b.trang_thai in _DA_CHOT)
+        cho = sum(float(b.so_luong) for b in bgs if b.trang_thai == BG_DE_XUAT)
+        ma = SanXuatKcsRepository(db).ma_lsx_nhieu({dich.lsx_id}).get(dich.lsx_id) if dich.lsx_id else None
+        return {
+            "loai": "ve_buoc", "noi": dich.ten_cong_doan, "lsx_ma": ma,
+            "so": da or None, "cho_nhan": cho or None,
+            "don_vi": next((b.don_vi for b in bgs), nguon[-1].don_vi_ra),
+        }
+
+    gcn_id = cuoi[-1].gia_cong_ngoai_id
+    gcn = gcn_repo.get(gcn_id) if gcn_id else None
+    if gcn is not None:
+        tt = trang_thai(gcn)
+        if tt == TT_CHO_MANG_DI:
+            cvs_lan = gcn_repo.cong_viec_cua(gcn.id)
+            dau = cvs_lan[0] if cvs_lan else cuoi[0]
+            cho = sum(float(b.so_luong) for b in gcn_repo.ban_giao_cho_mang_di(dau.id))
+            return {"loai": "cho_mang_di", "noi": gcn.nha_cung_cap_ten,
+                    "so": cho or None, "don_vi": dau.don_vi_vao}
+        if tt == TT_DANG_O_NGOAI:
+            cvs_lan = gcn_repo.cong_viec_cua(gcn.id)
+            dau = cvs_lan[0] if cvs_lan else cuoi[0]
+            return {"loai": "o_ngoai", "noi": gcn.nha_cung_cap_ten,
+                    "so": float(gcn.sl_gui) if gcn.sl_gui is not None else None,
+                    "don_vi": dau.don_vi_vao, "luc": thuc_te_hien_thi(gcn.mang_di_luc)}
+        if tt == TT_DA_XONG:
+            if gcn.noi_ve == "xuong":
+                chang_sau = sl.cong_viec_chang_sau(cuoi[-1])
+                if chang_sau:
+                    return ve_buoc(cuoi, chang_sau)
+            so = float(gcn.sl_cuoi) if gcn.sl_cuoi is not None else None
+            return {"loai": "giao_khach" if gcn.noi_ve == "khach" else "ve_kho",
+                    "so": so, "don_vi": gcn.don_vi}
+        # Lần đã huỷ / trọn gói: rơi xuống luật tự làm bên dưới.
+
+    chang_sau = sl.cong_viec_chang_sau(cuoi[-1])
+    if chang_sau:
+        return ve_buoc(cuoi, chang_sau)
+    dong = dong_nhap_kho_cua_cong_viec(db, [c.id for c in cuoi])
+    gui = sum(so_da_de_nghi_kcs(ds) for ds in dong.values())
+    return {"loai": "ve_kho", "so": gui or None, "don_vi": cuoi[-1].don_vi_ra}

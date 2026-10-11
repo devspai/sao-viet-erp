@@ -28,7 +28,7 @@ def _seed_catalog() -> tuple[int, int]:
     """Seed 1 giấy (theo tờ) + 1 công đoạn cán (per_area_sides) → (giay_id, cong_doan_id)."""
     db = SessionLocal()
     try:
-        giay = GiayNguyen(ma="G-TEST-1", ten="Couche 150 test", gsm=150,
+        giay = GiayNguyen(don_vi_them=["to"], ma="G-TEST-1", ten="Couche 150 test", gsm=150,
                           kho_dai=1090, kho_rong=790, don_vi_gia="to", don_gia=2000)
         db.add(giay)
         cd = CongDoan(ma="CD-TEST-CAN", ten="Cán màng test", nhom="finishing",

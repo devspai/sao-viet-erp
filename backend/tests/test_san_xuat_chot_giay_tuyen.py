@@ -28,7 +28,7 @@ def _cv(sess, buoc) -> SanXuatCongViec:
 
 
 def test_them_cat_song_song_ctp_ca_hai_vao_in(sess, admin, lenh_that):
-    g = GiayNguyen(ma="G-CG-TUYEN", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
+    g = GiayNguyen(don_vi_them=["to"], ma="G-CG-TUYEN", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
     sess.add(g)
     sess.flush()
     in_ = _buoc(sess, lenh_that, "In")
@@ -150,7 +150,7 @@ def test_bai_ghep_chen_mot_cong_viec_cat_cho_ca_bai(sess, orders, lsx_svc, admin
 
 
 def _nen_tuyen(sess, admin, lenh_that):
-    g = GiayNguyen(ma="G-CG-TY2", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
+    g = GiayNguyen(don_vi_them=["to"], ma="G-CG-TY2", ten="Couche 150", gsm=150, kho_rong=790, kho_dai=1090)
     sess.add(g)
     sess.flush()
     in_ = _buoc(sess, lenh_that, "In")

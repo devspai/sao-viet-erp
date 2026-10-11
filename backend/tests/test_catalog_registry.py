@@ -73,6 +73,8 @@ SCOPELESS_CU = frozenset({
     # Bốn màn sổ sách kế toán / tài sản (05/10/2026): `accounting.py` · `tai_san.py` không đọc
     # scope của các khoá này lần nào — ô Phạm vi trước đó bày ba lựa chọn mà chọn gì cũng như nhau.
     "phieu_chi", "phieu_thu", "tk_ngan_hang", "tai_san",
+    # KCS (09/10/2026, mg 0383): kiểm cả chuỗi mọi tổ — không có "lần kiểm của tôi".
+    "kcs",
 })
 
 #: `nhat_ky_danh_muc.LOAI_MODULE` — tên chính của từng màn, 2 tên đời cũ (`machine`/`operation`),

@@ -9,7 +9,7 @@ the Customer/Quotation repositories (feat-006 apply_scope pattern).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import BigInteger, and_, asc, cast, desc, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -362,6 +362,27 @@ class OrderRepository:
             for uid, name in self.db.execute(select(User.id, User.name).where(User.id.in_(ids)))
         }
 
+    def da_giao_theo_dong_nhieu(self, order_ids: list[int], *, truoc: datetime | None = None) -> dict[int, int]:
+        """`{order_line_id: Σ khách đã thực nhận}` cho NHIỀU đơn trong MỘT câu — cùng luật
+        `delivery_repo.da_giao_theo_dong` (chỉ lần giao có hàng tới tay). `truoc` = chỉ tính chuyến
+        kết thúc TRƯỚC mốc này (báo cáo "tính tới cuối kỳ"); chuyến chưa ghi giờ kết thúc vẫn tính."""
+        from ..models.delivery import LAN_GIAO_CO_HANG_DEN_TAY, DeliveryTrip, DeliveryTripLine
+
+        if not order_ids:
+            return {}
+        stmt = (
+            select(DeliveryTripLine.order_line_id, func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+            .join(OrderLine, OrderLine.id == DeliveryTripLine.order_line_id)
+            .where(OrderLine.order_id.in_(order_ids),
+                   DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+            .group_by(DeliveryTripLine.order_line_id)
+        )
+        if truoc is not None:
+            stmt = stmt.where(or_(DeliveryTrip.thoi_gian_ket_thuc.is_(None),
+                                  DeliveryTrip.thoi_gian_ket_thuc < truoc))
+        return {int(lid): int(sl or 0) for lid, sl in self.db.execute(stmt)}
+
     def money_sums(self, order_ids: list[int]) -> dict[int, dict]:
         """Batch của `line_total_sum` + `total_with_vat` + `order_cost_sum` — MỘT câu cho cả trang.
 
@@ -405,20 +426,24 @@ class OrderRepository:
         return int(self.db.execute(select(func.coalesce(func.sum(moi_don.c.v), 0))).scalar_one() or 0)
 
     def line_summaries(self, order_ids: list[int]) -> dict[int, tuple[str, int]]:
-        """Tóm tắt hàng của mỗi đơn cho màn danh sách: (mô tả dòng ĐẦU, số dòng) — MỘT câu cả trang."""
+        """Tóm tắt hàng của mỗi đơn cho màn danh sách: (tên MÓN đầu, số món) — MỘT câu cả trang.
+
+        Một món = một cụm `nhom` (ruột + bìa của "Sách A5 64 trang" là MỘT món, tên là tên cụm — 11/10/2026,
+        trước đó bày "Ruột sách A5 64 trang" như thể đơn chỉ bán ruột); dòng không nhóm là một món."""
         if not order_ids:
             return {}
         stmt = (
-            select(OrderLine.order_id, OrderLine.description)
+            select(OrderLine.id, OrderLine.order_id, OrderLine.description, OrderLine.nhom)
             .where(OrderLine.order_id.in_(order_ids))
             .order_by(OrderLine.order_id, OrderLine.id)
         )
-        out: dict[int, tuple[str, int]] = {}
-        for oid, desc in self.db.execute(stmt):
-            oid = int(oid)
-            first, n = out.get(oid, (desc or "", 0))
-            out[oid] = (first, n + 1)
-        return out
+        dau: dict[int, str] = {}
+        mon: dict[int, set] = {}
+        for lid, oid, desc, nhom in self.db.execute(stmt):
+            oid, nhom = int(oid), (nhom or "").strip()
+            dau.setdefault(oid, nhom or desc or "")
+            mon.setdefault(oid, set()).add(("nhom", nhom) if nhom else ("dong", lid))
+        return {oid: (dau[oid], len(mon[oid])) for oid in dau}
 
     def _dk_loc(
         self, *, q: str | None, order_kind: str | None, nguoi: int | None, loc: LocDonHang | None,
@@ -429,7 +454,8 @@ class OrderRepository:
             # Tìm TƯƠNG ĐỐI (không dấu, không phân biệt hoa thường): mã đơn, tên khách, PO khách,
             # tên hàng trong đơn — đúng những gì cột bảng bày ra.
             cust_ids = select(Customer.id).where(like_khong_dau(Customer.name, q))
-            line_ids = select(OrderLine.order_id).where(like_khong_dau(OrderLine.description, q))
+            line_ids = select(OrderLine.order_id).where(or_(
+                like_khong_dau(OrderLine.description, q), like_khong_dau(OrderLine.nhom, q)))
             conditions.append(
                 or_(
                     like_khong_dau(Order.order_no, q),

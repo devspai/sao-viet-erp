@@ -24,6 +24,7 @@ import {
 import { nhanChang, nhanDonVi } from "../pages/lsxBuoc";
 import { num } from "../pages/keHoachSxShared";
 import { kenhCuaNav, loiNhacCua, navCuaKenh } from "../lib/thongBaoMan";
+import { toLaDauTien } from "../lib/banToLa";
 import type { KhoNhapSeed } from "../pages/KhoDeNghiPage";
 // Danh mục rebuild (config .tsx — render pill JSX). Nạp TĨNH: bảng này quyết định định tuyến
 // (`REBUILD_CONFIGS[baseId]`) nên phải có ngay, không chờ được.
@@ -167,7 +168,7 @@ export interface NavParams {
     unit: string;
     quantity: number;
     note?: string | null;
-    /** Khổ CẦN (mm) của giấy tờ. */
+    /** Khổ CẦN (mm) của giấy — đủ hai cạnh, hoặc chỉ rộng (dài 0). */
     kho_rong?: number;
     kho_dai?: number;
   }[];
@@ -223,9 +224,6 @@ export interface NavParams {
 
 export type NavigateFn = (id: string, params?: NavParams) => void;
 
-/** Khoá giả cho mục menu "KCS" — người thuộc phòng ban "Tổ KCS" (mg 0306), không phải ô quyền. */
-const KCS_NAV_KEY = "kcs_theo_lenh";
-
 export function AppShell() {
   const { token, user } = useAuth();
   // Link có dấu `?man=<màn>` (màn kế toán ghi trạng thái lọc + kỳ lên URL, đặc tả A.18): vào
@@ -237,9 +235,6 @@ export function AppShell() {
   const [navOpen, setNavOpen] = useState(false);
   const [readable, setReadable] = useState<Set<string> | null>(null);
   const [caps, setCaps] = useState<Capabilities>(new Map());
-  // KCS theo lệnh (mg 0306): tư cách thành viên / trưởng phòng ban "Tổ KCS" — KHÔNG phải ô quyền
-  // của vai. Máy chủ trả kèm bộ quyền; mở mục menu "KCS" và nút "Đóng thiếu nhóm".
-  const [kcsTuCach, setKcsTuCach] = useState<{ kcs: boolean }>({ kcs: false });
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
   // (`napThongBao`) — Sidebar chỉ vẽ chấm, không in số.
   const [badges, setBadges] = useState<Record<string, number>>({});
@@ -415,7 +410,6 @@ export function AppShell() {
         // thì API trả 403 — hai nơi nói hai kiểu.
         setReadable(new Set(acc.modules));
         setCaps(buildCapabilities(acc.permissions));
-        setKcsTuCach({ kcs: !!acc.kcs });
         if (baoNeuDoi && !lanDau) pushToast("Quyền của bạn vừa được cập nhật.", "info");
       })
       .catch((err: unknown) => {
@@ -553,6 +547,13 @@ export function AppShell() {
       .catch(() => {});
   }, [token, readable]);
   useEffect(() => { reloadTeams(); }, [reloadTeams]);
+  // Tổ cha không có bàn (chỉ tổ lá nhận việc): link cũ, toast hay URL trỏ vào tổ cha ⇒ sang tổ lá
+  // đầu tiên của nhánh, đừng mở bàn gộp việc mọi tổ con.
+  useEffect(() => {
+    if (!activeId.startsWith("thuc-hien-sx:")) return;
+    const la = toLaDauTien(teamList, Number(activeId.split(":")[1]));
+    if (la != null) setActiveId(`thuc-hien-sx:${la}`);
+  }, [activeId, teamList]);
   useEffect(() => {
     napLaiTatCaRef.current = () => {
       reloadBadges();
@@ -635,10 +636,10 @@ export function AppShell() {
       return;
     }
     // Tệp đính kèm của lệnh: không toast (không phải việc gửi tới ai), không bump tick chung.
-    // Hai nơi đọc: tab Tệp của Kế hoạch SX và thẻ "Tệp của lệnh" trong drawer Bàn tổ (tổ không
-    // có module `san_xuat`, vào bằng quyền theo tổ).
+    // Ba nơi đọc: tab Tệp của Kế hoạch SX, thẻ "Tệp của lệnh" trong drawer Bàn tổ (tổ không có
+    // module `san_xuat`, vào bằng quyền theo tổ) và màn KCS (nút Tệp của lệnh + hộp Ghi lỗi).
     if (e.type === "lsx_dinh_kem_changed") {
-      if (readable.has("san_xuat") || coQuyenBanTo(readable)) {
+      if (readable.has("san_xuat") || readable.has("kcs") || coQuyenBanTo(readable)) {
         const id = e.lsx_id;
         setLsxDinhKemDem((m) => ({ ...m, [id]: (m[id] ?? 0) + 1 }));
       }
@@ -698,11 +699,8 @@ export function AppShell() {
       // bị báo lỗi đổi NGAY; nhóm sự kiện đã được đánh dấu ở đầu handler nên màn KCS, hộp "KCS báo lỗi" và
       // mục "Kết quả KCS" đang mở tự nạp lại (không refresh).
       napBadge("to_sx", reloadTeams);
-    } else if (
-      coQuyenBanTo(readable) &&
-      (e.type === "san_xuat_ban_giao_changed" || e.type === "san_xuat_ho_tro_changed")
-    ) {
-      // Việc giữa hai tổ đổi (bàn giao · hỗ trợ chéo) → badge "chờ xác nhận" của tổ nhảy NGAY;
+    } else if (coQuyenBanTo(readable) && e.type === "san_xuat_ban_giao_changed") {
+      // Bàn giao giữa hai tổ đổi → badge "chờ xác nhận" của tổ nhảy NGAY;
       // nhóm sự kiện đã được đánh dấu nên hộp "Chờ tổ bạn xác nhận" của bàn đang mở tự nạp lại.
       napBadge("to_sx", reloadTeams);
     } else if (e.type === "san_xuat_ban_giao") {
@@ -717,22 +715,14 @@ export function AppShell() {
           9000,
         );
       } else if (e.su_kien === "xac_nhan") {
-        pushToast(`✓ Tổ nhận đã xác nhận bàn giao ${tuyen}${sl ? " · " + sl : ""}`, "ok");
-      } else if (e.su_kien === "dieu_chinh") {
-        pushToast(`✏️ Bàn giao ${tuyen} vừa được điều chỉnh${sl ? " thành " + sl : ""}`, "warn");
+        pushToast(`✓ Tổ nhận đã xác nhận bàn giao ${tuyen}${sl ? ` (${sl})` : ""}`, "ok");
+      } else if (e.su_kien === "sua_me") {
+        // Bên giao sửa số mẻ của lần giao tổ bạn đã nhận ⇒ số đổi ngay, chờ tổ bạn xác nhận lại.
+        pushToast(`✏️ ${e.nguon_ten || "Bước trước"} sửa số sản lượng, bàn giao ${tuyen}${sl ? " thành " + sl : ""} — xác nhận lại`, "warn");
       } else if (e.su_kien === "sua") {
         pushToast(`✏️ Bàn giao ${tuyen} vừa sửa${sl ? " còn " + sl : ""} — chờ tổ bạn xác nhận`, "info");
       } else {
-        pushToast(`🔔 Bàn giao mới ${tuyen}${sl ? " · " + sl : ""} — chờ tổ bạn xác nhận`, "info");
-      }
-    } else if (e.type === "san_xuat_ho_tro") {
-      const ai = `${e.ho_ten || "?"} (${e.to_goc_ten || "?"}) → ${e.ten_cong_doan || "?"} · ${e.to_thuc_hien_ten || "?"}`;
-      if (e.trang_thai === "confirmed") {
-        pushToast(`✓ Hỗ trợ chéo đã đủ hai tổ xác nhận: ${ai}`, "ok");
-      } else if (e.trang_thai === "cancelled") {
-        pushToast(`✕ Thỏa thuận hỗ trợ chéo đã huỷ: ${ai}`, "warn");
-      } else {
-        pushToast(`🔔 Lời mời hỗ trợ chéo: ${ai} — chờ tổ bạn xác nhận`, "info");
+        pushToast(`🔔 Bàn giao mới ${tuyen}${sl ? ` (${sl})` : ""} — chờ tổ bạn xác nhận`, "info");
       }
     } else if (e.type === "san_xuat_duoc_giao_viec") {
       // Đẩy đích danh tới người vừa được giao việc (chỉ người có tài khoản nhận) — toast cá nhân.
@@ -750,8 +740,14 @@ export function AppShell() {
           `⚠️ ${ai} bắt lỗi ${e.ten_cong_doan || "công đoạn"}${lenh} ở bước ${e.phat_hien_o}: ${soLoi.toLocaleString("vi-VN")} ${nhanChang(e.don_vi)}`.trim(),
           "warn",
         );
+      } else if (e.la_kcs_cuoi === false) {
+        // Công đoạn giữa chỉ ghi lỗi — không có "đạt" để nói.
+        pushToast(
+          `⚠️ ${ai} ghi lỗi ${e.ten_cong_doan || "công đoạn"}${lenh}: ${soLoi.toLocaleString("vi-VN")} ${nhanChang(e.don_vi)}`.trim(),
+          "warn",
+        );
       } else {
-        const so = `đạt ${soDat.toLocaleString("vi-VN")} · lỗi ${soLoi.toLocaleString("vi-VN")}`;
+        const so = `đạt ${soDat.toLocaleString("vi-VN")} và lỗi ${soLoi.toLocaleString("vi-VN")}`;
         pushToast(
           `${soLoi > 0 ? "⚠️" : "✓"} ${ai} đã kiểm ${e.ten_cong_doan || "công đoạn"}${lenh}: ${so}`,
           soLoi > 0 ? "warn" : "ok",
@@ -785,8 +781,8 @@ export function AppShell() {
       // là khác biệt giữa "lát nữa ghé xem" và "bỏ việc đang làm chạy sang".
       pushToast(
         e.may_dung
-          ? `⚠️ ${e.may} ĐANG DỪNG · ${e.bo_phan_hong} — ${e.nguoi_bao ?? "?"} báo`
-          : `🔔 Báo máy hỏng: ${e.may} · ${e.bo_phan_hong}${e.nguoi_bao ? " — " + e.nguoi_bao : ""}`,
+          ? `⚠️ ${e.may} đang dừng vì hỏng${e.bo_phan_hong ? ` ${e.bo_phan_hong}` : ""}${e.nguoi_bao ? ` (${e.nguoi_bao} báo)` : ""}`
+          : `🔔 ${e.nguoi_bao ?? "Có người"} báo ${e.may} hỏng${e.bo_phan_hong ? ` ${e.bo_phan_hong}` : ""}`,
         e.may_dung ? "warn" : "info",
       );
       napBadge("tat_ca", reloadBadges);
@@ -795,7 +791,7 @@ export function AppShell() {
       // sự kiện này nghĩa là mình chính là người gửi lời báo đó.
       pushToast(
         e.ket_qua === "da_tao_phieu"
-          ? `✅ ${e.ma} đã được tiếp nhận — phiếu ${e.phieu_ma ?? ""}${e.boi ? " · " + e.boi : ""}`
+          ? `✅ ${e.ma} đã được tiếp nhận thành phiếu ${e.phieu_ma ?? ""}${e.boi ? ` (${e.boi})` : ""}`
           : `✕ ${e.ma} không lập phiếu: ${e.ly_do ?? ""}`,
         e.ket_qua === "da_tao_phieu" ? "ok" : "warn",
       );
@@ -803,7 +799,7 @@ export function AppShell() {
     } else if (readable.has("phieu_bao_tri") && e.type === "bao_tri_due") {
       // Tới ngày bảo trì → ting tổ sửa chữa: toast + badge "Phiếu bảo trì" tự nhảy.
       pushToast(
-        `${e.qua_han ? "⚠️ Quá hạn bảo trì" : "🔧 Tới hạn bảo trì"}: ${e.may} · ${e.goi}`.trim(),
+        `${e.qua_han ? "⚠️ Quá hạn bảo trì" : "🔧 Tới hạn bảo trì"}: ${e.may}${e.goi ? ` (${e.goi})` : ""}`,
         e.qua_han ? "warn" : "info",
       );
       napBadge("tat_ca", reloadBadges);
@@ -1096,8 +1092,6 @@ export function AppShell() {
       : isKhoView ? [khoaTonKho(Number(activeId.split(":")[1]))] : undefined);
   const allowed =
     AUTHENTICATED_NAV_IDS.has(baseId) ||
-    // Màn KCS: người thuộc phòng ban "Tổ KCS", không đi qua ô quyền của vai.
-    (baseId === "kcs" && kcsTuCach.kcs) ||
     // KHÔNG mục nào còn phải lọc thêm sau `readable` nữa: "Báo cáo kho" (mg `0329`) và màn Tồn
     // kho của từng kho (mg `0334`) đều đã có khoá riêng. Trước đây cả hai gắn khoá `kho` rồi chặn
     // thêm bằng ô chi tiết `close_book` / `view_stock` — đúng chỗ làm ra những MÀN không có dòng
@@ -1114,13 +1108,9 @@ export function AppShell() {
       id: `kho-item:${w.id}`, label: w.ten, icon: "warehouse", module: khoaTonKho(w.id),
     }));
   }
-  // Mục "KCS" (KCS theo lệnh, mg 0306) — MỘT mục cho người thuộc phòng ban "Tổ KCS", kiểm mọi tổ.
-  // Khoá giả `KCS_NAV_KEY` chỉ để Sidebar (lọc theo `readable`) cho mục này qua; nó không phải ô
-  // quyền nào trong ma trận.
+  // (Mục "KCS" nay là mục TĨNH cuối khối Sản xuất, khoá `kcs` — 09/10/2026, thay khoá giả theo
+  // phòng ban "Tổ KCS" từng tiêm động vào đây.)
   const sanXuatDong: NavItem[] = [];
-  if (kcsTuCach.kcs) {
-    sanXuatDong.push({ id: "kcs", label: "KCS", icon: "badgeCheck", module: KCS_NAV_KEY });
-  }
   // Tổ đã khai báo → node lá ĐỘNG dưới SECTION "Tổ sản xuất" (id section = "to-san-xuat", khối
   // tách riêng 24/09/2026 — trước đó đổ chung vào khối "Sản xuất"). Bấm 1 tổ → mở
   // bàn "Thực hiện sản xuất" lọc theo tổ. teamList chỉ có dữ liệu khi có Xem ở một dòng quyền theo
@@ -1138,7 +1128,7 @@ export function AppShell() {
       while (nganh.length && nganh[nganh.length - 1].cap >= cap) nganh.pop();
       const id = `thuc-hien-sx:${t.id}`;
       sanXuatDong.push({
-        id, label: t.ten, icon: "hardHat", module: "to_sx",
+        id, label: t.ten, icon: "users", module: "to_sx",
         modules: cacKhoaTo, indent: cap,
         parentId: nganh.length ? nganh[nganh.length - 1].id : undefined,
       });
@@ -1146,7 +1136,6 @@ export function AppShell() {
     }
   }
   if (sanXuatDong.length) dynamicItems["to-san-xuat"] = sanXuatDong;
-  const readableNav = kcsTuCach.kcs ? new Set([...readable, KCS_NAV_KEY]) : readable;
   // Mục "Kho" chỉ cần `kho:read`; tab "Phiếu từ đề nghị" (cần create/view_stock) tự ẩn trong KhoPage.
   const hiddenIds = new Set<string>();
 
@@ -1212,6 +1201,8 @@ export function AppShell() {
     // `eventTick` = tick nhóm sản xuất + kho → bàn đang mở tự refetch khi bàn tổ / kho cấp vật tư đổi.
     if (baseId === "thuc-hien-sx") {
       const teamId = Number(activeId.split(":")[1]);
+      // Tổ cha: effect phía trên đang chuyển sang tổ lá — đừng nạp bàn gộp trong lúc chờ.
+      if (toLaDauTien(teamList, teamId) != null) return null;
       const t = teamList.find((x) => x.id === teamId);
       return (
         <ThucHienSxPage
@@ -1230,7 +1221,10 @@ export function AppShell() {
     }
     // Màn KCS theo lệnh — một màn cho mọi người KCS, không theo tổ.
     if (baseId === "kcs") {
-      return <KcsTheoLenhPage key="kcs" eventTick={tickCua("san_xuat", "kho")} onBadgeStale={reloadTeams} navigate={navigate} />;
+      return (
+        <KcsTheoLenhPage key="kcs" eventTick={tickCua("san_xuat", "kho")} dinhKemDem={lsxDinhKemDem}
+          onBadgeStale={reloadTeams} navigate={navigate} />
+      );
     }
     // Id cũ "quy-doi" (màn cặp riêng, đã gộp vào drawer đơn vị) → về đúng màn Đơn vị.
     if (baseId === "quy-doi") {
@@ -1250,8 +1244,8 @@ export function AppShell() {
         return (
           <QuyTrinhKinhDoanhPage
             navigate={navigate}
-            // Cùng cổng `allowed` ở trên: KCS đi theo phòng ban, màn khác theo ô quyền của menu.
-            moDuoc={(id) => (id === "kcs" ? kcsTuCach.kcs : (MODULES_BY_NAV_ID[id] ?? []).some((m) => readable?.has(m) ?? false))}
+            // Cùng cổng `allowed` ở trên: theo ô quyền của mục menu.
+            moDuoc={(id) => (MODULES_BY_NAV_ID[id] ?? []).some((m) => readable?.has(m) ?? false)}
           />
         );
       case "phong-ban":
@@ -1466,7 +1460,7 @@ export function AppShell() {
   }
 
   return (
-    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan} kcs={kcsTuCach.kcs}>
+    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan}>
       <div className={`shell${navOpen ? " is-nav-open" : ""}`}>
         {/* Màn che sau ngăn kéo — chỉ tồn tại khi ngăn kéo mở (màn hẹp). */}
         {navOpen && (
@@ -1480,7 +1474,7 @@ export function AppShell() {
         <Sidebar
           activeId={activeId}
           onSelect={(id) => navigate(id)}
-          readable={readableNav}
+          readable={readable}
           itemChildren={itemChildren}
           dynamicItems={dynamicItems}
           badges={badges}

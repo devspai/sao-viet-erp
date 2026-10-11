@@ -1230,13 +1230,18 @@ def test_nguoi_bao_lay_tu_TAI_KHOAN_khong_nhan_tu_client():
     assert (yc.ma, yc.muc_do, yc.may_dung) == ("YC-0001", "trung_binh", False)
 
 
-def test_yeu_cau_thieu_may_hoac_cho_hong_bi_chan():
+def test_yeu_cau_thieu_may_bi_chan_cho_hong_de_trong_duoc():
+    """Chỗ hỏng không bắt buộc ở yêu cầu lẫn phiếu (11/10/2026): lập phiếu được ngay, ghi sau."""
     db, svc = _svc()
     may = _may(db)
     with pytest.raises(KyThuatMayValidationError):
         svc.tao_yeu_cau({"bo_phan_hong": "Lô nước"})
-    with pytest.raises(KyThuatMayValidationError):
-        svc.tao_yeu_cau({"may_id": may.id, "bo_phan_hong": "   "})
+    yc = svc.tao_yeu_cau({"may_id": may.id})
+    phieu, _ = svc.tao_phieu_tu_yeu_cau(yc.id)
+    assert phieu.bo_phan_hong == ""
+    phieu = svc.sua_sua_chua(phieu.id, {"bo_phan_hong": "Trục cán"})
+    assert phieu.bo_phan_hong == ""                 # lời người báo chốt, sửa phiếu không đổi được
+    assert svc.tao_sua_chua({"may_id": may.id}).bo_phan_hong == ""
     with pytest.raises(KyThuatMayValidationError):
         _yc(svc, may, muc_do="chet_may")
 
@@ -1256,6 +1261,21 @@ def test_hang_cho_may_DUNG_dung_truoc_muc_do():
     assert [r.id for r in rows] == [nhe_ma_dung.id, nang_van_chay.id, da_xong.id]
 
 
+
+def test_tiep_nhan_giu_gio_hong_cua_nguoi_bao():
+    """Phiếu sinh từ yêu cầu mang GIỜ BÁO, không phải giờ bấm Nhận sửa — "Đã kéo dài" tính từ đó."""
+    from datetime import datetime, timezone
+    db, svc = _svc()
+    may = _may(db, ma="CM-09")
+    yc = _yc(svc, may)
+    luc_bao = datetime(2026, 10, 11, 5, 45, tzinfo=timezone.utc)
+    yc.thoi_diem = luc_bao
+    db.commit()
+
+    phieu, _ = svc.tao_phieu_tu_yeu_cau(yc.id)
+
+    assert phieu.thoi_diem.replace(tzinfo=timezone.utc) == luc_bao
+
 def test_tiep_nhan_chuyen_anh_sang_phieu_va_khoa_yeu_cau():
     """Tiếp nhận = sinh phiếu + ảnh ĐỔI CHỦ (chuyển, không chép) + yêu cầu đóng lại, một lần."""
     db, svc = _svc()
@@ -1266,12 +1286,12 @@ def test_tiep_nhan_chuyen_anh_sang_phieu_va_khoa_yeu_cau():
     _anh_yeu_cau(svc, yc.id, "hong-1.jpg")
     _anh_yeu_cau(svc, yc.id, "hong-2.jpg")
 
-    phieu, yc = svc.tao_phieu_tu_yeu_cau(yc.id, {"muc_do": "nghiem_trong"}, actor_id=kt.id)
+    phieu, yc = svc.tao_phieu_tu_yeu_cau(yc.id, {"muc_do": "nhe"}, actor_id=kt.id)
 
     assert phieu.ma.startswith("SC-")
     assert (phieu.may_id, phieu.bo_phan_hong) == (may.id, "Lô nước in bị rỉ")
     assert phieu.mo_ta == "Chảy dầu chỗ bơm"
-    assert phieu.muc_do == "nghiem_trong"          # tổ sửa chữa chỉnh lại được lúc tiếp nhận
+    assert phieu.muc_do == yc.muc_do               # mức độ là lời người báo, tiếp nhận không đè
     # Chỉ chép TÊN người báo. `SuaChuaMay.nguoi_bao_id` trỏ `employees.id` còn bên yêu cầu trỏ
     # `users.id` — chép id sang là gán phiếu cho một nhân sự khác tình cờ trùng con số.
     assert phieu.nguoi_bao_ten == "Trần Văn Hải"
@@ -1410,7 +1430,7 @@ def test_api_bao_hong_roi_to_sua_chua_lap_phieu(client):
                       json={"muc_do": "nghiem_trong"}, headers=h)
     assert tao.status_code == 201, tao.text
     phieu = tao.json()["phieu"]
-    assert phieu["ma"].startswith("SC-") and phieu["muc_do"] == "nghiem_trong"
+    assert phieu["ma"].startswith("SC-") and phieu["muc_do"] == yc["muc_do"]  # không đè lời người báo
     assert tao.json()["yeu_cau"]["phieu_ma"] == phieu["ma"]
 
     assert client.get("/api/ky-thuat-may/yeu-cau/cho-xu-ly", headers=h).json()["total"] == 0
@@ -1463,7 +1483,7 @@ def test_khong_doi_duoc_nguoi_bao_cua_phieu_sinh_tu_yeu_cau():
 
 
 def test_phieu_sinh_tu_yeu_cau_van_sua_duoc_phan_cua_TO_SUA_CHUA():
-    """Chặn đúng MỘT ô, không khoá cả khối: chẩn đoán/ghi chú/mức độ vẫn là việc của tổ sửa chữa.
+    """Lời người báo chốt (cả mức độ, 11/10/2026); chẩn đoán/ghi chú vẫn là việc của tổ sửa chữa.
 
     Gửi kèm ĐÚNG tên đang có cũng cho qua — bản FE cũ gửi nguyên body thì đừng chặn oan.
     """
@@ -1480,7 +1500,7 @@ def test_phieu_sinh_tu_yeu_cau_van_sua_duoc_phan_cua_TO_SUA_CHUA():
         "nguyen_nhan_phuong_an": "Bạc đạn mòn, thay và căn lại trục",
         "ghi_chu": "Chờ bạc đạn về thứ 5",
     }, actor_id=kt.id)
-    assert phieu.muc_do == "nghiem_trong"
+    assert phieu.muc_do == "trung_binh"             # mức người báo, PATCH không đổi
     assert phieu.nguyen_nhan_phuong_an == "Bạc đạn mòn, thay và căn lại trục"
     assert phieu.nguoi_bao_ten == "Lê Văn Máy"
 

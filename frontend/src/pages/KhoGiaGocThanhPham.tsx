@@ -5,21 +5,22 @@
 // máy chủ lan xuống cả họ lô (dòng phiếu nhập + giá lô ⇒ báo cáo Nhập-Xuất-Tồn, giá trị phiếu xuất
 // đã ghi sổ). Lọc + trang ở máy chủ; chỉ người có "Xem giá vốn" mới thấy tab này.
 //
-// Lọc nâng cao (khoảng ngày nhập · kho nhập · khách hàng) cùng khuôn "Lọc nâng cao" của màn danh mục:
-// nút cạnh ô tìm, mở ra hàng ô; gập lại mà còn lọc thì hàng nhãn "Kho nhập: … ✕".
-import { ChonNgay } from "../components/ChonNgay";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+// Lưới chung (11/10/2026, khuôn Sản lượng của bàn tổ): [Tìm] [Kỳ theo ngày nhập] [Lọc] … [Cột] —
+// Lọc gồm Trạng thái giá, Kho nhập, Khách hàng, Mặt hàng (chọn nhiều); cột kéo rộng, ghim, đổi chỗ.
+import { CircleDot, Package, Users, Warehouse } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OGoDinhDang } from "../components/OGoDinhDang";
-import { Search } from "lucide-react";
 import { api, ApiError, type ThanhPhamChuaGiaGocPage, type ThanhPhamChuaGiaGocRow } from "../api/client";
-import type { Row } from "../api/rebuildCatalog";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EmptyRow } from "../components/EmptyState";
+import { ChonCot, CuonLuoi, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi } from "../components/LuoiDs";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useDebounced } from "../utils/useDebounced";
-import { RefSearchField } from "./danh-muc/fields/RefFields";
-import { FilterIcon, XIcon } from "./danh-muc/icons";
+import { XIcon } from "./danh-muc/icons";
 import { fmtQty } from "./khoShared";
+import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { khoangKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import type { DieuKien, GiaTriDK } from "./thanh-loc/thanh-loc";
 import "./kho-gia-goc.css";
 
 const tien = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("vi-VN"));
@@ -32,11 +33,31 @@ function docGia(s: string): number | null {
   const so = s.replace(/\D/g, "");
   return so === "" ? null : Number(so);
 }
-/** Chốt chặn cuối: giá trị rác (vd năm 6 chữ số) gửi lên là 422 câm. Chỉ nhận YYYY-MM-DD. */
-const ngayHopLe = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
-type Loc = { tu: string; den: string; khoId: number | null; khachId: number | null };
-const LOC_TRONG: Loc = { tu: "", den: "", khoId: null, khachId: null };
+/** Điều kiện nút Lọc. `gia` vắng = mọi lô (đã có lẫn chưa có giá). Mặc định chỉ lô chưa có giá. */
+type LocGG = { gia?: "chua" | "co"; kho: string[]; khach: string[]; hang: string[] };
+const LOC_MAC_DINH: LocGG = { gia: "chua", kho: [], khach: [], hang: [] };
+const MOC_GG: [string, string][] = [["nhap", "Ngày nhập"]];
+const KY_MAC_DINH: KyDS = { loai: "tat_ca", moc: "nhap" };
+const soId = (ds: string[]) => ds.map(Number).filter((n) => Number.isInteger(n));
+const giaTriTu = (ds: { id: number; ten: string | null }[] | undefined): GiaTriDK[] =>
+  (ds ?? []).map((x) => ({ value: String(x.id), nhan: x.ten ?? `#${x.id}` }));
+
+interface CotGG extends CotLuoi { w?: number; n?: boolean }
+const COT_GG: CotGG[] = [
+  { key: "lo", label: "Mã lô", coDinh: true, w: 230 },
+  { key: "ngay", label: "Ngày nhập", w: 104 },
+  { key: "kho", label: "Kho nhập", w: 150 },
+  { key: "mahang", label: "Mã hàng", w: 110 },
+  { key: "hang", label: "Mặt hàng", w: 220 },
+  { key: "lenh", label: "Lệnh", w: 110 },
+  { key: "don", label: "Đơn hàng", w: 100 },
+  { key: "khach", label: "Khách hàng", w: 200 },
+  { key: "sl", label: "SL nhập", w: 110, n: true },
+  { key: "ton", label: "Còn tồn", w: 110, n: true },
+  { key: "giaban", label: "Giá bán (đơn)", w: 120, n: true },
+  { key: "gia", label: "Giá gốc", w: 270 },
+];
 
 /** Ô giá gốc của một lô. Định dạng "1.850" NGAY khi gõ nhưng giữ con trỏ đứng sau đúng chữ số vừa gõ
  *  — định dạng lại cả chuỗi mà không đặt lại con trỏ thì sửa số ở giữa là con trỏ nhảy về cuối. Xoá
@@ -120,9 +141,8 @@ function OGiaGoc({ row, dang, dv, onDoi, onBo, onLuu }: {
 export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?: (n: number) => void }) {
   const [tim, setTim] = useState("");
   const timCham = useDebounced(tim.trim());
-  const [chiChuaGia, setChiChuaGia] = useState(true);
-  const [moLoc, setMoLoc] = useState(false);
-  const [loc, setLoc] = useState<Loc>(LOC_TRONG);
+  const [ky, setKy] = useState<KyDS>(KY_MAC_DINH);
+  const [loc, setLoc] = useState<LocGG>(LOC_MAC_DINH);
   const [trang, setTrang] = useState(1);
   const [coTrang, setCoTrang] = useState(25);
   const [data, setData] = useState<ThanhPhamChuaGiaGocPage | null>(null);
@@ -135,27 +155,29 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
   const [luuBusy, setLuuBusy] = useState(false);
   const [luuLoi, setLuuLoi] = useState<string | null>(null);
   const [thongBao, setThongBao] = useState<string | null>(null);
+  const luoi = useCauHinhLuoi("kho-gia-goc");
 
-  const tu = ngayHopLe(loc.tu) ? loc.tu : "";
-  const den = ngayHopLe(loc.den) ? loc.den : "";
-  const nguocNgay = tu !== "" && den !== "" && den < tu;
-  const soLoc = (tu || den ? 1 : 0) + (loc.khoId != null ? 1 : 0) + (loc.khachId != null ? 1 : 0);
+  // Nút kỳ không nhận khoảng ngày ngược (giữ kỳ cũ), nên ở đây luôn là khoảng hợp lệ hoặc không có.
+  const khoang = khoangKy(ky);
+  const tu = khoang?.tu ?? "";
+  const den = khoang?.den ?? "";
+  const khoaLoc = JSON.stringify(loc);
 
-  useEffect(() => { setTrang(1); }, [timCham, chiChuaGia, tu, den, loc.khoId, loc.khachId]);
+  useEffect(() => { setTrang(1); }, [timCham, tu, den, khoaLoc]);
   useEffect(() => {
-    if (nguocNgay) return;
     let alive = true;
     setDangTai(true);
+    const l = JSON.parse(khoaLoc) as LocGG;
     api.kho.baoCao.thanhPhamChuaGiaGoc(token, {
-      q: timCham || undefined, chiChuaGia, page: trang, size: coTrang,
+      q: timCham || undefined, gia: l.gia ?? "tat_ca", page: trang, size: coTrang,
       tu: tu || undefined, den: den || undefined,
-      khoId: loc.khoId ?? undefined, khachHangId: loc.khachId ?? undefined,
+      khoIds: soId(l.kho), khachHangIds: soId(l.khach), hangIds: soId(l.hang),
     })
       .then((r) => { if (alive) { setData(r); setLoi(null); onCount?.(r.total); } })
       .catch((e) => { if (alive) setLoi(e instanceof ApiError ? e.message : "Không tải được danh sách thành phẩm."); })
       .finally(() => { if (alive) setDangTai(false); });
     return () => { alive = false; };
-  }, [token, timCham, chiChuaGia, trang, coTrang, tick, onCount, tu, den, nguocNgay, loc.khoId, loc.khachId]);
+  }, [token, timCham, trang, coTrang, tick, onCount, tu, den, khoaLoc]);
 
   async function luu() {
     if (!xacNhan || luuBusy) return;
@@ -185,199 +207,149 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
     });
   }
 
+  const dieuKien = useMemo<DieuKien<LocGG>[]>(() => [{
+    khoa: "gia", nhan: "Trạng thái giá", icon: CircleDot, kieu: "mot",
+    giaTri: [{ value: "chua", nhan: "Chưa có giá gốc" }, { value: "co", nhan: "Đã có giá gốc" }],
+    doc: (l) => l.gia,
+    ghi: (l, v) => ({ ...l, gia: v === "chua" || v === "co" ? v : undefined }),
+  }, {
+    khoa: "kho", nhan: "Kho nhập", icon: Warehouse, kieu: "nhieu", tim: true, giaTri: giaTriTu(data?.cac_kho),
+    doc: (l) => l.kho,
+    ghi: (l, v) => ({ ...l, kho: v }),
+  }, {
+    khoa: "khach", nhan: "Khách hàng", icon: Users, kieu: "nhieu", tim: true, giaTri: giaTriTu(data?.cac_khach),
+    doc: (l) => l.khach,
+    ghi: (l, v) => ({ ...l, khach: v }),
+  }, {
+    khoa: "hang", nhan: "Mặt hàng", icon: Package, kieu: "nhieu", tim: true, giaTri: giaTriTu(data?.cac_hang),
+    doc: (l) => l.hang,
+    ghi: (l, v) => ({ ...l, hang: v }),
+  }], [data?.cac_kho, data?.cac_khach, data?.cac_hang]);
+
   const rows = data?.items ?? [];
-  const cacKho = data?.cac_kho ?? [];
-  const cacKhach: Row[] = (data?.cac_khach ?? []).map((k) => ({ id: k.id, ma: "", ten: k.ten ?? `#${k.id}` }));
-  const tenKho = (id: number) => cacKho.find((k) => k.id === id)?.ten ?? `#${id}`;
-  const tenKhach = (id: number) => cacKhach.find((k) => k.id === id)?.ten ?? `#${id}`;
-  const nhanNgay = tu && den ? `${ngay(tu)} – ${ngay(den)}` : tu ? `từ ${ngay(tu)}` : den ? `đến ${ngay(den)}` : "";
-  const coLoc = soLoc > 0 || timCham !== "";
+  const cot = luoi.rongHien(luoi.xep(COT_GG).filter((c) => !luoi.an.has(c.key)));
+  const coLoc = timCham !== "" || ky.loai !== "tat_ca" || khoaLoc !== JSON.stringify(LOC_MAC_DINH);
+  const xoaLoc = () => { setTim(""); setKy(KY_MAC_DINH); setLoc({ ...LOC_MAC_DINH, gia: undefined }); };
+
+  const o = (key: string, r: ThanhPhamChuaGiaGocRow) => {
+    const dv = r.dvt_ten ?? r.dvt ?? "";
+    switch (key) {
+      case "lo":
+        return (
+          <td key={key} title={r.ma_lo}>
+            {r.ma_lo}
+            {r.so_lo > 1 && <span className="lds-tag" title="Lô đã điều chuyển sang kho khác, đi theo giá lô gốc">+{r.so_lo - 1} lô điều chuyển</span>}
+          </td>
+        );
+      case "ngay":
+        return <td key={key}>{ngay(r.ngay_nhap)}</td>;
+      case "kho":
+        return <td key={key} title={r.kho_ten ?? undefined}>{r.kho_ten ?? "—"}</td>;
+      case "mahang":
+        return <td key={key} className={r.ma_hang ? undefined : "lds-mu"}>{r.ma_hang ?? "—"}</td>;
+      case "hang":
+        return <td key={key} title={r.ten_hang ?? undefined}>{r.ten_hang ?? "—"}</td>;
+      case "lenh":
+        return <td key={key} className={r.lsx_ma ? undefined : "lds-mu"}>{r.lsx_ma ?? "—"}</td>;
+      case "don":
+        return <td key={key} className={r.order_ma ? undefined : "lds-mu"}>{r.order_ma ?? "—"}</td>;
+      case "khach":
+        return <td key={key} title={r.khach_hang ?? undefined} className={r.khach_hang ? undefined : "lds-mu"}>{r.khach_hang ?? "—"}</td>;
+      case "sl":
+        return <td key={key} className="n">{fmtQty(r.so_luong_nhap)} {dv}</td>;
+      case "ton":
+        return <td key={key} className="n">{fmtQty(r.sl_con_lai)} {dv}</td>;
+      case "giaban":
+        return <td key={key} className="n">{tien(r.don_gia_ban)}</td>;
+      case "gia": {
+        const dang = nhap[r.lot_id];
+        return (
+          <td key={key} className="kgg-o-gia">
+            <OGiaGoc
+              row={r}
+              dang={dang}
+              dv={dv}
+              onDoi={(s) => setNhap((cu) => ({ ...cu, [r.lot_id]: s }))}
+              onBo={() => boNhap(r.lot_id)}
+              onLuu={() => {
+                const gia = dang == null ? null : docGia(dang);
+                if (gia == null || gia === r.don_gia) return;
+                setLuuLoi(null);
+                setXacNhan({ row: r, gia });
+              }}
+            />
+          </td>
+        );
+      }
+      default:
+        return <td key={key} />;
+    }
+  };
 
   return (
-    <>
+    <div className="lds">
       {thongBao ? (
-        <div className="banner banner--success" role="status" style={{ marginBottom: 8 }}>
+        <div className="banner banner--success" role="status">
           <span>{thongBao}</span>
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => setThongBao(null)}>Đóng</button>
         </div>
       ) : (
-        <div className="banner banner--info" style={{ marginBottom: 8 }}>
+        <div className="banner banner--info">
           <span>
-            Thành phẩm KCS gửi kho nhập với <b>giá gốc 0</b>. Gõ giá gốc cho <b>lô gốc</b> — lô đã điều chuyển sang
+            Thành phẩm KCS gửi kho nhập với giá gốc 0. Gõ giá gốc cho lô gốc — lô đã điều chuyển sang
             kho khác và phiếu xuất đã ghi sổ của các lô đó cập nhật theo. Kỳ đã khoá sổ thì không sửa được.
           </span>
         </div>
       )}
-      <div className="rc__toolbar kgg-toolbar">
-        <div className="rc__search-wrapper" style={{ width: 280 }}>
-          <Search className="rc__search-icon" style={{ width: 15, height: 15 }} />
-          <input
-            className="rc__search"
-            placeholder="Tìm mã lô / hàng / lệnh / đơn / khách…"
-            value={tim}
-            onChange={(e) => setTim(e.target.value)}
-          />
-        </div>
-        <button type="button"
-          className={`rc__locnc-btn${moLoc ? " is-open" : ""}${soLoc > 0 ? " is-active" : ""}`}
-          aria-expanded={moLoc}
-          onClick={() => setMoLoc((v) => !v)}>
-          <FilterIcon /> Lọc nâng cao
-          {soLoc > 0 && <span className="chip-count">{soLoc}</span>}
-        </button>
-        <label className="kgg-chi-chua">
-          <input type="checkbox" checked={chiChuaGia} onChange={(e) => setChiChuaGia(e.target.checked)} />
-          Chỉ lô chưa có giá gốc
-        </label>
-      </div>
 
-      {moLoc ? (
-        <div className="rc__locnc kgg-loc" role="group" aria-label="Lọc nâng cao">
-          <div className="rc__locnc-field rc__locnc-field--rong">
-            <span className="rc__locnc-label">Ngày nhập</span>
-            <div className="kgg-loc__ngay">
-              <ChonNgay className="rc-input" aria-label="Ngày nhập từ" value={loc.tu}
-                min="2000-01-01" max={den || "2099-12-31"}
-                onChange={(v) => setLoc((l) => ({ ...l, tu: v }))} />
-              <span className="kgg-loc__den">đến</span>
-              <ChonNgay className="rc-input" aria-label="Ngày nhập đến" value={loc.den}
-                min={tu || "2000-01-01"} max="2099-12-31"
-                onChange={(v) => setLoc((l) => ({ ...l, den: v }))} />
-            </div>
-            {nguocNgay && <span className="rc-field__hint rc-field__hint--loi">Ngày "đến" phải từ ngày "từ" trở đi.</span>}
-          </div>
-          <div className="rc__locnc-field">
-            <span className="rc__locnc-label">Kho nhập</span>
-            <select className="rc-input" aria-label="Kho nhập"
-              value={loc.khoId == null ? "" : String(loc.khoId)}
-              onChange={(e) => setLoc((l) => ({ ...l, khoId: e.target.value ? Number(e.target.value) : null }))}>
-              <option value="">Tất cả</option>
-              {cacKho.map((k) => <option key={k.id} value={k.id}>{k.ten ?? `#${k.id}`}</option>)}
-            </select>
-          </div>
-          <div className="rc__locnc-field rc__locnc-field--rong">
-            <span className="rc__locnc-label">Khách hàng</span>
-            <RefSearchField
-              value={loc.khachId}
-              options={cacKhach}
-              placeholder="Gõ tên khách hàng để tìm…"
-              onChange={(v) => setLoc((l) => ({ ...l, khachId: v == null || v === "" ? null : Number(v) }))}
-            />
-          </div>
-          {soLoc > 0 && (
-            <button type="button" className="rc__locnc-clear" onClick={() => setLoc(LOC_TRONG)}>Xoá bộ lọc</button>
-          )}
+      <section className="lds-loc">
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={tim} onChange={setTim} placeholder="Tìm mã lô, hàng, lệnh, đơn, khách" ariaLabel="Tìm lô thành phẩm" />
+          <ThanhLoc ky={ky} moc={MOC_GG} onKy={setKy} dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
+          <ChonCot cot={COT_GG} {...luoi.chonCot} />
         </div>
-      ) : soLoc > 0 && (
-        <div className="rc__locnc-tags" aria-label="Bộ lọc đang áp">
-          {nhanNgay && (
-            <span className="rc__locnc-tag">
-              <span className="rc__locnc-tag-k">Ngày nhập:</span> {nhanNgay}
-              <button type="button" className="rc__locnc-tag-x" aria-label="Bỏ lọc Ngày nhập" title="Bỏ lọc Ngày nhập"
-                onClick={() => setLoc((l) => ({ ...l, tu: "", den: "" }))}>
-                <XIcon size={11} />
-              </button>
-            </span>
-          )}
-          {loc.khoId != null && (
-            <span className="rc__locnc-tag">
-              <span className="rc__locnc-tag-k">Kho nhập:</span> {tenKho(loc.khoId)}
-              <button type="button" className="rc__locnc-tag-x" aria-label="Bỏ lọc Kho nhập" title="Bỏ lọc Kho nhập"
-                onClick={() => setLoc((l) => ({ ...l, khoId: null }))}>
-                <XIcon size={11} />
-              </button>
-            </span>
-          )}
-          {loc.khachId != null && (
-            <span className="rc__locnc-tag">
-              <span className="rc__locnc-tag-k">Khách hàng:</span> {tenKhach(loc.khachId)}
-              <button type="button" className="rc__locnc-tag-x" aria-label="Bỏ lọc Khách hàng" title="Bỏ lọc Khách hàng"
-                onClick={() => setLoc((l) => ({ ...l, khachId: null }))}>
-                <XIcon size={11} />
-              </button>
-            </span>
-          )}
-          {soLoc > 1 && (
-            <button type="button" className="rc__locnc-clear" onClick={() => setLoc(LOC_TRONG)}>Xoá hết</button>
-          )}
-        </div>
-      )}
+      </section>
 
-      {loi && <div className="rc__empty-state" style={{ color: "var(--rust, #b4531f)" }}>{loi}</div>}
-      <div className="kho-bc-wrap kgg-wrap">
-        <table className="rc__table kho-bc kgg-bang">
-          <thead>
-            <tr>
-              <th>Mã lô</th>
-              <th>Ngày nhập</th>
-              <th>Kho nhập</th>
-              <th>Mặt hàng</th>
-              <th>Lệnh · Đơn · Khách</th>
-              <th className="kho-bc__num">SL nhập</th>
-              <th className="kho-bc__num">Còn tồn</th>
-              <th className="kho-bc__num">Giá bán (đơn)</th>
-              <th>Giá gốc</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dangTai && data == null ? (
-              <EmptyRow colSpan={9} trangThai="dang-tai" />
-            ) : rows.length === 0 ? (
-              <tr>
-                <td colSpan={9} className="rc__empty-state">
-                  {coLoc
-                    ? "Không có lô nào khớp bộ lọc."
-                    : chiChuaGia ? "Không còn lô thành phẩm nào chưa có giá gốc." : "Chưa có lô thành phẩm nào nhập từ KCS."}
-                </td>
-              </tr>
-            ) : rows.map((r) => {
-              const dang = nhap[r.lot_id];
-              const dv = r.dvt_ten ?? r.dvt ?? "";
-              return (
-                <tr key={r.lot_id}>
-                  <td>
-                    <strong>{r.ma_lo}</strong>
-                    {r.so_lo > 1 && <div className="rc__muted">+{r.so_lo - 1} lô điều chuyển</div>}
-                  </td>
-                  <td>{ngay(r.ngay_nhap)}</td>
-                  <td className="kgg-chu">{r.kho_ten ?? "—"}</td>
-                  <td className="kgg-chu">
-                    <div>{r.ten_hang ?? "—"}</div>
-                    {r.ma_hang && <div className="rc__muted">{r.ma_hang}</div>}
-                  </td>
-                  <td className="kgg-chu">
-                    <div>{[r.lsx_ma, r.order_ma].filter(Boolean).join(" · ") || "—"}</div>
-                    {r.khach_hang && <div className="rc__muted">{r.khach_hang}</div>}
-                  </td>
-                  <td className="kho-bc__num">{fmtQty(r.so_luong_nhap)} {dv}</td>
-                  <td className="kho-bc__num">{fmtQty(r.sl_con_lai)} {dv}</td>
-                  <td className="kho-bc__num">{tien(r.don_gia_ban)}</td>
-                  <td>
-                    <OGiaGoc
-                      row={r}
-                      dang={dang}
-                      dv={dv}
-                      onDoi={(s) => setNhap((cu) => ({ ...cu, [r.lot_id]: s }))}
-                      onBo={() => boNhap(r.lot_id)}
-                      onLuu={() => {
-                        const gia = dang == null ? null : docGia(dang);
-                        if (gia == null || gia === r.don_gia) return;
-                        setLuuLoi(null);
-                        setXacNhan({ row: r, gia });
-                      }}
-                    />
+      <div className="lds-sheet">
+        <CuonLuoi ghim={luoi.soGhim(cot)}>
+          <table className="lds-g kgg-luoi" style={{ minWidth: rongLuoi(cot) }}>
+            <colgroup>
+              {cot.map((c) => <col key={c.key} style={c.w ? { width: c.w } : undefined} />)}
+            </colgroup>
+            <thead>
+              <tr>{cot.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi.keo(c.key)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {dangTai && data == null ? (
+                <EmptyRow colSpan={cot.length} trangThai="dang-tai" />
+              ) : loi ? (
+                <tr>
+                  <td colSpan={cot.length} className="lds-trong">
+                    <span className="lds-do">{loi}</span>{" "}
+                    <button type="button" className="lds-lk" onClick={() => setTick((t) => t + 1)}>Thử lại</button>
                   </td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={cot.length} className="lds-trong">
+                    {coLoc ? "Không có lô nào khớp điều kiện đang lọc." : "Chưa có lô thành phẩm nào nhập từ KCS."}{" "}
+                    {coLoc && <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button>}
+                  </td>
+                </tr>
+              ) : rows.map((r) => (
+                <tr key={r.lot_id}>
+                  {cot.map((c) => o(c.key, r))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CuonLuoi>
+        {!loi && data && data.total > 0 && (
+          <PhanTrangDayDu trang={trang} size={coTrang} tong={data.total} soDong={rows.length}
+            onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }} loading={dangTai}
+            donVi="lô gốc" ariaLabel="Phân trang giá gốc thành phẩm" />
+        )}
       </div>
-      {data && data.total > 0 && (
-        <PhanTrangDayDu trang={trang} size={coTrang} tong={data.total} soDong={rows.length}
-          onTrang={setTrang} onSize={(n) => { setCoTrang(n); setTrang(1); }} loading={dangTai}
-          donVi="lô gốc" ariaLabel="Phân trang giá gốc thành phẩm" />
-      )}
 
       <ConfirmDialog
         open={xacNhan != null}
@@ -393,6 +365,6 @@ export function KhoGiaGocThanhPham({ token, onCount }: { token: string; onCount?
         onConfirm={luu}
         onCancel={() => { if (!luuBusy) setXacNhan(null); }}
       />
-    </>
+    </div>
   );
 }

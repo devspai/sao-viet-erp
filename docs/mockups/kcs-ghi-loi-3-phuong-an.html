@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghi lỗi công đoạn giữa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --nen:#f8fafc; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --hair:#f1f5f9;
+  --rust:#c5400a; --la:#15803d; --do:#b91c1c; --xanh:#1d4ed8;
+  --chip-on:#e8edff; --chip-on-chu:#1e3a8a; --cyan-bg:#e0f7fa; --cyan-chu:#0e7490;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1280px;margin:0 auto;padding:28px 16px 120px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--chu-2);margin:0 0 16px;max-width:1000px}
+.hop{background:var(--trang);border-radius:12px;padding:16px 22px;margin:0 0 16px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ul{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:3px 0}
+.hop code{font-size:12.5px;background:var(--hair);padding:0 4px;border-radius:4px}
+.refs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.refs figure{margin:0;border:1px solid var(--vien);border-radius:10px;overflow:hidden;background:#fff}
+.refs img{display:block;width:100%;height:230px;object-fit:cover;object-position:right top}
+.refs figcaption{padding:8px 12px;font-size:12.5px;color:var(--chu-2)}
+.refs figcaption span{display:block;color:var(--chu);font-size:13px;margin-bottom:2px}
+.bo-qua{font-size:12.5px;color:var(--chu-3);margin:10px 0 0}
+
+.man-nhan{font-size:13px;color:var(--chu-3);margin:34px 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.man-nhan b{font-weight:500;color:var(--chu);font-size:16px}
+.khung{display:grid;grid-template-columns:minmax(0,560px) minmax(0,1fr);gap:18px;align-items:start}
+.ghi{font-size:13px;color:var(--chu-2);background:#fff;border-radius:12px;padding:14px 18px}
+.ghi h4{margin:0 0 6px;font-size:13.5px;font-weight:500;color:var(--chu)}
+.ghi p{margin:0 0 8px}
+.ghi ul{margin:0 0 10px;padding-left:18px}
+.ghi li{margin:2px 0}
+
+/* Ngăn — khung giống KcsKiemForm hiện tại */
+.ngan{background:var(--nen);border:1px solid #dfe3e8;border-radius:12px;overflow:hidden;box-shadow:0 8px 28px rgba(15,23,42,.08)}
+.ngan-dau{background:#fff;padding:12px 16px;border-bottom:1px solid var(--vien-2);display:flex;align-items:center;gap:8px}
+.ngan-dau .k{font-size:12px;color:var(--chu-3)}
+.ngan-dau h3{margin:0;font-size:16px;font-weight:500}
+.gian{flex:1}
+.x{width:28px;height:28px;border:0;background:none;color:var(--chu-3);font-size:18px;cursor:pointer}
+.ngan-than{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.the-k{background:#fff;border:1px solid var(--vien);border-radius:10px;padding:10px 12px}
+.lenh{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.lenh .ma{font-size:15px}
+.lenh .ten{color:var(--chu-2)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.tag{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:7px;background:var(--hair);color:var(--chu-2);font-size:12px}
+.so3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.so3 div{background:#fff;border:1px solid var(--vien);border-radius:10px;padding:8px 10px}
+.so3 .n{display:block;font-size:12px;color:var(--chu-3)}
+.so3 .v{font-size:18px}
+.so3 .v small{font-size:12px;color:var(--chu-3);margin-left:4px}
+.so3 .p{display:block;font-size:12px;color:var(--chu-4)}
+.gap{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--vien);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--chu-2);cursor:pointer}
+.gap .mui{color:var(--chu-4)}
+.ghi-loi{background:#fff;border:1px solid var(--vien);border-radius:10px;padding:12px}
+.ghi-loi > .h{display:flex;align-items:center;gap:8px;font-size:14px;margin:0 0 4px}
+.goi-y{font-size:12.5px;color:var(--chu-3);margin:0 0 10px}
+.ngan-day{display:flex;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--vien-2);background:#fff;flex-wrap:wrap}
+.ngan-day .ly{flex:1;min-width:150px;font-size:12.5px;color:var(--chu-3)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:1px solid var(--vien);background:#fff;border-radius:8px;font:inherit;font-size:13px;color:var(--chu);cursor:pointer;white-space:nowrap}
+.btn--chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--chinh:disabled{opacity:.45;cursor:not-allowed}
+.btn--nho{height:28px;padding:0 10px;font-size:12.5px}
+.o{height:34px;border:1px solid var(--vien);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;color:var(--chu);background:#fff;width:100%}
+textarea.o{height:auto;min-height:52px;padding:7px 10px;resize:vertical}
+.nhan{display:block;font-size:12.5px;color:var(--chu-3);margin:0 0 4px}
+.anh-hang{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.anh{width:40px;height:40px;border-radius:7px;background:linear-gradient(135deg,#cbd5e1,#e2e8f0);border:1px solid var(--vien)}
+.mu{color:var(--chu-3)}
+.do{color:var(--do)}
+.cu{font-size:12.5px;color:var(--chu-2)}
+.cu .dong{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--vien-2)}
+.cu .dong:first-child{border-top:0}
+
+/* Nhóm công đoạn dùng chung */
+.nhom{padding:10px 0;border-top:1px solid var(--vien-2)}
+.nhom:first-child{border-top:0;padding-top:0}
+.nhom-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 6px;font-size:13.5px}
+.nhom-h .mu{font-size:12px}
+
+/* A — Omniful: mỗi tiêu chí một dòng có ô cộng trừ */
+.dong-a{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0}
+.dong-a .cau{font-size:13px}
+.dong-a.co .cau{color:var(--do)}
+.buoc{display:inline-flex;border:1px solid var(--vien);border-radius:8px;overflow:hidden;height:32px}
+.buoc button{width:32px;border:0;background:#f4f6f9;font:inherit;font-size:16px;color:var(--chu-2);cursor:pointer}
+.buoc input{width:46px;border:0;text-align:center;font:inherit;font-size:13px}
+.nut-anh{width:32px;height:32px;border:1px solid var(--vien);border-radius:8px;background:#fff;color:var(--chu-3);cursor:pointer;position:relative}
+.nut-anh.co{border-color:#93c5fd;color:var(--xanh);background:#eff6ff}
+.nut-anh b{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;border-radius:8px;background:var(--xanh);color:#fff;font-size:10px;font-weight:400;line-height:16px}
+.tong-a{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--chu-3);padding:8px 10px;background:#fbfcfd;border-radius:8px;margin:0 0 8px}
+.tong-a span b{font-weight:400;color:var(--chu);margin-left:5px}
+
+/* B — Material chip */
+.chips-b{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 11px;border:1px solid #cfd6df;border-radius:8px;background:#fff;font:inherit;font-size:13px;color:var(--chu-2);cursor:pointer;text-align:left}
+.chip .t{display:none}
+.chip.on{background:var(--chip-on);border-color:var(--chip-on);color:var(--chip-on-chu)}
+.chip.on .t{display:inline}
+.chip--khac{border-style:dashed}
+.mo{display:none;margin-top:10px;padding:10px;border-radius:10px;background:#fbfcfd;border:1px solid var(--vien-2);gap:10px;grid-template-columns:110px 1fr}
+.mo.on{display:grid}
+.mo .ca{grid-column:1/-1}
+
+/* C — thẻ công đoạn như bước cuối */
+.the-c{border:1px solid var(--vien);border-radius:10px;margin:0 0 8px;overflow:hidden}
+.the-c-h{display:flex;align-items:center;gap:8px;padding:9px 12px;flex-wrap:wrap}
+.the-c-h .ten{font-size:13.5px}
+.the-c-h .mu{font-size:12px}
+.the-c.on{border-color:#fca5a5}
+.the-c.on .the-c-h{background:#fef2f2}
+.nut-loi{height:30px;padding:0 12px;border:1px solid var(--vien);border-radius:8px;background:#fff;font:inherit;font-size:12.5px;color:var(--chu-2);cursor:pointer}
+.the-c.on .nut-loi{border-color:var(--do);color:var(--do)}
+.the-c-than{display:none;padding:10px 12px;border-top:1px solid #fde2e2}
+.the-c.on .the-c-than{display:block}
+.tick{display:flex;gap:9px;align-items:center;padding:4px 0;font-size:13px;cursor:pointer}
+.tick input{width:17px;height:17px;margin:0;accent-color:var(--do)}
+.luoi-c{display:grid;grid-template-columns:110px 1fr;gap:10px;margin-top:8px}
+.luoi-c .ca{grid-column:1/-1}
+
+/* Sau khi lưu */
+table.g{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;background:#fff}
+.g th{height:32px;padding:0 10px;text-align:left;font-weight:400;font-size:12px;color:var(--chu-3);background:#fbfcfd;border-bottom:1px solid var(--vien)}
+.g td{height:34px;padding:0 10px;border-bottom:1px solid var(--vien-2)}
+.g .n{text-align:right}
+
+@media (max-width:900px){ .refs{grid-template-columns:1fr} .khung{grid-template-columns:1fr} }
+@media (max-width:520px){
+  .mo.on,.luoi-c{grid-template-columns:1fr}
+  .so3{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Ghi lỗi ở công đoạn giữa, làm lại có tick tiêu chí</h1>
+  <p class="lead">Ví dụ: lệnh LSX26-0003 Ruột sách A5 64 trang, KCS đứng ở Gấp. Chuỗi, tổ, tiêu chí lấy thật từ DB dev:
+    Cắt tờ (tổ Cắt 2, 2 tiêu chí), Bài in 3 màu 4 màu (CMYK) (Nhóm thợ in máy 4 màu, 4 tiêu chí), Gấp (chưa giao tổ, 4 tiêu chí).
+    Số sản lượng là SỐ GIẢ ĐỊNH vì Gấp trên DB dev chưa có mẻ nào. Luật ở <code>docs/design-kcs-ghi-loi-giua.md</code>.</p>
+
+  <div class="hop">
+    <h2>Đã đọc trong code trước khi vẽ</h2>
+    <ul>
+      <li>Ngăn Ghi lỗi hiện tại (<code>KcsKiemForm.tsx</code>, nhánh công đoạn giữa) có: đầu lệnh + khách + chip tổ/máy, ba ô số (Kế hoạch, Tổ đã làm, Lỗi đã ghi), danh sách mẻ, Dặn dò kỹ thuật, thẻ quy cách, khối Ghi lỗi (số, ô chọn "Lỗi do công đoạn", mô tả, ảnh chụp/chọn, "+ Thêm dòng lỗi do công đoạn khác"), Ghi chú, "Lỗi đã ghi trước". Ba phương án dưới GIỮ hết khối bối cảnh, chỉ thay khối Ghi lỗi.</li>
+      <li>Máy chủ (<code>kcs.py</code> <code>kiem_cong_doan</code>): công đoạn giữa ép <code>checklist_json = None</code>; mỗi dòng lỗi phải có số &gt; 0, mô tả, ít nhất một ảnh; quy lỗi được về công đoạn đứng trước cùng lệnh; tổng lỗi ≤ số tốt tổ đã ghi; tối đa số ảnh mỗi lần ghi.</li>
+      <li>Dữ liệu sơ đồ trả <code>checklist</code> của TỪNG công đoạn (bản chụp lúc phát hành), nên ngăn ở Gấp lấy được tiêu chí của Cắt tờ và Bài in mà không cần thêm API.</li>
+      <li>Bước cuối đã có thẻ công đoạn <code>KcsTheCongDoan</code> (Đạt / Có lỗi, tick mục hỏng, một số, ảnh, mô tả tự dựng). Mockup D/E/F cho Kiểm hàng còn chờ chọn; E đề xuất một khuôn cho cả Kiểm hàng và Ghi lỗi. Phương án C dưới đi theo hướng đó.</li>
+    </ul>
+  </div>
+
+  <div class="hop">
+    <h2>Tham khảo đã mở và chụp</h2>
+    <div class="refs">
+      <figure><img src="tham-khao-kcs/ref-omniful-so-truot-theo-ly-do.png" alt="Omniful ngăn chọn số trượt theo lý do">
+        <figcaption><span>A. Omniful, ngăn "Select Fail Qty" khi đóng gói</span>Phần mềm kho có QC thật. Mỗi lý do trượt một dòng, ô cộng trừ số và nút đính ảnh ngay trên dòng; đầu ngăn ba số Đã quét, Trượt, Đạt tự cộng.</figcaption></figure>
+      <figure><img src="tham-khao-kcs/ref-material-filter-chip.png" alt="Material 3 filter chips gom theo nhóm" style="object-position:left top">
+        <figcaption><span>B. Material 3, chip lọc gom theo nhóm</span>Chip bấm bật tắt, có dấu tick khi chọn, gom dưới tiêu đề nhóm. Ít chữ, bấm nhanh bằng ngón tay.</figcaption></figure>
+      <figure><img src="tham-khao-kcs/ref-govuk-hien-them.png" alt="GOV.UK lựa chọn hiện thêm" style="object-position:left top">
+        <figcaption><span>C. GOV.UK, lựa chọn hiện thêm (ảnh chụp phiên trước)</span>Chọn một mục thì phần của nó mở ngay dưới, thụt vào. Giống thẻ Có lỗi ở bước cuối đang chạy.</figcaption></figure>
+    </div>
+    <p class="bo-qua">Có mở nhưng không dùng: Odoo hộp kiểm chất lượng (chỉ một ô ghi chú và nút Xác nhận, không có lý do lỗi), Tulip mẫu theo dõi lỗi (ảnh tài liệu chỉ có màn xem bảng lỗi, không có màn ghi), GitHub Primer bảng chọn (hợp danh sách dài, mỗi công đoạn ở đây chỉ 2 đến 4 câu). Trang SafetyCulture chuyển sang trang khác, không chụp được.</p>
+  </div>
+
+  <div class="man-nhan"><b>Phương án A</b>mỗi tiêu chí một dòng, gõ số ngay trên dòng, bám Omniful</div>
+  <div class="khung"><div id="A"></div>
+    <div class="ghi">
+      <h4>Khác luật hiện nay</h4>
+      <p>Số lỗi theo TỪNG câu chứ không một số cho cả công đoạn. Lem mực 12, lệch dấu 5 ghi tách được, báo cáo Theo tiêu chí có luôn cột số lỗi.</p>
+      <ul>
+        <li>Lưu: mỗi câu có số là một dòng lỗi, mô tả chính là câu đó, không phải gõ.</li>
+        <li>Ảnh: nút ảnh trên từng dòng. Máy chủ hiện bắt mỗi dòng một ảnh; nếu chọn A thì nên nới thành mỗi công đoạn ít nhất một ảnh, không thì chụp nhiều quá.</li>
+        <li>Lệch với bước cuối, nơi một thẻ chỉ một số. Chọn A thì nên đổi cả bước cuối cho đồng bộ.</li>
+      </ul>
+      <p>Thử: bấm + ở "Không lem mực" của Bài in vài lần, rồi bấm ô ảnh.</p>
+    </div>
+  </div>
+
+  <div class="man-nhan"><b>Phương án B</b>chip tiêu chí theo công đoạn, một số mỗi công đoạn, bám Material 3</div>
+  <div class="khung"><div id="B"></div>
+    <div class="ghi">
+      <h4>Giữ luật bước cuối</h4>
+      <p>Bấm chip là chọn câu hỏng. Nhóm nào có chip chọn thì mở ô số lỗi, ảnh, mô tả của nhóm đó. Một công đoạn một dòng lỗi, mô tả tự dựng từ câu đã chọn.</p>
+      <ul>
+        <li>Mọi câu bày sẵn, nhìn là thấy, không phải mở gì.</li>
+        <li>Lệnh 8 công đoạn thì khối dài, phải cuộn.</li>
+        <li>Khuôn khác thẻ ở bước cuối: KCS học hai kiểu.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="man-nhan"><b>Phương án C</b>dùng lại thẻ công đoạn của bước cuối, bỏ nút Đạt</div>
+  <div class="khung"><div id="C"></div>
+    <div class="ghi">
+      <h4>Một khuôn cho cả hai chỗ</h4>
+      <p>Mỗi công đoạn được quy lỗi là một thẻ gập, chỉ có nút "Có lỗi". Bấm thì thẻ mở: tick câu hỏng, số, ảnh, mô tả. Chính là thẻ đang chạy ở bước cuối, bớt nút Đạt vì công đoạn giữa không xét đạt.</p>
+      <ul>
+        <li>Ít code mới nhất: dùng lại <code>KcsTheCongDoan</code> và luật khoá nút <code>lyDoKhoa</code>.</li>
+        <li>KCS học một lần, dùng hai chỗ. Nếu sau này chọn E cho Kiểm hàng thì cả hai cùng đổi một lần.</li>
+        <li>Thêm một lần bấm "Có lỗi" so với B.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="man-nhan"><b>Sau khi lưu</b>khung tiêu chí của Bài in ở sơ đồ nhóm, chung cho cả ba</div>
+  <div class="khung">
+    <div class="ngan" style="background:#fff">
+      <table class="g">
+        <colgroup><col><col style="width:88px"><col style="width:88px"><col style="width:100px"></colgroup>
+        <thead><tr><th>Tiêu chí</th><th class="n">Bước cuối xét</th><th class="n">Bước cuối hỏng</th><th class="n">Bắt giữa chừng</th></tr></thead>
+        <tbody>
+          <tr><td>Màu đúng mẫu đã ký</td><td class="n">3</td><td class="n mu">0</td><td class="n mu">0</td></tr>
+          <tr><td>Chữ rõ, không mất nét</td><td class="n">3</td><td class="n mu">0</td><td class="n mu">0</td></tr>
+          <tr><td>Chồng màu khớp, không lệch dấu</td><td class="n">3</td><td class="n do">1</td><td class="n mu">0</td></tr>
+          <tr><td class="do">Không lem mực, không bẩn nền</td><td class="n">3</td><td class="n mu">0</td><td class="n do">2 lần</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="ghi"><p>Không gộp hỏng bước cuối với lỗi bắt giữa chừng: bước cuối có lần xét làm mẫu số, ghi giữa chừng thì không. Phương án A thì cột cuối ghi số lỗi (ví dụ 17 tay sách) thay vì số lần.</p></div>
+  </div>
+</div>
+
+<script>
+const NHOM = [
+  { id: "gap", ten: "Gấp", to: "chưa giao tổ", phu: "công đoạn này", cau: ["Màu đúng mẫu đã ký", "Chữ rõ, không mất nét", "Chồng màu khớp, không lệch dấu", "Không lem mực, không bẩn nền"] },
+  { id: "in", ten: "Bài in 3 màu 4 màu (CMYK)", to: "Nhóm thợ in máy 4 màu", phu: "bước trước", cau: ["Màu đúng mẫu đã ký", "Chữ rõ, không mất nét", "Chồng màu khớp, không lệch dấu", "Không lem mực, không bẩn nền"] },
+  { id: "cat", ten: "Cắt tờ", to: "Cắt 2", phu: "bước trước", cau: ["lỗi 1", "lỗi 2"] },
+];
+const KHAC = "Lỗi khác";
+const CON = 1185; // giả định: tổ làm 1.200, đã ghi 15
+const thuong = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+const fmt = (n) => n.toLocaleString("vi-VN");
+
+function vo(p, ghiLoi) {
+  return `<div class="ngan">
+    <div class="ngan-dau"><div><div class="k">Ghi lỗi công đoạn</div><h3>Gấp</h3></div><span class="gian"></span><button class="x">×</button></div>
+    <div class="ngan-than">
+      <div class="the-k"><div class="lenh"><span class="ma">LSX26-0003</span><span class="ten">Ruột sách A5 64 trang</span></div>
+        <div class="chips"><span class="tag">CÔNG TY CỔ PHẦN BIBICA</span><span class="tag">Tổ: chưa giao</span></div></div>
+      <div class="so3"><div><span class="n">Kế hoạch</span><span class="v">4.000<small>tay sách</small></span></div>
+        <div><span class="n">Tổ đã làm</span><span class="v">1.200<small>tay sách</small></span><span class="p">3 mẻ</span></div>
+        <div><span class="n">Lỗi đã ghi</span><span class="v">15<small>tay sách</small></span><span class="p">1 lần ghi</span></div></div>
+      <div class="gap"><span>Mẻ tổ đã ghi, dặn dò kỹ thuật, quy cách</span><span class="gian"></span><span class="mui">mở ›</span></div>
+      <div class="ghi-loi"><div class="h">Ghi lỗi</div><p class="goi-y">Chỉ ghi khi thấy lỗi. Lỗi gốc ở bước trước thì chọn ở nhóm bước đó, tổ của bước đó nhận báo ngay.</p>${ghiLoi}</div>
+      <label><span class="nhan">Ghi chú (nếu có)</span><input class="o"></label>
+      <div class="the-k cu"><div class="nhan">Lỗi đã ghi trước</div>
+        <div class="dong"><span class="mu">08/10 14:20</span><span>15 tay sách</span><span>Bài in 3 màu 4 màu (CMYK)</span><span class="mu">Hỏng: không lem mực, không bẩn nền</span></div></div>
+    </div>
+    <div class="ngan-day"><span class="ly" id="${p}-ly"></span><button class="btn">Huỷ</button><button class="btn btn--chinh" id="${p}-luu">Lưu lỗi</button></div>
+  </div>`;
+}
+function oAnhMoTa(p, n, s, nhanSo) {
+  const mt = s.sua ? s.moTa : (s.chon && [...s.chon].filter((x) => x !== KHAC).length ? "Hỏng: " + [...s.chon].filter((x) => x !== KHAC).map(thuong).join("; ") : "");
+  return `<label><span class="nhan">${nhanSo}</span><input class="o" data-p="${p}" data-n="${n.id}" data-k="so" inputmode="numeric" value="${s.so}"></label>
+    <div><span class="nhan">Ảnh, ít nhất 1</span><div class="anh-hang">${'<span class="anh"></span>'.repeat(s.anh)}<button class="btn btn--nho" data-p="${p}" data-n="${n.id}" data-k="anh">Chụp ảnh</button></div></div>
+    <label class="ca"><span class="nhan">Mô tả${s.chon && s.chon.has(KHAC) ? ", bắt buộc vì có lỗi khác" : ", tự điền, sửa được"}</span><textarea class="o" data-p="${p}" data-n="${n.id}" data-k="mota">${mt}</textarea></label>`;
+}
+function stNhom() { const m = {}; NHOM.forEach((n) => (m[n.id] = { chon: new Set(), so: "", anh: 0, moTa: "", sua: false, mo: false })); return m; }
+function lyDoNhom(st, coLoi) {
+  const co = NHOM.filter((n) => coLoi(st[n.id]));
+  if (!co.length) return "Chọn ít nhất một câu hỏng";
+  for (const n of co) {
+    const s = st[n.id];
+    if (s.chon.size === 0) return "Tick câu hỏng của " + thuong(n.ten);
+    if (!(Number(s.so) > 0)) return "Gõ số lỗi cho " + thuong(n.ten);
+    if (s.chon.has(KHAC) && !(s.sua && s.moTa.trim())) return "Gõ mô tả lỗi khác của " + thuong(n.ten);
+    if (!s.anh) return "Chụp ít nhất một ảnh lỗi " + thuong(n.ten);
+  }
+  const tong = co.reduce((a, n) => a + Number(st[n.id].so), 0);
+  if (tong > CON) return `Tổng lỗi vượt số còn ghi được (${fmt(CON)})`;
+  return null;
+}
+function capDay(p, ly, ok) {
+  document.getElementById(p + "-ly").textContent = ly ?? ok;
+  document.getElementById(p + "-luu").disabled = !!ly;
+}
+
+/* ---------- A: Omniful ---------- */
+const A = {}; NHOM.forEach((n) => (A[n.id] = { so: {}, anh: 0 }));
+function veA() {
+  const tong = NHOM.reduce((a, n) => a + Object.values(A[n.id].so).reduce((x, y) => x + y, 0), 0);
+  const body = `<div class="tong-a"><span>Còn ghi được<b>${fmt(CON)}</b></span><span>Lần này<b class="${tong ? "do" : ""}">${fmt(tong)}</b> tay sách</span></div>` +
+    NHOM.map((n) => {
+      const s = A[n.id];
+      const co = Object.values(s.so).some((v) => v > 0);
+      return `<div class="nhom"><div class="nhom-h">${n.ten}<span class="mu">${n.phu}</span><span class="mu">${n.to}</span><span class="gian"></span>
+        ${co ? `<button class="nut-anh${s.anh ? " co" : ""}" data-a-anh="${n.id}" title="Ảnh lỗi ${n.ten}">▣${s.anh ? `<b>${s.anh}</b>` : ""}</button>` : ""}</div>` +
+        [...n.cau, KHAC].map((c) => {
+          const v = s.so[c] ?? 0;
+          return `<div class="dong-a${v ? " co" : ""}"><span class="cau">${c}</span>
+            <span class="buoc"><button data-a="${n.id}" data-c="${c}" data-d="-1">−</button><input value="${v}" data-a-o="${n.id}" data-c="${c}" inputmode="numeric"><button data-a="${n.id}" data-c="${c}" data-d="1">+</button></span><span></span></div>`;
+        }).join("") +
+        (s.so[KHAC] ? `<textarea class="o" placeholder="Mô tả lỗi khác, bắt buộc" style="margin-top:4px"></textarea>` : "") + `</div>`;
+    }).join("");
+  document.getElementById("A").innerHTML = vo("A", body);
+  let ly = null;
+  if (!tong) ly = "Gõ số lỗi ở ít nhất một câu";
+  else if (tong > CON) ly = `Tổng lỗi vượt số còn ghi được (${fmt(CON)})`;
+  else { const thieu = NHOM.find((n) => Object.values(A[n.id].so).some((v) => v > 0) && !A[n.id].anh); if (thieu) ly = "Chụp ít nhất một ảnh lỗi " + thuong(thieu.ten); }
+  capDay("A", ly, `Lưu được: ${fmt(tong)} tay sách lỗi`);
+}
+document.getElementById("A").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-a]"), a = e.target.closest("[data-a-anh]");
+  if (b) { const s = A[b.dataset.a].so; s[b.dataset.c] = Math.max(0, (s[b.dataset.c] ?? 0) + Number(b.dataset.d)); veA(); }
+  if (a) { A[a.dataset.aAnh].anh += 1; veA(); }
+});
+document.getElementById("A").addEventListener("change", (e) => {
+  const i = e.target; if (!i.dataset.aO) return;
+  A[i.dataset.aO].so[i.dataset.c] = Math.max(0, Number(i.value.replace(/\D/g, "")) || 0); veA();
+});
+
+/* ---------- B: Material chip ---------- */
+const B = stNhom();
+function veB() {
+  const body = NHOM.map((n) => {
+    const s = B[n.id];
+    return `<div class="nhom"><div class="nhom-h">${n.ten}<span class="mu">${n.phu}</span><span class="mu">${n.to}</span></div>
+      <div class="chips-b">${[...n.cau, KHAC].map((c) => `<button class="chip${c === KHAC ? " chip--khac" : ""}${s.chon.has(c) ? " on" : ""}" data-b="${n.id}" data-c="${c}"><span class="t">✓</span>${c}</button>`).join("")}</div>
+      <div class="mo${s.chon.size ? " on" : ""}">${s.chon.size ? oAnhMoTa("B", n, s, "Số lỗi (tay sách)") : ""}</div></div>`;
+  }).join("");
+  document.getElementById("B").innerHTML = vo("B", body);
+  capB();
+}
+function capB() { capDay("B", lyDoNhom(B, (s) => s.chon.size > 0), "Lưu được: " + NHOM.filter((n) => B[n.id].chon.size).length + " dòng lỗi"); }
+document.getElementById("B").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-b]"); if (!b) return;
+  const s = B[b.dataset.b]; s.chon.has(b.dataset.c) ? s.chon.delete(b.dataset.c) : s.chon.add(b.dataset.c); veB();
+});
+
+/* ---------- C: thẻ công đoạn ---------- */
+const C = stNhom();
+function veC() {
+  const body = NHOM.map((n) => {
+    const s = C[n.id];
+    return `<div class="the-c${s.mo ? " on" : ""}"><div class="the-c-h"><span class="ten">${n.ten}</span><span class="mu">${n.phu}</span><span class="mu">${n.to}</span><span class="gian"></span>
+      <button class="nut-loi" data-c-mo="${n.id}">${s.mo ? "Bỏ lỗi" : "Có lỗi"}</button></div>
+      <div class="the-c-than"><span class="nhan">Tick câu hỏng</span>${[...n.cau, KHAC].map((c) => `<label class="tick"><input type="checkbox" data-c-t="${n.id}" data-c="${c}"${s.chon.has(c) ? " checked" : ""}>${c}</label>`).join("")}
+      <div class="luoi-c">${oAnhMoTa("C", n, s, "Số lỗi (tay sách)")}</div></div></div>`;
+  }).join("");
+  document.getElementById("C").innerHTML = vo("C", body);
+  capC();
+}
+function capC() { capDay("C", lyDoNhom(C, (s) => s.mo), "Lưu được: " + NHOM.filter((n) => C[n.id].mo).length + " dòng lỗi"); }
+document.getElementById("C").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-c-mo]"); if (!b) return;
+  const s = C[b.dataset.cMo]; s.mo = !s.mo; if (!s.mo) { s.chon.clear(); s.so = ""; s.anh = 0; s.sua = false; } veC();
+});
+document.getElementById("C").addEventListener("change", (e) => {
+  const i = e.target; if (!i.dataset.cT) return;
+  const s = C[i.dataset.cT].chon; i.checked ? s.add(i.dataset.c) : s.delete(i.dataset.c); veC();
+});
+
+/* ---------- ô nhập chung B, C ---------- */
+const ST = { B, C }, VE = { B: veB, C: veC }, CAP = { B: capB, C: capC };
+document.addEventListener("input", (e) => {
+  const i = e.target; if (!ST[i.dataset.p]) return;
+  const s = ST[i.dataset.p][i.dataset.n];
+  if (i.dataset.k === "so") s.so = i.value.replace(/\D/g, "");
+  if (i.dataset.k === "mota") { s.moTa = i.value; s.sua = true; }
+  CAP[i.dataset.p]();
+});
+document.addEventListener("click", (e) => {
+  const b = e.target.closest('[data-k="anh"]'); if (!b || !ST[b.dataset.p]) return;
+  ST[b.dataset.p][b.dataset.n].anh += 1; VE[b.dataset.p]();
+});
+veA(); veB(); veC();
+</script>
+</body>
+</html>

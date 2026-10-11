@@ -114,14 +114,14 @@ def test_tai_nhieu_tep_xem_tai_ve_roi_xoa(client):
     ma = client.get(f"/api/lsx/{lsx_id}", headers=h).json()["ma"]
     them = [x for x in _nhat_ky(client, h, lsx_id) if x["action"] == "lsx_dinh_kem_them"]
     assert len(them) == 2
-    assert f"Lệnh {ma}: đính kèm tệp “maket.pdf”" in {x["detail"] for x in them}
+    assert f"Lệnh {ma}: đính kèm tệp “maket.pdf”" in {x["tieu_de"] for x in them}
 
     d = client.delete(f"/api/lsx/{lsx_id}/dinh-kem/{ta['id']}", headers=h)
     assert d.status_code == 204, d.text
     assert [i["ten_tep"] for i in _ds(client, h, lsx_id)] == ["anh-mau.png"]
     assert client.get(ta["file_url"]).status_code == 404  # object đã dọn khỏi kho
     xoa = [x for x in _nhat_ky(client, h, lsx_id) if x["action"] == "lsx_dinh_kem_xoa"]
-    assert [x["detail"] for x in xoa] == [f"Lệnh {ma}: xoá tệp đính kèm “maket.pdf”"]
+    assert [x["tieu_de"] for x in xoa] == [f"Lệnh {ma}: xoá tệp đính kèm “maket.pdf”"]
 
 
 def test_hai_tep_trung_ten_khong_de_nhau(client):

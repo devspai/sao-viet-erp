@@ -144,7 +144,7 @@ def test_don_bi_tra_van_la_phieu_song_cua_o(db, svc, customer):
     _don_tu(db, ln, 500, status=PR_REJECTED)
 
     svc.can_doi()
-    o = svc.mach["theo_o"][((("giay", g.id) + KHO), a.id, None)]
+    o = svc.mach["theo_o"][((("giay", g.id) + KHO + ("to",)), a.id, None)]
     assert o["phieu"]["buoc"] == BUOC_TRA
     with pytest.raises(KeHoachVatTuValidationError):
         svc.gom_de_nghi([_khoa(g, a, _buoc_dau(db, a))])
@@ -159,7 +159,7 @@ def test_hai_yeu_cau_cu_cung_o_thi_mot_phieu_mot_trung(db, svc, customer):
     _don_tu(db, ln2, 500)
 
     svc.can_doi()
-    o = svc.mach["theo_o"][((("giay", g.id) + KHO), a.id, None)]
+    o = svc.mach["theo_o"][((("giay", g.id) + KHO + ("to",)), a.id, None)]
     assert o["phieu"]["buoc"] == BUOC_DAT and o["phieu"]["yc_ma"] == "YCMH-2"
     assert [m["yc_ma"] for m in o["trung"]] == ["YCMH-1"]
     assert o["trung"][0]["buoc"] == BUOC_MOI
@@ -208,8 +208,8 @@ def test_mot_yeu_cau_hai_lenh_chia_theo_so_de_nghi(db, svc, customer):
     assert dong["LSX-A"]["thieu"] == pytest.approx(0)
     assert dong["LSX-B"]["thieu"] == pytest.approx(0)
     assert svc.mach["peg"][pl.id] == {
-        (("giay", g.id) + KHO, a.id, None): pytest.approx(500),
-        (("giay", g.id) + KHO, b.id, None): pytest.approx(300),
+        (("giay", g.id) + KHO + ("to",), a.id, None): pytest.approx(500),
+        (("giay", g.id) + KHO + ("to",), b.id, None): pytest.approx(300),
     }
 
 
@@ -247,6 +247,43 @@ def test_lien_ket_hai_buoc_cung_o_gop_mot_va_cong_so():
     ], lines)
     assert [(n["lsx_id"], n["kho_rong"], n["so_luong"]) for n in ra] == [
         (1, 780, 150), (2, 780, None)]
+
+
+def test_lien_ket_khac_don_vi_goc_la_hai_o():
+    """Keo kg và keo thùng cùng lệnh là hai ô — không gộp số của nhau (mg 0391)."""
+    lines = [type("L", (), {"hang_loai": "vat_tu", "hang_id": 9})()]
+    ra = PurchaseService._clean_nguon_lenh([
+        {"hang_loai": "vat_tu", "hang_id": 9, "don_vi_goc": "kg", "lsx_id": 1, "so_luong": 5},
+        {"hang_loai": "vat_tu", "hang_id": 9, "don_vi_goc": "THUNG", "lsx_id": 1, "so_luong": 2},
+    ], lines)
+    assert sorted((n["don_vi_goc"], n["so_luong"]) for n in ra) == [("kg", 5), ("thung", 2)]
+
+
+def test_gui_yeu_cau_tu_xem_truoc_co_don_vi_goc_luu_duoc(client, db, customer):
+    """Form gửi `nguon_lenh` nguyên văn từ xem-trước (có `don_vi_goc`) — trước đây 422 "Extra
+    inputs are not permitted". Nay lưu được, liên kết mang đơn vị gốc."""
+    g = _giay(db)
+    goc = _dv_dong(_hang(g), None)
+    s = Supplier(name="NCC giấy", status="active")
+    db.add(s)
+    db.flush()
+    db.add(SupplierItem(supplier_id=s.id, hang_loai="giay", hang_id=g.id,
+                        item_name=g.ten, unit=goc, unit_price=1))
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=500, han=MAI)
+    payload = {
+        "source_type": "san_xuat", "purpose": "Thiếu giấy",
+        "needed_date": MAI.isoformat(),
+        "lines": [{"item_name": g.ten, "unit": goc, "quantity": 500,
+                   "hang_loai": "giay", "hang_id": g.id,
+                   "kho_rong": KHO[0], "kho_dai": KHO[1]}],
+        "nguon_lenh": [{"hang_loai": "giay", "hang_id": g.id, "kho_rong": KHO[0],
+                        "kho_dai": KHO[1], "don_vi_goc": goc, "lsx_id": a.id, "so_luong": 500}],
+    }
+    headers = {"Authorization": f"Bearer {_admin_token()}"}
+    resp = client.post("/api/department-purchase-requests", json=payload, headers=headers)
+    assert resp.status_code == 201, resp.text
+    lk = db.query(YeuCauMuaNguonLenh).one()
+    assert (lk.lsx_id, lk.don_vi_goc) == (a.id, goc)
 
 
 def test_luu_yeu_cau_cho_o_da_co_phieu_bi_TU_CHOI(client, db, customer):
@@ -367,6 +404,14 @@ def test_api_luoi_va_hai_ngan(client, db, customer):
                    f"&kho_rong={KHO[0]}&kho_dai={KHO[1]}", headers=headers)
     assert r.status_code == 200, r.text
     assert r.json()["hang"]["con_thieu"] == 500
+    # Khoá 5 phần: đúng đơn vị gốc ⇒ cùng mặt hàng; đơn vị gốc không có lệnh nào cần ⇒ 404.
+    r = client.get(f"/api/ke-hoach-vat-tu/luoi/hang?hang_loai=giay&hang_id={g.id}"
+                   f"&kho_rong={KHO[0]}&kho_dai={KHO[1]}&don_vi_goc=to", headers=headers)
+    assert r.status_code == 200, r.text
+    assert r.json()["hang"]["con_thieu"] == 500
+    r = client.get(f"/api/ke-hoach-vat-tu/luoi/hang?hang_loai=giay&hang_id={g.id}"
+                   f"&kho_rong={KHO[0]}&kho_dai={KHO[1]}&don_vi_goc=kg", headers=headers)
+    assert r.status_code == 404, r.text
 
 
 def test_api_luoi_xuat_excel(client, db, customer):

@@ -13,10 +13,11 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from ..models.department import Department
 from ..models.employee import Employee
+from ..models.user import User
 from .loc_danh_sach import dk_khoang_ngay
 
 
@@ -32,6 +33,7 @@ class LocDon:
     loai: int | None = None            # Nghỉ phép: loại nghỉ
     kieu: list[str] = field(default_factory=list)   # Đi muộn/về sớm: late/early/half/mid
     diem: int | None = None            # Nhật ký: điểm chấm công
+    nguoi_duyet: int | None = None     # Nghỉ phép: user id của người duyệt/từ chối (`decided_by`)
 
 
 def dk_ky(cot_moc: dict, loc: LocDon) -> list:
@@ -49,6 +51,8 @@ def dk_nguoi(model, loc: LocDon) -> list:
         dk.append(model.employee_id == loc.employee_id)
     if loc.phong is not None:
         dk.append(Employee.department_id == loc.phong)
+    if loc.nguoi_duyet is not None:
+        dk.append(model.decided_by == loc.nguoi_duyet)
     return dk
 
 
@@ -90,6 +94,24 @@ def lua_chon_phong(db: Session, model, dk: list) -> list[dict]:
         .order_by(Department.name)
     ).all()
     return [{"id": i, "ten": t, "so": int(n)} for i, t, n in rows]
+
+
+def lua_chon_nguoi_duyet(db: Session, model, dk: list) -> list[dict]:
+    """Người đã duyệt/từ chối bản ghi trong phạm vi `dk` + số bản ghi. Tên lấy theo hồ sơ nhân viên
+    của tài khoản (cùng cách danh sách điền `decided_by_name`), không có hồ sơ thì tên tài khoản."""
+    nguoi = aliased(Employee)
+    ten = func.coalesce(func.max(nguoi.full_name), func.max(User.name))
+    rows = db.execute(
+        select(User.id, ten, func.count(func.distinct(model.id)))
+        .select_from(model)
+        .join(Employee, model.employee_id == Employee.id)
+        .join(User, model.decided_by == User.id)
+        .outerjoin(nguoi, nguoi.user_id == User.id)
+        .where(*dk)
+        .group_by(User.id)
+    ).all()
+    ds = [{"id": i, "ten": t or f"TK#{i}", "so": int(n)} for i, t, n in rows]
+    return sorted(ds, key=lambda x: x["ten"])
 
 
 def trang(page: int, size: int) -> tuple[int, int]:

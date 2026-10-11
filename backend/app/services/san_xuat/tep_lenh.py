@@ -33,6 +33,25 @@ def tep_cua_cong_viec(db: Session, user: User, *, cong_viec_id: int) -> list[dic
         raise PermissionError("Chỉ xem được việc đã giao cho mình.")
 
     lsx_ids = repo.lsx_ids_cua_bai_ghep({cv.bai_ghep_id}) if cv.bai_ghep_id else {cv.lsx_id}
+    return _nhom_tep(db, repo, lsx_ids)
+
+
+def tep_nhom_kcs(db: Session, user: User, *, lsx_id: int) -> list[dict]:
+    """Tệp của MỌI lệnh trong nhóm thành phẩm của `lsx_id`, cho màn KCS (09/10/2026). KCS không giữ
+    dòng quyền tổ nào nên không đi được cổng của Bàn tổ — gác ô Xem của dòng `kcs`. Chỉ đọc."""
+    from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
+    from .kcs import gate_xem_kcs
+
+    gate_xem_kcs(db, user)
+    krepo = SanXuatKcsRepository(db)
+    if krepo.lsx(lsx_id) is None:
+        raise ValueError("Không tìm thấy lệnh sản xuất.")
+    ids = set(krepo.lsx_trong_nhom(krepo.nhom_id_cua_lsx(lsx_id))) | {lsx_id}
+    return _nhom_tep(db, SanXuatRepository(db), ids)
+
+
+def _nhom_tep(db: Session, repo: SanXuatRepository, lsx_ids) -> list[dict]:
+    """Tệp gom theo lệnh, sắp theo mã lệnh; lệnh không có tệp vẫn có nhóm (`items` rỗng)."""
     nhan = repo.lsx_nhan({i for i in lsx_ids if i})
     dk = LsxDinhKemRepository(db)
     rows = dk.list_by_lsx_ids(set(nhan))

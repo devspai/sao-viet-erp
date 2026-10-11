@@ -42,7 +42,7 @@ def db():
 
 
 def _giay(db) -> GiayNguyen:
-    g = GiayNguyen(ma="C80", ten="COUCHE 80GSM", gsm=80, don_vi_gia="kg")
+    g = GiayNguyen(don_vi_them=["to"], ma="C80", ten="COUCHE 80GSM", gsm=80, don_vi_gia="kg")
     db.add(g)
     db.commit()
     return g
@@ -61,23 +61,26 @@ def test_don_vi_goc_giay_to_la_to():
 def test_giay_to_doi_duoc_ram_va_ma_chang(db):
     g = _giay(db)
     svc = _svc(db)
-    ra = svc.don_vi_cua_mat_hang("giay", g.id, dang="to")
+    ra = svc.don_vi_cua_mat_hang("giay", g.id, goc="to")
     assert ra["don_vi_goc"] == "to" and ra["don_vi_goc_ten"] == "tờ" and ra["giay_to"] is True
-    assert svc.quy_ve_goc("giay", g.id, "ram", 2, dang="to")["sl_goc"] == 1000
+    assert svc.quy_ve_goc("giay", g.id, "ram", 2, goc="to")["sl_goc"] == 1000
     # mã chặng của dòng giấy lệnh: hệ số 1, lưu về mã kho `to`
-    q = svc.quy_ve_goc("giay", g.id, "to_nguyen", 300, dang="to")
+    q = svc.quy_ve_goc("giay", g.id, "to_nguyen", 300, goc="to")
     assert q["sl_goc"] == 300 and q["ma_don_vi"] == "to"
     assert svc.he_so_ve_goc(ra, "to_nguyen") == 1.0
     # tờ không bao giờ đổi ra kg
     with pytest.raises(VatLieuKhoValidationError):
-        svc.quy_ve_goc("giay", g.id, "kg", 1, dang="to")
+        svc.quy_ve_goc("giay", g.id, "kg", 1, goc="to")
+    # Không ép gốc: mã chặng tờ vẫn về `to`, kg về đơn vị giá — tự suy từ ĐVT.
+    assert svc.quy_ve_goc("giay", g.id, "to_nguyen", 3)["don_vi_goc"] == "to"
+    assert svc.quy_ve_goc("giay", g.id, "kg", 3)["don_vi_goc"] == "kg"
 
 
 def test_ma_chang_khong_lot_qua_hang_khong_phai_giay_to(db):
-    """Luật hệ số 1 chỉ cho giấy DẠNG TỜ: giấy cuộn gốc kg vẫn từ chối `to_nguyen`."""
+    """Luật hệ số 1 chỉ cho họ TỜ: dòng giấy ép gốc kg vẫn từ chối `to_nguyen`."""
     g = _giay(db)
     with pytest.raises(VatLieuKhoValidationError):
-        _svc(db).quy_ve_goc("giay", g.id, "to_nguyen", 10, dang="cuon")
+        _svc(db).quy_ve_goc("giay", g.id, "to_nguyen", 10, goc="kg")
 
 
 def test_ke_hoach_vat_tu_quy_ma_chang_ve_to(db):
@@ -89,9 +92,9 @@ def test_ke_hoach_vat_tu_quy_ma_chang_ve_to(db):
         db, lsx_repo=None, bai_ghep_repo=None, hang=_svc(db), lots=None, requests=None,
         purchases=None, suppliers=None, don_vi=DonViDoRepository(db),
     )
-    assert kh.ve_don_vi_goc("giay", g.id, "to_nguyen", 5_260, dang="to") == (5_260, "tờ")
-    assert kh.ve_don_vi_goc("giay", g.id, "to", 120, dang="to") == (120, "tờ")
-    assert kh.ve_don_vi_goc("giay", g.id, "ram", 2, dang="to") == (1_000, "tờ")
+    assert kh.ve_don_vi_goc("giay", g.id, "to_nguyen", 5_260, goc="to") == (5_260, "tờ")
+    assert kh.ve_don_vi_goc("giay", g.id, "to", 120, goc="to") == (120, "tờ")
+    assert kh.ve_don_vi_goc("giay", g.id, "ram", 2, goc="to") == (1_000, "tờ")
 
 
 def test_goi_y_dong_giay_cua_lenh_giu_ma_chang():

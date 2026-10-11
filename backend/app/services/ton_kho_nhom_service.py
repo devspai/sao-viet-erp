@@ -1,7 +1,7 @@
 """Tồn kho theo MẶT HÀNG của MỘT kho — lọc, đếm và cắt trang ở MÁY CHỦ (08/10/2026).
 
-Màn Tồn kho gom lô theo khoá tồn (`kho_giay.khoa_ton_cua`: giấy tờ tách theo khổ, giấy cuộn gom theo
-mã, hàng khác theo mã) rồi lọc, đếm, cắt trang. Trước đây việc đó chạy trong trình duyệt trên MỌI lô
+Màn Tồn kho gom lô theo khoá tồn (`kho_giay.khoa_ton_cua`: giấy tách theo khổ + đơn vị gốc, vật tư theo
+đơn vị gốc, hàng khác theo mã) rồi lọc, đếm, cắt trang. Trước đây việc đó chạy trong trình duyệt trên MỌI lô
 của kho. Giờ:
 
   1. Repo cộng sẵn mỗi khoá thô MỘT dòng (tồn khả dụng, giá trị, hạn sớm nhất) — vài nghìn dòng.
@@ -43,8 +43,11 @@ SO_NGAY_SAP_HET_HAN = 30
 DuBaoFn = Callable[[list[tuple]], list[dict]]
 
 
-def _khoa4(k: tuple) -> tuple[str, int, int, int]:
-    return (k[0], int(k[1]), int(k[2]), int(k[3])) if len(k) == 4 else (k[0], int(k[1]), 0, 0)
+def _khoa5(k: tuple) -> tuple[str, int, int, int, str]:
+    """Khoá tồn 5 phần `(loai, id, rộng, dài, đơn vị gốc)`; cặp `(loai, id)` ⇒ `(loai, id, 0, 0, "")`."""
+    if len(k) == 5:
+        return (k[0], int(k[1]), int(k[2]), int(k[3]), str(k[4] or ""))
+    return (k[0], int(k[1]), 0, 0, "")
 
 
 def _lam_tron(n: float) -> float:
@@ -143,14 +146,13 @@ class LocTon:
 
 @dataclass
 class _Nhom:
-    khoa: tuple                      # khoá tồn gốc (`khoa_ton_cua`): 2 phần (giấy cũ/hàng khác) hoặc 4
-    khoa4: tuple
+    khoa: tuple                      # khoá tồn 5 phần (`_khoa5(khoa_ton_cua(...))`)
     hang_loai: str
     hang_id: int
     tong: float = 0.0
     gia_tri: float = 0.0
     hsd_som: date | None = None
-    khoa_tho: set = field(default_factory=set)   # các khoá thô (có thể nhiều khổ cuộn) của nhóm
+    khoa_tho: set = field(default_factory=set)   # các khoá thô `(loai, id, gốc, rộng, dài)` của nhóm
     ma: str = ""
     ten: str = ""
     muc: str | None = None           # `stock_level` nhưng None khi chưa khai ngưỡng (và còn hàng)
@@ -162,7 +164,8 @@ class _Nhom:
 
     @property
     def khoa_chuoi(self) -> str:
-        """Cùng dạng khoá dòng tồn của màn (`khoaTon` bên TS): `giay:12:780:905` · `giay:12:0:0` · `vat_tu:5`."""
+        """Cùng dạng khoá dòng tồn của màn (`khoaTon` bên TS), luôn 5 phần: `giay:12:780:905:to` ·
+        `giay:12:1000:0:kg` · `vat_tu:5:0:0:kg` · `vat_tu:5:0:0:thung`."""
         return ":".join(str(x) for x in self.khoa)
 
 
@@ -174,13 +177,13 @@ class TonKhoNhomService:
         self.du_bao = du_bao
 
     def _du_bao_co_cache(self, kho_id: int, khoas: list[tuple]) -> tuple[dict[tuple, dict], bool]:
-        """`({khoa4: dòng dự báo}, dùng_được)`. Cache theo (kho, tập khoá); lỗi dự báo KHÔNG bị cache và
+        """`({khoá 5 phần: dòng dự báo}, dùng_được)`. Cache theo (kho, tập khoá); lỗi dự báo KHÔNG bị cache và
         không làm sập danh sách — nhóm "Cần mua" lùi về mức tồn so với ngưỡng như màn trước đây."""
         if self.du_bao is None or not khoas:
             return {}, self.du_bao is not None
         from .ke_hoach_vat_tu_service import KeHoachVatTuError  # import trễ: service nặng, chỉ cần khi có dự báo
 
-        khoas = sorted({_khoa4(k) for k in khoas})
+        khoas = sorted({_khoa5(k) for k in khoas})
         dau_van_tay = hashlib.sha1(json.dumps(khoas).encode("utf-8")).hexdigest()
 
         def tinh() -> dict:
@@ -192,18 +195,19 @@ class TonKhoNhomService:
         ket = lay_hoac_tinh(tinh, ngan=NGAN_PHU, loai="ton_nhom_du_bao", kho_id=kho_id, khoas=dau_van_tay)
         if ket.get("loi"):
             return {}, False
-        return ({(d["hang_loai"], int(d["hang_id"]), int(d["kho_rong"]), int(d["kho_dai"])): d
+        return ({_khoa5((d["hang_loai"], d["hang_id"], d["kho_rong"], d["kho_dai"],
+                         d.get("don_vi_goc") or "")): d
                  for d in ket["rows"]}, True)
 
     def _dung_nhom(self, kho_id: int, hom_nay: date) -> tuple[list[_Nhom], bool]:
         theo: dict[tuple, _Nhom] = {}
         for r in self.lots.tong_hop_ton_theo_khoa(kho_id):
-            khoa = khoa_ton_cua(r)
+            khoa = _khoa5(khoa_ton_cua(r))
             n = theo.get(khoa)
             if n is None:
-                k4 = _khoa4(khoa)
-                n = theo[khoa] = _Nhom(khoa=khoa, khoa4=k4, hang_loai=r.hang_loai, hang_id=int(r.hang_id))
-            n.khoa_tho.add((r.hang_loai, int(r.hang_id), r.dang_giay, int(r.kho_rong or 0), int(r.kho_dai or 0)))
+                n = theo[khoa] = _Nhom(khoa=khoa, hang_loai=r.hang_loai, hang_id=int(r.hang_id))
+            n.khoa_tho.add((r.hang_loai, int(r.hang_id), r.don_vi_goc or "", int(r.kho_rong or 0),
+                            int(r.kho_dai or 0)))
             n.tong += float(r.tong or 0)
             n.gia_tri += float(r.gia_tri or 0)
             h = _ngay(r.hsd_som)
@@ -212,18 +216,18 @@ class TonKhoNhomService:
         nhom = list(theo.values())
 
         hang = self.hang.map_theo_cap([(n.hang_loai, n.hang_id) for n in nhom])
-        nguong = {_khoa4((t.hang_loai, t.hang_id, t.kho_rong, t.kho_dai)): t
+        nguong = {_khoa5((t.hang_loai, t.hang_id, t.kho_rong, t.kho_dai, t.don_vi_goc)): t
                   for t in self.thresholds.list_active(kho_id)}
         du_bao, du_bao_ok = self._du_bao_co_cache(kho_id, [n.khoa for n in nhom])
         for n in nhom:
             m = hang.get((n.hang_loai, n.hang_id))
             n.ma, n.ten = getattr(m, "ma", None) or "", getattr(m, "ten", None) or ""
-            th = nguong.get(n.khoa4)
+            th = nguong.get(n.khoa)
             n.co_nguong = th is not None
             muc = stock_level(n.tong, th)
             # Chưa khai ngưỡng thì chỉ biết "hết"; mức còn lại là "chưa biết" chứ không phải "đủ".
             n.muc = muc if (th is not None or muc == STOCK_OUT) else None
-            n.du_bao_row = du_bao.get(n.khoa4)
+            n.du_bao_row = du_bao.get(n.khoa)
             # Luôn tính (dòng không có lệnh/đơn về vẫn có luật: chạm Tối thiểu, hoặc âm khi chưa khai ngưỡng).
             d = tinh_du_bao_gon(n.tong, n.du_bao_row, th, hom_nay)
             n.d = d if du_bao_ok else None
@@ -233,7 +237,7 @@ class TonKhoNhomService:
                 or d["can_mua"]
             )
             n.tinh_trang = tinh_trang_dong(n.tong, n.muc, n.co_nguong, n.d)
-        nhom.sort(key=lambda n: (bo_dau(n.ten), n.ten, n.khoa4[2], n.khoa4[3], n.khoa4[1]))
+        nhom.sort(key=lambda n: (bo_dau(n.ten), n.ten, n.khoa[2], n.khoa[3], n.khoa[4], n.khoa[1]))
         return nhom, du_bao_ok
 
     @staticmethod
@@ -294,16 +298,16 @@ class TonKhoNhomService:
         if trang:
             for lot in self.lots.list_lots_gon(
                     kho_id=kho_id, hangs=[(n.hang_loai, n.hang_id) for n in trang]):
-                if khoa_ton_cua(lot) in thu_tu:
+                if _khoa5(khoa_ton_cua(lot)) in thu_tu:
                     lots.append(lot)
-            lots.sort(key=lambda lo: (thu_tu[khoa_ton_cua(lo)], lo.ngay_nhap, lo.id))
+            lots.sort(key=lambda lo: (thu_tu[_khoa5(khoa_ton_cua(lo))], lo.ngay_nhap, lo.id))
         return {
             "lots": lots, "total": len(khop), "dem": dem, "du_bao_ok": du_bao_ok,
             "co_hsd": any(n.hsd_som is not None for n in nhom),
             "nhom": [
                 {
                     "khoa": n.khoa_chuoi, "hang_loai": n.hang_loai, "hang_id": n.hang_id,
-                    "kho_rong": n.khoa4[2], "kho_dai": n.khoa4[3],
+                    "kho_rong": n.khoa[2], "kho_dai": n.khoa[3], "don_vi_goc": n.khoa[4],
                     "can_mua": n.can_mua, "co_nguong": n.co_nguong, "tinh_trang": n.tinh_trang,
                     "can_lenh": n.d["can_lenh"] if n.d else None,
                     "dang_ve": n.d["dang_ve"] if n.d else None,

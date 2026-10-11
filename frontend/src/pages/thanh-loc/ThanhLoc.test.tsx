@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BadgeCheck, Banknote, Users } from "lucide-react";
 import { useState } from "react";
@@ -31,7 +31,7 @@ const DK: DieuKien<L>[] = [
 ];
 
 /** Dựng thanh lọc TRONG một form tìm kiếm như màn Báo giá — để bắt lỗi form lồng form. */
-function KhungThu({ locDau = { duyet: [] }, onGuiForm }: { locDau?: L; onGuiForm: () => void }) {
+function KhungThu({ locDau = { duyet: [] }, onGuiForm, onXoaHet }: { locDau?: L; onGuiForm: () => void; onXoaHet?: () => void }) {
   const [loc, setLoc] = useState<L>(locDau);
   const [ky, setKy] = useState<KyDS>({ loai: "tat_ca", moc: "tao" });
   return (
@@ -42,7 +42,7 @@ function KhungThu({ locDau = { duyet: [] }, onGuiForm }: { locDau?: L; onGuiForm
       }}
     >
       <ThanhLoc ky={ky} moc={[["tao", "Ngày tạo"], ["gui", "Ngày gửi khách"]]} onKy={setKy}
-        dieuKien={DK} loc={loc} onLoc={setLoc} />
+        dieuKien={DK} loc={loc} onLoc={setLoc} onXoaHet={onXoaHet} />
       <output data-testid="loc">{JSON.stringify(loc)}</output>
       <output data-testid="ky">{JSON.stringify(ky)}</output>
     </form>
@@ -116,14 +116,31 @@ describe("ThanhLoc", () => {
     expect(screen.getByRole("button", { name: "Áp dụng" })).toBeDisabled();
   });
 
-  it("× trên khối chỉ bỏ điều kiện đó; Xoá lọc bỏ hết", async () => {
+  it("× trên khối chỉ bỏ điều kiện đó; Xoá bộ lọc bỏ hết; nút Lọc đếm số điều kiện", async () => {
     const user = userEvent.setup();
     render(<KhungThu locDau={{ khach: 3, duyet: ["cho"], gia_tu: 1 }} onGuiForm={vi.fn()} />);
+    const nutLoc = screen.getByRole("button", { name: "Lọc" });
+    expect(nutLoc.querySelector(".tl-nut__so")).toHaveTextContent("3");
+    // Khối nằm trên hàng riêng, đọc "trường là giá trị".
+    const hang = screen.getByRole("group", { name: "Điều kiện đang lọc" });
+    expect(hang).toHaveClass("tl-hang-dk");
+    expect(within(hang).getAllByText("là").length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Bỏ lọc Giá bán" }));
     expect(loc()).toEqual({ khach: 3, duyet: ["cho"] });
-    await user.click(screen.getByRole("button", { name: "Xoá lọc" }));
+    await user.click(screen.getByRole("button", { name: "Xoá bộ lọc" }));
     expect(loc()).toEqual({ duyet: [] });
-    expect(screen.queryByRole("button", { name: "Xoá lọc" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Xoá bộ lọc" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Điều kiện đang lọc" })).toBeNull();
+    expect(nutLoc.querySelector(".tl-nut__so")).toBeNull();
+  });
+
+  it("một điều kiện cũng có Xoá bộ lọc; màn truyền onXoaHet thì link gọi nó", async () => {
+    const user = userEvent.setup();
+    const onXoaHet = vi.fn();
+    render(<KhungThu locDau={{ khach: 3, duyet: [] }} onGuiForm={vi.fn()} onXoaHet={onXoaHet} />);
+    await user.click(screen.getByRole("button", { name: "Xoá bộ lọc" }));
+    expect(onXoaHet).toHaveBeenCalledTimes(1);
+    expect(loc()).toEqual({ khach: 3, duyet: [] });
   });
 
   it("Esc trong menu con lùi về menu điều kiện, Esc lần nữa đóng hẳn", async () => {

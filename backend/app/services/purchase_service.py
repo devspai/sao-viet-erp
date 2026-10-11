@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 # Soft ref (đọc-only) sang module Kho: biết đợt giao nào ĐÃ sinh yêu cầu NHẬP để chặn nhập trùng.
-from ..models.stock_request import REQ_CANCELLED, StockRequest
+from ..models.stock_request import REQ_CANCELLED, REQ_DONE, StockRequest
 from ..models.purchase import (
     DEPARTMENT_PURCHASE_SOURCE_TYPES,
     DPR_CANCELLED,
@@ -65,6 +65,10 @@ from ..models.accounting import (
 from ..models.vat_lieu_kho import HANG_LOAI
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.purchase_repo import (
+    KHO_CHO_GUI,
+    KHO_CHUA_NHAP,
+    KHO_DA_NHAP,
+    KHO_DA_VE,
     DepartmentPurchaseRequestLineInput,
     DepartmentPurchaseRequestRepository,
     PurchaseRequestLineInput,
@@ -77,7 +81,7 @@ from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .danh_gia_ncc import DanhGiaNcc, tu_tong_hop
-from .kho_giay import chuan_kho
+from .kho_giay import chuan_kho, co_don_vi_goc, don_vi_khai
 from .rbac_service import AuthorizationService
 
 
@@ -666,7 +670,7 @@ class PurchaseService:
 
     # --- suppliers ---------------------------------------------------------
 
-    def so_gia_ncc(self, hang_loai: str, hang_id: int, *, dang: str | None = None,
+    def so_gia_ncc(self, hang_loai: str, hang_id: int, *, don_vi: str | None = None,
                    kho_rong: int = 0, kho_dai: int = 0) -> dict:
         """Các NCC bán MỘT mặt hàng, giá quy về ĐƠN VỊ GỐC để so ngang.
 
@@ -676,31 +680,46 @@ class PurchaseService:
         Dòng không quy đổi được KHÔNG bị loại (người dùng vẫn cần thấy NCC đó có bán) nhưng xếp
         CUỐI kèm lý do — xếp hạng một dòng chưa biết giá thật là mời chọn nhầm.
 
-        GIẤY (07/10/2026): mỗi dòng giá có dạng bán. `dang` gửi lên ⇒ chỉ so dòng cùng dạng (tờ:
-        cùng khổ tuyệt đối; cuộn: khổ đó hoặc mọi khổ), giá quy về đơn vị gốc CỦA DẠNG — tờ ra đ/tờ,
-        cuộn ra đ/kg. Không gửi `dang` ⇒ mọi dòng, mỗi dòng quy theo dạng của chính nó.
+        GIẤY (bỏ dạng cuộn/tờ 10/10/2026): gửi khổ ⇒ dòng giá ĐÚNG khổ đó (`dung_kho=True`) + dòng
+        khổ 0 · 0 = NCC bán mọi khổ (`dung_kho=False`, xếp sau dòng đúng khổ cùng họ); `(r, 0)` không
+        khớp khổ hai cạnh. Mỗi dòng quy về gốc của CHÍNH `unit` nó (họ tờ ⇒ đ/tờ, họ `don_vi_gia` ⇒
+        đ/kg…). Tờ và kg không quy đổi được ⇒ dòng KHÁC HỌ với `don_vi` của dòng đang mua có
+        `cung_ho=False`, xếp sau mọi dòng cùng họ — "rẻ nhất" chỉ có nghĩa trong cùng họ.
+
+        VẬT TƯ KHÁC khai nhiều đơn vị (mg 0390, keo kg + thùng) theo cùng luật, chỉ không có khổ:
+        mỗi dòng quy về nhóm đã khai của `unit` nó, `cung_ho` so với nhóm của `don_vi`.
         """
         from .vat_lieu_kho_service import VatLieuKhoError
 
-        kr, kd = (chuan_kho(kho_rong, kho_dai) if dang == "to" else (int(kho_rong or 0), 0))
-        info = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id, dang=dang)
-        theo_dang: dict[str | None, dict] = {dang: info}
+        giay = hang_loai == "giay"
+        kr, kd = chuan_kho(kho_rong, kho_dai) if giay else (0, 0)
+        # Giấy không truyền gốc ⇒ `ds` GỘP họ tờ + họ đơn vị giá, mỗi dòng mang `goc` của họ nó:
+        # một bản cho mọi dòng giá, khỏi nạp lại bảng đơn vị theo từng họ.
+        info = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id)
+        gg = self.hang.goc_mat_hang() if co_don_vi_goc(hang_loai) else None
+        khai = don_vi_khai(self.hang.get(hang_loai, hang_id)) if gg is not None else []
 
-        def info_cua(it) -> dict:
-            d = it.dang_ban if hang_loai == "giay" else None
-            if d not in theo_dang:
-                theo_dang[d] = self.hang.don_vi_cua_mat_hang(hang_loai, hang_id, dang=d)
-            return theo_dang[d]
+        def goc_cua(dvt: str | None) -> str:
+            if gg is not None:
+                return gg.goc(dvt, khai) or (dvt or "").strip().lower()
+            return (info.get("don_vi_goc") or "").strip().lower()
+
+        # Giấy + vật tư khai nhiều đơn vị (spec 2026-10-10): "cùng họ" = cùng nhóm đơn vị đã khai.
+        goc_mua = goc_cua(don_vi) if (gg is not None and (don_vi or "").strip()) else None
         # Mã đơn vị (cai/thung…) → TÊN có dấu (cái/thùng) cho hiển thị; NCC lưu unit dạng mã.
         dv_ten = {d.ma: d.ten for d in self.hang.don_vi.all_active()}
         rows: list[dict] = []
-        for sup, it in self.suppliers.items_for_hang(hang_loai, hang_id, dang=dang,
-                                                     kho_rong=kr, kho_dai=kd):
+        for sup, it in self.suppliers.items_for_hang(hang_loai, hang_id, kho_rong=kr, kho_dai=kd):
+            goc_dong = goc_cua(it.unit)
+            kho_dong = (int(it.kho_rong or 0), int(it.kho_dai or 0))
             r = {
                 "supplier_id": sup.id, "supplier_name": sup.name,
                 "supplier_item_id": it.id, "unit": it.unit,
-                "dang_ban": it.dang_ban, "kho_rong": int(it.kho_rong or 0),
-                "kho_dai": int(it.kho_dai or 0),
+                "kho_rong": int(it.kho_rong or 0), "kho_dai": int(it.kho_dai or 0),
+                "don_vi_goc": goc_dong,
+                "cung_ho": goc_mua is None or goc_dong == goc_mua,
+                # Không gửi khổ ⇒ mọi dòng coi như đúng khổ; gửi khổ ⇒ dòng 0 · 0 là "mọi khổ".
+                "dung_kho": not (giay and kr) or kho_dong == (kr, kd),
                 "unit_ten": dv_ten.get((it.unit or "").strip().lower(), None),
                 "unit_price": int(it.unit_price or 0),
                 "vat_percent": float(it.vat_percent or 0),
@@ -710,7 +729,7 @@ class PurchaseService:
             try:
                 # 1 đơn vị NCC bán bằng `he_so_ve_goc` đơn vị gốc → giá/đơn-vị-gốc = giá ÷ hệ số.
                 # `info` đã nạp ở trên — gọi `quy_ve_goc` là mỗi NCC đọc lại cả bảng đơn vị.
-                qd = self.hang.quy_tu_don_vi(info_cua(it), it.unit, 1)
+                qd = self.hang.quy_tu_don_vi(info, it.unit, 1)
                 hs = qd["he_so_ve_goc"]
                 if hs > 0:
                     gia = int(round(int(it.unit_price or 0) / hs))
@@ -720,12 +739,16 @@ class PurchaseService:
             except VatLieuKhoError as e:
                 r["ly_do"] = str(e)
             rows.append(r)
-        # `float("inf")` cho dòng chưa quy đổi được → luôn nằm cuối, không lẫn vào xếp hạng.
-        rows.sort(key=lambda x: (x["gia_quy_doi"] if x["gia_quy_doi"] is not None else float("inf")))
+        # Cùng họ trước; trong họ, đúng khổ trước dòng "mọi khổ"; rồi giá — `float("inf")` cho dòng
+        # chưa quy đổi được → luôn nằm cuối nhóm, không lẫn vào xếp hạng.
+        rows.sort(key=lambda x: (not x["cung_ho"], not x["dung_kho"],
+                                 x["gia_quy_doi"] if x["gia_quy_doi"] is not None else float("inf")))
+        goc_ra = goc_mua or info.get("don_vi_goc")
+        ten_ra = (dv_ten.get(goc_ra) or goc_ra) if goc_mua else info.get("don_vi_goc_ten")
         return {
             "hang_loai": hang_loai, "hang_id": hang_id,
             "hang_ma": info.get("ma"), "hang_ten": info.get("ten"),
-            "don_vi_goc": info.get("don_vi_goc"), "don_vi_goc_ten": info.get("don_vi_goc_ten"),
+            "don_vi_goc": goc_ra, "don_vi_goc_ten": ten_ra,
             "items": rows,
         }
 
@@ -799,13 +822,14 @@ class PurchaseService:
         đúng nếp `quy_ve_goc` đã đặt.
         """
         items = [it for sup in suppliers for it in (getattr(sup, "items", None) or [])]
-        # Đơn vị của MỌI mặt hàng trong mẻ — một lượt (`don_vi_nhieu_theo_dang`), không phải một
-        # lượt mỗi mặt hàng. Dòng GIẤY quy theo dạng bán của chính nó (tờ ⇒ đ/tờ, cuộn ⇒ đ/kg).
+        # Đơn vị của MỌI mặt hàng trong mẻ — một lượt (`don_vi_nhieu_mat_hang`), không phải một
+        # lượt mỗi mặt hàng. GIẤY nhận bản GỘP họ tờ + họ đơn vị giá: mỗi dòng giá quy về gốc của
+        # CHÍNH `unit` nó (tờ/ram ⇒ đ/tờ, kg/tấn ⇒ đ/kg) — tờ và kg không quy đổi với nhau.
         def khoa(it):
-            return (it.hang_loai, int(it.hang_id), it.dang_ban if it.hang_loai == "giay" else None)
+            return (it.hang_loai, int(it.hang_id))
 
         don_vi = (
-            self.hang.don_vi_nhieu_theo_dang(
+            self.hang.don_vi_nhieu_mat_hang(
                 {khoa(it) for it in items if it.hang_loai and it.hang_id}
             )
             if self.hang is not None
@@ -813,13 +837,17 @@ class PurchaseService:
         )
         ra: dict[int, dict] = {}
         for it in items:
-            hs = None
+            hs, goc = None, ""
             dv = don_vi.get(khoa(it)) if it.hang_loai and it.hang_id else None
             if dv is not None:
                 hs = self.hang.he_so_ve_goc(dv, it.unit)
+                if hs:
+                    # Đổi được rồi thì `quy_tu_don_vi` không ném — chỉ để đọc gốc của họ dòng này.
+                    goc = self.hang.quy_tu_don_vi(dv, it.unit, 1)["don_vi_goc"] or ""
             ra[it.id] = {
                 "he_so_ve_goc": hs,
                 "gia_quy_doi": int(round(int(it.unit_price or 0) / hs)) if hs else None,
+                "don_vi_goc": goc,
             }
         return ra
 
@@ -937,17 +965,16 @@ class PurchaseService:
                 raise PurchaseValidationError(
                     "Mat hang goc phai co ca loai lan ma — chon lai o o Vat tu."
                 )
-            dang_ban, kho_rong, kho_dai = self._dang_ban_dong(
-                hang_loai, get("dang_ban"), get("kho_rong"), get("kho_dai"))
+            kho_rong, kho_dai = self._kho_dong_gia(hang_loai, get("kho_rong"), get("kho_dai"))
             if hang_loai is not None:
-                # Đơn vị NCC bán phải nằm trong tập đổi được của mặt hàng (theo DẠNG với giấy), nếu
-                # không thì cột "giá quy về đơn vị gốc" vĩnh viễn trống và dòng này không so được.
-                unit = self._kiem_don_vi_ncc(hang_loai, int(hang_id), unit, dang=dang_ban)
+                # Đơn vị NCC bán phải nằm trong tập đổi được của mặt hàng (giấy: họ tờ HOẶC họ đơn
+                # vị giá của mã), nếu không thì cột "giá quy về đơn vị gốc" vĩnh viễn trống và dòng
+                # này không so được.
+                unit = self._kiem_don_vi_ncc(hang_loai, int(hang_id), unit)
             items.append(
                 SupplierItemInput(
                     hang_loai=hang_loai,
                     hang_id=int(hang_id) if hang_id else None,
-                    dang_ban=dang_ban,
                     kho_rong=kho_rong,
                     kho_dai=kho_dai,
                     item_name=item_name,
@@ -960,28 +987,24 @@ class PurchaseService:
         return items
 
     @staticmethod
-    def _dang_ban_dong(hang_loai, dang, kho_rong, kho_dai) -> tuple[str | None, int, int]:
-        """Dạng bán + khổ của một dòng giá (07/10/2026). Giấy bắt buộc dạng; tờ đủ hai cạnh (cạnh
-        ngắn trước); cuộn chỉ khổ rộng (0 = mọi khổ). Không phải giấy ⇒ None · 0 · 0."""
+    def _kho_dong_gia(hang_loai, kho_rong, kho_dai) -> tuple[int, int]:
+        """Khổ của một dòng giá giấy (mm, cạnh ngắn trước; chỉ rộng ⇒ `r, 0`; trống ⇒ 0 · 0). Giấy
+        KHÔNG còn dạng bán cuộn/tờ (chủ chốt 10/10/2026) — tờ hay kg là do ĐVT. Không phải giấy ⇒ 0 · 0."""
         if hang_loai != "giay":
-            return None, 0, 0
-        dang = (dang or "").strip() or None
-        if dang not in ("to", "cuon"):
-            raise PurchaseValidationError("Dòng giá giấy phải chọn dạng bán: Tờ hoặc Cuộn.")
+            return 0, 0
         try:
             a, b = int(kho_rong or 0), int(kho_dai or 0)
         except (TypeError, ValueError):
             raise PurchaseValidationError("Khổ giấy phải là số mm.") from None
-        if dang == "to":
-            if not (a > 0 and b > 0):
-                raise PurchaseValidationError("Giấy bán tờ phải đủ hai cạnh khổ.")
-            a, b = chuan_kho(a, b)
-            return dang, a, b
-        return dang, max(a or b, 0), 0
+        if a < 0 or b < 0:
+            raise PurchaseValidationError("Khổ giấy phải là số mm.")
+        return chuan_kho(a, b)
 
-    def _kiem_don_vi_ncc(self, hang_loai: str, hang_id: int, unit: str, *,
-                         dang: str | None = None) -> str:
+    def _kiem_don_vi_ncc(self, hang_loai: str, hang_id: int, unit: str) -> str:
         """Kiểm đơn vị NCC bán đổi được về gốc, trả về MÃ đơn vị chuẩn để lưu.
+
+        Giấy: đổi được về MỘT trong hai họ của mã — họ tờ (tờ, ram…) hoặc họ `don_vi_gia` (kg,
+        tấn…); `quy_ve_goc` không truyền gốc là xét cả hai. Ngoài hai họ ⇒ báo lỗi, không lùi hệ số 1.
 
         Nhận cả tên ("cái") lẫn mã ("cai") nhưng LƯU MÃ: trước 27/09/2026 lưu nguyên chữ người gửi,
         dòng khai bằng tên thì màn bảng giá (so theo mã) không nhận ra ⇒ cột "Quy về gốc" gạch
@@ -991,7 +1014,7 @@ class PurchaseService:
         if self.hang is None:
             return unit
         try:
-            return self.hang.quy_ve_goc(hang_loai, hang_id, unit, 1, dang=dang)["ma_don_vi"]
+            return self.hang.quy_ve_goc(hang_loai, hang_id, unit, 1)["ma_don_vi"]
         except VatLieuKhoError as e:
             raise PurchaseValidationError(str(e)) from None
 
@@ -1099,30 +1122,27 @@ class PurchaseService:
     # --- vật tư NCC: mẫu · xuất · đọc file Excel -------------------------
 
     #: Nhãn cột trong file. Đổi ở đây là đổi CẢ mẫu tải về lẫn bộ dò tiêu đề khi nhập.
-    #: "Dạng bán" + "Khổ (mm)" (07/10/2026) chỉ dùng cho giấy: Tờ + "650x870" hoặc Cuộn (+ khổ rộng).
-    COT_VAT_TU = ("Tên hàng*", "Dạng bán", "Khổ (mm)", "Đơn vị*", "Đơn giá*", "VAT %", "Ghi chú")
+    #: "Khổ (mm)" chỉ dùng cho giấy: "650x870" (hai cạnh) hoặc "1090" (chỉ rộng). Cột "Dạng bán" đã bỏ
+    #: (giấy không còn dạng cuộn/tờ — 10/10/2026); file cũ còn cột đó thì bỏ qua cột.
+    COT_VAT_TU = ("Tên hàng*", "Khổ (mm)", "Đơn vị*", "Đơn giá*", "VAT %", "Ghi chú")
     #: Trần dòng/file. Không phải giới hạn kỹ thuật — file to hơn mức này gần như luôn là dán nhầm
     #: bảng giá của nhiều NCC vào một sheet, cho chạy tiếp là nhập rác.
     TRAN_DONG_IMPORT = 500
 
     @staticmethod
-    def _khoa_vat_tu(item_name: str, unit: str, dang_ban: str | None = None,
-                     kho_rong: int = 0, kho_dai: int = 0) -> tuple:
-        """Khoá TRÙNG = tên + đơn vị + dạng bán + khổ, bỏ hoa/thường và khoảng trắng thừa.
+    def _khoa_vat_tu(item_name: str, unit: str, kho_rong: int = 0, kho_dai: int = 0) -> tuple:
+        """Khoá TRÙNG = tên + đơn vị + khổ, bỏ hoa/thường và khoảng trắng thừa.
 
         Cùng tên cùng ĐVT mà hai giá thì form phiếu mua không biết chọn dòng nào — nên hai dòng như
-        vậy phải gộp làm một, không đẻ dòng thứ hai. Giấy tờ hai khổ là hai dòng giá khác nhau."""
+        vậy phải gộp làm một, không đẻ dòng thứ hai. Giấy hai khổ là hai dòng giá khác nhau."""
         return (" ".join(item_name.split()).lower(), " ".join(unit.split()).lower(),
-                dang_ban or "", int(kho_rong or 0), int(kho_dai or 0))
-
-    #: Chữ trong cột "Dạng bán" ⇄ mã.
-    DANG_BAN_CHU = {"to": "Tờ", "cuon": "Cuộn"}
+                int(kho_rong or 0), int(kho_dai or 0))
 
     @staticmethod
-    def _chu_kho(dang_ban: str | None, kho_rong: int, kho_dai: int) -> str:
-        if dang_ban == "to" and kho_rong and kho_dai:
+    def _chu_kho(kho_rong: int, kho_dai: int) -> str:
+        if kho_rong and kho_dai:
             return f"{kho_rong}x{kho_dai}"
-        return str(kho_rong) if dang_ban == "cuon" and kho_rong else ""
+        return str(kho_rong) if kho_rong else ""
 
     @staticmethod
     def _doc_kho(chu: str) -> tuple[int, int] | None:
@@ -1158,15 +1178,13 @@ class PurchaseService:
         for row in rows:
             ws.append([
                 row.get("item_name") or "",
-                self.DANG_BAN_CHU.get(row.get("dang_ban") or "", ""),
-                self._chu_kho(row.get("dang_ban"), int(row.get("kho_rong") or 0),
-                              int(row.get("kho_dai") or 0)),
+                self._chu_kho(int(row.get("kho_rong") or 0), int(row.get("kho_dai") or 0)),
                 row.get("unit") or "",
                 int(row.get("unit_price") or 0),
                 float(row.get("vat_percent") or 0),
                 row.get("note") or "",
             ])
-        for idx, width in enumerate((38, 11, 12, 12, 16, 10, 34), start=1):
+        for idx, width in enumerate((38, 12, 12, 16, 10, 34), start=1):
             ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width
         ws.freeze_panes = "A2"
         return wb
@@ -1186,7 +1204,7 @@ class PurchaseService:
         (2200), không dấu phân cách — chỗ sai nhiều nhất khi nhập từ Excel."""
         wb = self._wb_vat_tu(
             [
-                {"item_name": "Giấy Duplex 350gsm", "dang_ban": "to", "kho_rong": 790,
+                {"item_name": "Giấy Duplex 350gsm", "kho_rong": 790,
                  "kho_dai": 1090, "unit": "tờ", "unit_price": 2200, "vat_percent": 8, "note": ""},
                 {"item_name": "Keo cán màng", "unit": "kg", "unit_price": 80000,
                  "vat_percent": 10, "note": ""},
@@ -1197,7 +1215,8 @@ class PurchaseService:
         ws.append([])
         ws.append([
             "Xoá 2 dòng ví dụ trước khi nhập. Đơn giá gõ số trơn (2200), không dấu phân cách. "
-            "Giấy ghi Dạng bán: Tờ kèm khổ (790x1090) hoặc Cuộn (khổ rộng tuỳ chọn); hàng khác để trống. "
+            "Giấy ghi khổ hai cạnh (790x1090) hoặc chỉ khổ rộng (1090), đơn vị tuỳ chọn (tờ, ram, kg…); "
+            "hàng khác để trống khổ. "
             "Trùng Tên hàng + Đơn vị với dòng đã có ⇒ CẬP NHẬT dòng đó. "
             f"Tối đa {self.TRAN_DONG_IMPORT} dòng/file, mỗi file cho MỘT nhà cung cấp."
         ])
@@ -1208,7 +1227,6 @@ class PurchaseService:
         rows = [
             {
                 "item_name": item.item_name,
-                "dang_ban": item.dang_ban,
                 "kho_rong": int(item.kho_rong or 0),
                 "kho_dai": int(item.kho_dai or 0),
                 "unit": item.unit,
@@ -1255,8 +1273,9 @@ class PurchaseService:
         # Dò tiêu đề theo nhãn ĐÃ BỎ DẤU — người dùng hay xoá dấu * hoặc gõ không dấu.
         mong_doi = [self._chuan_hoa_tieu_de(c) for c in self.COT_VAT_TU]
         header = [self._chuan_hoa_tieu_de(str(c) if c is not None else "") for c in raw_rows[0]]
-        # Cột tìm theo TÊN, không theo vị trí — file cũ chưa có cột Dạng bán / Khổ vẫn đọc được.
-        c_ten, c_dang, c_kho, c_dv, c_gia, c_vat, c_ghi = mong_doi
+        # Cột tìm theo TÊN, không theo vị trí — file cũ chưa có cột Khổ vẫn đọc được, file cũ còn
+        # cột "Dạng bán" thì cột đó không thuộc `mong_doi` nên tự bị bỏ qua.
+        c_ten, c_kho, c_dv, c_gia, c_vat, c_ghi = mong_doi
         if c_ten not in header or c_dv not in header:
             raise PurchaseValidationError(
                 'Thiếu cột "Tên hàng" hoặc "Đơn vị" — tải file mẫu để lấy đúng tiêu đề.'
@@ -1287,7 +1306,6 @@ class PurchaseService:
             gia_raw = o(row, c_gia)
             vat_raw = o(row, c_vat)
             ghi_chu = o(row, c_ghi)
-            dang_chu = self._chuan_hoa_tieu_de(o(row, c_dang))
             kho_chu = o(row, c_kho)
             if not ten_hang and not don_vi and not gia_raw:
                 continue
@@ -1319,27 +1337,17 @@ class PurchaseService:
                 errors.append({"row": so_dong, "message": f'"{ten_hang}": VAT phải từ 0 đến 100.'})
                 continue
 
-            dang_ban = {"to": "to", "cuon": "cuon"}.get(dang_chu)
-            if dang_chu and dang_ban is None:
-                errors.append({"row": so_dong,
-                               "message": f'"{ten_hang}": dạng bán "{o(row, c_dang)}" phải là Tờ hoặc Cuộn.'})
-                continue
             kho = self._doc_kho(kho_chu)
             if kho is None:
                 errors.append({"row": so_dong,
                                "message": f'"{ten_hang}": khổ "{kho_chu}" phải dạng 790x1090 hoặc 1090.'})
                 continue
-            kho_rong, kho_dai = kho if dang_ban else (0, 0)
-            if dang_ban == "to" and not (kho_rong and kho_dai):
-                errors.append({"row": so_dong,
-                               "message": f'"{ten_hang}": giấy bán tờ phải đủ hai cạnh khổ.'})
-                continue
-            if dang_ban == "cuon":
-                kho_dai = 0
-            khoa = self._khoa_vat_tu(ten_hang, don_vi, dang_ban, kho_rong, kho_dai)
+            # Khổ giữ nguyên như file ghi: lúc đọc chưa biết dòng là giấy hay không (người dùng
+            # gắn mặt hàng ở form) — lưu dòng không phải giấy thì máy chủ ép 0 · 0.
+            kho_rong, kho_dai = kho
+            khoa = self._khoa_vat_tu(ten_hang, don_vi, kho_rong, kho_dai)
             item = {
                 "item_name": ten_hang[:255],
-                "dang_ban": dang_ban,
                 "kho_rong": kho_rong,
                 "kho_dai": kho_dai,
                 "unit": don_vi[:32],
@@ -1357,7 +1365,7 @@ class PurchaseService:
                                "lấy dòng dưới cùng.",
                 })
                 for i, da_co in enumerate(items):
-                    if self._khoa_vat_tu(da_co["item_name"], da_co["unit"], da_co["dang_ban"],
+                    if self._khoa_vat_tu(da_co["item_name"], da_co["unit"],
                                          da_co["kho_rong"], da_co["kho_dai"]) == khoa:
                         items[i] = item
                         break
@@ -1762,6 +1770,10 @@ class PurchaseService:
             unit = (get("unit") or "").strip()
             if not unit:
                 raise PurchaseValidationError("Đơn vị tính không được trống.")
+            if hang_loai is not None and co_don_vi_goc(hang_loai):
+                # Giấy / vật tư: ĐVT phải thuộc một nhóm đơn vị mã đã khai (spec 2026-10-10) — mua
+                # về đơn vị chưa khai thì kho không nhập được. Câu lỗi nói đơn vị dùng được.
+                self._kiem_don_vi_ncc(hang_loai, int(hang_id), unit)
             quantity = float(get("quantity"))
             if quantity <= 0:
                 raise PurchaseValidationError("So luong phai lon hon 0.")
@@ -1816,7 +1828,7 @@ class PurchaseService:
         )
         cleaned_lines = self._clean_department_lines(lines)
         nguon_sach = self._clean_nguon_lenh(nguon_lenh, cleaned_lines)
-        self._chan_o_da_co_phieu(nguon_sach)
+        self._chan_o_da_co_phieu(nguon_sach, cleaned_lines)
         loai = self._chot_loai_mua(loai_mua, co_nguon_lenh=bool(nguon_sach))
         row = self.department_requests.create(
             code=self._new_department_request_code(),
@@ -1879,24 +1891,51 @@ class PurchaseService:
             if (hang_loai, int(hang_id)) not in hangs:
                 continue
             kr, kd = int(get("kho_rong") or 0), int(get("kho_dai") or 0)
-            khoa = (hang_loai, int(hang_id), kr, kd, lsx_id, bai_ghep_id)
+            goc = (get("don_vi_goc") or "").strip().lower()
+            khoa = (hang_loai, int(hang_id), kr, kd, goc, lsx_id, bai_ghep_id)
             sl = get("so_luong")
             cur = theo_o.get(khoa)
             if cur is None:
                 theo_o[khoa] = {"hang_loai": hang_loai, "hang_id": int(hang_id),
-                                "kho_rong": kr, "kho_dai": kd, "lsx_id": lsx_id,
+                                "kho_rong": kr, "kho_dai": kd, "don_vi_goc": goc, "lsx_id": lsx_id,
                                 "bai_ghep_id": bai_ghep_id, "buoc_id": get("buoc_id"),
                                 "so_luong": None if sl is None else float(sl)}
             elif cur["so_luong"] is not None:
                 cur["so_luong"] = None if sl is None else cur["so_luong"] + float(sl)
         return list(theo_o.values())
 
-    def _chan_o_da_co_phieu(self, nguon: list[dict]) -> None:
+    def _khoa_mua_fn(self, lines):
+        """Khoá tồn của dòng yêu cầu / đơn mua — CÙNG luật `KeHoachVatTuService._khoa_mua` (mã + khổ
+        MUA + đơn vị gốc suy từ `unit` qua `kho_giay.GocGiay`), để ô ở đây trùng khoá ô của bảng cân
+        đối. Không có dịch vụ mặt hàng (test cũ) ⇒ None — `dung_mach` dùng khoá mặc định."""
+        if self.hang is None:
+            return None
+        from .kho_giay import khoa_ton
+
+        caps = {(ln.hang_loai, int(ln.hang_id)) for ln in lines
+                if co_don_vi_goc(getattr(ln, "hang_loai", None)) and getattr(ln, "hang_id", None)}
+        objs = self.hang.map_theo_cap(caps) if caps else {}
+        gg = self.hang.goc_mat_hang() if caps else None
+
+        def khoa(ln) -> tuple:
+            loai, hid = ln.hang_loai, int(ln.hang_id)
+            goc = ""
+            if co_don_vi_goc(loai) and gg is not None:
+                obj = objs.get((loai, hid))
+                unit = getattr(ln, "unit", None)
+                goc = gg.goc(unit, don_vi_khai(obj) if obj is not None else []) or (unit or "").strip().lower()
+            return khoa_ton(loai, hid, goc=goc, kho_rong=getattr(ln, "kho_rong", 0) or 0,
+                            kho_dai=getattr(ln, "kho_dai", 0) or 0)
+
+        return khoa
+
+    def _chan_o_da_co_phieu(self, nguon: list[dict], lines) -> None:
         """Ô đã có phiếu còn chạy (yêu cầu mở, hoặc đơn lập từ nó chưa nhập kho xong) thì KHÔNG lập
         yêu cầu thứ hai cho ô đó — huỷ phiếu cũ trước (spec một ô một phiếu §2).
 
         Dựng mạch bằng chính `mach_mua.dung_mach` của Kế hoạch vật tư; bước của mạch không cần quy
-        đổi đơn vị nên `ve_goc` trả nguyên số."""
+        đổi đơn vị nên `ve_goc` trả nguyên số. Ô của liên kết mới lấy khoá từ DÒNG yêu cầu nó khớp
+        (`lines`, cùng luật khớp của `dung_mach`) — giấy cùng khổ khác họ đơn vị (tờ vs kg) là hai ô."""
         if not nguon:
             return
         from .kho_giay import khoa_ton
@@ -1904,15 +1943,31 @@ class PurchaseService:
 
         ycs = self.department_requests.dang_de_nghi()
         dong = self.requests.dong_tu_yeu_cau([ln.id for yc in ycs for ln in yc.lines])
+        moi = [ln for ln in lines or [] if getattr(ln, "hang_loai", None) and getattr(ln, "hang_id", None)]
+        khoa = self._khoa_mua_fn([ln for yc in ycs for ln in yc.lines] + list(dong) + moi)
         theo_o = dung_mach(ycs, dong, ve_goc=lambda _h, _u, sl: sl,
-                           can_o=lambda _k: 0.0)["theo_o"]
+                           can_o=lambda _k: 0.0, khoa=khoa)["theo_o"]
         vuong = []
         for n in nguon:
-            hang = khoa_ton(n["hang_loai"], n["hang_id"], kho_rong=n["kho_rong"],
-                            kho_dai=n["kho_dai"])
-            ph = (theo_o.get((hang, n["lsx_id"], n["bai_ghep_id"])) or {}).get("phieu")
-            if ph is not None:
-                vuong.append((n, ph))
+            hangs = []
+            for ln in moi:
+                if (ln.hang_loai, int(ln.hang_id)) != (n["hang_loai"], n["hang_id"]):
+                    continue
+                k = khoa(ln) if khoa else khoa_ton(ln.hang_loai, int(ln.hang_id),
+                                                   kho_rong=ln.kho_rong or 0, kho_dai=ln.kho_dai or 0)
+                if (n["kho_rong"] or n["kho_dai"]) and (n["kho_rong"], n["kho_dai"]) != (k[2], k[3]):
+                    continue
+                if n.get("don_vi_goc") and len(k) >= 5 and n["don_vi_goc"] != k[4]:
+                    continue
+                hangs.append(k)
+            if not hangs:
+                hangs = [khoa_ton(n["hang_loai"], n["hang_id"], goc=n.get("don_vi_goc") or None,
+                                  kho_rong=n["kho_rong"], kho_dai=n["kho_dai"])]
+            for hang in hangs:
+                ph = (theo_o.get((hang, n["lsx_id"], n["bai_ghep_id"])) or {}).get("phieu")
+                if ph is not None:
+                    vuong.append((n, ph))
+                    break
         if not vuong:
             return
         ma = self.department_requests.ma_chu_the(
@@ -2128,6 +2183,9 @@ class PurchaseService:
         tong_tu: int | None = None,
         tong_den: int | None = None,
         loai_mua: list[str] | None = None,
+        nv_yc_id: int | None = None,
+        nv_mua_id: int | None = None,
+        nv_duyet_id: int | None = None,
     ) -> tuple[list[dict], int]:
         # PHẠM VI NHÌN (chủ 04/08/2026: "nhân viên chỉ thấy đơn của tôi thôi, trưởng bộ phận hoặc
         # giám đốc mới thấy cả"). Trước đây hàm này KHÔNG nhận `actor` — ai có `thu_mua:read` là
@@ -2145,6 +2203,7 @@ class PurchaseService:
             size=size,
             creator_ids=creator_ids, exclude_statuses=exclude_statuses,
             tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, loai_mua=loai_mua,
+            nv_yc_id=nv_yc_id, nv_mua_id=nv_mua_id, nv_duyet_id=nv_duyet_id,
         )
         nap = self._nap_lo_phieu_mua(rows)
         return [self._to_request_out(r, nap) for r in rows], total
@@ -2180,8 +2239,15 @@ class PurchaseService:
                 dem_tien[n] += 1
         dem_tt = self.requests.dem_theo_trang_thai(creator_ids=creator_ids, **loc)
         dem_tt["tat_ca"] = sum(dem_tt.values())
+        # "Đã về đủ" chia ba nấc kho (11/10/2026) — đặt SAU `tat_ca` vì là tập con của `received`.
+        # Như group-by trạng thái: nấc không có đơn thì vắng khoá (FE đọc `?? 0`).
+        dem_tt.update({k: n for k, n in self.requests.dem_kho_da_ve(creator_ids=creator_ids, **loc).items() if n})
         if tien:
-            ids = [i for i, st, n in nhom if n == tien and (not status or st == status)]
+            if status in KHO_DA_VE:
+                khop = self.requests.ids_kho_da_ve(status, [i for i, _st, n in nhom if n == tien])
+                ids = [i for i, _st, n in nhom if i in khop]
+            else:
+                ids = [i for i, st, n in nhom if n == tien and (not status or st == status)]
             trang = ids[(max(1, page) - 1) * size : max(1, page) * size]
             rows = self.requests.list_theo_ids(trang)
             nap = self._nap_lo_phieu_mua(rows)
@@ -2200,6 +2266,13 @@ class PurchaseService:
         """Ô lọc "Nhà cung cấp": NCC có phiếu trong tầm nhìn của người xem, kèm số phiếu."""
         creator_ids = None if actor is None else self._creator_ids_theo_scope(actor)
         return self.requests.dem_theo_ncc(creator_ids=creator_ids, **loc)
+
+    def dem_theo_nguoi(self, vai: str, *, actor=None, **loc) -> list[tuple[int, str, int]]:
+        """Ô lọc NV yêu cầu / NV mua hàng / NV duyệt (`vai` = yc | mua | duyet), kèm số đơn."""
+        if vai not in ("yc", "mua", "duyet"):
+            raise PurchaseValidationError("Vai lọc không hợp lệ.")
+        creator_ids = None if actor is None else self._creator_ids_theo_scope(actor)
+        return self.requests.dem_theo_nguoi(vai, creator_ids=creator_ids, **loc)
 
     def _purchase_scope(self, actor) -> str | None:
         """Phạm vi phiếu mua actor được nhìn: `all` | `department` | `own`.
@@ -3124,26 +3197,20 @@ class PurchaseService:
 
     @staticmethod
     def _kho_nhan_dong(line, item) -> tuple[int, int]:
-        """Khổ THỰC NHẬN để lưu (07/10/2026). Chỉ dòng giấy tờ (dòng đơn đủ hai cạnh) mới ghi được;
-        gửi đủ hai cạnh ⇒ chuẩn cạnh ngắn trước; bằng khổ đặt hoặc bỏ trống ⇒ 0 · 0 (theo khổ đặt);
-        một cạnh ⇒ lỗi. Hàng khác bỏ qua khổ."""
-        dat = (int(getattr(line, "kho_rong", 0) or 0), int(getattr(line, "kho_dai", 0) or 0))
-        if getattr(line, "hang_loai", None) != "giay" or not (dat[0] and dat[1]):
+        """Khổ THỰC NHẬN để lưu (07/10/2026; nới 10/10/2026 khi bỏ dạng cuộn/tờ). Mọi dòng giấy ghi
+        được: hai cạnh hoặc chỉ rộng, chuẩn cạnh ngắn trước; bằng khổ đặt hoặc bỏ trống ⇒ 0 · 0
+        (theo khổ đặt). Hàng khác bỏ qua khổ."""
+        if getattr(line, "hang_loai", None) != "giay":
             return 0, 0
-        a, b = int(item.get("kho_rong") or 0), int(item.get("kho_dai") or 0)
-        if not a and not b:
-            return 0, 0
-        if not (a and b):
-            raise PurchaseValidationError(
-                f"'{line.item_name}': khổ nhận của giấy tờ phải đủ hai cạnh.")
-        nhan = chuan_kho(a, b)
-        return (0, 0) if nhan == chuan_kho(*dat) else nhan
+        dat = chuan_kho(int(getattr(line, "kho_rong", 0) or 0), int(getattr(line, "kho_dai", 0) or 0))
+        nhan = chuan_kho(int(item.get("kho_rong") or 0), int(item.get("kho_dai") or 0))
+        return (0, 0) if not nhan[0] or nhan == dat else nhan
 
     @staticmethod
     def _kho_nhan_ra(dl, line) -> dict:
         """Khổ thực nhận hiển thị: khổ lưu ở đợt nếu có, không thì khổ đặt của dòng đơn."""
-        if int(dl.kho_rong or 0) and int(dl.kho_dai or 0):
-            return {"kho_rong": int(dl.kho_rong), "kho_dai": int(dl.kho_dai), "khac_kho_dat": True}
+        if int(dl.kho_rong or 0):
+            return {"kho_rong": int(dl.kho_rong), "kho_dai": int(dl.kho_dai or 0), "khac_kho_dat": True}
         return {"kho_rong": int(getattr(line, "kho_rong", 0) or 0),
                 "kho_dai": int(getattr(line, "kho_dai", 0) or 0), "khac_kho_dat": False}
 
@@ -3810,15 +3877,18 @@ class PurchaseService:
         cap = [
             (l.hang_loai, l.hang_id) for r in rows for l in r.lines if l.hang_loai and l.hang_id
         ]
-        nhap: dict[int, tuple[int, str]] = {}
+        nhap: dict[int, tuple[int, str, str]] = {}
         if dot_ids:
             for sr in self.requests.db.execute(
-                select(StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id).where(
+                select(
+                    StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id,
+                    StockRequest.trang_thai,
+                ).where(
                     StockRequest.purchase_delivery_id.in_(dot_ids),
                     StockRequest.trang_thai != REQ_CANCELLED,
                 )
             ).all():
-                nhap[sr.purchase_delivery_id] = (sr.id, sr.ma)
+                nhap[sr.purchase_delivery_id] = (sr.id, sr.ma, sr.trang_thai)
         nap = {
             "lich_su": self.lich_su.cua_nhieu(DOC_PMH, ids),
             "audit": self.audit.list_by_targets(
@@ -3956,17 +4026,20 @@ class PurchaseService:
                 )
         # Đợt giao nào ĐÃ sinh yêu cầu NHẬP (chưa hủy) → chặn nhập kho trùng (nút đổi "Đã nhập kho").
         _dot_ids = [d.id for d in getattr(row, "deliveries", []) or []]
-        _nhap_map: dict[int, tuple[int, str]] = {}
+        _nhap_map: dict[int, tuple[int, str, str]] = {}
         if nap is not None:
             _nhap_map = nap["nhap"]
         elif _dot_ids:
             for sr in self.requests.db.execute(
-                select(StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id).where(
+                select(
+                    StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id,
+                    StockRequest.trang_thai,
+                ).where(
                     StockRequest.purchase_delivery_id.in_(_dot_ids),
                     StockRequest.trang_thai != REQ_CANCELLED,
                 )
             ).all():
-                _nhap_map[sr.purchase_delivery_id] = (sr.id, sr.ma)
+                _nhap_map[sr.purchase_delivery_id] = (sr.id, sr.ma, sr.trang_thai)
         deliveries = [
             {
                 "id": d.id,
@@ -3975,6 +4048,12 @@ class PurchaseService:
                 "da_nhap_kho": d.id in _nhap_map,
                 "stock_request_id": _nhap_map.get(d.id, (None, None))[0],
                 "stock_request_ma": _nhap_map.get(d.id, (None, None))[1],
+                # Nấc kho của đợt (11/10/2026): chưa gửi / kho chưa nhập xong / đã vào tồn.
+                "kho": (
+                    KHO_CHO_GUI if d.id not in _nhap_map
+                    else KHO_DA_NHAP if _nhap_map[d.id][2] == REQ_DONE
+                    else KHO_CHUA_NHAP
+                ),
                 "delivery_date": d.delivery_date,
                 "due_date": han_tra_dot(d, row.supplier, row.debt_cutoff_date),
                 # NULL = NCC chưa khai số ngày cho nợ ⇒ đợt này không bao giờ vào cột Quá hạn.

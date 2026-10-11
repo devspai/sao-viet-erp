@@ -1,5 +1,6 @@
 /** Thanh lọc màn Đơn mua hàng (Kế toán) — 06/10/2026, thay ô ngày rời + hai ô chọn rời bằng thanh lọc
- *  chung `ThanhLoc`. Kỳ theo Ngày tạo (mặc định) hoặc Ngày cần; điều kiện Nhà cung cấp và Tiền cọc.
+ *  chung `ThanhLoc`. Kỳ theo Ngày tạo (mặc định) hoặc Ngày cần; điều kiện Nhà cung cấp, NV yêu cầu /
+ *  mua hàng / duyệt (10/10/2026) và Tiền cọc.
  *  Lọc và đếm tab ở máy chủ; trạng thái lọc ghi lên URL (`?man=ke-toan-don-mua-hang`).
  */
 import { Building2, PiggyBank } from "lucide-react";
@@ -10,12 +11,19 @@ import { chuThanhId, idThanhChu, useLuaChonLoc } from "../../../thanh-loc/lua-ch
 import type { DieuKien, GiaTriDK } from "../../../thanh-loc/thanh-loc";
 import type { GiaTriUrl } from "../../shared/urlMan";
 import type { DepositFilter } from "./types";
+import {
+  nguoiDonLenUrl,
+  nguoiDonTuUrl,
+  thamSoNguoiDon,
+  useDieuKienNguoiDon,
+  type LocNguoiDon,
+} from "../../../mua-hang/loc-mua-hang/dieu-kien-nguoi-don";
 
 export const MAN_DON_MUA = "ke-toan-don-mua-hang";
 
 export const MOC_DON_MUA: [string, string][] = [["tao", "Ngày tạo"], ["can", "Ngày cần"]];
 
-export type LocDonMua = { ncc?: number; coc?: Exclude<DepositFilter, "all"> };
+export type LocDonMua = LocNguoiDon & { ncc?: number; coc?: Exclude<DepositFilter, "all"> };
 
 export type LocManDonMua = { ky: KyDS; loc: LocDonMua };
 
@@ -28,9 +36,17 @@ const COC: GiaTriDK[] = [
   { value: "enough", nhan: "Cọc đủ" },
 ];
 
-export function thamSoLocDonMua(loc: LocDonMua): { supplier_id?: number; deposit_status?: string } {
-  return { supplier_id: loc.ncc, deposit_status: loc.coc };
+export function thamSoLocDonMua(loc: LocDonMua): ThamSoLocDonMua {
+  return { supplier_id: loc.ncc, deposit_status: loc.coc, ...thamSoNguoiDon(loc) };
 }
+
+export type ThamSoLocDonMua = {
+  supplier_id?: number;
+  deposit_status?: string;
+  nv_yc_id?: number;
+  nv_mua_id?: number;
+  nv_duyet_id?: number;
+};
 
 export function locManDonMuaTuUrl(p: URLSearchParams): LocManDonMua {
   const coc = p.get("coc");
@@ -39,22 +55,25 @@ export function locManDonMuaTuUrl(p: URLSearchParams): LocManDonMua {
     loc: {
       ncc: soTuUrl(p.get("ncc")),
       coc: COC.some((g) => g.value === coc) ? (coc as LocDonMua["coc"]) : undefined,
+      ...nguoiDonTuUrl(p),
     },
   };
 }
 
 export function locManDonMuaLenUrl(t: LocManDonMua): GiaTriUrl {
-  return { ...kyLenUrl(t.ky, "tao"), ncc: soLenUrl(t.loc.ncc), coc: t.loc.coc };
+  return { ...kyLenUrl(t.ky, "tao"), ncc: soLenUrl(t.loc.ncc), coc: t.loc.coc, ...nguoiDonLenUrl(t.loc) };
 }
 
 export function useDieuKienDonMua(): DieuKien<LocDonMua>[] {
   const ncc = useLuaChonLoc(api.accounting.inboxLocNcc);
+  const nguoi = useDieuKienNguoiDon<LocDonMua>(api.accounting.inboxLocNguoi);
   return [
     {
       khoa: "ncc", nhan: "Nhà cung cấp", icon: Building2, kieu: "mot", tim: true, giaTri: ncc,
       doc: (l) => idThanhChu(l.ncc),
       ghi: (l, v) => ({ ...l, ncc: chuThanhId(v) }),
     },
+    ...nguoi,
     {
       khoa: "coc", nhan: "Tiền cọc", icon: PiggyBank, kieu: "mot", giaTri: COC,
       doc: (l) => l.coc,

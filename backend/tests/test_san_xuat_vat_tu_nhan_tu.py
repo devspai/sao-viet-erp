@@ -25,7 +25,7 @@ def _them_giay(db, buoc, giay, so_luong, kho):
         lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=giay.id,
         vat_tu_ma_snapshot=giay.ma, vat_tu_ten_snapshot=giay.ten,
         don_vi_snapshot=don_vi_goc_to(), so_luong=so_luong, kho_rong=kr, kho_dai=kd,
-        thu_tu=0, tu_dong=False, dang_giay="to",
+        thu_tu=0, tu_dong=False, don_vi_goc="to",
     ))
 
 
@@ -110,18 +110,18 @@ def test_nhap_lai_o_buoc_nhan_tu_giu_dong_va_gia_von(db, admin, cat_in):
     db.add(v)
     db.flush()
     lot = StockLot(ma_lo="L-NT1", hang_loai="giay", hang_id=g.id, kho_id=1, ngay_nhap=_T0.date(),
-                   don_gia_nhap=4000, sl_ban_dau=6000, sl_con_lai=740, dang_giay="to",
+                   don_gia_nhap=4000, sl_ban_dau=6000, sl_con_lai=740, don_vi_goc="to",
                    kho_rong=790, kho_dai=1090)
     db.add(lot)
     db.flush()
     db.add(StockVoucherLine(voucher_id=v.id, request_line_id=rl.id, hang_loai="giay",
-                            hang_id=g.id, dang_giay="to", kho_rong=790, kho_dai=1090,
+                            hang_id=g.id, don_vi_goc="to", kho_rong=790, kho_dai=1090,
                             lot_id=lot.id, so_luong=5_260, sl_goc=5_260))
     db.commit()
 
     nl = NL.tao(db, user=admin, cong_viec_id=cv_in.id, ghi_chu=None, lines=[{
         "hang_loai": "giay", "hang_id": g.id, "dvt": don_vi_goc_to(), "so_luong": 70,
-        "dang_giay": "to", "kho_rong": 545, "kho_dai": 790}])
+        "kho_rong": 545, "kho_dai": 790}])
     [ln] = db.get(StockRequest, nl["id"]).lines
     assert ln.don_gia == round(4000 * (545 * 790) / (790 * 1090))     # 2.000 đ/tờ in
     _ghi_so_phieu_nhap(db, admin, nl["id"], 70)
@@ -136,14 +136,14 @@ def test_nhap_lai_o_buoc_nhan_tu_giu_dong_va_gia_von(db, admin, cat_in):
 
 def test_nhap_lai_khac_kho_o_buoc_nhan_tu_tru_vao_dong_nhan_tu(db, admin, cat_in):
     """Trả khổ khác khổ nhận (còn nguyên 790×1090) ở bước nhận-từ ⇒ trừ vào dòng nhận-từ cùng
-    (mã, dạng); dòng trả là dòng thông tin, không thực dùng âm."""
+    (mã, đơn vị gốc); dòng trả là dòng thông tin, không thực dùng âm."""
     from app.services.san_xuat import vat_tu_nhap_lai as NL
     from tests.test_sx_vat_tu_nhap_lai import _ghi_so_phieu_nhap
 
     _cv_cat, cv_in, g = cat_in
     nl = NL.tao(db, user=admin, cong_viec_id=cv_in.id, ghi_chu=None, lines=[{
         "hang_loai": "giay", "hang_id": g.id, "dvt": don_vi_goc_to(), "so_luong": 20,
-        "dang_giay": "to", "kho_rong": 790, "kho_dai": 1090}])
+        "kho_rong": 790, "kho_dai": 1090}])
     _ghi_so_phieu_nhap(db, admin, nl["id"], 20)
     ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv_in.id)
     rows = _giay_dong(ct)

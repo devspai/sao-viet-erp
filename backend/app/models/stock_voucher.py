@@ -171,10 +171,9 @@ class StockVoucherLine(Base):
     # Phiếu NHẬP của điều chuyển: lô gốc của lô nguồn bị trừ — ghi sổ chép sang
     # `stock_lots.lo_goc_id` của lô mới ở kho đích. NULL với phiếu nhập thường. Mg 0309.
     lo_goc_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
-    # GIẤY mang DẠNG (`to` | `cuon`) + KHỔ mm (cạnh ngắn × cạnh dài; cuộn: rộng × 0) — spec
-    # 2026-10-01-giay-dem-to-theo-kho §3.1, mg 0349. Vật tư khác: NULL · 0 · 0. Chuẩn hoá qua
-    # `services/kho_giay.chuan_kho`. NOT NULL default 0 để khoá so sánh không vướng NULL.
-    dang_giay: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # GIẤY mang KHỔ mm (cạnh ngắn × cạnh dài; khổ chỉ-rộng: rộng × 0) + ĐƠN VỊ GỐC của dòng (họ tờ ⇒
+    # `to`, còn lại ⇒ `don_vi_gia` của mã) — mg 0349, bỏ dạng cuộn/tờ mg 0388. Vật tư khác: rỗng · 0 · 0.
+    don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
 

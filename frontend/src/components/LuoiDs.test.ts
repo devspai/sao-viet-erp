@@ -21,7 +21,11 @@ describe("xepCot — thứ tự cột người xem kéo thả", () => {
     expect(khoa(xepCot(COT, ["nguoi", "khach", "tien"]))).toEqual(["chon", "ma", "nguoi", "khach", "tien", "nut"]);
   });
 
-  it("cột mới chưa có trong thứ tự đã lưu đứng cuối nhóm; khoá cũ đã gỡ thì bỏ qua", () => {
-    expect(khoa(xepCot(COT, ["tien", "cot_da_go", "khach"]))).toEqual(["chon", "ma", "tien", "khach", "nguoi", "nut"]);
+  it("cột mới chưa có trong thứ tự đã lưu chen sau cột đứng trước nó ở mặc định; khoá cũ đã gỡ thì bỏ qua", () => {
+    expect(khoa(xepCot(COT, ["tien", "cot_da_go", "khach"]))).toEqual(["chon", "ma", "tien", "nguoi", "khach", "nut"]);
+  });
+
+  it("cột mới đứng đầu ở mặc định thì đứng đầu nhóm đổi chỗ được", () => {
+    expect(khoa(xepCot(COT, ["nguoi", "tien"]))).toEqual(["chon", "ma", "khach", "nguoi", "tien", "nut"]);
   });
 });

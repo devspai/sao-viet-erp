@@ -910,6 +910,36 @@ class BaoCaoCongNoOut(BaseModel):
     #: Dải rổ tuổi TOÀN MÀN, có nhãn sẵn. Tính TẠI `den_ngay` chứ không phải hôm nay — đó là chỗ
     #: khác hẳn dải rổ ở màn Công nợ (§5.3).
     aging: list[AgingBucketOut] = Field(default_factory=list)
+    #: Tiền từng rổ tuổi của MỌI dòng khớp bộ lọc (dòng Cộng của lưới) — khác `aging` (toàn màn).
+    tong_aging: dict[str, int] = Field(default_factory=dict)
+    #: Số dòng mỗi mục lọc nhanh (`all` · `con_no` · `qua_han` · `tra_truoc`), đếm theo ô tìm + rổ tuổi.
+    dem_the: dict[str, int] = Field(default_factory=dict)
+    #: Số dòng khớp bộ lọc (mọi trang) + trang đang trả. Không gửi `size` thì `items` là tất cả.
+    total: int = 0
+    page: int = 1
+    size: int = 0
+
+
+class KhoanConNoOut(BaseModel):
+    """Một đợt giao (331) / hoá đơn bán (131) CÒN NỢ tại ngày cuối kỳ — tab "Đợt còn nợ"."""
+
+    so_ct: str
+    #: Ngày hàng về (331) / ngày hoá đơn (131).
+    ngay: date
+    #: `None` = chưa đặt hạn (NCC chưa khai số ngày cho nợ, hoá đơn không có hạn).
+    han: date | None = None
+    con_no: int
+    #: Số ngày trễ tại `den_ngay`; âm = còn bấy nhiêu ngày mới tới hạn; `None` = chưa đặt hạn.
+    tre_ngay: int | None = None
+    #: Khoá rổ tuổi (`AGING_BUCKETS`) — khớp đúng cột tuổi nợ của dòng bên sổ tổng hợp.
+    ro: str
+
+
+class KhoanConNoListOut(BaseModel):
+    den_ngay: date
+    items: list[KhoanConNoOut] = Field(default_factory=list)
+    #: Tổng các khoản — bằng tổng 6 cột tuổi nợ của dòng đó bên sổ tổng hợp.
+    tong: int = 0
 
 
 class SoChiTietDongOut(BaseModel):
@@ -949,6 +979,9 @@ class SoChiTietCongNoOut(BaseModel):
     dau_no: int = 0
     dau_co: int = 0
     dong: list[SoChiTietDongOut] = Field(default_factory=list)
+    #: Số chứng từ phát sinh trong kỳ (mọi trang). Có gửi `size` thì `dong` là MỘT trang, mới nhất
+    #: lên đầu; không gửi thì `dong` là cả sổ theo thứ tự thời gian như trước.
+    so_dong: int = 0
     ps_no: int = 0
     ps_co: int = 0
     cuoi_no: int = 0

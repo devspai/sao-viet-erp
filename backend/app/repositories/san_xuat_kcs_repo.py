@@ -8,17 +8,18 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import func, or_, select, true
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 from ..models.cong_doan import CongDoan
 from ..models.customer import Customer
 from ..models.department import Department
+from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
 from ..models.lsx import Lsx, LsxCongDoan
 from ..models.order import Order
 from ..models.san_xuat import (
-    NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx,
+    NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx, SanXuatPhuThuoc,
 )
 from ..models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi, SanXuatKcsLoiAnh
 from ..models.user import User
@@ -79,18 +80,6 @@ class SanXuatKcsRepository:
             select(func.min(SanXuatKcsLoi.id)).where(SanXuatKcsLoi.kcs_batch_id == kcs_batch_id)
         ).scalar()
 
-    # --- Ai là KCS ---------------------------------------------------------------------------
-    def la_thanh_vien_to_kcs(self, user_id: int | None) -> bool:
-        """Tài khoản đứng trong một phòng ban có cờ `is_kcs` (cờ đặt đích danh, không kế thừa)."""
-        if user_id is None:
-            return False
-        return self.db.scalar(
-            select(User.id)
-            .join(Department, Department.id == User.department_id)
-            .where(User.id == user_id, Department.is_kcs == true())
-            .limit(1)
-        ) is not None
-
     # --- Neo lại (gate/đọc) ------------------------------------------------------------------
     def cong_viec(self, cong_viec_id: int) -> SanXuatCongViec | None:
         return self.db.get(SanXuatCongViec, cong_viec_id)
@@ -136,23 +125,73 @@ class SanXuatKcsRepository:
         return {i: ma for i, ma in self.db.execute(select(Lsx.id, Lsx.ma).where(Lsx.id.in_(ids))).all()}
 
     def _lenh_trong_nhom(self):
+        """Lệnh đã vào nhóm thành phẩm — TRỪ lệnh đang gia công trọn gói (lần chưa huỷ): đặt trọn gói
+        cũng đưa lệnh vào nhóm nhưng không xuống xưởng, KCS không kiểm hàng gia công về (09/10/2026)."""
+        tron_goi = (
+            select(GiaCongNgoai.id)
+            .where(GiaCongNgoai.lsx_id == Lsx.id, GiaCongNgoai.kieu == KIEU_TRON_GOI,
+                   GiaCongNgoai.huy_luc.is_(None))
+            .exists()
+        )
         return (
             select(Lsx.id)
             .join(SanXuatNhomLsx, SanXuatNhomLsx.lsx_id == Lsx.id)
             .join(SanXuatNhom, SanXuatNhom.id == SanXuatNhomLsx.nhom_id)
             .outerjoin(Order, Order.id == Lsx.order_id)
             .outerjoin(Customer, Customer.id == Order.customer_id)
+            .where(~tron_goi)
+        )
+
+    @staticmethod
+    def _cv_cua_lenh():
+        """Công việc thuộc lệnh `Lsx` (tương quan) — kể cả việc CHUNG của bài ghép, đúng tập
+        `boi_canh.cong_viec_du`."""
+        return or_(
+            SanXuatCongViec.lsx_id == Lsx.id,
+            SanXuatCongViec.bai_ghep_cong_doan_id.in_(
+                select(BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+                .where(BaiGhepCongDoanMap.lsx_id == Lsx.id)
+                .correlate(Lsx)
+            ),
+        )
+
+    @staticmethod
+    def _gay():
+        """Công việc GÂY của dòng lỗi — dòng cũ thiếu `cong_doan_ref_id` là của chính công đoạn kiểm."""
+        return func.coalesce(SanXuatKcsLoi.cong_doan_ref_id, SanXuatKcsBatch.cong_viec_id)
+
+    @staticmethod
+    def _to_gay():
+        """Tổ chịu lỗi: tổ ghi trên dòng lỗi, thiếu thì tổ của công việc gây."""
+        return func.coalesce(SanXuatKcsLoi.to_chiu_id, SanXuatCongViec.department_id)
+
+    def _co_loi_gay(self, *dk):
+        """EXISTS dòng lỗi (số > 0) do một công việc của lệnh `Lsx` gây — cùng nghĩa cột "Lỗi do
+        lệnh này gây" của lưới."""
+        return (
+            select(SanXuatKcsLoi.id)
+            .join(SanXuatKcsBatch, SanXuatKcsBatch.id == SanXuatKcsLoi.kcs_batch_id)
+            .join(SanXuatCongViec, SanXuatCongViec.id == self._gay())
+            .where(SanXuatKcsLoi.so_luong > 0, self._cv_cua_lenh(), *dk)
+            .correlate(Lsx)
+            .exists()
         )
 
     def trang_lenh(
-        self, *, tim: str | None, gom_da_dong: bool, offset: int, limit: int,
+        self, *, tim: str | None, gom_da_dong: bool, offset: int, limit: int | None,
         chi_da_dong: bool = False, khach_id: int | None = None,
         tu_ngay: date | None = None, den_ngay: date | None = None, moc: str = "tao",
+        to_id: int | None = None, cong_doan: str | None = None, co_loi: str | None = None,
+        loai: str | None = None, nguoi_kiem_id: int | None = None,
     ) -> tuple[list[int], int]:
         """Trang lệnh cho màn KCS — lệnh ĐÃ vào nhóm thành phẩm (tức đã phát hành), mặc định chỉ
         nhóm còn mở (`gom_da_dong` ⇒ mọi nhóm, `chi_da_dong` ⇒ chỉ nhóm đã đóng). Tìm theo mã/tên
         lệnh, mã nhóm, tên khách. Dải kỳ theo `moc`: `tao` ngày tạo lệnh, `kcs` lần KCS gần nhất.
-        Mới nhất lên đầu."""
+        Mới nhất lên đầu. `limit=None` = mọi lệnh khớp (lọc nhanh theo tình trạng tính ở service).
+
+        Thanh lọc (11/10/2026): `to_id` / `cong_doan` — lệnh có lỗi do tổ / công đoạn đó gây;
+        `co_loi` `co|khong`; `loai` `chinh|phu` (lệnh đi kèm kiểm ở lệnh chính); `nguoi_kiem_id` —
+        lệnh có lần kiểm do người đó lưu."""
         q = self._lenh_trong_nhom()
         if chi_da_dong:
             q = q.where(SanXuatNhom.trang_thai != NHOM_DANG_SX)
@@ -160,6 +199,27 @@ class SanXuatKcsRepository:
             q = q.where(SanXuatNhom.trang_thai== NHOM_DANG_SX)
         if khach_id is not None:
             q = q.where(Order.customer_id == khach_id)
+        if to_id is not None:
+            q = q.where(self._co_loi_gay(self._to_gay() == to_id))
+        if cong_doan:
+            q = q.where(self._co_loi_gay(SanXuatCongViec.ten_cong_doan == cong_doan))
+        if co_loi == "co":
+            q = q.where(self._co_loi_gay())
+        elif co_loi == "khong":
+            q = q.where(~self._co_loi_gay())
+        la_phu = (SanXuatNhom.than_chinh_lsx_id.is_not(None)) & (SanXuatNhom.than_chinh_lsx_id != Lsx.id)
+        if loai == "phu":
+            q = q.where(la_phu)
+        elif loai == "chinh":
+            q = q.where(~la_phu)
+        if nguoi_kiem_id is not None:
+            q = q.where(
+                select(SanXuatKcsBatch.id)
+                .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatKcsBatch.cong_viec_id)
+                .where(SanXuatKcsBatch.created_by == nguoi_kiem_id, self._cv_cua_lenh())
+                .correlate(Lsx)
+                .exists()
+            )
         cot = kcs_gan_nhat_cua_lenh() if moc == "kcs" else Lsx.created_at
         for dk in dk_khoang_ngay(cot, tu_ngay, den_ngay):
             q = q.where(dk)
@@ -171,7 +231,10 @@ class SanXuatKcsRepository:
                 Customer.name.ilike(mau),
             ))
         tong = int(self.db.scalar(select(func.count()).select_from(q.subquery())) or 0)
-        ids = list(self.db.scalars(q.order_by(Lsx.id.desc()).offset(offset).limit(limit)))
+        if limit == 0:
+            return [], tong
+        q = q.order_by(Lsx.id.desc()).offset(offset)
+        ids = list(self.db.scalars(q if limit is None else q.limit(limit)))
         return ids, tong
 
     def khach_loc(self) -> list[tuple[int, str, int]]:
@@ -186,6 +249,30 @@ class SanXuatKcsRepository:
             .order_by(Customer.name)
         )
         return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def loi_gay_theo_lenh(self) -> list[tuple[int, int | None, str]]:
+        """`(lsx_id, tổ chịu, tên công đoạn gây)` của mọi dòng lỗi do công việc của lệnh trong nhóm
+        gây — nguồn ô "Tổ gây lỗi" / "Công đoạn gây lỗi" màn KCS."""
+        ids = self._lenh_trong_nhom().subquery()
+        return [(int(l), t, c) for l, t, c in self.db.execute(
+            select(Lsx.id, self._to_gay(), SanXuatCongViec.ten_cong_doan)
+            .select_from(SanXuatKcsLoi)
+            .join(SanXuatKcsBatch, SanXuatKcsBatch.id == SanXuatKcsLoi.kcs_batch_id)
+            .join(SanXuatCongViec, SanXuatCongViec.id == self._gay())
+            .join(Lsx, self._cv_cua_lenh())
+            .where(SanXuatKcsLoi.so_luong > 0, Lsx.id.in_(select(ids.c.id)))
+        ).all()]
+
+    def nguoi_kiem_theo_lenh(self) -> list[tuple[int, int]]:
+        """`(lsx_id, người lưu)` của mọi lần kiểm trên công việc của lệnh trong nhóm — ô "Người kiểm"."""
+        ids = self._lenh_trong_nhom().subquery()
+        return [(int(l), int(u)) for l, u in self.db.execute(
+            select(Lsx.id, SanXuatKcsBatch.created_by)
+            .select_from(SanXuatKcsBatch)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatKcsBatch.cong_viec_id)
+            .join(Lsx, self._cv_cua_lenh())
+            .where(SanXuatKcsBatch.created_by.is_not(None), Lsx.id.in_(select(ids.c.id)))
+        ).all()]
 
     def thu_tu_buoc(self, lsx_ids) -> dict[int, tuple[int, int]]:
         """{lsx_cong_doan.id: (lsx_id, thu_tu)} — xếp chuỗi công đoạn theo đúng thứ tự routing."""
@@ -242,6 +329,24 @@ class SanXuatKcsRepository:
             out.setdefault(b.cong_viec_id, []).append(b)
         return out
 
+    def cong_viec_da_xet_tieu_chi(self, nhom_ids) -> set[int]:
+        """Công việc mà tiêu chí của nó đã có KẾT QUẢ ở một lần kiểm nào đó trong các nhóm này —
+        kết quả khoá theo (công việc nguồn, `thu_tu`), phần tử thiếu `cong_viec_id` là của chính
+        công việc lần kiểm. Lọc JSON trong Python: cột JSON không truy vấn khoá được trên SQLite."""
+        ids = {i for i in nhom_ids if i}
+        if not ids:
+            return set()
+        out: set[int] = set()
+        for cv_id, ds in self.db.execute(
+            select(SanXuatKcsBatch.cong_viec_id, SanXuatKcsBatch.checklist_json)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatKcsBatch.cong_viec_id)
+            .where(SanXuatCongViec.nhom_id.in_(ids), SanXuatKcsBatch.checklist_json.is_not(None))
+        ):
+            for kq in ds or []:
+                if isinstance(kq, dict):
+                    out.add(int(kq.get("cong_viec_id") or cv_id))
+        return out
+
     def tong_dat(self, cong_viec_id: int, *, tru_batch_id: int | None = None) -> float:
         """Σ đạt đã ghi cho một công việc (trừ một lần kiểm khi đang điều chỉnh chính nó)."""
         q = select(func.coalesce(func.sum(SanXuatKcsBatch.so_luong_dat), 0)).where(
@@ -250,6 +355,15 @@ class SanXuatKcsRepository:
         if tru_batch_id is not None:
             q = q.where(SanXuatKcsBatch.id != tru_batch_id)
         return float(self.db.scalar(q) or 0)
+
+    def tong_loi(self, cong_viec_id: int) -> float:
+        """Σ lỗi KCS BẮT TẠI một công việc (đơn vị của chính nó) — phần hàng nhận vào đã hỏng, trừ
+        khỏi trần ghi mẻ (`dau_vao.tran_ghi`, 10/10/2026). Lỗi bắt ở bước sau quy ngược về đây KHÔNG
+        tính: hàng đó đã rời công đoạn và đếm theo đơn vị nơi bắt."""
+        return float(self.db.scalar(
+            select(func.coalesce(func.sum(SanXuatKcsBatch.so_luong_khong_dat), 0))
+            .where(SanXuatKcsBatch.cong_viec_id == cong_viec_id)
+        ) or 0)
 
     def tong_kiem_nhieu(self, cong_viec_ids) -> dict[int, tuple[int, float, float]]:
         """{cong_viec_id: (số lần kiểm, Σ đạt, Σ lỗi)} — MỘT truy vấn gộp cho danh sách lệnh."""
@@ -346,6 +460,36 @@ class SanXuatKcsRepository:
         return self.db.scalar(
             select(SanXuatNhomLsx.nhom_id).where(SanXuatNhomLsx.lsx_id == lsx_id)
         )
+
+    def noi_lenh_phu(self, nhom_ids) -> dict[int, int]:
+        """{lệnh phụ: công việc của lệnh chính mà nó ghép vào} — cạnh phụ thuộc CHÉO lúc phát hành
+        (`san_xuat_phu_thuoc`). Phát hành lại đẻ cạnh mới: giữ cạnh mới nhất."""
+        ids = {i for i in nhom_ids if i}
+        if not ids:
+            return {}
+        out: dict[int, int] = {}
+        for lsx_phu, dich in self.db.execute(
+            select(SanXuatCongViec.lsx_id, SanXuatPhuThuoc.dich_cong_viec_id)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatPhuThuoc.nguon_cong_viec_id)
+            .where(SanXuatPhuThuoc.nhom_id.in_(ids))
+            .order_by(SanXuatPhuThuoc.phien_ban_so, SanXuatPhuThuoc.id)
+        ).all():
+            if lsx_phu:
+                out[lsx_phu] = dich
+        return out
+
+    def loi_gay_boi(self, cong_viec_ids) -> list[tuple[int, str | None, float]]:
+        """`(công việc GÂY, đơn vị nơi bắt, số)` của mọi dòng lỗi tính cho `cong_viec_ids` — bắt ở
+        đâu cũng được. Dòng cũ thiếu `cong_doan_ref_id` là lỗi của chính công đoạn lần kiểm."""
+        ids = {i for i in cong_viec_ids if i}
+        if not ids:
+            return []
+        gay = func.coalesce(SanXuatKcsLoi.cong_doan_ref_id, SanXuatKcsBatch.cong_viec_id)
+        return [(int(c), dv, float(sl or 0)) for c, dv, sl in self.db.execute(
+            select(gay, SanXuatKcsLoi.don_vi, SanXuatKcsLoi.so_luong)
+            .join(SanXuatKcsBatch, SanXuatKcsBatch.id == SanXuatKcsLoi.kcs_batch_id)
+            .where(gay.in_(ids), SanXuatKcsLoi.so_luong > 0)
+        ).all()]
 
     def lsx_trong_nhom(self, nhom_id: int | None) -> list[int]:
         """Id các lệnh thành viên của một nhóm thành phẩm."""

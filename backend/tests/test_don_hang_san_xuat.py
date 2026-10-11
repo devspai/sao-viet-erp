@@ -196,3 +196,31 @@ def test_yeu_cau_giu_du_ma_chua_giao_khong_phai_hoan_tat(sess):
     t = tom_tat_nhieu_don(sess, [o], nguon_san={o.id: [n]}, lenh_san={})[o.id]
     assert t["dang_cho"] == ["giao"]
     assert t["mon"][0]["khach_nhan_du"] is False
+
+
+def test_cot_hang_gom_theo_cum_nhom(sess):
+    """Cột Hàng của danh sách đơn (11/10/2026): ruột + bìa cùng cụm `nhom` là MỘT món mang tên cụm, không
+    bày tên phần đầu ("Ruột sách …") như thể đơn chỉ bán ruột; dòng không nhóm vẫn là một món."""
+    from app.repositories.order_repo import OrderRepository
+
+    o = Order(order_no="DH-CUM1", source_type="bao_gia", status="draft")
+    o.lines.append(OrderLine(description="Ruột sách A5 64 trang", nhom="Sách A5 64 trang", qty=1000, line_total=1))
+    o.lines.append(OrderLine(description="Bìa sách A5", nhom="Sách A5 64 trang", qty=1000, line_total=1))
+    o.lines.append(OrderLine(description="Tờ rơi A4", qty=500, line_total=1))
+    sess.add(o)
+    sess.flush()
+    assert OrderRepository(sess).line_summaries([o.id]) == {o.id: ("Sách A5 64 trang", 2)}
+
+
+def test_dong_lenh_khi_chua_du_hang_la_dong_thieu_khong_phai_cho_kho(sess, admin, lenh):
+    """Lệnh đã ĐÓNG mà kho chưa nhận đủ số đặt, không còn phiếu KCS nào chờ kho nhận ⇒ món "đóng thiếu"
+    (11/10/2026), đơn thôi chờ kho — trước đó vẫn báo "Chờ KCS và kho"."""
+    from app.models.lsx import TT_DA_DONG
+
+    lenh.trang_thai = TT_DA_DONG
+    sess.flush()
+    don = sess.get(Order, lenh.order_id)
+    t = tom_tat_nhieu_don(sess, [don])[don.id]
+    mon = next(m for m in t["mon"] if m["lenh"])
+    assert mon["o"] == "dong_thieu" and not mon["du_hang"]
+    assert "kho" not in t["dang_cho"]       # món đóng thiếu không giữ đơn ở "chờ kho"

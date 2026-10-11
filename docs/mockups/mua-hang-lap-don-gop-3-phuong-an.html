@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lập đơn gộp: 3 phương án</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-xanh-bg:#dbeafe;--tt-xanh-fg:#1d4ed8;
+  --tt-cham-bg:#e0e7ff;--tt-cham-fg:#4338ca;--tt-la-bg:#dcfce7;--tt-la-fg:#15803d;
+  --tt-do-bg:#fee2e2;--tt-do-fg:#b91c1c;--tt-cam-bg:#ffedd5;--tt-cam-fg:#c2410c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+.doc{max-width:1260px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1080px}
+.doc ul{padding-left:20px;margin:6px 0}.doc li{margin:4px 0}
+.h2{margin:32px 0 6px;font-size:19px;font-weight:500;padding-top:18px;border-top:1px solid var(--rule)}
+.refs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:12px 0}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px}
+.ref img{width:100%;height:150px;object-fit:contain;background:#111;border-radius:6px;display:block}
+.ref .t{margin:8px 0 2px;color:var(--ink)}
+.ref .d{color:var(--ash);font-size:12.5px}
+.ref .netsuite{height:150px;background:var(--rule-hair);border-radius:6px;padding:10px 12px;font-size:12px;color:var(--ash);overflow:hidden}
+.pick{position:sticky;top:0;z-index:30;background:#e9edf2;padding:10px 0;margin:18px 0 10px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--rule)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px;border:1px solid var(--rule-soft)}
+.seg button{border:1px solid transparent;background:transparent;padding:4px 12px;border-radius:6px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.pa{display:none}.pa.on{display:block}
+.note{color:var(--ash);margin:0 0 12px;max-width:1120px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+
+/* ===== Ngăn phải 1180px ===== */
+.ngan{width:1180px;height:780px;background:#fff;border:1px solid var(--rule);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.ng-dau{padding:16px 24px 12px;border-bottom:1px solid var(--rule-soft)}
+.ng-dd{color:var(--ash-2);font-size:12.5px}
+.ng-tieu{display:flex;align-items:center;gap:12px;margin-top:4px}
+.ng-tieu h2{font-size:20px;font-weight:500;margin:0}
+.ng-nguon{position:relative}
+.ng-nguon>button{border:1px solid var(--rule-soft);background:var(--rule-hair);border-radius:999px;padding:2px 12px;color:var(--ash);cursor:pointer}
+.ng-nguon>button:hover{border-color:var(--rule)}
+.pop{display:none;position:absolute;left:0;top:30px;z-index:20;background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.12);padding:6px 0;min-width:420px}
+.pop.on{display:block}
+.pop div{display:grid;grid-template-columns:150px 1fr 80px;gap:10px;padding:5px 14px;font-size:12.5px;color:var(--ash)}
+.pop div span:first-child{color:var(--ink-2)}
+.pop .h{color:var(--ash-3);font-size:11.5px}
+.ng-x{margin-left:auto;color:var(--ash-2)}
+.ng-than{flex:1;overflow:auto}
+.ng-chan{border-top:1px solid var(--rule-soft);padding:12px 24px;display:flex;align-items:center;gap:12px}
+.ng-chan .sp{flex:1}
+.btn{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:7px 16px;cursor:pointer}
+.btn.acc{background:var(--rust);border-color:var(--rust);color:#fff}
+.do{color:var(--tt-do-fg)}
+.mo{color:var(--ash-2)}
+
+/* hàng ô chung của đơn */
+.chung{display:grid;grid-template-columns:200px 1fr;gap:16px;padding:14px 24px;border-bottom:1px solid var(--rule-soft)}
+.o-tr{display:flex;flex-direction:column;gap:4px}
+.o-tr>span{font-size:12.5px;color:var(--ash)}
+.o-tr em{color:var(--tt-do-fg);font-style:normal}
+.o-tr small{color:var(--ash-2);font-size:12px}
+.o{height:34px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;background:#fff;width:100%}
+.o:focus{outline:2px solid #93c5fd;outline-offset:-1px}
+
+/* lưới món */
+table.g{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+table.g th{position:sticky;top:0;z-index:2;background:var(--paper);font-weight:400;color:var(--ash-2);font-size:12.5px;text-align:left;padding:7px 8px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+table.g td{padding:5px 8px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+table.g tr.dong:hover td{background:var(--rule-hair)}
+table.g .n{text-align:right}
+table.g th:first-child,table.g td:first-child{padding-left:24px}
+table.g th:last-child,table.g td:last-child{padding-right:20px}
+.ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:330px}
+.phu{display:flex;gap:6px;margin-top:2px;align-items:center;flex-wrap:nowrap;overflow:hidden}
+.tg{font-size:11.5px;color:var(--ash-2);background:var(--rule-hair);border-radius:5px;padding:0 6px;white-space:nowrap}
+.chip{font-size:11.5px;border-radius:5px;padding:0 6px;white-space:nowrap}
+.chip.ton{background:var(--tt-la-bg);color:var(--tt-la-fg)}
+.chip.lsx{background:var(--tt-cham-bg);color:var(--tt-cham-fg)}
+.oi{display:flex;align-items:center;height:30px;border:1px solid var(--rule-soft);border-radius:7px;background:#fff;padding:0 8px;gap:4px}
+.oi:hover{border-color:var(--rule)}
+.oi input{border:0;outline:0;width:100%;text-align:right;background:transparent;min-width:0}
+.oi span{color:var(--ash-3);font-size:12px;white-space:nowrap}
+.oi.trong input::placeholder{color:var(--ash-3)}
+.sel{height:30px;border:1px solid var(--rule-soft);border-radius:7px;background:#fff;padding:0 6px;width:100%}
+.sel.chua{color:var(--ash-2)}
+.vat{height:30px;border:1px solid var(--rule-soft);border-radius:7px;background:#fff;padding:0 4px;width:62px}
+.lech{font-size:11.5px;color:var(--tt-vang-fg);text-align:right;margin-top:1px}
+.tien{font-variant-numeric:tabular-nums;white-space:nowrap}
+.them{border:1px solid transparent;background:transparent;border-radius:6px;width:26px;height:26px;cursor:pointer;color:var(--ash-2)}
+.them:hover,.them.on{border-color:var(--rule-soft);background:#fff;color:var(--ink)}
+tr.tuy td{background:var(--paper);padding-top:6px;padding-bottom:8px}
+.tuy-o{display:flex;gap:10px;align-items:center;padding-left:28px}
+.tuy-o .oi{width:110px}
+.tuy-o .ghi{flex:1;max-width:520px}
+.tuy-o .ghi input{text-align:left}
+input[type=checkbox]{width:15px;height:15px;accent-color:var(--rust);margin:0 8px 0 0;vertical-align:middle}
+.c-ten{display:flex;align-items:flex-start}
+.c-ten input{margin-top:3px}
+
+/* A: dải "sẽ tạo" ở đáy */
+.se-tao{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 24px;border-top:1px solid var(--rule-soft);background:var(--paper)}
+.se-tao .nh{color:var(--ash-2);margin-right:4px}
+.don{border:1px solid var(--rule-soft);background:#fff;border-radius:8px;padding:3px 10px;display:flex;gap:10px;align-items:baseline}
+.don .m{color:var(--ash-2);font-size:12px}
+.don.chua{border-color:#fecaca;background:#fff}
+.se-tao .tong{margin-left:auto;display:flex;gap:10px;align-items:baseline}
+.se-tao .tong b{font-weight:500;font-size:15px}
+
+/* B: dòng nhóm */
+tr.nhom td{background:#fff;padding-top:14px;padding-bottom:6px;border-bottom:1px solid var(--rule-soft)}
+.nh-dau{display:flex;align-items:baseline;gap:10px}
+.nh-dau .ten-ncc{font-size:14.5px;font-weight:500}
+.nh-dau .sp{flex:1}
+tr.cong td{padding-top:4px;padding-bottom:12px;border-bottom:1px solid var(--rule-soft)}
+.cong-o{display:grid;grid-template-columns:auto 130px;justify-content:end;column-gap:20px;row-gap:1px;font-size:12.5px;color:var(--ash)}
+.cong-o .t{color:var(--ink);font-size:13.5px}
+.doi{border:0;background:transparent;color:var(--ash-2);cursor:pointer;font-size:12.5px;padding:2px 6px;border-radius:6px}
+.doi:hover{background:var(--rule-hair);color:var(--ink)}
+
+/* C: cột trái */
+.c-wrap{display:grid;grid-template-columns:240px 1fr;height:100%}
+.c-wrap table.g th:first-child,.c-wrap table.g td:first-child{padding-left:16px}
+.c-wrap .phu{flex-wrap:nowrap;overflow:hidden}
+.c-wrap .ten{max-width:300px}
+.c-trai{border-right:1px solid var(--rule-soft);padding:14px 0;display:flex;flex-direction:column;gap:2px;overflow:auto;background:var(--paper)}
+.c-trai .nh{padding:0 18px 6px;color:var(--ash-2);font-size:12.5px}
+.c-muc{display:grid;grid-template-columns:1fr auto;gap:0 8px;padding:8px 18px;cursor:pointer;border:1px solid transparent;margin:0 8px;border-radius:8px}
+.c-muc:hover{background:var(--rule-hair)}
+.c-muc.on{border-color:var(--rule);background:#fff}
+.c-muc .m{grid-column:1/-1;color:var(--ash-2);font-size:12px}
+.c-muc .t{font-variant-numeric:tabular-nums}
+.c-muc.chua span:first-child{color:var(--tt-do-fg)}
+.c-tong{margin:10px 8px 0;padding:10px 18px;border-top:1px solid var(--rule-soft);display:flex;justify-content:space-between}
+.c-tong b{font-weight:500}
+.c-o{padding:16px 18px 0;display:flex;flex-direction:column;gap:12px;margin-top:auto}
+.c-o textarea.o{height:70px;padding:8px 10px;resize:vertical}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Lập đơn mua từ nhiều yêu cầu: 3 phương án</h1>
+<p>Dữ liệu là 12 dòng yêu cầu thật trên DB dev (<code>svn_erp_trong</code>), lấy từ 9 yêu cầu của 5 bộ phận. Giá lấy từ sổ giá nhà cung cấp (<code>supplier_items</code>). Giả định thêm: việc chọn nhà cung cấp cho 9 món, đơn giá 25.000 của Couche 2.800 kg (để hiện "cao hơn giá sổ"), mã lệnh <code>LSX-261007-0012</code> của dòng keo 3 kg.</p>
+<p>Đã đọc: <code>PurchaseFormDrawer.tsx</code> (nhóm theo NCC, ô NCC trong ô tên, cột phải Tóm tắt chi phí), <code>OMuaCho.tsx</code>, mockup cũ <code>mua-hang-lap-don-tu-nhieu-yeu-cau.html</code>. Logic giữ nguyên: chọn nhà cung cấp từng món thì giá sổ tự điền, món cùng nhà cung cấp thành một đơn, ngày cần hàng và nội dung điền một lần cho mọi đơn, lưu ra N đơn Nháp.</p>
+
+<div class="h2">Đã tham khảo</div>
+<div class="refs">
+  <div class="ref">
+    <div class="netsuite">Transactions › Purchases › <b style="font-weight:500">Order Requisitions</b><br><br>Bảng phẳng các dòng yêu cầu đã duyệt. Mỗi dòng: ô Include, Vendor sửa được, Quantity sửa được. Bấm Submit thì hệ thống tự tách thành các PO theo vendor. (Trang tài liệu chỉ có chữ, không có ảnh.)</div>
+    <div class="t">NetSuite: Order Requisitions (phương án A)</div>
+    <div class="d">Học: đúng nghiệp vụ của mình. Nhà cung cấp là một CỘT của dòng, người dùng không cần thấy "nhóm" lúc đang nhập, máy tự tách lúc lưu.<br><a href="https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/section_3873973062.html">docs.oracle.com</a></div>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-lap-don-mua/zoho-bang-mon.jpg" alt="Zoho Inventory bảng món của đơn mua">
+    <div class="t">Zoho Inventory: bảng món của đơn mua (phương án B)</div>
+    <div class="d">Học: mỗi món một dòng thấp, ô nhập nằm phẳng trong ô bảng, cộng tiền đặt ngay dưới bảng của chính đơn đó chứ không ra cột khác.<br><a href="https://www.zoho.com/inventory/help/purchase-orders/purchase-order-creation.html">zoho.com</a></div>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-lap-don-mua/odoo-bo-sung-hang-toan-man.jpg" alt="Odoo Replenishment">
+    <div class="t">Odoo: Replenishment (phương án C)</div>
+    <div class="d">Học: cột trái là bộ lọc gom nhóm có đếm, bảng phải dày đặc một dòng một sản phẩm, số "To Order" sửa thẳng trong dòng.<br><a href="https://www.odoo.com/documentation/18.0/applications/inventory_and_mrp/inventory/warehouses_storage/replenishment/report.html">odoo.com</a></div>
+  </div>
+</div>
+<p>Đã mở mà bỏ: trang Odoo Request for Quotation và Blanket orders (ảnh chỉ có đầu phiếu, không có bảng món), ảnh cuối trang Zoho (chỉ có ô ghi chú, không có cộng tiền).</p>
+
+<div class="h2">Chung cho cả 3 phương án</div>
+<ul>
+  <li>Đầu ngăn còn một nút "9 yêu cầu, 5 bộ phận". Bấm vào mới hiện danh sách mã. Bỏ 15 thẻ chiếm ba hàng.</li>
+  <li>Mỗi món một dòng cao khoảng 50px. Khổ giấy, mã yêu cầu, bộ phận thành thẻ nhỏ dưới tên. Chỉ món "Tồn kho" hoặc "Cho lệnh" mới có chip màu. "Theo yêu cầu" là trường hợp thường nên không ghi.</li>
+  <li>Nhà cung cấp là cột riêng, đứng ngay sau tên vật tư.</li>
+  <li>Ô đơn giá trống thì để màu thường. Chỉ đỏ khi bấm Lưu mà còn thiếu.</li>
+  <li>Chiết khấu và ghi chú nằm sau nút <b style="font-weight:500">%</b> ở cuối dòng. Bấm thì mở một dòng con ngay dưới.</li>
+  <li>Ngày cần hàng và nội dung là ô chung của mọi đơn, chuyển lên đầu (A, B) hoặc xuống cột trái (C).</li>
+  <li>Chân ngăn chỉ nói việc còn phải làm ("Còn 3 món chưa chọn nhà cung cấp"). Số đơn chỉ nói một lần, trên nút Lưu.</li>
+</ul>
+
+<div class="pick">
+  <span class="mo">Xem phương án</span>
+  <div class="seg" id="seg">
+    <button class="on" data-pa="A">A. Bảng phẳng</button>
+    <button data-pa="B">B. Bảng chia theo đơn</button>
+    <button data-pa="C">C. Cột trái là các đơn</button>
+  </div>
+</div>
+
+<div class="pa on" id="pa-A">
+  <p class="note">Một bảng phẳng 12 dòng, xếp các món chưa có nhà cung cấp lên đầu. Đổi nhà cung cấp ở cột thì dòng không nhảy chỗ, tránh mất dấu lúc đang nhập. Dải "Sẽ tạo" ở đáy cho biết đơn nào bao nhiêu tiền. Hợp khi người lập chủ yếu chọn nhà cung cấp lần lượt từ trên xuống.</p>
+  <div class="scroll"><div class="ngan" id="ngan-A"></div></div>
+</div>
+<div class="pa" id="pa-B">
+  <p class="note">Một bảng duy nhất nhưng chia đoạn theo đơn. Mỗi đoạn có tên nhà cung cấp ở đầu và cộng tiền ở cuối giống một đơn mua thật. Trong đoạn đã có nhà cung cấp thì cột đó chỉ còn nút "Đổi", không lặp tên. Đoạn "Chưa chọn nhà cung cấp" nằm trên cùng và có ô chọn. Chọn xong, dòng chuyển xuống đoạn của nhà cung cấp đó. Hợp khi muốn soát từng đơn trước khi lưu.</p>
+  <div class="scroll"><div class="ngan" id="ngan-B"></div></div>
+</div>
+<div class="pa" id="pa-C">
+  <p class="note">Cột trái hẹp liệt kê các đơn sẽ tạo, kèm số món và tiền, bấm vào để lọc bảng bên phải. Ngày cần hàng và nội dung nằm dưới cột trái. Gần bố cục hiện tại nhất nhưng đổi cột tóm tắt bên phải thành bộ lọc bên trái, nên tên vật tư được rộng hơn. Hợp khi đơn nhiều món hơn và cần soát lần lượt từng nhà cung cấp.</p>
+  <div class="scroll"><div class="ngan" id="ngan-C"></div></div>
+</div>
+</div>
+
+<script>
+const NCC = {
+  anphat:{ten:"Công ty TNHH Thương mại Giấy An Phát",gon:"Giấy An Phát",no:15},
+  viettri:{ten:"Công ty CP Giấy Việt Trì",gon:"Giấy Việt Trì",no:45},
+  donga:{ten:"Công ty CP Màng và Keo Đông Á",gon:"Màng và Keo Đông Á",no:15},
+  kimlong:{ten:"Công ty TNHH Nhũ ép kim Kim Long",gon:"Nhũ ép kim Kim Long",no:45},
+};
+const MON = [
+  {ten:"DUPLEX MALAYSIA 300-450GSM",kho:"720 × 1020 mm",sl:4000,dv:"tờ",yc:"YCMH-261007-574D",bp:"Ban giám đốc",ncc:null},
+  {ten:"COUCHE 150GSM",kho:"650 × 860 mm",sl:2000,dv:"tờ",yc:"YCMH-261008-A51N",bp:"Ban giám đốc",mua:"ton",ncc:null},
+  {ten:"GIẤY IVORY 300-400GSM",kho:"790 × 1090 mm",sl:5000,dv:"tờ",yc:"YCMH-261007-EN6N",bp:"Ban giám đốc",ncc:null},
+  {ten:"DUPLEX 230-250GSM",sl:2750,dv:"kg",yc:"YCMH-261007-1565",bp:"Tổ in",ncc:"anphat",gia:18500,vat:8},
+  {ten:"GIẤY IVORY 210-230-250GSM",sl:2500,dv:"kg",yc:"YCMH-261007-1565",bp:"Tổ in",ncc:"anphat",gia:24500,vat:8},
+  {ten:"COUCHE 150GSM",sl:2800,dv:"kg",yc:"YCMH-261007-0F4W",bp:"Tổ Cán màng",ncc:"anphat",gia:25000,giaSo:24400,vat:8},
+  {ten:"DUPLEX 230-250GSM",sl:1050,dv:"kg",yc:"YCMH-261007-0F4W",bp:"Tổ Cán màng",ncc:"anphat",gia:18500,vat:8},
+  {ten:"DUPLEX MALAYSIA 300-450GSM",sl:1650,dv:"kg",yc:"YCMH-261007-3CIV",bp:"Phòng Kinh Doanh",ncc:"viettri",gia:19800,vat:8},
+  {ten:"Màng cán mờ",sl:11000,dv:"m²",yc:"YCMH-261007-3QIT",bp:"Ban giám đốc",ncc:"donga",gia:1800,vat:10},
+  {ten:"Màng cán bóng",sl:5000,dv:"m²",yc:"YCMH-261007-3QIT",bp:"Ban giám đốc",ncc:"donga",gia:1600,vat:8},
+  {ten:"Keo nhiệt (vào gáy sách)",sl:3,dv:"kg",yc:"YCMH-261007-7TZY",bp:"Ban giám đốc",mua:"lsx",lenh:"LSX-261007-0012",ncc:"donga",gia:70600,vat:10},
+  {ten:"Nhũ ép kim",sl:15,dv:"cái",yc:"YCMH-261007-XXZQ",bp:"Phòng kỹ thuật",ncc:"kimlong",gia:439000,vat:8},
+];
+const YC = [
+  ["YCMH-261007-574D","Ban giám đốc","14/10"],["YCMH-261008-A51N","Ban giám đốc","08/10"],
+  ["YCMH-261007-EN6N","Ban giám đốc","19/10"],["YCMH-261007-1565","Tổ in","14/10"],
+  ["YCMH-261007-0F4W","Tổ Cán màng","19/10"],["YCMH-261007-3CIV","Phòng Kinh Doanh","18/10"],
+  ["YCMH-261007-3QIT","Ban giám đốc","11/10"],["YCMH-261007-7TZY","Ban giám đốc","14/10"],
+  ["YCMH-261007-XXZQ","Phòng kỹ thuật","27/10"],
+];
+const so = n => Math.round(n).toLocaleString("vi-VN");
+const tienHang = m => m.gia ? m.sl*m.gia : 0;
+const tienVat = m => tienHang(m)*(m.vat||0)/100;
+const nhomCua = () => {
+  const g = new Map([["chua",[]]]);
+  MON.forEach((m,i)=>{const k=m.ncc||"chua"; if(!g.has(k)) g.set(k,[]); g.get(k).push(i);});
+  if(!g.get("chua").length) g.delete("chua");
+  return g;
+};
+const cong = idx => idx.reduce((s,i)=>({hang:s.hang+tienHang(MON[i]),vat:s.vat+tienVat(MON[i])}),{hang:0,vat:0});
+const moTuy = new Set();
+const chuaChon = () => MON.filter(m=>!m.ncc).length;
+const soDon = () => [...nhomCua().keys()].filter(k=>k!=="chua").length;
+const tong = () => MON.reduce((s,m)=>s+tienHang(m)+tienVat(m),0);
+
+function dau(){
+  return `<div class="ng-dau">
+    <div class="ng-dd">Mua hàng › Lập đơn từ yêu cầu</div>
+    <div class="ng-tieu"><h2>Đơn mua hàng mới</h2>
+      <div class="ng-nguon"><button type="button" onclick="this.nextElementSibling.classList.toggle('on')">9 yêu cầu, 5 bộ phận</button>
+        <div class="pop"><div class="h"><span>Yêu cầu</span><span>Bộ phận</span><span>Cần ngày</span></div>
+        ${YC.map(y=>`<div><span>${y[0]}</span><span>${y[1]}</span><span>${y[2]}</span></div>`).join("")}</div>
+      </div>
+      <span class="ng-x">⤢&nbsp;&nbsp;✕</span></div></div>`;
+}
+function chan(){
+  const c = chuaChon();
+  return `<div class="ng-chan">${c?`<span class="do">Còn ${c} món chưa chọn nhà cung cấp</span>`:`<span class="mo">Lưu xong mỗi đơn ở trạng thái Nháp</span>`}
+    <span class="sp"></span><button class="btn">Huỷ</button><button class="btn acc">Lưu ${soDon()} đơn</button></div>`;
+}
+function oChung(){
+  return `<div class="chung">
+    <label class="o-tr"><span>Ngày cần hàng <em>*</em></span><input class="o" value="10/10/2026"><small>Yêu cầu sớm nhất cần 08/10</small></label>
+    <label class="o-tr"><span>Nội dung, mục đích <em>*</em></span><input class="o" value="Gom yêu cầu mua hàng của các bộ phận"></label></div>`;
+}
+function phu(m){
+  return `<div class="phu">${m.kho?`<span class="tg">${m.kho}</span>`:""}<span class="tg">${m.yc}</span><span class="tg">${m.bp}</span>${m.mua==="ton"?`<span class="chip ton">Tồn kho</span>`:""}${m.mua==="lsx"?`<span class="chip lsx">Cho ${m.lenh}</span>`:""}</div>`;
+}
+function selNcc(m,i,pa){
+  return `<select class="sel${m.ncc?"":" chua"}" onchange="doiNcc(${i},this.value,'${pa}')"><option value="">Chọn nhà cung cấp</option>${Object.entries(NCC).map(([k,v])=>`<option value="${k}"${m.ncc===k?" selected":""}>${v.gon}</option>`).join("")}</select>`;
+}
+function oSo(m){return `<div class="oi"><input value="${so(m.sl)}"><span>${m.dv}</span></div>`;}
+function oGia(m){
+  const l = m.giaSo&&m.gia? m.gia-m.giaSo:0;
+  return `<div class="oi${m.gia?"":" trong"}"><input placeholder="${m.ncc?"":"chưa có giá"}" value="${m.gia?so(m.gia):""}"><span>đ/${m.dv}</span></div>${l?`<div class="lech">Cao hơn giá sổ ${so(l)}</div>`:""}`;
+}
+function oVat(m){return `<select class="vat">${[0,5,8,10].map(v=>`<option${(m.vat||0)===v?" selected":""}>${v} %</option>`).join("")}</select>`;}
+function oTien(m){return m.gia?`<span class="tien">${so(tienHang(m)+tienVat(m))}</span>`:`<span class="mo">Chưa tính</span>`;}
+function nutTuy(i,pa){return `<button class="them${moTuy.has(i)?" on":""}" title="Chiết khấu, ghi chú" onclick="tuy(${i},'${pa}')">%</button>`;}
+function dongTuy(i,cot){
+  return moTuy.has(i)?`<tr class="tuy"><td colspan="${cot}"><div class="tuy-o"><span class="mo">Giảm</span><div class="oi"><input placeholder="0"><span>%</span></div><div class="oi ghi"><input placeholder="Ghi chú cho nhà cung cấp"></div></div></td></tr>`:"";
+}
+function cotTen(m,i){
+  return `<div class="c-ten"><input type="checkbox" checked><div style="min-width:0"><div class="ten" title="${m.ten}">${m.ten}</div>${phu(m)}</div></div>`;
+}
+const COLS = `<colgroup><col><col style="width:210px"><col style="width:124px"><col style="width:150px"><col style="width:78px"><col style="width:120px"><col style="width:52px"></colgroup>`;
+const THEAD = `<thead><tr><th>Vật tư</th><th>Nhà cung cấp</th><th class="n">Số lượng</th><th class="n">Đơn giá</th><th class="n">VAT</th><th class="n">Thành tiền</th><th></th></tr></thead>`;
+
+/* ---------- A ---------- */
+let thuTuA = null;
+function veA(){
+  if(!thuTuA) thuTuA = MON.map((m,i)=>i).sort((a,b)=>(MON[a].ncc?1:0)-(MON[b].ncc?1:0));
+  const g = nhomCua();
+  const rows = thuTuA.map(i=>{const m=MON[i];return `<tr class="dong"><td>${cotTen(m,i)}</td><td>${selNcc(m,i,"A")}</td><td class="n">${oSo(m)}</td><td class="n">${oGia(m)}</td><td class="n">${oVat(m)}</td><td class="n">${oTien(m)}</td><td>${nutTuy(i,"A")}</td></tr>${dongTuy(i,7)}`;}).join("");
+  const don = [...g.entries()].map(([k,idx])=>{
+    if(k==="chua") return `<span class="don chua"><span class="do">Chưa chọn</span><span class="m">${idx.length} món</span></span>`;
+    const c=cong(idx); return `<span class="don"><span>${NCC[k].gon}</span><span class="m">${idx.length} món</span><span class="tien">${so(c.hang+c.vat)}</span></span>`;
+  }).join("");
+  document.getElementById("ngan-A").innerHTML = dau()+`<div class="ng-than">${oChung()}<table class="g">${COLS}${THEAD}<tbody>${rows}</tbody></table></div>
+    <div class="se-tao"><span class="nh">Sẽ tạo</span>${don}<span class="tong"><span class="mo">Tổng</span><b class="tien">${so(tong())} đ</b></span></div>`+chan();
+}
+
+/* ---------- B ---------- */
+function veB(){
+  const g = nhomCua();
+  let body = "";
+  for(const [k,idx] of g){
+    if(k==="chua"){
+      body += `<tr class="nhom"><td colspan="7"><div class="nh-dau"><span class="ten-ncc do">Chưa chọn nhà cung cấp</span><span class="mo">${idx.length} món</span></div></td></tr>`;
+    } else {
+      body += `<tr class="nhom"><td colspan="7"><div class="nh-dau"><span class="ten-ncc">${NCC[k].ten}</span><span class="tg">Cho nợ ${NCC[k].no} ngày</span><span class="mo">${idx.length} món</span></div></td></tr>`;
+    }
+    idx.forEach(i=>{const m=MON[i];
+      body += `<tr class="dong"><td>${cotTen(m,i)}</td><td>${k==="chua"?selNcc(m,i,"B"):`<button class="doi" onclick="doiNcc(${i},'','B')">Đổi</button>`}</td><td class="n">${oSo(m)}</td><td class="n">${oGia(m)}</td><td class="n">${oVat(m)}</td><td class="n">${oTien(m)}</td><td>${nutTuy(i,"B")}</td></tr>${dongTuy(i,7)}`;
+    });
+    if(k!=="chua"){const c=cong(idx);
+      body += `<tr class="cong"><td colspan="6"><div class="cong-o"><span>Tiền hàng</span><span class="n tien">${so(c.hang)}</span><span>VAT</span><span class="n tien">${so(c.vat)}</span><span class="t">Cộng đơn</span><span class="n tien t">${so(c.hang+c.vat)} đ</span></div></td><td></td></tr>`;
+    }
+  }
+  body += `<tr><td colspan="6"><div class="cong-o" style="padding:12px 0"><span class="t">Tổng ${soDon()} đơn</span><span class="n tien t">${so(tong())} đ</span></div></td><td></td></tr>`;
+  document.getElementById("ngan-B").innerHTML = dau()+`<div class="ng-than">${oChung()}<table class="g">${COLS}${THEAD.replace("Nhà cung cấp","")}<tbody>${body}</tbody></table></div>`+chan();
+}
+
+/* ---------- C ---------- */
+let locC = "tat";
+function veC(){
+  const g = nhomCua();
+  let ds = MON.map((m,i)=>i);
+  if(locC!=="tat") ds = g.get(locC)||[];
+  const anCot = locC!=="tat" && locC!=="chua";
+  const rows = ds.map(i=>{const m=MON[i];return `<tr class="dong"><td>${cotTen(m,i)}</td>${anCot?"":`<td>${selNcc(m,i,"C")}</td>`}<td class="n">${oSo(m)}</td><td class="n">${oGia(m)}</td><td class="n">${oVat(m)}</td><td class="n">${oTien(m)}</td><td>${nutTuy(i,"C")}</td></tr>${dongTuy(i,anCot?6:7)}`;}).join("");
+  const muc = (k,ten,m,t,cls="") => `<div class="c-muc${locC===k?" on":""} ${cls}" onclick="locC='${k}';veC()"><span>${ten}</span><span class="t">${t}</span><span class="m">${m}</span></div>`;
+  let trai = `<div class="nh">Đơn sẽ tạo</div>` + muc("tat","Tất cả",`${MON.length} món`,"");
+  for(const [k,idx] of g){
+    if(k==="chua") trai += muc("chua","Chưa chọn nhà cung cấp",`${idx.length} món`,"","chua");
+    else {const c=cong(idx); trai += muc(k,NCC[k].gon,`${idx.length} món`,so(c.hang+c.vat));}
+  }
+  trai += `<div class="c-tong"><span class="mo">Tổng</span><b class="tien">${so(tong())} đ</b></div>
+    <div class="c-o"><label class="o-tr"><span>Ngày cần hàng <em>*</em></span><input class="o" value="10/10/2026"><small>Yêu cầu sớm nhất cần 08/10</small></label>
+    <label class="o-tr"><span>Nội dung, mục đích <em>*</em></span><textarea class="o">Gom yêu cầu mua hàng của các bộ phận</textarea></label></div>`;
+  const COLS_C = `<colgroup><col><col style="width:170px"><col style="width:112px"><col style="width:136px"><col style="width:72px"><col style="width:108px"><col style="width:44px"></colgroup>`;
+  const cols = anCot?COLS_C.replace(`<col style="width:170px">`,""):COLS_C;
+  const th = anCot?THEAD.replace("<th>Nhà cung cấp</th>",""):THEAD;
+  document.getElementById("ngan-C").innerHTML = dau()+`<div class="ng-than" style="overflow:hidden"><div class="c-wrap"><div class="c-trai">${trai}</div><div style="overflow:auto"><table class="g">${cols}${th}<tbody>${rows}</tbody></table></div></div></div>`+chan();
+}
+
+function ve(){veA();veB();veC();}
+// Mockup: chọn nhà cung cấp cho món tờ thì điền giá quy đổi giả định để thấy tiền chạy.
+const GIA_TO = {"DUPLEX MALAYSIA 300-450GSM":7900,"COUCHE 150GSM":2050,"GIẤY IVORY 300-400GSM":9300};
+function doiNcc(i,v){const m=MON[i]; m.ncc=v||null;
+  if(v && !m.gia && GIA_TO[m.ten]){m.gia=GIA_TO[m.ten]; m.vat=8;}
+  ve();}
+function tuy(i){moTuy.has(i)?moTuy.delete(i):moTuy.add(i);ve();}
+document.getElementById("seg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#seg button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".pa").forEach(p=>p.classList.toggle("on",p.id==="pa-"+b.dataset.pa));
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".ng-nguon")) document.querySelectorAll(".pop.on").forEach(p=>p.classList.remove("on"));});
+ve();
+</script>
+</body>
+</html>

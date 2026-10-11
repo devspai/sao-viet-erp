@@ -553,6 +553,9 @@ O_QUYEN_GAC_O_SERVICE: set[tuple[str, str]] = {
     ("yeu_cau_mua_hang", "create"),   # purchase_service.can_create_department_request
     ("ke_toan", "approve"),           # huỷ PMH đã gửi duyệt (purchase_service.cancel)
     ("ke_toan", "read"),              # đếm đợt giao quá hạn cho badge Thu mua
+    ("kcs", "read"),                  # san_xuat/kcs.xem_kcs — màn KCS, báo cáo mọi tổ, ảnh lỗi
+    ("kcs", "create"),                # san_xuat/kcs.gate_kcs — ghi lần kiểm, gửi nhập kho, đóng đủ
+    ("kcs", "close_short"),           # san_xuat/dong_lenh.duoc_dong_thieu
 }
 
 
@@ -634,6 +637,9 @@ O_CHET_DA_XAC_MINH: set[tuple[str, str]] = {
     # Sót ở đợt E vì module sinh sau (đợt D, migration 0185) mà danh sách khai tay.
     ("yeu_cau_chinh_cong", "create"), ("yeu_cau_chinh_cong", "update"),
     ("yeu_cau_chinh_cong", "delete"),
+    # KCS (09/10/2026): Thao tác = `create` (ghi lần kiểm · gửi nhập kho · đóng đủ). Lần kiểm đã ghi
+    # không sửa, không xoá (điều chỉnh gỡ 08/10/2026) ⇒ hai cột còn lại không nối vào việc nào.
+    ("kcs", "update"), ("kcs", "delete"),
 }
 
 
@@ -663,15 +669,11 @@ def require_permission(module_key: str, action: str):
     return dependency
 
 
-def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_kcs: bool = False,
-                     cho_dong_kho: bool = False):
+def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_dong_kho: bool = False):
     """Cổng Bàn tổ (mg 0302): cho qua nếu vai của user bật `viec` ("read" | "run_order" |
     "confirm_output" | "warehouse") trên ÍT NHẤT MỘT dòng quyền theo tổ — hoặc có một trong
     các ô tĩnh `hoac` (màn khác dùng chung endpoint). ĐÚNG TỔ NÀO do service hỏi
     (`services/quyen_to.py`); ở đây chỉ chặn sớm người không có gì.
-
-    `cho_kcs=True`: người thuộc phòng ban "Tổ KCS" cũng qua (KCS theo lệnh, mg 0306) — họ kiểm mọi
-    tổ mà không giữ dòng quyền tổ nào, nên màn KCS đọc chung endpoint phải mở cho họ.
 
     `cho_dong_kho=True`: người có Xem ở một dòng quyền theo kho (`ton_kho_<id>`, 05/10/2026) cũng
     qua — danh sách kho phải mở cho người chỉ được cấp màn Tồn kho của vài kho, không thì thanh
@@ -687,11 +689,8 @@ def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_kcs: bool =
         authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
     ) -> User:
         from .services.quyen_to import quyen_to_cua
-        from .services.san_xuat.kcs import la_nguoi_kcs
 
         if any(authz.can(user, k, a) for k, a in hoac) or quyen_to_cua(db, user).co_viec(viec):
-            return user
-        if cho_kcs and la_nguoi_kcs(db, user):
             return user
         if cho_dong_kho:
             from .services.quyen_kho import xem_kho_nao

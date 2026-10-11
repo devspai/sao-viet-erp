@@ -745,6 +745,14 @@ function OLenh({
         : undefined;
       return (
         <td title={tieuDeGc ?? (l.to_dau_ten ? `Tổ xuất phát: ${l.to_dau_ten}` : undefined)}>
+          {/* Chip gia công đứng ĐẦU ô: ô hẹp thì dấu ba chấm cắt "N bước" chứ không nuốt chip (11/10/2026). */}
+          {g && conMoGc(g) ? (
+            <span className="khsx-cach-sau">
+              <ChipTT mau={g.trang_thai === "cho_mang_di" ? "cham" : "ngoc"} vuong>
+                {g.ten_viec} {NHAN_NGAN[g.trang_thai]}
+              </ChipTT>
+            </span>
+          ) : null}
           {l.so_cong_doan > 0 ? (
             <>
               {l.so_cong_doan} bước
@@ -755,13 +763,6 @@ function OLenh({
               Chưa có công đoạn
             </ChipTT>
           )}
-          {g && conMoGc(g) ? (
-            <span className="khsx-cach">
-              <ChipTT mau={g.trang_thai === "cho_mang_di" ? "cham" : "ngoc"} vuong>
-                {g.ten_viec} {NHAN_NGAN[g.trang_thai]}
-              </ChipTT>
-            </span>
-          ) : null}
         </td>
       );
     }

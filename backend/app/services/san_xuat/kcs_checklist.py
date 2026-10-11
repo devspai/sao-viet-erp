@@ -33,10 +33,18 @@ def _lsx_chinh(repo: SanXuatKcsRepository, cv, lsx_id: int | None) -> int | None
     return nhom.than_chinh_lsx_id if nhom is not None else None
 
 
+def _viec_thue_ngoai(bc, ids) -> list:
+    """Công việc thuê ngoài của các lệnh trong bối cảnh — chuỗi KCS bỏ qua chúng."""
+    return [c for l in ids if l in bc.lenh for c in bc.cong_viec_du(l) if c.gia_cong_ngoai_id is not None]
+
+
 def chuoi_gop(db: Session, cv, lsx_id: int | None = None) -> list:
     """Chuỗi công việc mà bước cuối `cv` xét tiêu chí + quy lỗi về được: các lệnh PHỤ cùng nhóm
     trước (theo mã lệnh, mỗi lệnh theo thứ tự routing), rồi lệnh CHÍNH từ đầu tới chính `cv`.
     Khử trùng theo id (việc bài ghép phủ nhiều lệnh chỉ đứng một chỗ).
+
+    BỎ bước THUÊ NGOÀI (11/10/2026, chủ chốt): KCS không xét tiêu chí của nhà gia công và không quy
+    lỗi về họ — số nhận về đã chốt ở lần gia công. Chính `cv` thì luôn giữ.
 
     `cv` không thuộc lệnh chính ⇒ `ValueError` (cùng câu với đường quy lỗi cũ)."""
     from .kcs import _thu_tu_cong_doan      # import lười: kcs.py import ngược module này
@@ -58,7 +66,7 @@ def chuoi_gop(db: Session, cv, lsx_id: int | None = None) -> list:
     moc = khoa(cv)
 
     out: list = []
-    thay: set[int] = set()
+    thay: set[int] = {c.id for c in _viec_thue_ngoai(bc, ids) if c.id != cv.id}
     phu = sorted((l for l in ids if l != chinh and l in bc.lenh),
                  key=lambda l: (bc.lenh[l].ma or "", l))
     for lid in phu:

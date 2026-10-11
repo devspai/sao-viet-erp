@@ -1,22 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { nhanDongTon } from "./khoGiay";
+import { khoaNguong, khoaTon, nhanDongTon } from "./khoGiay";
 
+// Danh mục Đơn vị chưa nạp trong test ⇒ tên đơn vị rơi về mã trần (`to`, `kg`).
 describe("nhanDongTon", () => {
-  it("giấy tờ ghi khổ", () => {
-    expect(nhanDongTon("to", 780, 905)).toBe("780 × 905 mm");
+  it("giấy đủ hai cạnh ghi khổ + đơn vị gốc", () => {
+    expect(nhanDongTon("to", 780, 905)).toBe("780 × 905 mm (to)");
   });
-  it("cuộn không biết khổ chỉ ghi cuộn", () => {
-    expect(nhanDongTon("cuon", 0, 0)).toBe("cuộn");
+  it("khổ chỉ rộng ghi 'khổ … mm'", () => {
+    expect(nhanDongTon("kg", 1000, 0)).toBe("khổ 1000 mm (kg)");
   });
-  it("cuộn ghi khổ các lô, bỏ trùng và sắp tăng", () => {
-    expect(nhanDongTon("cuon", 0, 0, { khoCuon: [790] })).toBe("cuộn · khổ 790 mm");
-    expect(nhanDongTon("cuon", 0, 0, { khoCuon: [1090, 790, 790, 0] })).toBe("cuộn · khổ 790, 1090 mm");
-  });
-  it("giấy chưa có dạng ghi chưa rõ", () => {
-    expect(nhanDongTon(null, 0, 0, { laGiay: true })).toBe("chưa rõ dạng/khổ");
+  it("giấy chưa có khổ vẫn ghi đơn vị", () => {
+    expect(nhanDongTon("kg", 0, 0, { laGiay: true })).toBe("chưa có khổ (kg)");
   });
   it("hàng khác không nhãn", () => {
-    expect(nhanDongTon(null, 0, 0)).toBe("");
+    expect(nhanDongTon("", 0, 0)).toBe("");
     expect(nhanDongTon(null, 0, 0, { laGiay: false })).toBe("");
+  });
+});
+
+describe("khoaTon / khoaNguong — khớp khoá 5 phần của máy chủ", () => {
+  it("giấy: mã + khổ (cạnh ngắn trước) + đơn vị gốc", () => {
+    expect(khoaTon({ hang_loai: "giay", hang_id: 12, kho_rong: 905, kho_dai: 780, don_vi_goc: "to" }))
+      .toBe("giay:12:780:905:to");
+  });
+  it("cùng khổ khác đơn vị gốc là hai khoá", () => {
+    const a = khoaTon({ hang_loai: "giay", hang_id: 12, kho_rong: 1000, kho_dai: 0, don_vi_goc: "to" });
+    const b = khoaTon({ hang_loai: "giay", hang_id: 12, kho_rong: 1000, kho_dai: 0, don_vi_goc: "kg" });
+    expect(a).toBe("giay:12:1000:0:to");
+    expect(b).toBe("giay:12:1000:0:kg");
+  });
+  it("vật tư khác: vat_tu:id:0:0:gốc — không khổ, tách theo đơn vị gốc", () => {
+    expect(khoaTon({ hang_loai: "vat_tu", hang_id: 5, don_vi_goc: "KG" })).toBe("vat_tu:5:0:0:kg");
+    expect(khoaTon({ hang_loai: "vat_tu", hang_id: 5, don_vi_goc: "thung", kho_rong: 700, kho_dai: 1000 }))
+      .toBe("vat_tu:5:0:0:thung");
+  });
+  it("hàng khác: loai:id:0:0:", () => {
+    expect(khoaTon({ hang_loai: "thanh_pham", hang_id: 5, don_vi_goc: "cai" })).toBe("thanh_pham:5:0:0:");
+  });
+  it("ngưỡng dùng chung khoá với dòng tồn", () => {
+    expect(khoaNguong({ hang_loai: "giay", hang_id: 12, kho_rong: 780, kho_dai: 905, don_vi_goc: "to" }))
+      .toBe("giay:12:780:905:to");
+    expect(khoaNguong({ hang_loai: "vat_tu", hang_id: 5, kho_rong: 0, kho_dai: 0, don_vi_goc: "thung" }))
+      .toBe("vat_tu:5:0:0:thung");
   });
 });

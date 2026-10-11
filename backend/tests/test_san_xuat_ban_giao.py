@@ -4,8 +4,9 @@ Soi tầng service `services/san_xuat/ban_giao.py` (nơi chứa LUẬT), không 
   · cùng tổ + cùng LSX → tự `confirmed`; khác tổ/LSX → `proposed` rồi bên NHẬN xác nhận;
   · số lượng giao = tổng tốt của MẺ chọn (không gõ tay); sửa MẺ chỉ khi còn `proposed`;
   · xác nhận là quyền Xác nhận sản lượng ở tổ ĐÍCH (dòng quyền theo tổ, mg 0302) — báo tin đẩy cho
-    người giữ quyền đó trọn tổ bên kia, trừ người vừa bấm; điều chỉnh đẻ dòng lịch sử, giảm dưới
-    lượng đã dùng ⇒ cờ không nhất quán.
+    người giữ quyền đó trọn tổ bên kia, trừ người vừa bấm;
+  · không còn điều chỉnh trên lần giao (10/10/2026): sửa số MẺ thì lần giao đổi theo, khác tổ thì
+    bên nhận xác nhận lại.
 
 `cung_to`/`lsx_id`/`department_id` là các cột SNAPSHOT của công việc — set thẳng trong test để soi
 từng nhánh luật, không phụ thuộc số công đoạn mà fixture routing sinh ra. Riêng ĐÍCH bàn giao phải
@@ -23,17 +24,16 @@ from app.models.role import SCOPE_OWN
 from app.models.san_xuat import CV_DANG_CHAY, CV_PHAT_HANH, SanXuatCongViec
 from app.models.san_xuat_san_luong import (
     BG_DE_XUAT,
-    BG_DIEU_CHINH,
     BG_XAC_NHAN,
     SanXuatBanGiao,
     SanXuatBanGiaoBatch,
-    SanXuatBanGiaoDieuChinh,
+    SanXuatBatch,
 )
 from app.models.user import User
 from app.repositories.rbac_repo import RoleRepository
 from app.repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from app.services.rbac_service import AuthorizationService
-from app.services.san_xuat import ban_giao, board
+from app.services.san_xuat import ban_giao, board, lich_su_viec, san_luong
 from tests.lenh_sx_fixtures import _da_nhan_tu
 from tests.san_xuat_me_fixtures import tao_me
 from tests.quyen_to_fixtures import cap_quyen_to
@@ -205,7 +205,7 @@ def test_sua_me_chi_khi_proposed(db, orders, lsx_svc, admin, customer):
     ban_giao.de_xuat(**chung, batch_ids=[b1])
     with pytest.raises(ValueError, match="đã giao rồi"):
         ban_giao.sua_de_xuat(db, user=admin, ban_giao_id=r["ban_giao_id"], batch_ids=[b1, b2])
-    with pytest.raises(ValueError, match="Chọn mẻ"):
+    with pytest.raises(ValueError, match="Chọn sản lượng"):
         ban_giao.sua_de_xuat(db, user=admin, ban_giao_id=r["ban_giao_id"], batch_ids=[])
 
     ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
@@ -241,42 +241,99 @@ def test_xac_nhan_la_quyen_to_dich(db, orders, lsx_svc, admin, customer):
     assert res["notify_user_ids"] == [admin.id]          # báo ngược người xác nhận ở tổ nguồn
 
 
-# --- Điều chỉnh (§11.3) ---------------------------------------------------------------------
-def test_dieu_chinh_ghi_lich_su_va_co_khong_nhat_quan(db, orders, lsx_svc, admin, customer):
-    to, cv1, cv2, lsx = _hai_cv(db, orders, lsx_svc, admin, customer)
+# --- Sửa số mẻ thay điều chỉnh bàn giao (10/10/2026) ----------------------------------------
+def test_sua_so_me_chua_giao_trong_tran_va_ghi_lich_su(db, orders, lsx_svc, admin, customer):
+    """Mẻ chưa giao: sửa tự do trong trần ghi mẻ; quyền là Xác nhận sản lượng (Thực hiện lệnh không
+    đủ); mỗi lần sửa có dòng Lịch sử cũ → mới kèm lý do."""
+    to, cv1, cv2, lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-SM")
     cv1.lsx_id = cv2.lsx_id = lsx
-    # Bế 1 tờ → 2 con: giảm nhận xuống 50 tờ vẫn đủ trần 100 con cho 80 con đã ghi (luật trần
-    # `dau_vao`, 19/09/2026), nên lần giảm lọt qua và chỉ còn cờ lot dùng 80 tờ > 50 tờ nhận.
-    cv2.don_vi_ra = "con"
-    cv2.he_so_quy_doi = 2
+    cv2.he_so_quy_doi = 1                               # trần cv2 = sản lượng cv1 (cùng tổ)
     db.commit()
-    b1 = _batch(db, admin, cv1, tot=100)
-    r = ban_giao.de_xuat(
-        db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id,
-        batch_ids=[b1],
-    )
-    # Công đoạn sau tiêu thụ 80 (lot trỏ về batch của nguồn) → giảm bàn giao xuống dưới 80 = lệch.
-    _batch(db, admin, cv2, tot=80, lot_vao=[{"nguon_batch_id": b1, "so_luong": 80}],
-           t0=_T0 + timedelta(hours=3))
+    _batch(db, admin, cv1, tot=100)
+    b2 = _batch(db, admin, cv2, tot=60, t0=_T0 + timedelta(hours=2))
 
-    res = ban_giao.dieu_chinh(
-        db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=50, mo_ta="Đếm lại thiếu"
-    )
-    assert res["trang_thai_ban_giao"] == BG_DIEU_CHINH
-    assert res["so_luong"] == 50 and res["khong_nhat_quan"] is True
-    ls = db.query(SanXuatBanGiaoDieuChinh).filter_by(ban_giao_id=r["ban_giao_id"]).all()
-    assert len(ls) == 1 and float(ls[0].so_luong_truoc) == 100 and float(ls[0].so_luong_sau) == 50
+    chi_chay = User(username="chi_chay_sm", name="Chỉ chạy", password_hash="x", department_id=to.id)
+    db.add(chi_chay)
+    db.flush()
+    cap_quyen_to(db, chi_chay, to, viec=("run_order",))
+    db.commit()
+    with pytest.raises(PermissionError, match="Xác nhận sản lượng"):
+        san_luong.sua_so_me(db, user=chi_chay, batch_id=b2, tot=70)
 
-    # Nâng lại trên mức đã dùng → hết lệch.
-    res2 = ban_giao.dieu_chinh(
-        db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=90, mo_ta="Đếm lại đủ"
-    )
-    assert res2["khong_nhat_quan"] is False
+    with pytest.raises(ValueError, match="lần này ghi tối đa 100"):
+        san_luong.sua_so_me(db, user=admin, batch_id=b2, tot=120)
+    with pytest.raises(ValueError, match="trùng"):
+        san_luong.sua_so_me(db, user=admin, batch_id=b2, tot=60)
+    res = san_luong.sua_so_me(db, user=admin, batch_id=b2, tot=100, ly_do="Đếm lại")
+    assert res["ban_giao"] is None
+    me = db.get(SanXuatBatch, b2)
+    assert (float(me.tot), float(me.tong)) == (100, 100)
+
+    dong = [x for x in lich_su_viec.cac_dong(db, cv2) if x["nhom"] == "san_luong"]
+    assert dong[0]["cau"] == "Sửa số sản lượng từ 60 thành 100 tờ" and dong[0]["ly_do"] == "Đếm lại"
+    assert dong[1]["cau"] == "Ghi sản lượng 60 tờ tốt"          # số LÚC GHI, không phải số sống
 
 
-def test_ngan_chi_tiet_ghi_ai_giao_ai_nhan_va_tung_lan_dieu_chinh(db, orders, lsx_svc, admin, customer):
-    """Cả tổ giao lẫn tổ nhận đều đọc được ai đề xuất, ai xác nhận, lúc nào, và từng lần điều chỉnh
-    (ai, trước → sau, mô tả, lúc). Tên lấy từ tài khoản đã thao tác, không gõ tay."""
+def test_sua_so_me_da_giao_khac_to_ben_nhan_xac_nhan_lai(db, orders, lsx_svc, admin, customer):
+    """Mẻ đã giao khác tổ: số lần giao đổi theo NGAY, bên nhận thấy lại ở hộp chờ cho tới khi xác
+    nhận lại. Bên nhận không sửa được mẻ của bên giao."""
+    to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-DC1")
+    to_b, ub = _to_dich(db, ma="TO-DC1-DICH")
+    cv2.department_id = to_b.id
+    db.commit()
+    b = _batch(db, admin, cv1, tot=100)
+    r = ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id,
+                         batch_ids=[b])
+    ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
+
+    with pytest.raises(PermissionError):
+        san_luong.sua_so_me(db, user=ub, batch_id=b, tot=90)
+    with pytest.raises(ValueError, match="không sửa về 0"):
+        san_luong.sua_so_me(db, user=admin, batch_id=b, tot=0)
+
+    res = san_luong.sua_so_me(db, user=admin, batch_id=b, tot=90, ly_do="Đếm lại thiếu 10")
+    assert res["ban_giao"]["so_luong"] == 90 and res["ban_giao"]["su_kien"] == "sua_me"
+    assert ub.id in res["ban_giao"]["notify_user_ids"]
+    bg = db.get(SanXuatBanGiao, r["ban_giao_id"])
+    assert bg.trang_thai == BG_XAC_NHAN and bg.xac_nhan_luc is None
+    assert ban_giao.cho_xac_nhan_lai(bg)
+    assert [x["id"] for x in board.cho_xac_nhan(db, ub, team_id=to_b.id)["ban_giao"]] == [bg.id]
+    assert {t["id"]: t["so_cho_xac_nhan"] for t in board.teams(db, ub, None)}[to_b.id] == 1
+
+    ban_giao.xac_nhan(db, user=ub, ban_giao_id=bg.id)
+    db.refresh(bg)
+    assert bg.trang_thai == BG_XAC_NHAN and bg.xac_nhan_luc is not None
+    assert float(bg.so_luong) == 90
+    assert board.cho_xac_nhan(db, ub, team_id=to_b.id)["ban_giao"] == []
+    with pytest.raises(ValueError, match="không ở trạng thái chờ xác nhận"):
+        ban_giao.xac_nhan(db, user=ub, ban_giao_id=bg.id)
+
+    # Lịch sử: bên giao một dòng "Sửa số mẻ", bên nhận một dòng kể lần giao đổi theo.
+    giao = [x["cau"] for x in lich_su_viec.cac_dong(db, cv1) if "sửa số sản lượng" in x["cau"].lower()]
+    assert giao == ["Sửa số sản lượng từ 100 thành 90 tờ"]
+    nhan = [x for x in lich_su_viec.cac_dong(db, cv2) if "sửa số sản lượng" in x["cau"]]
+    assert [x["cau"] for x in nhan] == [
+        f"Bước {cv1.ten_cong_doan} sửa số sản lượng, lần giao từ 100 thành 90 tờ"]
+    assert nhan[0]["ly_do"] == "Đếm lại thiếu 10" and "cần xác nhận lại" in nhan[0]["ct"]
+
+
+def test_sua_so_me_cua_de_xuat_chua_nhan_doi_so_va_bao_ben_nhan(db, orders, lsx_svc, admin, customer):
+    to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-DX")
+    to_b, ub = _to_dich(db, ma="TO-DX-DICH")
+    cv2.department_id = to_b.id
+    db.commit()
+    b = _batch(db, admin, cv1, tot=100)
+    r = ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id,
+                         batch_ids=[b])
+    res = san_luong.sua_so_me(db, user=admin, batch_id=b, tot=110)
+    assert res["ban_giao"]["su_kien"] == "sua" and res["ban_giao"]["notify_user_ids"] == [ub.id]
+    bg = db.get(SanXuatBanGiao, r["ban_giao_id"])
+    assert (bg.trang_thai, float(bg.so_luong)) == (BG_DE_XUAT, 110)
+
+
+def test_ngan_chi_tiet_ghi_ai_giao_ai_nhan(db, orders, lsx_svc, admin, customer):
+    """Cả tổ giao lẫn tổ nhận đều đọc được ai đề xuất, ai xác nhận, lúc nào. Tên lấy từ tài khoản
+    đã thao tác, không gõ tay."""
     from app.schemas.san_xuat import WorkItemChiTietOut
 
     to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer)
@@ -294,13 +351,9 @@ def test_ngan_chi_tiet_ghi_ai_giao_ai_nhan_va_tung_lan_dieu_chinh(db, orders, ls
 
     cho = dong(cv2, ub, "ban_giao_den")
     assert cho["nguoi_de_xuat"] == admin.name and cho["de_xuat_luc"] is not None
-    assert (cho["nguoi_xac_nhan"], cho["xac_nhan_luc"], cho["dieu_chinh"]) == (None, None, [])
+    assert (cho["nguoi_xac_nhan"], cho["xac_nhan_luc"]) == (None, None)
+    assert "dieu_chinh" not in cho and "khong_nhat_quan" not in cho
 
-    ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
-    # Bên nhận đếm thiếu 5 → báo bên GIAO sửa; bên nhận xác nhận lại số mới.
-    ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=95,
-                        mo_ta="Đếm lại thiếu 5")
-    assert dong(cv2, ub, "ban_giao_den")["xac_nhan_luc"] is None      # chờ xác nhận lại
     ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
     for cv, user, khoa in ((cv1, admin, "ban_giao_di"), (cv2, ub, "ban_giao_den")):
         g = dong(cv, user, khoa)
@@ -309,57 +362,6 @@ def test_ngan_chi_tiet_ghi_ai_giao_ai_nhan_va_tung_lan_dieu_chinh(db, orders, ls
         # Hai đầu: công đoạn + tổ — cả tổ giao lẫn tổ nhận đọc như nhau.
         assert (g["nguon_cong_doan"], g["nguon_to"]) == (cv1.ten_cong_doan, to.name)
         assert (g["dich_cong_doan"], g["dich_to"]) == (cv2.ten_cong_doan, to_b.name)
-        assert [(d["so_luong_truoc"], d["so_luong_sau"], d["mo_ta"], d["nguoi"], d["khong_nhat_quan"])
-                for d in g["dieu_chinh"]] == [(100, 95, "Đếm lại thiếu 5", admin.name, False)]
-        assert g["dieu_chinh"][0]["luc"] is not None
-
-
-def test_ben_nhan_khong_dieu_chinh_chi_ben_giao_roi_ben_nhan_xac_nhan_lai(
-    db, orders, lsx_svc, admin, customer
-):
-    """27/09/2026: bên NHẬN chỉ có Xác nhận. Lệch số thì bên GIAO điều chỉnh — số mới có hiệu lực
-    ngay, lần giao hiện lại ở hộp chờ của tổ nhận cho tới khi họ xác nhận lại."""
-    to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-DC1")
-    to_b, ub = _to_dich(db, ma="TO-DC1-DICH")
-    cv2.department_id = to_b.id
-    db.commit()
-    b = _batch(db, admin, cv1, tot=100)
-    r = ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id,
-                         batch_ids=[b])
-    ban_giao.xac_nhan(db, user=ub, ban_giao_id=r["ban_giao_id"])
-
-    with pytest.raises(PermissionError):
-        ban_giao.dieu_chinh(db, user=ub, ban_giao_id=r["ban_giao_id"], so_luong_sau=90)
-
-    res = ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=90)
-    assert res["so_luong"] == 90 and ub.id in res["notify_user_ids"]
-    bg = db.get(SanXuatBanGiao, r["ban_giao_id"])
-    assert bg.trang_thai == BG_DIEU_CHINH and bg.xac_nhan_luc is None
-    assert [x["id"] for x in board.cho_xac_nhan(db, ub, team_id=to_b.id)["ban_giao"]] == [bg.id]
-    assert {t["id"]: t["so_cho_xac_nhan"] for t in board.teams(db, ub, None)}[to_b.id] == 1
-
-    ban_giao.xac_nhan(db, user=ub, ban_giao_id=bg.id)
-    db.refresh(bg)
-    assert bg.trang_thai == BG_DIEU_CHINH and bg.xac_nhan_luc is not None
-    assert float(bg.so_luong) == 90
-    assert board.cho_xac_nhan(db, ub, team_id=to_b.id)["ban_giao"] == []
-    with pytest.raises(ValueError, match="không ở trạng thái chờ xác nhận"):
-        ban_giao.xac_nhan(db, user=ub, ban_giao_id=bg.id)
-
-
-def test_dieu_chinh_khong_con_doi_ly_do(db, orders, lsx_svc, admin, customer):
-    """Danh mục lý do/lỗi ĐÃ GỠ (mg 0288): điều chỉnh bàn giao KHÔNG còn phải nêu lý do."""
-    to, cv1, cv2, lsx = _hai_cv(db, orders, lsx_svc, admin, customer)
-    cv1.lsx_id = cv2.lsx_id = lsx
-    db.commit()
-    b = _batch(db, admin, cv1, tot=100)
-    r = ban_giao.de_xuat(
-        db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id,
-        batch_ids=[b],
-    )
-
-    res = ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=80)
-    assert res["so_luong"] == 80
 
 
 # --- Đích = chặng sau theo routing (14/09/2026) ---------------------------------------------
@@ -443,13 +445,13 @@ def test_chang_sau_theo_canh_roi_theo_thu_tu(db, orders, lsx_svc, admin, custome
 # --- Giao theo mẻ (14/09/2026) --------------------------------------------------------------
 def test_giao_theo_me(db, orders, lsx_svc, admin, customer):
     to, cv1, cv2, lsx = _hai_cv(db, orders, lsx_svc, admin, customer)
-    cv1.lsx_id = cv2.lsx_id = lsx                        # tự xác nhận để điều chỉnh được
+    cv1.lsx_id = cv2.lsx_id = lsx                        # cùng tổ + cùng lệnh: tự xác nhận
     db.commit()
     b1 = _batch(db, admin, cv1, tot=100)
     b2 = _batch(db, admin, cv1, tot=50, t0=_T0 + timedelta(hours=2))
     chung = dict(db=db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id)
 
-    with pytest.raises(ValueError, match="Chọn mẻ"):                 # còn mẻ chưa giao
+    with pytest.raises(ValueError, match="Chọn sản lượng"):                 # còn mẻ chưa giao
         ban_giao.de_xuat(**chung)
 
     r = ban_giao.de_xuat(**chung, batch_ids=[b1])
@@ -463,13 +465,9 @@ def test_giao_theo_me(db, orders, lsx_svc, admin, customer):
         ban_giao.de_xuat(**chung, batch_ids=[b1])
     assert ban_giao.de_xuat(**chung, batch_ids=[b2])["so_luong"] == 50
 
-    # Bên nhận đếm thiếu 5 ⇒ điều chỉnh; hết mẻ chưa giao nên phần lẻ 5 giao không cần chọn mẻ.
-    ban_giao.dieu_chinh(db, user=admin, ban_giao_id=r["ban_giao_id"], so_luong_sau=95)
-    r3 = ban_giao.de_xuat(**chung)
-    assert r3["so_luong"] == 5
-    assert repo.me_cua_ban_giao_nhieu([r["ban_giao_id"], r3["ban_giao_id"]]) == {
-        r["ban_giao_id"]: [b1]
-    }
+    # Đếm thiếu 5 ⇒ sửa số mẻ, lần giao đổi theo; không đẻ phần lẻ nào để giao nốt.
+    san_luong.sua_so_me(db, user=admin, batch_id=b1, tot=95)
+    assert float(db.get(SanXuatBanGiao, r["ban_giao_id"]).so_luong) == 95
     with pytest.raises(ValueError, match="Không còn sản lượng tốt"):
         ban_giao.de_xuat(**chung)
 
@@ -494,3 +492,40 @@ def test_phat_sse_ban_giao_mot_goi_cho_ca_hai_to(monkeypatch, nguon, dich, ky_vo
     assert goi == [{"type": "san_xuat_ban_giao_changed", "team_ids": ky_vong,
                     "ban_giao_id": 11, "trang_thai": "cho_xac_nhan"}]
     assert dich_gui == [{"quyen": MAN_THEO_LENH, "to": ky_vong}]
+
+
+# --- Kết thúc phải giao hết (10/10/2026) -------------------------------------------------------
+def test_ket_thuc_chan_khi_con_hang_chua_de_xuat_giao(db, orders, lsx_svc, admin, customer):
+    """Chủ xưởng: *"lúc nhấn kết thúc thì phải đề xuất giao hết thì mới kết thúc được"*. Đề xuất
+    đang chờ bên nhận tính là đã giao."""
+    from app.services.san_xuat import thuc_thi
+
+    _to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-BG-KT")
+    b1 = _batch(db, admin, cv1, tot=100)
+    b2 = _batch(db, admin, cv1, tot=40, t0=_T0 + timedelta(hours=1))
+    with pytest.raises(ValueError, match=r"Còn 140 .*chưa đề xuất giao sang .*Đề xuất giao hết"):
+        thuc_thi.ket_thuc(db, user=admin, cong_viec_id=cv1.id)
+
+    ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id, batch_ids=[b1])
+    with pytest.raises(ValueError, match=r"Còn 40 "):
+        thuc_thi.ket_thuc(db, user=admin, cong_viec_id=cv1.id)
+
+    ban_giao.de_xuat(db, user=admin, nguon_cong_viec_id=cv1.id, dich_cong_viec_id=cv2.id, batch_ids=[b2])
+    assert thuc_thi.ket_thuc(db, user=admin, cong_viec_id=cv1.id)["trang_thai"] == "completed"
+
+
+def test_ket_thuc_buoc_cuoi_khong_doi_giao(db, orders, lsx_svc, admin, customer):
+    """Bước cuối lệnh không bàn giao (thành phẩm qua KCS) ⇒ Kết thúc không đòi giao."""
+    from app.services.san_xuat import thuc_thi
+
+    to, _cv1, _cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-BG-KT2")
+    repo = SanXuatSanLuongRepository(db)
+    cuoi = next(c for c in _cvs(db, to) if not repo.cong_viec_chang_sau(c))
+    cuoi.trang_thai = CV_DANG_CHAY
+    cuoi.don_vi_ra = cuoi.don_vi_vao = "tờ"
+    for truoc in repo.cong_viec_chang_truoc(cuoi):
+        truoc.don_vi_ra = "tờ"
+        _da_nhan_tu(db, truoc, cuoi, 100)
+    db.commit()
+    _batch(db, admin, cuoi, tot=100)
+    assert thuc_thi.ket_thuc(db, user=admin, cong_viec_id=cuoi.id)["trang_thai"] == "completed"

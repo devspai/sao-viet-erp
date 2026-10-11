@@ -185,6 +185,11 @@ class KhoKhoaSoRepository:
                 day += one
         return out
 
+    def tat_ca(self) -> list[KhoKhoaSo]:
+        """MỌI thao tác khóa/mở, mới nhất trước — để tra kỳ khóa của nhiều dòng báo cáo một lượt
+        (bản ghi mới nhất phủ ngày quyết định, như `is_locked`)."""
+        return list(self.db.execute(select(KhoKhoaSo).order_by(KhoKhoaSo.id.desc())).scalars().all())
+
     def history(self, limit: int = 300) -> list[KhoKhoaSo]:
         """Toàn bộ thao tác khóa/mở, mới nhất trước — = lịch sử thao tác."""
         return list(

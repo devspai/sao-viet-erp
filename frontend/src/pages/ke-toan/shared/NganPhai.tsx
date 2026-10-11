@@ -53,6 +53,7 @@ export function NganPhai({
   xuong,
   onDong,
   chanDong,
+  cauHoiBo = "Bỏ phiếu đang nhập?",
   tang = 0,
   cot,
   children,
@@ -86,6 +87,8 @@ export function NganPhai({
   onDong: () => void;
   /** Trả true = đang có nội dung gõ dở: hỏi "Bỏ nội dung đang nhập?" trước khi đóng. */
   chanDong?: () => boolean;
+  /** Tiêu đề hộp hỏi khi đóng lúc đang gõ dở — mặc định nói "phiếu" (màn kế toán). */
+  cauHoiBo?: string;
   /** 0 = ngăn thường, 1 = ngăn chồng. */
   tang?: number;
   /** Cột thuộc tính bên phải (ngăn kiểu 3, 07/10/2026): thân ngăn chia hai cột, cột phải cuộn riêng. */
@@ -271,7 +274,7 @@ export function NganPhai({
           )}
           {chan != null && <footer className={`kt-ngan__chan${chanToi ? " kt-ngan__chan--toi" : ""}`}>{chan}</footer>}
         </DongNgan.Provider>
-        <ConfirmDialog open={hoiBo} title="Bỏ phiếu đang nhập?" message="Những gì đã gõ sẽ mất."
+        <ConfirmDialog open={hoiBo} title={cauHoiBo} message="Những gì đã gõ sẽ mất."
           cancelLabel="Nhập tiếp" confirmLabel="Bỏ" danger
           onCancel={() => setHoiBo(false)}
           onConfirm={() => {

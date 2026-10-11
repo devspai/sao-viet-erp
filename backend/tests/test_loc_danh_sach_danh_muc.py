@@ -117,8 +117,8 @@ def test_khuon_khach_tinh_trang_so_ke_co_ten_khach(client):
 def test_giay_don_vi_gia_va_thanh_pham_khach(client):
     t = _token(client)
     (kh,) = _them(Customer(code="KH-TP", name="Khách thành phẩm"))
-    _them(GiayNguyen(ma="GL-1", ten="Giấy lọc 1", gsm=100, don_vi_gia="kg"),
-          GiayNguyen(ma="GL-2", ten="Giấy lọc 2", gsm=120, don_vi_gia="to"),
+    _them(GiayNguyen(don_vi_them=["to"], ma="GL-1", ten="Giấy lọc 1", gsm=100, don_vi_gia="kg"),
+          GiayNguyen(don_vi_them=["to"], ma="GL-2", ten="Giấy lọc 2", gsm=120, don_vi_gia="to"),
           VatTuInAn(ma="TP-L1", ten="Hộp lọc", la_thanh_pham=True, customer_id=kh),
           VatTuInAn(ma="TP-L2", ten="Túi lọc", la_thanh_pham=True))
     body = _ds(client, t, "/api/vat-lieu-kho/giay", q="GL-", don_vi_gia="kg")

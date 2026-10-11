@@ -107,6 +107,39 @@ def test_chon_khach_tu_dien_diem_giao_mac_dinh_va_lien_he_chinh(client):
     assert d["contact_title_snapshot"] == "Trưởng phòng Mua hàng"
 
 
+def test_DOI_KHACH_thi_go_gan_tai_ban(client):
+    """Mã tái bản là thành phẩm CỦA KHÁCH (11/10/2026): đổi khách ở phiếu thì gắn cũ thôi đúng."""
+    from app.models.vat_lieu_kho import VatTuInAn
+
+    t = _admin(client)
+    pid, a, b = _phieu(), _khach(), _khach(ten="Cty Katinat Test")
+    assert _chon_khach(client, t, pid, customer_id=a).status_code == 200
+    db = SessionLocal()
+    try:
+        ma = VatTuInAn(ma="TP-TB-1", ten="Sách A5", la_thanh_pham=True, customer_id=a, don_gia=0)
+        db.add(ma)
+        db.flush()
+        for tp in db.query(PhieuThanhPhan).filter(PhieuThanhPhan.phieu_id == pid):
+            tp.tai_ban_thanh_pham_id = ma.id
+        db.commit()
+    finally:
+        db.close()
+    assert _chon_khach(client, t, pid, customer_id=a).status_code == 200    # cùng khách: giữ
+    db = SessionLocal()
+    try:
+        assert {tp.tai_ban_thanh_pham_id for tp in db.query(PhieuThanhPhan)
+                .filter(PhieuThanhPhan.phieu_id == pid)} != {None}
+    finally:
+        db.close()
+    assert _chon_khach(client, t, pid, customer_id=b).status_code == 200
+    db = SessionLocal()
+    try:
+        assert {tp.tai_ban_thanh_pham_id for tp in db.query(PhieuThanhPhan)
+                .filter(PhieuThanhPhan.phieu_id == pid)} == {None}
+    finally:
+        db.close()
+
+
 def test_chon_tay_dia_chi_nguoi_nhan_va_ghi_chu(client):
     t = _admin(client)
     pid, cid = _phieu(), _khach()

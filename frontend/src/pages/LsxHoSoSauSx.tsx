@@ -41,7 +41,7 @@ export function LsxHoSoSauSx({
                   <span className="lsc-cum">
                     <Pill meta={pillMeta(KCS_KET_LUAN, b.ket_luan)} />
                     <span>
-                      Nhận {soDv(b.so_luong_nhan, b.don_vi)}, đạt {so(b.so_luong_dat)}, không đạt{" "}
+                      Nhận {soDv(b.so_luong_nhan, b.don_vi, d.thong_tin.don_vi_tinh)}, đạt {so(b.so_luong_dat)}, không đạt{" "}
                       {so(b.so_luong_khong_dat)}
                     </span>
                   </span>

@@ -9,7 +9,7 @@ import { Button } from "../../../../components/Button";
 import { Icon } from "../../../../components/Icons";
 import { StatusHistoryTimeline } from "../../../../components/StatusHistoryTimeline";
 import { fmtDate } from "../../../../utils/format";
-import { nhanKho } from "../../../../components/kho-giay/tienIchKho";
+import { chuanKho, nhanKho } from "../../../../lib/khoGiay";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
@@ -33,12 +33,11 @@ function conNgay(ngay: string): number {
   return Math.round((d.getTime() - h.getTime()) / 86_400_000);
 }
 
-/** Khổ của dòng giấy (tờ đủ hai cạnh hoặc cuộn có khổ rộng) — "" khi không có. */
+/** Khổ của dòng giấy ("780 × 905 mm", chỉ rộng "khổ 1000 mm") — "" khi không có. */
 function khoDong(line: DepartmentPurchaseRequestLineOut): string {
-  if (line.hang_loai !== "giay") return "";
-  if (line.kho_rong && line.kho_dai) return `Tờ ${nhanKho("to", line.kho_rong, line.kho_dai)} mm`;
-  if (line.kho_rong) return `Cuộn khổ ${line.kho_rong} mm`;
-  return "";
+  if (line.hang_loai !== "giay" || !line.kho_rong) return "";
+  const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
+  return nhanKho(r, d);
 }
 
 export function RequestDetailDrawer({
@@ -126,7 +125,7 @@ export function RequestDetailDrawer({
       phuDe={noiDung(selected) ? <span className="ycd-ten">{noiDung(selected)}</span> : undefined}
       tomTat={[
         {
-          nhan: "Người yêu cầu",
+          nhan: "NV yêu cầu",
           giaTri: (
             <span className="ycd-phu" style={{ marginTop: 0, fontSize: "inherit", color: "inherit" }}>
               <span>{selected.requested_by_name || "Nội bộ"}</span>

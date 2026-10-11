@@ -36,8 +36,7 @@ from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.order_repo import LocDonHang, OrderRepository
 from ..repositories.org_scope import chu_cua
 from ..repositories.quotation_repo import QuotationRepository
-from . import san_pham_tai_ban_service
-from .thanh_pham_khai_bao import cum_ban, khai_cho_don, ma_don_vi
+from .thanh_pham_khai_bao import ThanhPhamKhacKhach, cum_ban, khai_cho_don, ma_don_vi
 from ..schemas.order import (
     EnumOption,
     MonSanXuatOut,
@@ -780,21 +779,16 @@ class OrderService:
             if quote is not None and quote.status != "converted_to_order":
                 quote.status = "converted_to_order"
         order_with_lines = self.repo.get_with_lines(order.id)
-        # SẢN PHẨM TÁI BẢN (docs/spec-san-pham-tai-ban.md) — snapshot cấu hình kỹ thuật của từng
-        # dòng có pin truy vết `phieu_thanh_phan_id` vào kho tra-theo-tên, CÙNG transaction với
-        # chốt. Dòng không có pin (nhập tay / báo giá không qua PTG) bỏ qua, không chặn chốt. Có
-        # pin nhưng bản ghi nguồn đã bị xoá thì ĐÂY MỚI LÀ LỖI — rollback, không chốt nửa vời.
+        # Pin `phieu_thanh_phan_id` trỏ tới sản phẩm tính giá đã bị xoá ⇒ không biết cụm này là sản
+        # phẩm nào (tái bản hay mới, cấu hình gì) — rollback, không chốt nửa vời. Dòng không có pin
+        # (nhập tay) bỏ qua.
         for line in order_with_lines.lines:
-            if not line.phieu_thanh_phan_id:
-                continue
-            nguon = self.db.get(PhieuThanhPhan, line.phieu_thanh_phan_id)
-            if nguon is None:
+            if line.phieu_thanh_phan_id and self.db.get(PhieuThanhPhan, line.phieu_thanh_phan_id) is None:
                 self.db.rollback()
                 raise OrderValidationError(
                     f"Dòng \"{line.description}\" trỏ tới sản phẩm tính giá đã bị xoá — "
                     "không thể chốt đơn"
                 )
-            san_pham_tai_ban_service.snapshot_tu_thanh_phan(self.db, nguon, actor.id)
         # THÀNH PHẨM vào danh mục (mg 0203 · docs/prd-thanh-pham.md L1).
         #
         # Sản phẩm in là hàng ĐẶT RIÊNG — không có sẵn ở danh mục nào. Nhưng kho chỉ xuất được
@@ -803,7 +797,15 @@ class OrderService:
         #
         # CÙNG giao dịch với chốt, cố ý: chốt xong mà khai hỏng thì đơn đã `ordered` nhưng kho
         # không có gì để nhập, và không ai biết cho tới lúc cần giao.
-        khai_cho_don(self.db, order_with_lines)
+        #
+        # Từ 11/10/2026 (mg 0394) thành phẩm THUỘC VỀ KHÁCH: cụm gắn tái bản ⇒ đúng mã đã chọn, cụm
+        # từ phiếu tính giá không gắn ⇒ mã mới, và mã nhận cấu hình kỹ thuật lần chốt này (nguồn của
+        # ô tái bản lần sau). Gắn sang mã của khách khác ⇒ dừng chốt.
+        try:
+            khai_cho_don(self.db, order_with_lines)
+        except ThanhPhamKhacKhach as exc:
+            self.db.rollback()
+            raise OrderValidationError(str(exc)) from exc
         # CHỤP ẢNH % hoa hồng của người sales vào đơn (mg 0227 · §4.6). Chụp lúc CHỐT chứ không
         # đọc-sống: đổi % cho người ta từ tháng sau KHÔNG được làm đổi hoa hồng của đơn đã chốt
         # tháng trước.

@@ -291,8 +291,8 @@ class RolePermission(Base):
     can_run_order: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    # Xác nhận sản lượng: chia sản lượng (tính/chốt/mở lại/bù trừ/loại trừ) · bàn giao/nhận ·
-    # hỗ trợ chéo.
+    # Xác nhận sản lượng: sửa số lần ghi · bàn giao/nhận. (Hỗ trợ chéo gỡ mg 0389 — người tổ khác
+    # thêm thẳng lúc ghi sản lượng.)
     can_confirm_output: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
@@ -300,8 +300,8 @@ class RolePermission(Base):
     can_warehouse: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    # Đóng lệnh thiếu (mg 0382, 08/10/2026) — CHỈ có nghĩa trên dòng của tổ `is_kcs`: đóng nhóm
-    # thành phẩm khi còn cảnh báo (chưa kiểm / chưa gửi kho / thiếu số / việc dở) và mở lại nhóm.
+    # Đóng lệnh thiếu (mg 0382, 08/10/2026) — ô chi tiết của dòng `kcs` (09/10/2026, mg 0383): đóng
+    # nhóm thành phẩm khi còn cảnh báo (chưa kiểm / chưa gửi kho / thiếu số / việc dở) và mở lại.
     can_close_short: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )

@@ -807,6 +807,18 @@ class AccountingService:
             tu_ngay=tu_ngay, den_ngay=den_ngay,
         )
 
+    def khoan_con_no_phai_thu(self, *, doi_tuong_id: int | None, den_ngay: date) -> dict:
+        """Hoá đơn bán còn nợ của một khách tại `den_ngay` — tab "Hoá đơn còn nợ" của sổ."""
+        return bao_cao_cong_no.khoan_con_no_phai_thu(
+            self.repo, doi_tuong_id=doi_tuong_id, den_ngay=den_ngay
+        )
+
+    def khoan_con_no_phai_tra(self, *, doi_tuong_id: int | None, den_ngay: date) -> dict:
+        """Đợt giao còn nợ của một NCC tại `den_ngay` — tab "Đợt còn nợ" của sổ."""
+        return bao_cao_cong_no.khoan_con_no_phai_tra(
+            self.repo, self.purchases, doi_tuong_id=doi_tuong_id, den_ngay=den_ngay
+        )
+
     def so_chi_tiet_tat_ca_phai_thu(
         self, *, tu_ngay: date, den_ngay: date, loc=bao_cao_cong_no.TAT_CA
     ) -> dict:

@@ -99,20 +99,35 @@ def sua_gia_goc(db: Session, *, user, lot_id: int, don_gia: int) -> dict:
     }
 
 
-def ds_chua_gia_goc(db: Session, *, q: str | None, chi_chua_gia: bool, page: int, size: int,
+def _ds_id(v) -> list[int]:
+    """Một id, nhiều id hoặc không gì ⇒ danh sách id (ô lọc chọn nhiều)."""
+    if v is None:
+        return []
+    return [int(x) for x in (v if isinstance(v, (list, tuple, set)) else [v])]
+
+
+def ds_chua_gia_goc(db: Session, *, q: str | None, chi_chua_gia: bool = True, page: int, size: int,
                     tu_ngay: date | None = None, den_ngay: date | None = None,
-                    kho_id: int | None = None, khach_hang_id: int | None = None) -> dict:
+                    kho_id: int | list[int] | None = None, khach_hang_id: int | list[int] | None = None,
+                    hang_id: int | list[int] | None = None, gia: str | None = None) -> dict:
     """Danh sách "Thành phẩm chưa có giá gốc" — lô GỐC nhập từ KCS, gom mọi kho (số kho đổi theo danh
-    mục; bắt kế toán đi từng kho là sót). Phân trang + lọc ở máy chủ. Kèm `cac_kho`/`cac_khach` cho ô
-    lọc nâng cao — chỉ kho/khách có lô, bất kể bộ lọc đang áp."""
+    mục; bắt kế toán đi từng kho là sót). Phân trang + lọc ở máy chủ. Kèm `cac_kho`/`cac_khach`/
+    `cac_hang` cho nút Lọc — chỉ kho/khách/hàng có lô, bất kể bộ lọc đang áp.
+
+    `gia` (`chua` | `co` | `tat_ca`) thắng `chi_chua_gia`; vắng `gia` thì `chi_chua_gia` quyết."""
     if tu_ngay is not None and den_ngay is not None and den_ngay < tu_ngay:
         raise GiaGocError("Ngày nhập 'đến' phải từ ngày 'từ' trở đi.")
     page, size = max(1, int(page)), min(max(1, int(size)), 200)
+    if gia is None:
+        gia = "chua" if chi_chua_gia else None
+    elif gia == "tat_ca":
+        gia = None
     repo = KhoGiaGocRepository(db)
     rows, total = repo.ds_lo_goc_tu_kcs(
-        q=q, chi_chua_gia=chi_chua_gia, offset=(page - 1) * size, limit=size,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, kho_id=kho_id, khach_hang_id=khach_hang_id)
-    cac_kho, cac_khach = repo.lua_chon_loc()
+        q=q, gia=gia, offset=(page - 1) * size, limit=size,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, kho_ids=_ds_id(kho_id),
+        khach_hang_ids=_ds_id(khach_hang_id), hang_ids=_ds_id(hang_id))
+    cac_kho, cac_khach, cac_hang = repo.lua_chon_loc()
     ton = repo.ton_theo_goc([r[0].id for r in rows])
     dv = DonViDoRepository(db).ten_theo_ma()
     items = []
@@ -143,4 +158,5 @@ def ds_chua_gia_goc(db: Session, *, q: str | None, chi_chua_gia: bool, page: int
         "items": items, "total": total, "page": page, "size": size,
         "cac_kho": [{"id": i, "ten": t} for i, t in cac_kho],
         "cac_khach": [{"id": i, "ten": t} for i, t in cac_khach],
+        "cac_hang": [{"id": i, "ten": t} for i, t in cac_hang],
     }

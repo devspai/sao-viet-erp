@@ -421,6 +421,11 @@ def _cong_viec_theo_phan_doan(
         )
         repo.add(cv)
         repo.flush()
+        # Phát hành = giao cả tổ (10/10/2026) — import tại chỗ: `thuc_thi` kéo theo cả chuỗi
+        # bài ghép, đặt đầu file là vòng import.
+        from .thuc_thi import giao_ca_to
+
+        giao_ca_to(repo.db, cv)
         ra.append(cv)
     return ra
 

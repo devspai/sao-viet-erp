@@ -1,5 +1,6 @@
-// Ô TÌM Sản phẩm tái bản — gõ tên, chọn một kết quả để nạp NGUYÊN cấu hình kỹ thuật đã từng
-// chốt đơn (docs/spec-san-pham-tai-ban.md). Ô này là một Ô RIÊNG (khác ô "Tên sản phẩm" bên
+// Ô TÌM Sản phẩm tái bản — thành phẩm CỦA KHÁCH đầu phiếu (11/10/2026). Mở ô là thấy danh sách hàng
+// của khách, gõ để lọc theo tên hoặc mã. Chọn một kết quả là gắn mã + nạp NGUYÊN cấu hình kỹ thuật đã
+// từng chốt đơn. Chưa chọn khách thì ô khoá — mã thuộc về khách. Ô này là một Ô RIÊNG (khác ô "Tên sản phẩm" bên
 // cạnh): gõ xong CHỌN là kích hoạt hành động nạp (không tự giữ giá trị) — nên input tự trở về
 // rỗng sau khi chọn, sẵn sàng cho lượt tìm tiếp theo.
 //
@@ -10,18 +11,16 @@ import { createPortal } from "react-dom";
 
 import { api, ApiError, type SanPhamTaiBanGoiY as GoiY } from "../api/client";
 
-function fmtNgay(iso: string): string {
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
 export function SanPhamTaiBanGoiY({
   token,
+  customerId,
   onChon,
-  placeholder = "Gõ tên sản phẩm đã từng chốt đơn…",
+  placeholder = "Chọn hoặc gõ tên, mã sản phẩm của khách",
   ariaLabel = "Tìm sản phẩm tái bản",
 }: {
   token: string;
+  /** Khách đầu phiếu. Null = chưa chọn khách ⇒ ô khoá. */
+  customerId: number | null;
   onChon: (id: number) => void;
   placeholder?: string;
   ariaLabel?: string;
@@ -35,11 +34,11 @@ export function SanPhamTaiBanGoiY({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || customerId == null) return;
     let huy = false;
     const t = setTimeout(() => {
       api.phieuTinhGia
-        .timSanPhamTaiBan(token, value.trim(), 20)
+        .timSanPhamTaiBan(token, customerId, value.trim(), 20)
         .then((items) => {
           if (huy) return;
           setOpts(items);
@@ -51,7 +50,7 @@ export function SanPhamTaiBanGoiY({
       huy = true;
       clearTimeout(t);
     };
-  }, [value, open, token]);
+  }, [value, open, token, customerId]);
 
   function reposition() {
     const el = inputRef.current;
@@ -104,12 +103,14 @@ export function SanPhamTaiBanGoiY({
           }}
         >
           <span className="kho-combo__name">{o.ten}</span>
-          <span className="kho-combo__code">Cập nhật {fmtNgay(o.updated_at)}</span>
+          <span className="kho-combo__code">
+            {o.so_thanh_phan > 0 ? o.ma : `${o.ma} chưa có cấu hình`}
+          </span>
         </li>
       ))}
       {opts.length === 0 && (
         <li className="kho-combo__empty" role="presentation">
-          Chưa có sản phẩm nào từng chốt đơn tên như vậy.
+          {value.trim() ? "Khách chưa có sản phẩm nào tên hoặc mã như vậy." : "Khách chưa có sản phẩm nào."}
         </li>
       )}
     </ul>
@@ -122,7 +123,8 @@ export function SanPhamTaiBanGoiY({
         className="tg-input"
         type="text"
         value={value}
-        placeholder={placeholder}
+        placeholder={customerId == null ? "Chọn khách hàng ở đầu phiếu trước" : placeholder}
+        disabled={customerId == null}
         aria-label={ariaLabel}
         autoComplete="off"
         onChange={(e) => {

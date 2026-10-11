@@ -10,7 +10,10 @@ import { InboxRequestDrawer, VoucherDrawer } from "../KhoYeuCauPage";
 
 export type ChungTuKho = { loai: "de_nghi" | "phieu"; id: number };
 
-export function ChungTuKhoNoi({ mo, token, onClose }: { mo: ChungTuKho; token: string; onClose: () => void }) {
+/** `lop` = lớp bọc (z-index trên ngăn cha) — mỗi màn dùng lớp của CSS nó đã nạp. */
+export function ChungTuKhoNoi({ mo, token, onClose, lop = "gcn-chung-tu-lop" }: {
+  mo: ChungTuKho; token: string; onClose: () => void; lop?: string;
+}) {
   const lopRef = useRef<HTMLDivElement>(null);
   const [dang, setDang] = useState(mo);
   useEffect(() => setDang(mo), [mo]);
@@ -21,7 +24,7 @@ export function ChungTuKhoNoi({ mo, token, onClose }: { mo: ChungTuKho; token: s
   }, []);
   // `canViewCost` để true như màn Đề nghị của Kho: máy chủ tự ẩn giá với người không được xem.
   return createPortal(
-    <div ref={lopRef} className="gcn-chung-tu-lop" tabIndex={-1}
+    <div ref={lopRef} className={lop} tabIndex={-1}
       onKeyDown={(e) => { if (e.key !== "Escape" || e.defaultPrevented) return; e.preventDefault(); onClose(); }}>
       {dang.loai === "phieu" ? (
         <VoucherDrawer token={token} voucherId={dang.id} canCreate={false} canPost={false}

@@ -72,8 +72,7 @@ def _khai(order_id: int) -> list[int]:
 
 
 def _cua_khach(customer_id: int) -> list[VatTuInAn]:
-    """Thành phẩm ghi nhận khách này là người ĐẦU TIÊN đặt. KHÔNG phải "của khách" nữa —
-    từ 21/08/2026 thành phẩm không thuộc về ai, `customer_id` chỉ còn là vết nguồn gốc."""
+    """Thành phẩm CỦA khách này (11/10/2026: `customer_id` là khách sở hữu)."""
     db = SessionLocal()
     try:
         return (db.query(VatTuInAn).filter(VatTuInAn.customer_id == customer_id)
@@ -118,21 +117,18 @@ def test_dat_lai_ma_go_LECH_DAU_GACH_van_la_mot_san_pham(client):
     assert len(_cua_khach(kh)) == 1, [h.ten for h in _cua_khach(kh)]
 
 
-def test_HAI_KHACH_cung_ten_thi_DUNG_CHUNG_mot_dong(client):
-    """⭐ ĐẢO LUẬT 21/08/2026 — khoá gộp trùng bỏ KHÁCH, chỉ còn TÊN.
+def test_HAI_KHACH_cung_ten_la_HAI_dong(client):
+    """⭐ ĐẢO LUẬT 11/10/2026 (mg 0394) — thành phẩm THUỘC VỀ KHÁCH.
 
-    Chủ: "thành phẩm này là một cái tên hàng, nêu chưa khai để tái sử dụng, tránh phình lên".
-    Trước đó khoá là `(khách, tên)` nên hai khách cùng đặt "Tờ hướng dẫn sử dụng — gấp 3" đẻ ra
-    hai dòng; nay dùng CHUNG một dòng — đúng như bán cùng một cái quạt cho nhiều khách.
-
-    Test này ĐỎ ngay khi ai đó nhét lại khách vào khoá gộp trùng.
+    Hàng in riêng: "Tờ hướng dẫn sử dụng — gấp 3" của khách A và của khách B là hai file in khác
+    hẳn. Chung một dòng (luật 21/08–11/10) là tồn kho lẫn, đơn khách B được giao tờ của khách A.
     """
     a, b = _khach("hai-a"), _khach("hai-b")
     ten = "Tờ hướng dẫn sử dụng — gấp 3"
     id_a = _khai(_don("hai-a1", a, ten=ten))[0]
     id_b = _khai(_don("hai-b1", b, ten=ten))[0]
-    assert id_a == id_b, "cùng một tên mà đẻ hai dòng danh mục — danh mục sẽ phình lên"
-    assert len(_thanh_pham()) == 1
+    assert id_a != id_b
+    assert [h.customer_id for h in _thanh_pham()] == [a, b]
 
 
 def test_chuan_ten_giu_DAU_tieng_viet(client):

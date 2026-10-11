@@ -78,7 +78,7 @@ def _dung_danh_muc(n: int) -> dict[str, int]:
             db.add(VatTuInAn(ma=f"STTP{d}-{i}", ten=f"ST tp {d}-{i}", don_vi_gia="kg",
                              la_thanh_pham=True, customer_id=khs[i].id))
             db.add(KhuonBe(ma=f"STKB{d}-{i}", ten=f"ST khuon {d}-{i}", khach_hang_id=khs[i].id))
-            db.add(GiayNguyen(ma=f"STG{d}-{i}", ten=f"ST giay {d}-{i}", gsm=100, don_vi_gia="kg"))
+            db.add(GiayNguyen(don_vi_them=["to"], ma=f"STG{d}-{i}", ten=f"ST giay {d}-{i}", gsm=100, don_vi_gia="kg"))
         db.flush()
         cd_dau = None
         for i in range(n):

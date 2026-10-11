@@ -188,7 +188,6 @@ class DepartmentService:
             "head_title": (level.head_title or None) if level is not None else None,
             "la_san_xuat": dept.la_san_xuat,
             "la_kinh_doanh": dept.la_kinh_doanh,
-            "is_kcs": dept.is_kcs,
             "la_giao_hang": dept.la_giao_hang,
             "la_to_in": dept.la_to_in,
             "la_to_cat": dept.la_to_cat,
@@ -301,8 +300,6 @@ class DepartmentService:
                 return any(x["la_kinh_doanh"] for x in to_tien(r))
             if k == "giao_hang":
                 return bool(r["la_giao_hang"])
-            if k == "kcs":
-                return bool(r["is_kcs"])
             return False
 
         def tinh_trang_cua(r: dict) -> str:
@@ -408,7 +405,6 @@ class DepartmentService:
         has_piece_work: bool = False,
         la_san_xuat: bool = False,
         la_kinh_doanh: bool = False,
-        is_kcs: bool = False,
         la_giao_hang: bool = False,
         la_to_in: bool = False,
         la_to_cat: bool = False,
@@ -445,8 +441,6 @@ class DepartmentService:
             self.departments.set_la_san_xuat(dept, True)
         if la_kinh_doanh:
             self.departments.set_la_kinh_doanh(dept, True)
-        if is_kcs:
-            self.departments.set_is_kcs(dept, True)
         if la_giao_hang:
             self.departments.set_la_giao_hang(dept, True)
         if la_to_in:
@@ -478,7 +472,6 @@ class DepartmentService:
         allow_reparent: bool = True,
         la_san_xuat: bool = False,
         la_kinh_doanh: object = _KEEP,
-        is_kcs: object = _KEEP,
         la_giao_hang: object = _KEEP,
         la_to_in: object = _KEEP,
         la_to_cat: object = _KEEP,
@@ -547,8 +540,6 @@ class DepartmentService:
         if la_kinh_doanh is not _KEEP:
             self.departments.set_la_kinh_doanh(dept, bool(la_kinh_doanh))
         # Cờ KCS: cùng luật "KHÔNG gửi = giữ nguyên" như khối Kinh doanh.
-        if is_kcs is not _KEEP:
-            self.departments.set_is_kcs(dept, bool(is_kcs))
         # Cùng luật "KHÔNG gửi = giữ nguyên" như cờ Kinh doanh ngay trên: màn Phòng ban có nhiều
         # luồng sửa chỉ đụng tên/trưởng phòng, ghi đè mặc định False ở đó là âm thầm gỡ bộ phận
         # giao hàng, và tab Nhân viên giao hàng trống trơn mà không ai báo.

@@ -19,7 +19,7 @@ import {
   type UpdateRequest,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useSelfServiceWrite } from "../../../auth/permissions";
+import { useCan, useSelfServiceWrite } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
@@ -73,6 +73,9 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
   // Màn này CHỈ có nút ghi (Sửa liên hệ · Gửi đề nghị), phần xem đi theo chính ô `self_service`
   // đã gác ở máy chủ — nên chỉ cần hỏi ô THAO TÁC (tách khỏi ô Xem ngày 11/08/2026).
   const tuPhucVuGhi = useSelfServiceWrite();
+  // Nút "Chấm công" ở khung tên (10/10/2026): mở app trên điện thoại là vào màn này, bấm một
+  // phát sang màn Chấm công. Chỉ hiện khi có ô Xem của màn Chấm công — không thì bấm vào ăn màn chặn.
+  const coChamCong = useCan()("cham_cong", "read");
   const [emp, setEmp] = useState<EmployeeDetail | null>(null);
   const [hasEmp, setHasEmp] = useState<boolean | null>(null);
   // Lỗi đọc hồ sơ (mạng / máy chủ). TÁCH khỏi `hasEmp`: trước đây lỗi gán `hasEmp = false` ⇒ nhân
@@ -374,6 +377,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
               <span className="mine__herotag"><Icon name="building" size={13} />{emp.department_name}</span>
             )}
             <span className="mine__herotag" title="Mã nhân viên"><Icon name="clipboard" size={13} />{emp.code}</span>
+            {/* Nút đứng cùng hàng thẻ, dạt mép phải; điện thoại thì xuống dòng thành nút rộng. */}
+            {coChamCong && navigate && (
+              <Button variant="accent" className="mine__chamcong" onClick={() => navigate("cham-cong")}>
+                <Icon name="clock" size={16} />
+                Chấm công
+              </Button>
+            )}
           </div>
           <div className="mine__facts">
             <div className="mine__fact">

@@ -11,6 +11,7 @@ from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher
 from ..models.department import Department
 from ..models.user import User
 from .loc_danh_sach import dk_khoang_ngay
+from .tim_khong_dau import bo_dau, bo_dau_sql
 from ..models.purchase import (
     DPR_CANCELLED,
     DPR_DONE,
@@ -65,6 +66,48 @@ def _nguon_lenh_khop_ma(like: str):
             select(BaiGhep.id).where(func.lower(BaiGhep.ma).like(like))
         ),
     )
+
+
+# Ba nấc KHO của đơn đã về đủ (11/10/2026) — tách "Đã về đủ" để nhìn từ danh sách biết việc đang
+# nằm ở đâu: mua hàng chưa bấm Gửi kho / kho chưa nhập xong / hàng đã vào tồn. Một yêu cầu nhập
+# (chưa huỷ) trên đợt = đã gửi; yêu cầu đó Hoàn tất (`done`) = đã nhập. Kho nhập một phần vẫn là
+# "kho chưa nhập". Nấc của ĐƠN là nấc chậm nhất trong các đợt.
+KHO_CHO_GUI = "cho_gui_kho"
+KHO_CHUA_NHAP = "kho_chua_nhap"
+KHO_DA_NHAP = "da_nhap_kho"
+KHO_DA_VE = (KHO_CHO_GUI, KHO_CHUA_NHAP, KHO_DA_NHAP)
+
+
+def _dk_kho_da_ve(nac: str) -> list:
+    """Điều kiện SQL: đơn đã về đủ và đang ở nấc kho `nac`."""
+    from ..models.stock_request import REQ_CANCELLED, REQ_DONE, StockRequest
+
+    def yeu_cau_song(*them):
+        return exists(
+            select(StockRequest.id).where(
+                StockRequest.purchase_delivery_id == PurchaseDelivery.id,
+                StockRequest.trang_thai != REQ_CANCELLED,
+                *them,
+            )
+        )
+
+    def co_dot(dk):
+        return exists(
+            select(PurchaseDelivery.id).where(
+                PurchaseDelivery.purchase_request_id == PurchaseRequest.id, dk
+            )
+        )
+
+    chua_gui = co_dot(~yeu_cau_song())
+    chua_xong = co_dot(yeu_cau_song(StockRequest.trang_thai != REQ_DONE))
+    dk = [PurchaseRequest.status == PR_RECEIVED]
+    if nac == KHO_CHO_GUI:
+        dk.append(chua_gui)
+    elif nac == KHO_CHUA_NHAP:
+        dk += [~chua_gui, chua_xong]
+    else:
+        dk += [~chua_gui, ~chua_xong]
+    return dk
 
 
 def _so_ngay(bind, sau, truoc):
@@ -399,7 +442,6 @@ class SupplierRepository:
             SupplierItem(
                 hang_loai=item.hang_loai,
                 hang_id=item.hang_id,
-                dang_ban=item.dang_ban,
                 kho_rong=item.kho_rong,
                 kho_dai=item.kho_dai,
                 item_name=item.item_name,
@@ -429,7 +471,6 @@ class SupplierRepository:
                 SupplierItem(
                     hang_loai=item.hang_loai,
                     hang_id=item.hang_id,
-                    dang_ban=item.dang_ban,
                     kho_rong=item.kho_rong,
                     kho_dai=item.kho_dai,
                     item_name=item.item_name,
@@ -485,15 +526,16 @@ class SupplierRepository:
             for key, value in grouped.items()
         ]
 
-    def items_for_hang(self, hang_loai: str, hang_id: int, *, dang: str | None = None,
+    def items_for_hang(self, hang_loai: str, hang_id: int, *,
                        kho_rong: int = 0, kho_dai: int = 0) -> list[tuple]:
         """Mọi dòng bảng-giá đang bán MỘT mặt hàng gốc, kèm NCC — nguồn của bảng so giá (mg 0172).
 
         Chỉ NCC đang hoạt động và dòng còn `is_active`: so giá với NCC đã ngưng hợp tác là mời
         người ta chọn một đường không đi được.
 
-        `dang` (giấy, 07/10/2026): chỉ lấy dòng cùng dạng bán. Tờ ⇒ cùng khổ tuyệt đối; cuộn có
-        khổ ⇒ dòng cuộn khổ đó hoặc "mọi khổ" (0).
+        Giấy có gửi khổ (`kho_rong` > 0, đã chuẩn ngắn × dài): dòng ĐÚNG khổ đó + dòng khổ 0 · 0
+        ("NCC bán mọi khổ"). Khổ chỉ-rộng `(r, 0)` KHÔNG khớp khổ hai cạnh và ngược lại (chủ chốt
+        10/10/2026).
         """
         dk = [
             Supplier.status == SUPPLIER_ACTIVE,
@@ -501,12 +543,11 @@ class SupplierRepository:
             SupplierItem.hang_loai == hang_loai,
             SupplierItem.hang_id == hang_id,
         ]
-        if dang is not None:
-            dk.append(SupplierItem.dang_ban == dang)
-            if dang == "to":
-                dk += [SupplierItem.kho_rong == kho_rong, SupplierItem.kho_dai == kho_dai]
-            elif kho_rong:
-                dk.append(SupplierItem.kho_rong.in_([0, kho_rong]))
+        if hang_loai == "giay" and kho_rong:
+            dk.append(or_(
+                and_(SupplierItem.kho_rong == kho_rong, SupplierItem.kho_dai == kho_dai),
+                and_(SupplierItem.kho_rong == 0, SupplierItem.kho_dai == 0),
+            ))
         rows = self.db.execute(
             select(Supplier, SupplierItem)
             .join(SupplierItem, SupplierItem.supplier_id == Supplier.id)
@@ -601,13 +642,11 @@ class SupplierItemInput:
         note: str | None = None,
         hang_loai: str | None = None,
         hang_id: int | None = None,
-        dang_ban: str | None = None,
         kho_rong: int = 0,
         kho_dai: int = 0,
     ) -> None:
         self.item_name = item_name
-        # Dạng bán giấy + khổ (07/10/2026) — None · 0 · 0 với vật tư khác.
-        self.dang_ban = dang_ban
+        # Khổ giấy (mm, ngắn × dài; chỉ-rộng là `r, 0`) — 0 · 0 với vật tư khác.
         self.kho_rong = kho_rong
         self.kho_dai = kho_dai
         self.unit = unit
@@ -804,17 +843,20 @@ class DepartmentPurchaseRequestRepository:
         """Mọi điều kiện lọc yêu cầu mua TRỪ trạng thái (tab). Phạm vi nhìn nằm trong đây luôn, để
         danh sách, số trên tab và các ô chọn của thanh lọc đếm trên cùng một tập."""
         conditions = []
-        if q:
-            like = f"%{q.strip().lower()}%"
+        # Tìm TƯƠNG ĐỐI (11/10/2026): bỏ dấu cả hai phía và tách theo khoảng trắng — MỖI từ gõ vào
+        # phải khớp ở một ô nào đó, không cần liền nhau. Gõ "thieu vat tu 0003" hay "7tzy 261007"
+        # đều ra phiếu; trước đây chỉ khớp nguyên chuỗi có dấu.
+        for tu in bo_dau(q).split():
+            like = f"%{tu}%"
             conditions.append(
                 or_(
-                    func.lower(DepartmentPurchaseRequest.code).like(like),
-                    func.lower(DepartmentPurchaseRequest.purpose).like(like),
-                    func.lower(DepartmentPurchaseRequest.related_document_code).like(like),
-                    func.lower(DepartmentPurchaseRequest.content).like(like),
+                    bo_dau_sql(DepartmentPurchaseRequest.code).like(like),
+                    bo_dau_sql(DepartmentPurchaseRequest.purpose).like(like),
+                    bo_dau_sql(DepartmentPurchaseRequest.related_document_code).like(like),
+                    bo_dau_sql(DepartmentPurchaseRequest.content).like(like),
                     # Tìm theo tên vật tư (07/10/2026) — chế độ xem Từng món cần gõ "COUCHE" ra món.
                     DepartmentPurchaseRequest.lines.any(
-                        func.lower(DepartmentPurchaseRequestLine.item_name).like(like)
+                        bo_dau_sql(DepartmentPurchaseRequestLine.item_name).like(like)
                     ),
                     # Tìm theo MÃ LỆNH / BÀI mà yêu cầu mua cho (08/10/2026). Ô chứng từ liên quan
                     # chỉ chứa được ~64 ký tự ("… +3"), nên phải dò thẳng liên kết lệnh.
@@ -1273,9 +1315,28 @@ class PurchaseRequestRepository:
         **loc,
     ) -> tuple[list[PurchaseRequest], int]:
         conditions = self._dieu_kien_loc(q=q, **loc)
-        if status:
+        if status in KHO_DA_VE:
+            conditions.extend(_dk_kho_da_ve(status))
+        elif status:
             conditions.append(PurchaseRequest.status == status)
         return self._trang(conditions, sort=sort, page=page, size=size)
+
+    def dem_kho_da_ve(self, **loc) -> dict[str, int]:
+        """Đơn ĐÃ VỀ ĐỦ chia theo ba nấc kho (11/10/2026) — cùng bộ lọc với `dem_theo_trang_thai`."""
+        dem = {}
+        for nac in KHO_DA_VE:
+            stmt = select(func.count()).select_from(PurchaseRequest)
+            for c in [*self._dieu_kien_loc(**loc), *_dk_kho_da_ve(nac)]:
+                stmt = stmt.where(c)
+            dem[nac] = int(self.db.execute(stmt).scalar_one())
+        return dem
+
+    def ids_kho_da_ve(self, nac: str, ids: Sequence[int]) -> set[int]:
+        """Trong `ids`, đơn nào đang ở nấc kho `nac` — nhánh lọc Tiền cắt trang bằng Python."""
+        if not ids:
+            return set()
+        stmt = select(PurchaseRequest.id).where(PurchaseRequest.id.in_(list(ids)), *_dk_kho_da_ve(nac))
+        return set(self.db.execute(stmt).scalars())
 
     def list_co_the_no(self, *, sort: str = "-created_at", **loc) -> list[PurchaseRequest]:
         """Mọi phiếu CÓ THỂ đang nợ NCC (đã duyệt → đã về đủ) trong bộ lọc, KHÔNG phân trang, chỉ nạp
@@ -1323,6 +1384,32 @@ class PurchaseRequestRepository:
         stmt = stmt.group_by(Supplier.id, Supplier.name).order_by(Supplier.name)
         return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
 
+    def dem_theo_nguoi(self, vai: str, **loc) -> list[tuple[int, str, int]]:
+        """Ô lọc NV yêu cầu (`yc`) / NV mua hàng (`mua`) / NV duyệt (`duyet`): người đang có đơn
+        trong tầm nhìn ở vai đó, kèm số đơn. Đơn gom nhiều yêu cầu cùng một người chỉ đếm một lần."""
+        if vai == "yc":
+            stmt = (
+                select(User.id, User.name, func.count(func.distinct(PurchaseRequest.id)))
+                .select_from(PurchaseRequest)
+                .join(PurchaseRequestSource, PurchaseRequestSource.purchase_request_id == PurchaseRequest.id)
+                .join(
+                    DepartmentPurchaseRequest,
+                    DepartmentPurchaseRequest.id == PurchaseRequestSource.department_request_id,
+                )
+                .join(User, User.id == DepartmentPurchaseRequest.requested_by_user_id)
+            )
+        else:
+            cot = PurchaseRequest.created_by_user_id if vai == "mua" else PurchaseRequest.approved_by_user_id
+            stmt = (
+                select(User.id, User.name, func.count(PurchaseRequest.id))
+                .select_from(PurchaseRequest)
+                .join(User, User.id == cot)
+            )
+        for c in self._dieu_kien_loc(**loc):
+            stmt = stmt.where(c)
+        stmt = stmt.group_by(User.id, User.name).order_by(User.name)
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
     def _dieu_kien_loc(
         self,
         *,
@@ -1337,6 +1424,9 @@ class PurchaseRequestRepository:
         creator_ids: list[int] | None = None,
         exclude_statuses: list[str] | None = None,
         loai_mua: Sequence[str] | None = None,
+        nv_yc_id: int | None = None,
+        nv_mua_id: int | None = None,
+        nv_duyet_id: int | None = None,
     ) -> list:
         """Mọi điều kiện lọc phiếu mua TRỪ trạng thái. `tu_ngay/den_ngay/moc` = kỳ của thanh lọc chung
         (06/10/2026): `tao` = ngày tạo (ranh ngày giờ VN), `can` = ngày cần hàng, `nhan` = ngày dự
@@ -1367,6 +1457,20 @@ class PurchaseRequestRepository:
             conditions.append(PurchaseRequest.status.notin_(exclude_statuses))
         if supplier_id is not None:
             conditions.append(PurchaseRequest.supplier_id == supplier_id)
+        # Ba vai người trên đơn (10/10/2026): NV yêu cầu = người tạo MỘT trong các yêu cầu đơn gom
+        # vào; NV mua hàng = người lập đơn; NV duyệt = người bấm Duyệt / Từ chối.
+        if nv_yc_id is not None:
+            conditions.append(
+                PurchaseRequest.sources.any(
+                    PurchaseRequestSource.department_request.has(
+                        DepartmentPurchaseRequest.requested_by_user_id == nv_yc_id
+                    )
+                )
+            )
+        if nv_mua_id is not None:
+            conditions.append(PurchaseRequest.created_by_user_id == nv_mua_id)
+        if nv_duyet_id is not None:
+            conditions.append(PurchaseRequest.approved_by_user_id == nv_duyet_id)
         if loai_mua:
             # Đơn có ÍT NHẤT một dòng trỏ về món của yêu cầu thuộc loại đó (đơn có thể trộn loại).
             conditions.append(
