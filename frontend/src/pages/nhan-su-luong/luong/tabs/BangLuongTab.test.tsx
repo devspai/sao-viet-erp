@@ -27,12 +27,10 @@ const mockPeriod: PayrollPeriod = {
 
 const mockLine: PayrollLine = {
   id: 101,
-  period_id: 1,
   employee_id: 1,
   employee_code: "NV001",
   employee_name: "Nguyễn Văn Test",
   department_name: "In Offset",
-  payroll_group: null,
   bank_account: null,
   bank_name: null,
   is_probation: false,
@@ -61,7 +59,7 @@ const mockLine: PayrollLine = {
   luong_dot_1_total: 0,
   net_pay: 8_775_000,
   note: null,
-};
+} as unknown as PayrollLine;
 
 describe("BangLuongTab — Cột Giảm trừ & Tạm ứng tách riêng BHXH, Công đoàn, Thuế TNCN", () => {
   beforeEach(() => {
