@@ -2966,3 +2966,117 @@ def test_go_khoan_khoi_tat_ca_nhan_vien_roi_xoa_duoc(client):
         assert "gỡ khỏi 3 NV" in vet.detail and "300,000" in vet.detail
     finally:
         db.close()
+
+
+def test_lines_out_derive_cong_thuong_va_cn_le():
+    """Bảng lương tách công thường vs công CN/lễ và thành tiền tương ứng."""
+    from app.routers.payroll import _lines_out
+
+    class MockDeptRepo:
+        def list_all(self):
+            return []
+        def dept_ids_giao_hang(self):
+            return []
+
+    class MockEmpRepo:
+        def map_by_ids(self, ids):
+            return {}
+
+    ln = SimpleNamespace(
+        id=1,
+        employee_id=10,
+        period_id=1,
+        is_probation=False,
+        actual_cong=28.0,
+        standard_cong=26.0,
+        monthly_salary=32_500_000,
+        luong_cong=35_000_000,
+        luong_ngay_phep=0,
+        paid_leave_cong=0,
+        special_cong=2.0,
+        off1x_pay=0,
+        tien_gio_tang_ca=0,
+        che_do_khoan=False,
+        bu_lo_theo_cong=None,
+        lay_bu_lo=False,
+        luong_ngay_le=0,
+        le_nghi_cong=0,
+        phu_cap_thang=None,
+        cong_phu_cap=None,
+        excused_cong=0,
+        chuyen_can=0,
+        allowance=0,
+        phu_cap_tham_nien=0,
+        khoan=0,
+        khoan_km=0,
+        hoa_hong=0,
+        ot_minutes=0,
+        ot_pay=2_500_000,
+        night_days=0,
+        night_pay=0,
+        meal_allowance_pay=0,
+        com_tang_ca_pay=0,
+        shift_allowance_pay=0,
+        vi_pham=0,
+        other_bonus=0,
+        thuong_5s=0,
+        thuong_doanh_so=0,
+        thuong_thanh_tich=0,
+        phep_nam=0,
+        tra_dong_phuc=0,
+        dieu_chinh_luong=0,
+        di_tre=0,
+        di_tre_manual=False,
+        dt_vuot_troi=0,
+        phat_bien_ban=0,
+        phat_5s_dong_phuc=0,
+        gross=37_500_000,
+        insurance_base=32_500_000,
+        bhxh=3_412_500,
+        cong_doan=0,
+        pit=0,
+        pit_manual=False,
+        pit_taxable=0,
+        thu_nhap_chiu_thue=0,
+        thu_nhap_mien_thue=0,
+        advance_total=0,
+        luong_dot_1_total=0,
+        no_ung_ky_truoc=0,
+        no_ung_chuyen_ky_sau=0,
+        net_pay=34_087_500,
+        note=None,
+    )
+
+    outs = _lines_out([ln], MockEmpRepo(), MockDeptRepo(), svc=None)
+    assert len(outs) == 1
+    o = outs[0]
+    # Công thường = 28 - 2 = 26
+    assert o.cong_thuong == 26.0
+    # Lương thường = 32.500.000
+    assert o.tien_cong_thuong == 32_500_000
+    # Tiền CN/lễ = gốc 2.500.000 + phụ trội 2.500.000 = 5.000.000
+    assert o.tien_cn_le == 5_000_000
+    # Tổng tiền khớp: 32.500.000 + 5.000.000 == 35.000.000 (luong_cong) + 2.500.000 (ot_pay)
+    assert o.tien_cong_thuong + o.tien_cn_le == ln.luong_cong + ln.ot_pay
+
+    # Trường hợp khoán:
+    ln_khoan = SimpleNamespace(
+        id=2, employee_id=11, period_id=1, is_probation=False, actual_cong=26.0, standard_cong=26.0,
+        monthly_salary=26_000_000, luong_cong=0, luong_ngay_phep=0, paid_leave_cong=0, special_cong=2.0,
+        off1x_pay=0, tien_gio_tang_ca=0, che_do_khoan=True, bu_lo_theo_cong=None, lay_bu_lo=False,
+        luong_ngay_le=500_000, le_nghi_cong=1, phu_cap_thang=None, cong_phu_cap=None, excused_cong=0,
+        chuyen_can=0, allowance=0, phu_cap_tham_nien=0, khoan=15_000_000, khoan_km=0, hoa_hong=0,
+        ot_minutes=0, ot_pay=2_000_000, night_days=0, night_pay=0, meal_allowance_pay=0, com_tang_ca_pay=0,
+        shift_allowance_pay=0, vi_pham=0, other_bonus=0, thuong_5s=0, thuong_doanh_so=0, thuong_thanh_tich=0,
+        phep_nam=0, tra_dong_phuc=0, dieu_chinh_luong=0, di_tre=0, di_tre_manual=False, dt_vuot_troi=0,
+        phat_bien_ban=0, phat_5s_dong_phuc=0, gross=17_500_000, insurance_base=0, bhxh=0, cong_doan=0,
+        pit=0, pit_manual=False, pit_taxable=0, thu_nhap_chiu_thue=0, thu_nhap_mien_thue=0,
+        advance_total=0, luong_dot_1_total=0, no_ung_ky_truoc=0, no_ung_chuyen_ky_sau=0, net_pay=17_500_000, note=None,
+    )
+    outs_k = _lines_out([ln_khoan], MockEmpRepo(), MockDeptRepo(), svc=None)
+    ok = outs_k[0]
+    assert ok.cong_cn_le == 3.0
+    assert ok.cong_thuong == 23.0
+    assert ok.tien_cong_thuong == 0.0
+    assert ok.tien_cn_le == 2_500_000  # 2tr phụ trội + 500k lễ
+

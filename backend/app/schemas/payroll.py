@@ -517,6 +517,14 @@ class LineOut(BaseModel):
     standard_cong: float
     monthly_salary: float
     luong_cong: float
+    #: Số ngày công thường thực tế
+    cong_thuong: float = 0
+    #: Số ngày công CN & Lễ (công đi làm CN/lễ + công lễ nghỉ trả riêng)
+    cong_cn_le: float = 0
+    #: Thành tiền lương công thường
+    tien_cong_thuong: float = 0
+    #: Tổng thành tiền ngày CN & Lễ (1x gốc + phụ trội Đ98 + lương ngày lễ nếu có)
+    tien_cn_le: float = 0
     # TRONG ĐÓ của `luong_cong` — tiền những ngày nghỉ phép, trả theo LƯƠNG VỊ TRÍ (không lương
     # trách nhiệm). ĐỪNG cộng thêm vào tổng: đã nằm trong `luong_cong` (cùng kiểu `phu_cap_tham_nien`).
     luong_ngay_phep: float = 0
