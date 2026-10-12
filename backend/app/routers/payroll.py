@@ -317,6 +317,34 @@ def _lines_out(lines, employees: EmployeeRepository, departments: DepartmentRepo
             o.bank_name = emp.bank_name
             o.department_id = emp.department_id
             o.department_name = dept_names.get(emp.department_id)
+
+        # Derive công thường, công CN/lễ, tiền công thường, tiền CN & lễ
+        le_nghi_rieng = float(getattr(ln, "le_nghi_cong", 0) or 0) if float(getattr(ln, "luong_ngay_le", 0) or 0) > 0 else 0.0
+        cong_cn_le = round(float(ln.special_cong or 0) + le_nghi_rieng, 2)
+        cong_thuong = round(max(0.0, float(ln.actual_cong or 0) - cong_cn_le), 2)
+        if getattr(ln, "tien_gio_tang_ca", None) is not None:
+            tien_gio_tc = float(ln.tien_gio_tang_ca)
+        elif getattr(ln, "che_do_khoan", False) and not o.la_giao_hang:
+            tien_gio_tc = 0.0
+        else:
+            tien_gio_tc = max(0.0, float(ln.ot_pay or 0) - float(getattr(ln, "off1x_pay", 0) or 0))
+
+        if not getattr(ln, "lay_bu_lo", False) and float(ln.special_cong or 0) > 0 and float(ln.luong_cong or 0) > 0:
+            prob_ratio = float(getattr(params, "probation_ratio", 0.85) or 0.85) if getattr(ln, "is_probation", False) else 1.0
+            don_gia = (float(ln.monthly_salary or 0) * prob_ratio) / (float(ln.standard_cong or 26) or 26.0)
+            tien_goc = min(round(don_gia * float(ln.special_cong or 0)), round(float(ln.luong_cong or 0)))
+        else:
+            tien_goc = 0.0
+
+        phan_phu_troi = max(0.0, float(ln.ot_pay or 0) - tien_gio_tc - float(getattr(ln, "off1x_pay", 0) or 0))
+        o.cong_thuong = cong_thuong
+        o.cong_cn_le = cong_cn_le
+        o.tien_cn_le = round(tien_goc + phan_phu_troi + float(getattr(ln, "luong_ngay_le", 0) or 0))
+        if getattr(ln, "lay_bu_lo", False):
+            o.tien_cong_thuong = float(ln.khoan or 0) + float(getattr(ln, "khoan_km", 0) or 0) + float(ln.luong_cong or 0)
+        else:
+            o.tien_cong_thuong = max(0.0, round(float(ln.luong_cong or 0) - tien_goc))
+
         out.append(o)
     return out
 
