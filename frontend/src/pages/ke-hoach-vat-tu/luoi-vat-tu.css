@@ -26,7 +26,7 @@
 
 .lvt-sheet { background: var(--canvas, #fff); border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
 .lvt-cuon { overflow-x: auto; }
-.lvt-g { border-collapse: collapse; width: 100%; min-width: 1240px; table-layout: fixed; }
+.lvt-g { border-collapse: collapse; width: 100%; min-width: 1180px; table-layout: fixed; }
 .kt-ngan .lvt-g { min-width: 860px; }
 /* Tab Vật tư của ngăn lệnh: đủ chỗ cho cả 9 cột ở bề ngang ngăn mặc định; ngăn hẹp hơn thì cuộn ngang. */
 .kt-ngan .lvt-g--ngan { min-width: 1120px; }
@@ -56,6 +56,9 @@
 /* Nhóm mặt hàng: ô nhãn phủ đúng hai cột đang ghim (ô chọn + Lệnh) nên tự ghim theo, kẻo cuộn ngang
    thì dòng dữ liệu đứng yên còn dòng nhóm trượt đi. Nền đặc để chữ cột khác không lộ ra dưới. */
 .lvt.lds .lds-cuon[data-ghim="2"] .lvt-g tr.gr > td.lvt-gr-ghim { position: sticky; left: 0; z-index: 1; background: var(--rule-hair); }
+/* Ô nhãn nhóm mặt hàng CẮT tại mép phải của nó: để tràn thì chữ ĐVT đè lên số của cột Cần bên cạnh. */
+.lvt.lds .lvt-g tr.gr > td.lvt-gr-ghim { overflow: hidden; }
+.lvt.lds .lvt-g tr.gr > td.lvt-gr-ghim .lds-dinh-trai { max-width: 100%; }
 
 .gl { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .lvt-chev { border: 0; background: transparent; color: var(--ash-3); cursor: pointer; display: grid; place-items: center;

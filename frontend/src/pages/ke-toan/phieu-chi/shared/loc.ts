@@ -23,30 +23,13 @@ export const MOC_PC: [string, string][] = [["tao", "Ngày tạo"], ["chi", "Ngà
 /** Thẻ lọc đầu bảng. "gc" không lọc phiếu — nó đổi bảng sang hàng chờ gia công. */
 export type TheLocPC = "tat_ca" | "xong" | "thieu" | "gc" | "da_huy";
 
-/** Bộ lọc ĐÃ ÁP — khuôn chung của hai sổ phiếu (`shared/locPhieu.ts`). `nguon` là khoá GIAO DIỆN —
- *  "khac" gom nhiều `source_type`, xem `nguonGui`. */
+/** Bộ lọc ĐÃ ÁP — khuôn chung của hai sổ phiếu (`shared/locPhieu.ts`). */
 export type LocPC = LocNangCao;
 
-/** Bốn lựa chọn Nguồn chi. "Khác" gồm mọi nguồn bảng hiện chữ "Khác" (chi nội bộ, hoàn tiền
- *  khách, khác) — chọn "Khác" mà sót một loại thì bảng có dòng "Khác" không lọc ra được. */
-export const NGUON_LUA_CHON: [string, string][] = [
-  ["purchase_request", "Đơn mua"],
-  ["gia_cong_ngoai", "Gia công"],
-  ["salary_advance", "Tạm ứng lương"],
-  ["khac", "Khác"],
-];
-
 export const CAU_HINH_LOC_PC: CauHinhLocPhieu = {
-  nhanNguon: "Nguồn chi",
-  nguonLuaChon: NGUON_LUA_CHON,
+  nhanMuc: "Mục chi",
   nhanTaiKhoan: "Trả từ tài khoản",
 };
-
-const NGUON_KHAC = ["internal_expense", "customer_refund", "other"];
-
-export function nguonGui(nguon: string[]): string[] {
-  return nguon.flatMap((n) => (n === "khac" ? NGUON_KHAC : [n]));
-}
 
 /** Tham số lọc dùng chung cho bảng và số cùng kỳ — một nguồn, không hai chỗ. */
 export function thamSoLoc(the: TheLocPC, loc: LocPC, tim: string, ky: KyDS): ThamSoSo {
@@ -58,7 +41,7 @@ export function thamSoLoc(the: TheLocPC, loc: LocPC, tim: string, ky: KyDS): Tha
     status,
     chung_tu: the === "thieu" ? "thieu" : loc.chung_tu,
     ...(thamSoKy(ky) as Pick<ThamSoSo, "tu_ngay" | "den_ngay" | "moc">),
-    ...thamSoNangCao(loc, nguonGui),
+    ...thamSoNangCao(loc),
   };
 }
 
@@ -79,20 +62,12 @@ export type TrangThaiLocPC = { the: TheLocPC; tim: string; loc: LocPC };
 
 const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "thieu", "gc", "da_huy"];
 
-/** Mã ngắn của Nguồn chi trên URL — link đọc được: `nguon=po,khac`. */
-const NGUON_URL: [string, string][] = [
-  ["purchase_request", "po"],
-  ["gia_cong_ngoai", "gc"],
-  ["salary_advance", "tu"],
-  ["khac", "khac"],
-];
-
 /** Trạng thái lọc → khoá URL. Giá trị mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPC): Record<string, string | undefined> {
   return {
     the: the === "tat_ca" ? undefined : the,
     q: tim.trim() || undefined,
-    ...locNangCaoLenUrl(loc, NGUON_URL),
+    ...locNangCaoLenUrl(loc),
   };
 }
 
@@ -100,5 +75,5 @@ export function locLenUrl({ the, tim, loc }: TrangThaiLocPC): Record<string, str
 export function locTuUrl(p: URLSearchParams | null): TrangThaiLocPC {
   if (!p) return { the: "tat_ca", tim: "", loc: LOC_TRONG };
   const the = THE_HOP_LE.find((t) => t === p.get("the")) ?? "tat_ca";
-  return { the, tim: p.get("q") ?? "", loc: locNangCaoTuUrl(p, NGUON_URL) };
+  return { the, tim: p.get("q") ?? "", loc: locNangCaoTuUrl(p) };
 }

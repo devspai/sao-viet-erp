@@ -1817,3 +1817,110 @@
 .dhb__td-luuy { display: grid; gap: 2px; font-size: 12px; }
 .dhb__td-luuy span { color: var(--ash); font-weight: 600; }
 .dhb__td-luuy p { margin: 0; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ═══ Ngăn đơn làm lại theo khuôn Shopify (12/10/2026) ═══
+   Mockup: docs/mockups/ngan-don-hang-ban-3-phuong-an.html, nút "A bản 3". Tab Tổng quan hai cột: trái
+   thẻ Tiến độ + thẻ chặng đang chọn (dòng tóm tắt | bảng | dải chân xám), phải ba thẻ thuộc tính đơn. */
+.dhb__drawer-cust { gap: 14px; font-size: 13px; color: var(--ash-2); }
+.dhb__drawer-khach { color: var(--ink); }
+.dhb__drawer-tab-dem { margin-left: 6px; color: var(--ash-2); font-weight: 400; }
+.dhb__drawer-body:has(.dhb__tq) { container-type: inline-size; }
+
+.dhb__tq { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.dhb__tq-trai, .dhb__tq-phai { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.dhb__tq-trai .dhb__chang-o:not(.is-mo) { display: none; }
+@container (max-width: 860px) {
+  .dhb__tq { grid-template-columns: minmax(0, 1fr); }
+}
+
+.dhb__the { background: #fff; border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; min-width: 0; }
+.dhb__the-dau { display: flex; align-items: center; gap: 8px; padding: 16px 20px 6px; font-size: 13.5px; }
+.dhb__the-dau h4 { margin: 0; font-size: 15px; font-weight: 500; color: var(--ink); }
+.dhb__the-than { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.dhb__the-than--tien-do { padding-bottom: 14px; }
+.dhb__the-bang { padding: 2px 20px 12px; overflow-x: auto; }
+.dhb__the-bang .sxm-bang-khung { overflow: visible; }
+.dhb__the-chan {
+  display: flex; align-items: center; gap: 12px; min-height: 54px; box-sizing: border-box;
+  padding: 10px 20px; background: var(--paper); border-top: 1px solid var(--rule-soft);
+  font-size: 13px; color: var(--ash-2);
+}
+.dhb__the-chan-chu { flex: 1; min-width: 0; }
+.dhb__the-chan-nut { display: flex; gap: 8px; flex: none; }
+.dhb__the .dhb__muted, .dhb__ben .dhb__muted { font-size: inherit; white-space: normal; }
+
+/* Dòng tóm tắt kiểu "Order summary": nhãn | diễn giải xám | số canh phải. */
+.dhb__tt { padding: 0 20px 6px; }
+.dhb__tt-r {
+  display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 16px; align-items: baseline;
+  padding: 9px 0; font-size: 13.5px; border-bottom: 1px solid var(--rule-hair);
+}
+.dhb__tt-r:last-child { border-bottom: 0; }
+.dhb__tt-r.is-tong { border-top: 1px solid var(--rule-soft); margin-top: -1px; }
+.dhb__tt-nhan { color: var(--ink); min-width: 0; }
+.dhb__tt-dien { color: var(--ash-2); font-size: 13px; min-width: 0; }
+.dhb__tt-so { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); }
+.dhb__tt-so.is-chu { color: var(--tt-cam-fg); }
+.dhb__tt-so.is-ok { color: var(--tt-la-fg); }
+
+/* Bảng mảnh dùng chung trong thẻ. */
+.dhb__g { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dhb__g th {
+  text-align: left; font-size: 12px; font-weight: 400; color: var(--ash-2);
+  height: 32px; padding: 0 10px; border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); white-space: nowrap;
+}
+.dhb__g td { padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
+.dhb__g th:first-child, .dhb__g td:first-child { padding-left: 0; }
+.dhb__g th:last-child, .dhb__g td:last-child { padding-right: 0; }
+.dhb__g th.dhb__text-right { text-align: right; }
+.dhb__g tr.is-cancelled td { color: var(--ash-2); }
+.dhb__g-hai > span, .dhb__g-hai > small { display: block; }
+.dhb__g-hai small { font-size: 12px; color: var(--ash-2); margin-top: 1px; }
+.dhb__g-cach span + span { margin-left: 8px; }
+.dhb__g-nut { white-space: nowrap; }
+/* Mã chứng từ, ngày, số + đơn vị không bẻ giữa chừng ("YCGH-261012-" / "JYUP", "1.000" / "tờ"). */
+.dhb__g .dhb__mono, .dhb__g td.dhb__text-right { white-space: nowrap; }
+/* Mọi mẩu trong ô thao tác (nút, chữ "chờ kho xuất mới in") cách nhau — trước đó chữ dính vào "Sửa". */
+.dhb__g-nut > * + * { margin-left: 12px; }
+/* Bảng hóa đơn theo lượt (phương án A 13/10/2026): ô lượt trải dọc nhóm, hóa đơn đã hủy gập ở chân. */
+/* Canh trên: số đứng ngang dòng đầu của ô hai dòng (mã lượt, số hóa đơn). */
+.dhb__g.dhb__hd td { vertical-align: top; }
+/* Số hóa đơn gõ tay có thể dài (mã thử, số kèm tiền tố) — cho xuống dòng thay vì đẩy bảng cuộn ngang. */
+.dhb__g.dhb__hd .dhb__hd-sohd .dhb__mono { white-space: normal; overflow-wrap: anywhere; }
+.dhb__hd-huy td { border-bottom: 0; padding-top: 10px; }
+.dhb__hd-mo {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none;
+  font: inherit; font-size: 12.5px; color: var(--ash-2); cursor: pointer;
+}
+.dhb__hd-mo:hover { color: var(--ink); }
+.dhb__hd-mo[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+/* Cột phải: thẻ thuộc tính đơn. */
+.dhb__ben { background: #fff; border: 1px solid var(--rule-soft); border-radius: 10px; padding: 14px 16px; font-size: 13.5px; line-height: 1.5; min-width: 0; }
+.dhb__ben-dau { display: flex; align-items: center; margin-bottom: 8px; }
+.dhb__ben-dau h4 { margin: 0; font-size: 14px; font-weight: 500; color: var(--ink); flex: 1; }
+.dhb__ben-kv { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
+.dhb__ben-kv > span:first-child { color: var(--ash-2); }
+.dhb__ben-phu { margin-left: 6px; }
+.dhb__ben-ic { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+.dhb__ben-ic svg { flex: none; color: var(--ash-2); }
+.dhb__ben-ic.is-dau { align-items: flex-start; }
+.dhb__ben-ic.is-dau svg { margin-top: 3px; }
+.dhb__ben-nhom { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule-hair); }
+.dhb__ben-nhom small { display: block; color: var(--ash-2); font-size: 12.5px; }
+.dhb__ben-sua { background: none; border: 0; padding: 2px; cursor: pointer; color: var(--ash-2); display: inline-flex; border-radius: 4px; }
+.dhb__ben-sua:hover { color: var(--ink); background: var(--rule-hair); }
+.dhb__ben-xong { display: block; margin-top: 4px; font-size: 12px; color: var(--tt-la-fg); }
+
+/* Tab Hàng hoá + Nhật ký. */
+.dhb__hh { display: flex; flex-direction: column; gap: 16px; }
+.dhb__hh-dau { padding-bottom: 10px; }
+.dhb__hh-tong { display: flex; justify-content: flex-end; padding-bottom: 6px; }
+.dhb__hh-tong .dhb__tt { width: 360px; }
+.dhb__hh-tong .dhb__tt-r { grid-template-columns: minmax(0, 1fr) 0 auto; gap: 0 16px; }
+.dhb__nk { display: grid; grid-template-columns: 130px 140px minmax(0, 1fr); gap: 12px; font-size: 13px; padding: 7px 0; border-top: 1px solid var(--rule-hair); }
+.dhb__nk:first-of-type { border-top: 0; }
+.dhb__the .dhb__mono, .dhb__ben .dhb__mono { font-weight: 400; font-size: inherit; }
+.dhb__the .dhb__td-link, .dhb__ben .dhb__td-link { font-weight: 400; font-size: inherit; padding: 0; }
+/* Phụ đề form yêu cầu giao: mã đơn và khách tách bằng khoảng cách, không nối dấu chấm giữa. */
+.dhb__yc-phude { display: inline-flex; flex-wrap: wrap; gap: 12px; }

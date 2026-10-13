@@ -15,7 +15,6 @@ from app.services.thanh_pham_khai_bao import cum_ban, khai_mot_dong
 from tests.test_giao_hang_api import (
     _admin,
     _don_da_chot,
-    _gui_yeu_cau_xuat_kho,
     _len_kh,
     _nap_ton,
     _tai_xe,
@@ -191,11 +190,11 @@ def test_HUY_DON_bi_chan_khi_con_yeu_cau_dang_chay(client):
     assert yc["code"] in r.json()["detail"]
 
 
-def test_GUI_XUAT_KHO_kiem_lai_ton_that(client):
+def test_LEN_DON_kiem_lai_ton_that_vi_gui_kho_luon(client):
+    """Lên đơn là gửi đề nghị xuất kho luôn (12/10/2026) ⇒ tồn kiểm lại NGAY lúc lên đơn."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="gd6")
     yc = _tao_yc(client, h, oid, lid, qty=100)
-    trip = _len_kh(client, h, yc["id"], _tai_xe("TX gd6")).json()["trip"]["id"]
     # Kho đã xuất hàng cho việc khác trong lúc chờ xếp chuyến.
     from app.models.stock_lot import StockLot
     db = SessionLocal()
@@ -205,14 +204,7 @@ def test_GUI_XUAT_KHO_kiem_lai_ton_that(client):
         db.commit()
     finally:
         db.close()
-    from app.models.kho_hang import KhoHang
-    db = SessionLocal()
-    try:
-        kho_id = db.query(KhoHang).filter(KhoHang.ma == "KTP").one().id
-    finally:
-        db.close()
-    r = client.post(f"/api/giao-hang/plans/{trip}/yeu-cau-xuat-kho", json={"kho_id": kho_id},
-                    headers=h)
+    r = _len_kh(client, h, yc["id"], _tai_xe("TX gd6"))
     assert r.status_code == 400, r.text
     assert "chỉ còn 50" in r.json()["detail"]
 

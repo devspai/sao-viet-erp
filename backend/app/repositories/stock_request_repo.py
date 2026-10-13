@@ -7,12 +7,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, false, func, or_, select, update
+from sqlalchemy import and_, false, func, not_, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.stock_request import (
     REQ_CANCELLED,
     REQ_DONE,
+    REQ_DRAFT,
     REQ_NHAP,
     REQ_PREPARING,
     REQ_REJECTED,
@@ -67,6 +68,7 @@ def _build_line(ln: dict, loai: str) -> StockRequestLine:
         don_gia=ln.get("don_gia") if loai == "NHAP" else None,
         don_gia_ban=ln.get("don_gia_ban") if loai == "NHAP" else None,
         ghi_chu=ln.get("ghi_chu"),
+        lo_goc_id=ln.get("lo_goc_id") if loai == "NHAP" else None,
     )
 
 
@@ -93,6 +95,30 @@ _COT_MOC = {
     "can": (StockRequest.ngay_can, True),
     "duyet": (StockRequest.duyet_luc, False),
 }
+
+#: Giá trị điều kiện "Nguồn" (12/10/2026) — cùng thứ tự ưu tiên ô Nguồn ở danh sách (`NguonA`):
+#: đơn mua → điều chuyển → giao hàng → KCS → gia công ngoài → lệnh SX → không nguồn (lập tay).
+NGUON_YEU_CAU = ("mua_hang", "dieu_chuyen", "giao_hang", "kcs", "gia_cong", "san_xuat", "khong")
+
+
+def _dk_nguon(nguon: str):
+    """Một giá trị "Nguồn" → điều kiện SQL. Các giá trị LOẠI TRỪ nhau theo thứ tự `NGUON_YEU_CAU`
+    nên tổng số theo nguồn đúng bằng số yêu cầu, và mỗi yêu cầu khớp đúng nhãn ô Nguồn đang hiện."""
+    rieng = [
+        StockRequest.purchase_delivery_id.is_not(None),
+        StockRequest.dieu_chuyen.is_(True),
+        StockRequest.delivery_trip_id.is_not(None),
+        and_(StockRequest.loai == REQ_NHAP, StockRequest.san_xuat_cong_viec_id.is_not(None)),
+        StockRequest.gia_cong_ngoai_id.is_not(None),
+    ]
+    co_lenh = StockRequest.id.in_(select(StockRequestLine.request_id).where(or_(
+        StockRequestLine.lsx_id.is_not(None), StockRequestLine.bai_ghep_id.is_not(None))))
+    i = NGUON_YEU_CAU.index(nguon)
+    if i < len(rieng):
+        return and_(rieng[i], *[not_(c) for c in rieng[:i]])
+    khong_rieng = [not_(c) for c in rieng]
+    return and_(*khong_rieng, co_lenh if nguon == "san_xuat" else not_(co_lenh))
+
 
 class StockRequestRepository:
     def __init__(self, db: Session) -> None:
@@ -332,7 +358,7 @@ class StockRequestRepository:
     def _base_conds(self, *, loai=None, trang_thai=None, q=None, nguoi_tao_id=None,
                     bo_phan_id=None, kho_id=None, dieu_chuyen=None,
                     tu_ngay=None, den_ngay=None, moc="tao", nguoi_tao_ids=None, kho_loc=None,
-                    pham_vi_nguoi_tao_id=None, pham_vi_bo_phan_ids=None):
+                    nguon=None, pham_vi_nguoi_tao_id=None, pham_vi_bo_phan_ids=None):
         """Điều kiện lọc CHUNG cho `list` và `count_by_status` — để badge tab khớp đúng list.
 
         Kỳ (06/10/2026): `tu_ngay/den_ngay` theo mốc `moc` — `tao` Ngày yêu cầu (created_at, ranh
@@ -367,6 +393,9 @@ class StockRequestRepository:
                 StockRequest.id.in_(
                     select(StockVoucher.request_id).where(StockVoucher.kho_id == kho_loc)),
             ))
+        nguon = [n for n in (nguon or []) if n in NGUON_YEU_CAU]
+        if nguon:
+            conds.append(or_(*[_dk_nguon(n) for n in nguon]))
         cot, la_ngay = _COT_MOC.get(moc, _COT_MOC["tao"])
         conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
         if q:
@@ -382,6 +411,7 @@ class StockRequestRepository:
              bo_phan_id: int | None = None, kho_id: int | None = None,
              dieu_chuyen: bool | None = None,
              tu_ngay=None, den_ngay=None, moc: str = "tao", nguoi_tao_ids=None, kho_loc=None,
+             nguon=None,
              pham_vi_nguoi_tao_id: int | None = None, pham_vi_bo_phan_ids: list[int] | None = None,
              order: str = "id", page: int = 1, size: int = 50):
         """Danh sách yêu cầu (BE-paging). `nguoi_tao_id` / `bo_phan_id` áp SCOPE: người yêu cầu
@@ -392,7 +422,8 @@ class StockRequestRepository:
             loai=loai, trang_thai=trang_thai, q=q, nguoi_tao_id=nguoi_tao_id,
             bo_phan_id=bo_phan_id, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
             tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, nguoi_tao_ids=nguoi_tao_ids,
-            kho_loc=kho_loc, pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id, pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
+            kho_loc=kho_loc, nguon=nguon, pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id,
+            pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
         )
         base = select(StockRequest).options(selectinload(StockRequest.lines))
         count_stmt = select(func.count()).select_from(StockRequest)
@@ -411,7 +442,7 @@ class StockRequestRepository:
     def count_by_status(self, *, loai=None, q=None, nguoi_tao_id=None, bo_phan_id=None,
                         kho_id=None, dieu_chuyen=None, base_trang_thai=None,
                         tu_ngay=None, den_ngay=None, moc="tao", nguoi_tao_ids=None,
-                        kho_loc=None, pham_vi_nguoi_tao_id=None,
+                        kho_loc=None, nguon=None, pham_vi_nguoi_tao_id=None,
                         pham_vi_bo_phan_ids=None) -> dict[str, int]:
         """Đếm yêu cầu theo TỪNG TRẠNG THÁI (cùng bộ lọc như `list`, TRỪ tab) → FE cộng theo tab
         cho badge. `base_trang_thai`: giới hạn tập nền (vd Hộp yêu cầu chỉ tính trạng thái INBOX)."""
@@ -419,7 +450,8 @@ class StockRequestRepository:
             loai=loai, trang_thai=base_trang_thai, q=q, nguoi_tao_id=nguoi_tao_id,
             bo_phan_id=bo_phan_id, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
             tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, nguoi_tao_ids=nguoi_tao_ids,
-            kho_loc=kho_loc, pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id, pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
+            kho_loc=kho_loc, nguon=nguon, pham_vi_nguoi_tao_id=pham_vi_nguoi_tao_id,
+            pham_vi_bo_phan_ids=pham_vi_bo_phan_ids,
         )
         rows = self.db.execute(
             select(StockRequest.trang_thai, func.count()).where(*conds)
@@ -464,6 +496,29 @@ class StockRequestRepository:
             )
         )
         return [(ln, tt) for ln, tt in self.db.execute(stmt)]
+
+    def dong_xuat_cho_cua_kho(self, kho_id: int) -> list[tuple[StockRequestLine, StockRequest]]:
+        """Dòng đề nghị XUẤT còn treo ở MỘT kho mà KHÔNG gắn lệnh/bài (giao hàng, gia công ngoài, xuất
+        lẻ) — phần "Sắp xuất" màn Tồn kho phải cộng thêm ngoài lệnh (12/10/2026). Dòng gắn lệnh/bài đã
+        nằm trong bảng cân đối (`dong_xuat_theo_lenh`), cộng nữa là trừ hai lần.
+
+        Bỏ nháp (người tạo chưa gửi) và đề nghị đã xong / huỷ / bị từ chối.
+
+        Đề nghị CHƯA chọn kho (Giao hàng gửi, thủ kho chọn kho lúc lập phiếu) tính cho mọi kho — bên gọi
+        chỉ ghép vào mặt hàng kho đó đang có lô, nên thực tế rơi vào kho đang giữ hàng."""
+        stmt = (
+            select(StockRequestLine, StockRequest)
+            .join(StockRequest, StockRequest.id == StockRequestLine.request_id)
+            .where(
+                StockRequest.loai == REQ_XUAT,
+                or_(StockRequest.kho_id == kho_id, StockRequest.kho_id.is_(None)),
+                StockRequest.trang_thai.notin_([REQ_DRAFT, REQ_DONE, REQ_REJECTED, REQ_CANCELLED]),
+                StockRequestLine.lsx_id.is_(None),
+                StockRequestLine.bai_ghep_id.is_(None),
+            )
+            .order_by(StockRequest.id, StockRequestLine.id)
+        )
+        return [(ln, req) for ln, req in self.db.execute(stmt)]
 
     def khoa_nguoi_tao(self, user_id: int) -> None:
         """Khoá dòng tài khoản tới hết transaction — hai lượt "Gửi yêu cầu" của CÙNG một người xếp

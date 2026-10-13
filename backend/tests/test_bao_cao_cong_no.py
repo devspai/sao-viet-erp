@@ -35,6 +35,8 @@ from tests.test_payables_api import (
     _phieu_chi,
     _supplier,
 )
+from app.db import SessionLocal
+from app.models.order import Order, OrderLine, STATUS_ORDERED
 from tests.test_sales_invoices_api import _add_deposit, _invoice_payload, _sales_order
 
 
@@ -475,3 +477,109 @@ def test_khoa_ro_la_thi_bo_qua_khong_no_422(client):
         headers=headers,
     )
     assert r.status_code == 200, r.text
+
+
+def test_xep_theo_con_no_cho_dang_bieu_do(client):
+    """`sap_xep=con_no`: trang đầu là đối tượng nợ NHIỀU nhất (dạng biểu đồ lấy làm top), còn dòng
+    Cộng vẫn là của MỌI dòng. Mặc định giữ thứ tự tên; khoá lạ ⇒ 422."""
+    headers = _headers(client)
+    for ten, sl in (("NCC Xep A", 100), ("NCC Xep B", 400)):
+        ncc = _supplier(client, headers, name=ten)
+        don = _don(client, headers, ncc["id"])
+        _da_mua(client, headers, don["id"])
+        _ghi_dot(client, headers, don["id"],
+                 lines=[{"purchase_request_line_id": _dong_dau_tien(don), "quantity": sl}], ngay=_ngay(5))
+
+    def goi(**them):
+        return client.get(
+            "/api/accounting/reports/payables",
+            params={"tu_ngay": _ngay(30), "den_ngay": _ngay(0), "page": 1, "size": 1, **them},
+            headers=headers,
+        )
+
+    theo_ten = goi().json()
+    assert theo_ten["items"][0]["ten"] == "NCC Xep A"
+    theo_no = goi(sap_xep="con_no").json()
+    assert theo_no["items"][0]["ten"] == "NCC Xep B"
+    assert theo_no["total"] == 2
+    assert theo_no["tong"]["cuoi_co"] == 1_100_000, "dòng Cộng của cả hai, không chỉ trang đầu"
+    assert goi(sap_xep="tien").status_code == 422
+
+
+def test_moc_han_cong_lai_bang_con_no_khi_coc_nam_o_don_khac(client):
+    """⭐ Sáu mốc hạn của một khách cộng lại ĐÚNG bằng còn nợ cuối kỳ của sổ.
+
+    Khách nợ hoá đơn ở đơn A, ứng trước ở đơn B (chưa có hoá đơn). Sổ trừ tiền ứng vào số dư; vòng
+    cấn đích danh không có hoá đơn nào của đơn B để trừ. Trước 12/10/2026 mốc hạn vẫn ra nguyên
+    hoá đơn, lệch với cột Còn nợ cuối kỳ ngay trên cùng dòng (dữ liệu dev: CAFÉ KATINAT thừa
+    387.247). Tab "Hoá đơn còn nợ" đi cùng vòng nên cũng phải ra đúng số đó."""
+    headers = _headers(client)
+    don_a, khach = _sales_order(suffix="LECH1", term_days=0)
+    db = SessionLocal()
+    try:
+        don_b = Order(order_no="DH-HD-LECH1-B", customer_id=khach, status=STATUS_ORDERED, ordered_at=None)
+        don_b.lines.append(OrderLine(description="Hộp", qty=10, don_vi_tinh="box", line_total=200_000,
+                                     vat_pct_estimate=0))
+        db.add(don_b)
+        db.commit()
+        don_b_id = don_b.id
+    finally:
+        db.close()
+    r = client.post(
+        "/api/accounting/sales-invoices",
+        json={**_invoice_payload(don_a, number="70000031", amount=500_000), "invoice_date": _ngay(10)},
+        headers=headers,
+    )
+    assert r.status_code == 201, r.text
+    _add_deposit(don_b_id, 120_000)
+
+    bc = _bao_cao(client, headers, "receivables", tu=_ngay(30), den=_ngay(0))
+    d = _dong(bc, "test LECH1")
+    assert d["cuoi_no"] == 380_000
+    assert sum(v["amount"] for v in d["aging"].values()) == 380_000
+    assert d["aging"]["d8_15"]["amount"] == 380_000, "hoá đơn trễ 10 ngày, phần còn lại vẫn ở mốc đó"
+    khoan = client.get(
+        "/api/accounting/reports/receivables/khoan-con-no",
+        params={"doi_tuong_id": khach, "tu_ngay": _ngay(30), "den_ngay": _ngay(0)},
+        headers=headers,
+    )
+    assert khoan.status_code == 200, khoan.text
+    assert khoan.json()["tong"] == 380_000
+
+    # Màn Công nợ phải thu (ảnh chụp hôm nay) ra cùng số với sổ; ngăn chi tiết ghi tiền ứng của
+    # đơn B vào cột Trừ cọc của hoá đơn để Giá trị − Trừ cọc − Đã thu vẫn bằng Còn nợ.
+    man = client.get("/api/accounting/receivables", params={"q": "test LECH1"}, headers=headers)
+    assert man.status_code == 200, man.text
+    dong = man.json()["items"][0]
+    assert dong["total_due"] == 380_000
+    assert sum(a["amount"] for a in dong["aging"].values()) == 380_000
+    ngan = client.get(f"/api/accounting/receivables/{khach}", headers=headers).json()
+    assert ngan["total_due"] == 380_000
+    hd = ngan["items"][0]
+    assert (hd["amount"], hd["deposit_offset_amount"], hd["direct_received_amount"], hd["remaining_amount"]) == (
+        500_000, 120_000, 0, 380_000
+    )
+
+
+def test_can_theo_so_du_tra_thua_tru_khoan_cu_hoan_tien_cong_khoan_moi():
+    """Hàm cân: tiền thừa trừ khoản tới hạn SỚM nhất; hoàn tiền cộng ngược vào khoản MUỘN nhất,
+    không quá giá trị gốc; đối tượng dư bên kia thì mọi khoản về 0."""
+    from datetime import date
+
+    from app.services.bao_cao_cong_no import _can_theo_so_du
+
+    def k(dt, so, han, goc, con):
+        return {"doi_tuong_id": dt, "so_ct": so, "ngay": han, "han": han, "goc": goc, "con_no": con}
+
+    khoan = [
+        k(1, "cu", date(2026, 9, 1), 300, 300),
+        k(1, "moi", date(2026, 10, 1), 500, 500),
+        k(2, "cu", date(2026, 9, 1), 400, 300),
+        k(2, "moi", date(2026, 10, 1), 600, 100),
+        k(3, "x", date(2026, 9, 1), 200, 200),
+    ]
+    ra = {(x["doi_tuong_id"], x["so_ct"]): x["con_no"] for x in _can_theo_so_du(khoan, {1: 650, 2: 1_000})}
+    assert (ra[(1, "cu")], ra[(1, "moi")]) == (150, 500), "thừa 150 trừ vào khoản cũ trước"
+    assert (ra[(2, "cu")], ra[(2, "moi")]) == (400, 600), "hoàn 600: khoản mới đầy 500, 100 còn lại vào khoản cũ"
+    assert ra[(3, "x")] == 0, "không còn nợ trên sổ thì không còn mốc hạn"
+    assert khoan[0]["con_no"] == 300, "không sửa vào danh sách gốc"

@@ -174,6 +174,25 @@ class KhoGiaGocRepository:
         ).all()
         return rows, int(total)
 
+    def lo_chua_gia_goc_toi(self, *, den_ngay: date, kho_ids: list[int] | None = None) -> list[tuple]:
+        """Mọi lô (gốc + lô sinh ra từ nó) của thành phẩm KCS mà lô gốc còn giá 0, nhập tới hết
+        `den_ngay`, ở `kho_ids` (None = mọi kho). Mỗi row `(lô, tên hàng)`, cũ nhất trước — cho luật
+        "còn hàng chưa có giá gốc thì không chốt kỳ"."""
+        # Hai câu: lồng thẳng làm câu con tự nối vào `StockLot` của câu ngoài (cùng bảng) ⇒ sót lô.
+        goc_chua_gia = list(self.db.execute(self._lo_goc_tu_kcs(StockLot.id).where(
+            func.coalesce(StockVoucherLine.don_gia, 0) == 0)).scalars())
+        if not goc_chua_gia:
+            return []
+        stmt = (
+            select(StockLot, VatTuInAn.ten)
+            .outerjoin(VatTuInAn, VatTuInAn.id == StockLot.hang_id)
+            .where(func.coalesce(StockLot.lo_goc_id, StockLot.id).in_(goc_chua_gia),
+                   StockLot.ngay_nhap <= den_ngay)
+        )
+        if kho_ids:
+            stmt = stmt.where(StockLot.kho_id.in_(kho_ids))
+        return self.db.execute(stmt.order_by(StockLot.ngay_nhap, StockLot.id)).all()
+
     def ton_theo_goc(self, goc_ids) -> dict[int, tuple[float, int]]:
         """`{lô gốc: (Σ còn lại của cả họ lô — đơn vị gốc, số lô trong họ)}`."""
         ids = {int(i) for i in goc_ids if i}

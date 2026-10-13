@@ -36,6 +36,8 @@ export const THU_TU_O_MOI = [
   "beneficiary_bank_name",
   "beneficiary_account_number",
   "beneficiary_account_holder",
+  "muc_thu_chi_id",
+  "customer_id",
   "content",
   "chung_tu",
 ];

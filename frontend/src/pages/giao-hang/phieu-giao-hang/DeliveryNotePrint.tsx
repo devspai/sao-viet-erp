@@ -2,12 +2,11 @@
 // (kiêm chứng từ đối chiếu tiền), KHÔNG lộ MST/cost/margin. Ngày giao chừa TRỐNG để ghi tay; số
 // phiếu mượn số đơn (chưa có sổ cấp số phiếu giao riêng — đó là module giao hàng làm sau).
 // Data lấy trực tiếp từ OrderDetail đã fetch ở màn Đơn hàng bán.
-// Có `yc` (19/09/2026) ⇒ in theo MỘT yêu cầu giao: số phiếu = mã yêu cầu, SL = SL của yêu cầu,
-// tiền co theo SL đó, người nhận / địa chỉ lấy của yêu cầu (đông cứng lúc lập).
+// In theo MỘT yêu cầu giao đã chuyển sang PhieuXuatBanHangPrint (13/10/2026) — tờ này chỉ còn bản cả đơn.
 // (tách từ pages/DeliveryNotePrint.tsx).
 import { PrintSheet } from "../../../components/PrintSheet";
 import { gopTheoNhom } from "../../../utils/gop-nhom";
-import type { DonTienDoYeuCau, OrderDetail } from "../../../api/client";
+import type { OrderDetail } from "../../../api/client";
 
 const money = (n: number | null | undefined): string => Math.round(n || 0).toLocaleString("vi-VN");
 // Đơn giá KHÔNG làm tròn: dòng gộp (ruột + bìa) hay ra số lẻ .5 — làm tròn xong khách nhân
@@ -30,12 +29,10 @@ export function DeliveryNotePrint({
   d,
   onClose,
   canPrint,
-  yc,
 }: {
   d: OrderDetail;
   onClose: () => void;
   canPrint?: boolean;
-  yc?: DonTienDoYeuCau | null;
 }) {
   // Gộp dòng cùng nhãn `nhom` y như bản báo giá → tờ giao khớp "quyển sách" (ruột + bìa gộp), đúng
   // thứ giao tận tay chứ không phải linh kiện rời. Đơn bên trong vẫn giữ từng dòng để sinh LSX riêng.
@@ -49,29 +46,19 @@ export function DeliveryNotePrint({
     tienVat: Math.round(((l.line_total ?? 0) * (l.vat_pct_estimate || 0)) / 100),
     vatPct: l.vat_pct_estimate,
   }));
-  // Theo yêu cầu: yêu cầu chỉ giữ dòng ĐẦU mỗi cụm ⇒ SL của nhóm = số lớn nhất khớp id trong nhóm.
-  const slYc = new Map((yc?.dong ?? []).map((x) => [x.order_line_id, x.qty]));
-  const dongIn = yc
-    ? dongGop
-        .map((g) => {
-          const sl = Math.max(0, ...g.goc.map((x) => slYc.get(x.id) ?? 0));
-          const tile = g.soLuong > 0 ? sl / g.soLuong : 0;
-          return { ...g, soLuong: sl, thanhTien: g.thanhTien * tile, tienVat: g.tienVat * tile };
-        })
-        .filter((g) => g.soLuong > 0)
-    : dongGop;
-  const total = yc ? dongIn.reduce((a, g) => a + g.thanhTien, 0) : d.total ?? 0;
-  const vat = yc ? dongIn.reduce((a, g) => a + g.tienVat, 0) : Math.max(0, (d.total_with_vat ?? 0) - total);
-  const tongVat = yc ? total + vat : d.total_with_vat ?? 0;
+  const dongIn = dongGop;
+  const total = d.total ?? 0;
+  const vat = Math.max(0, (d.total_with_vat ?? 0) - total);
+  const tongVat = d.total_with_vat ?? 0;
   const remaining = Math.max(0, (d.total_with_vat ?? 0) - (d.deposit_received ?? 0));
-  const nguoiNhan = yc ? yc.nguoi_nhan : d.delivery_contact_name;
-  const sdt = yc ? yc.sdt_nguoi_nhan : d.delivery_contact_phone;
-  const diaChi = yc ? yc.dia_chi : d.delivery_address;
+  const nguoiNhan = d.delivery_contact_name;
+  const sdt = d.delivery_contact_phone;
+  const diaChi = d.delivery_address;
 
   return (
     <PrintSheet
       title="PHIẾU GIAO HÀNG"
-      docNo={yc ? `${yc.code} · ${d.order_no}` : d.order_no}
+      docNo={d.order_no}
       onClose={onClose}
       canPrint={canPrint}
     >
@@ -83,8 +70,8 @@ export function DeliveryNotePrint({
             <b>{d.customer_name ?? "—"}</b>
           </div>
           <div>
-            <span className="ps-lbl">{yc ? "Ngày cần giao: " : "Hạn giao: "}</span>
-            <b>{fmtDate(yc ? yc.ngay_can_giao : d.delivery_committed_date)}</b>
+            <span className="ps-lbl">Hạn giao: </span>
+            <b>{fmtDate(d.delivery_committed_date)}</b>
           </div>
           {nguoiNhan || sdt ? (
             <div>
@@ -184,7 +171,6 @@ export function DeliveryNotePrint({
       </div>
 
       {/* Thanh toán — lúc nhận hàng người ta cần biết còn nợ bao nhiêu */}
-      {!yc && (
       <div className="ps-pay">
         <div>
           <span className="ps-lbl">Đã thanh toán</span>
@@ -195,7 +181,6 @@ export function DeliveryNotePrint({
           <b>{money(remaining)} đ</b>
         </div>
       </div>
-      )}
 
       {/* Biên nhận: ai giao · ai nhận · ai lập — đây là dấu vết giao hàng (POD) */}
       <div className="ps-signs ps-signs--3">

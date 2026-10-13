@@ -82,6 +82,8 @@ export function AccountingReceivablesPage({
   // Thu tiền = lập phiếu thu ⇒ hỏi quyền của MÀN PHIẾU THU, không phải màn này.
   const quyen = {
     thu: can("phieu_thu", "create"),
+    // Trả lại tiền cho khách = lập phiếu chi ⇒ quyền của màn Phiếu chi.
+    traLai: can("phieu_chi", "create"),
     xemPhieuThu: can("phieu_thu", "read"),
     xemKhach: can("khach_hang", "read"),
     xemDonBan: can("don_hang_ban", "read"),

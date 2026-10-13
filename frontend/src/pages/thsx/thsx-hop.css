@@ -15,6 +15,8 @@
   cursor: pointer; padding: 2px 4px; border-radius: 6px; }
 .thsx-hop__x:hover { background: var(--rule-hair); }
 .thsx-hop__than { padding: 14px 22px 6px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; min-height: 0; }
+/* Khối con KHÔNG được co: khối có `overflow: hidden` (hộp Khoán) co về 0 rồi bị cắt đáy thay vì để thân cuộn. */
+.thsx-hop__than > * { flex-shrink: 0; }
 .thsx-hop__loi { margin: 8px 22px 0; }
 .thsx-hop__chan { padding: 14px 22px 18px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
   justify-content: flex-end; border-top: 1px solid var(--rule-hair); margin-top: 10px; }
@@ -101,10 +103,22 @@
 .thsx-gm-khoan__dau { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
 .thsx-gm-ps { border-top: 1px solid var(--rule-hair); padding: 8px 14px 10px; background: var(--paper); }
 .thsx-gm-ps ul { list-style: none; margin: 4px 0 0; padding: 0; }
-.thsx-gm-ps__chon { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; cursor: pointer; }
+/* Hàng việc phát sinh: tick + tên giãn ra, ô số lượng (khi tick) đứng ngay trước đơn giá, cao bằng hàng. */
+.thsx-gm-ps__hang { display: flex; align-items: center; gap: 12px; min-height: 36px; }
+.thsx-gm-ps__chon { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; cursor: pointer;
+  flex: 1 1 auto; min-width: 0; }
 .thsx-gm-ps__chon input { margin: 0; flex: none; }
-.thsx-gm-ps__sl { display: flex; align-items: center; gap: 8px; padding: 0 0 6px 24px; flex-wrap: wrap; }
-.thsx-gm-ps__sl .thsx-x-in { width: 110px; height: 32px; }
+/* Ô số lượng kiểu `.thsx-gm-so` thu nhỏ: đơn vị nằm trong ô, không mũi tên tăng giảm của trình duyệt. */
+.thsx-gm-ps__o { display: flex; align-items: center; gap: 6px; flex: none; width: 168px; height: 32px; box-sizing: border-box;
+  padding: 0 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--canvas); cursor: text; }
+.thsx-gm-ps__o:focus-within { border-color: var(--ash); }
+.thsx-gm-ps__o.is-loi { border-color: var(--tt-do-fg); }
+.thsx-gm-ps__o input { flex: 1; min-width: 0; border: 0; outline: none; background: none; padding: 0; color: var(--ink);
+  font: inherit; font-size: 13.5px; font-family: var(--ff-num); font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.thsx-gm-ps__o input::-webkit-outer-spin-button,
+.thsx-gm-ps__o input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.thsx-gm-ps__o span { flex: none; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
+.thsx-gm-ps__loi { display: block; padding: 0 0 4px 24px; }
 .thsx-gm-so { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 10px;
   padding: 0 12px; background: var(--canvas); }
 .thsx-gm-so:focus-within { border-color: var(--ash); }

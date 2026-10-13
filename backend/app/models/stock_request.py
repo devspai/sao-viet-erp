@@ -246,5 +246,9 @@ class StockRequestLine(Base):
     don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # LÔ GỐC của hàng khách trả về (mg 0401, 12/10/2026): yêu cầu nhập trả của Giao hàng tách dòng theo
+    # lô gốc đã xuất ra hàng đó; ghi sổ chép sang lô mới ⇒ lô trả về thuộc họ lô gốc, nhận giá gốc kế
+    # toán gõ sau và vẫn thuộc đơn / khách cũ. Soft ref `stock_lots.id`. NULL với mọi yêu cầu khác.
+    lo_goc_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     request: Mapped[StockRequest] = relationship("StockRequest", back_populates="lines")

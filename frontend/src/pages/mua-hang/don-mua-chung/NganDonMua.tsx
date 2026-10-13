@@ -557,8 +557,10 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
         <table className="lds-g">
           <colgroup>
             <col style={{ width: 96 }} />
-            <col style={{ width: 100 }} />
-            <col style={{ width: 150 }} />
+            <col style={{ width: 120 }} />
+            <col style={{ width: 130 }} />
+            <col style={{ width: 92 }} />
+            <col style={{ width: 110 }} />
             <col style={{ width: 104 }} />
             <col style={{ width: 66 }} />
             <col style={{ width: 112 }} />
@@ -569,8 +571,10 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
           <thead>
             <tr>
               <th>Đợt</th>
-              <th>Ngày nhận</th>
-              <th>Hoá đơn</th>
+              <th>Ngày nhận hàng</th>
+              <th>Số hoá đơn</th>
+              <th>Ký hiệu</th>
+              <th>Ngày hoá đơn</th>
               <th>Hạn trả</th>
               <th className="n">Số món</th>
               <th className="n">Giá trị</th>
@@ -597,6 +601,8 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                         </a>
                       )}
                     </td>
+                    <td className="lds-mu">{d.invoice_symbol ?? ""}</td>
+                    <td>{d.invoice_date ? fmtDate(d.invoice_date) : ""}</td>
                     <td><OHan dot={d} /></td>
                     <td className="n">{d.lines.length}</td>
                     <td className="n">{so(d.amount)}</td>
@@ -641,7 +647,7 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                   </tr>
                   {moRa && (
                     <tr>
-                      <td colSpan={7}>
+                      <td colSpan={9}>
                         <div className="lds-bang lds-bang--long">
                           <table className="lds-g">
                             <colgroup>
@@ -716,6 +722,8 @@ function TabThanhToan({
       <td>{fmtDate(v.voucher_date)}</td>
       <td />
       <td />
+      <td />
+      <td />
       <td className="n"><span className={v.status === "cancelled" ? "mh-gach" : undefined}>{so(v.amount_vnd)}</span></td>
       <td />
       <td />
@@ -738,6 +746,8 @@ function TabThanhToan({
           <colgroup>
             <col />
             <col style={{ width: 100 }} />
+            <col style={{ width: 104 }} />
+            <col style={{ width: 88 }} />
             <col style={{ width: 100 }} />
             <col style={{ width: 110 }} />
             <col style={{ width: 110 }} />
@@ -747,7 +757,10 @@ function TabThanhToan({
           <thead>
             <tr>
               <th>Đợt và phiếu chi</th>
+              {/* Dòng đợt: ngày nhận hàng; dòng phiếu chi: ngày chi. */}
               <th>Ngày</th>
+              <th>Số hoá đơn</th>
+              <th>Ký hiệu</th>
               <th>Hạn trả</th>
               <th className="n">Giá trị</th>
               <th className="n">Đã chi</th>
@@ -760,6 +773,8 @@ function TabThanhToan({
               <>
                 <tr>
                   <td>Tiền cọc</td>
+                  <td />
+                  <td />
                   <td />
                   <td />
                   <td className="n">{row.deposit_expected > 0 ? so(row.deposit_expected) : ""}</td>
@@ -777,11 +792,12 @@ function TabThanhToan({
             {dots.map((d) => (
               <Fragment key={d.id}>
                 <tr>
-                  <td>
-                    Đợt {d.seq_no}
-                    {d.invoice_number && <span className="mh-tag mh-tag--vien">{d.invoice_number}</span>}
+                  <td>Đợt {d.seq_no}</td>
+                  <td title="Ngày nhận hàng">{fmtDate(d.delivery_date)}</td>
+                  <td title={d.invoice_date ? `Ngày hoá đơn ${fmtDate(d.invoice_date)}` : undefined}>
+                    {d.invoice_number || <span className="mh-mo3">Chưa có</span>}
                   </td>
-                  <td>{fmtDate(d.delivery_date)}</td>
+                  <td className="lds-mu">{d.invoice_symbol ?? ""}</td>
                   <td><OHan dot={d} /></td>
                   <td className="n">{so(d.amount)}</td>
                   <td className="n" title={d.coc_bu > 0 ? `Gồm ${so(d.coc_bu)} trừ từ cọc` : undefined}>

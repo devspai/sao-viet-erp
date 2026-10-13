@@ -78,10 +78,11 @@ NHAN: dict[str, str] = {
     "don_vi_dong_goi": "Đơn vị đóng gói",
     "quy_cach": "Quy cách",
     "so_luong_dong_goi": "SL đóng gói",
-    # Cột chung `giay_nguyen`/`vat_tu_in_an` (mg 0239) — màn Giấy hiện "Giấy thay thế", màn Vật tư
-    # hiện "Vật tư thay thế" (`rebuildCatalogConfigs.tsx`); NHAN dùng chung một dict cho mọi danh
-    # mục nên gộp về một nhãn trung tính đọc được ở cả hai màn.
+    # Cột chung `giay_nguyen`/`vat_tu_in_an` (mg 0239) — ô đã bỏ ở mg 0405, giữ nhãn để nhật ký cũ
+    # còn đọc được.
     "thay_the_ids": "Hàng thay thế",
+    # Mục thu chi (11/10/2026) — ô đã bỏ ở mg 0397, giữ nhãn để nhật ký cũ còn đọc được.
+    "can_khach_hang": "Trả lại tiền cho khách",
     # Máy · công đoạn · bù hao
     "loai": "Loại",
     # `may_thiet_bi.loai_may` GIỮ giá trị mà màn gọi là "Nhóm máy" (ô chọn `NhomMayField`, danh mục
@@ -285,7 +286,8 @@ _DUNG_CU = {"khuon_be": "Khuôn bế", "khuon_ep": "Khuôn ép kim", "khung_lua"
 GIA_TRI_NHAN: dict[str, dict[str, str]] = {
     "tinh_trang": {"dang_dung": "Đang dùng", "dang_dat_lam": "Đang đặt làm", "hong": "Hỏng",
                    "thanh_ly": "Thanh lý"},
-    "loai": _DUNG_CU,
+    # `loai` của Mục thu chi là thu/chi; của khuôn là loại dụng cụ — hai bộ mã không đụng nhau.
+    "loai": {**_DUNG_CU, "thu": "Thu", "chi": "Chi"},
     "tooling_type": _DUNG_CU,
     "nhom": {"prepress": "Trước In", "print": "In", "finishing": "Gia công sau in",
              "other": "Dịch vụ khác"},

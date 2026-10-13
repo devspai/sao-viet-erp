@@ -36,6 +36,7 @@ from ..doi_tuong_nhan import MAN_BAN_HANG
 from ..realtime import hub
 from ..repositories.user_repo import UserRepository
 from ..security import decode_access_token
+from ..services.thanh_phan_engine import cum_san_pham
 from ..services.auth_service import AuthError, AuthService
 from ..services.pdf_font import DAM, THUONG, cat_vua, dang_ky_font
 from ..models.quotation import (
@@ -144,13 +145,20 @@ def _row(
 
     items = list(active_version.items) if active_version else []
 
-    # "Catalogue A4 + 2 SP khác"
+    # "Catalogue A4 + 2 SP khác". Đếm theo SẢN PHẨM như bản in (13/10/2026): ruột + bìa cùng nhãn
+    # `nhom`, cùng SL là MỘT dòng mang tên nhóm (`cum_san_pham`), không phải "Ruột sách … +1".
+    # Cụm/dòng trùng tên hiển thị gộp tiếp, đúng bản in (`utils/gop-nhom.ts`).
     product_summary = None
+    names_seen: list[str] = []
     if items:
-        names_seen: list[str] = []
-        for it in items:
-            if it.product_name not in names_seen:
-                names_seen.append(it.product_name)
+        cum = cum_san_pham([
+            (it.product_name or "", it.nhom, int(it.quantity or 0))
+            for it in sorted(items, key=lambda x: x.line_no or 0)
+        ])
+        for k in cum:
+            if k["ten"] and k["ten"] not in names_seen:
+                names_seen.append(k["ten"])
+    if names_seen:
         product_summary = names_seen[0] + (f" + {len(names_seen) - 1} SP khác" if len(names_seen) > 1 else "")
         san_pham, so_sp_khac = names_seen[0], len(names_seen) - 1
     else:

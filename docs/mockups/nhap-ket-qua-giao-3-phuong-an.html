@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nhập kết quả giao</title>
+<style>
+  :root{
+    --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --soft:#f8fafc; --paper:#fff;
+    --accent:#c2410c; --la-bg:#dcfce7; --la-fg:#15803d; --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8;
+    --vang-bg:#fef3c7; --vang-fg:#b45309; --do-bg:#fee2e2; --do-fg:#b91c1c; --tim-bg:#ede9fe; --tim-fg:#6d28d9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef1f5;color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+  b,h1,h2,h3,h4,th{font-weight:500}
+  .trang{max-width:1240px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:22px;margin:0 0 6px} h2{font-size:18px;margin:44px 0 4px} h3{font-size:14px;margin:18px 0 8px;color:var(--mute)}
+  p.mo{color:var(--mute);margin:0 0 12px;max-width:940px}
+  .ghi{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0;max-width:940px}
+  .ghi ul{margin:6px 0 0;padding-left:20px} .ghi li{margin:3px 0}
+  .mute{color:var(--mute)} .nho{font-size:12px}
+  .hang{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+
+  .btn{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink);white-space:nowrap}
+  .btn--chinh{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn--goi-y{border-style:dashed;color:var(--xanh-fg);border-color:#bfdbfe;background:#f8fbff;padding:4px 10px;font-size:12px}
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px;font-size:12px;white-space:nowrap}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+  .c-xanh{background:var(--xanh-bg);color:var(--xanh-fg)} .c-la{background:var(--la-bg);color:var(--la-fg)}
+
+  /* Ô số đồng hồ chung cho cả ba */
+  .o-km{display:flex;align-items:center;border:1px solid #cbd5e1;border-radius:8px;background:#fff;height:52px;padding:0 12px;gap:8px;width:100%}
+  .o-km input{border:0;outline:0;font:inherit;font-size:22px;flex:1;min-width:0;font-variant-numeric:tabular-nums;background:transparent}
+  .o-km input::placeholder{color:#94a3b8;font-size:15px}
+  .o-km span{color:var(--mute)}
+  .o-km.dang{border-color:#64748b;box-shadow:0 0 0 3px rgba(100,116,139,.18)}
+  .o{display:flex;align-items:center;border:1px solid #cbd5e1;border-radius:8px;background:#fff;height:40px;padding:0 12px;width:100%}
+  .o input{border:0;outline:0;font:inherit;flex:1;background:transparent}
+  .nhan{display:block;font-size:13px;color:var(--mute);margin:14px 0 6px}
+  .nhan--hai{display:flex;justify-content:space-between;gap:8px}
+  .nhan--hai em{font-style:normal;color:var(--ink);white-space:nowrap}
+  .dt .nhan--hai{flex-direction:column;gap:2px}
+  .goi{font-size:12px;color:var(--mute);margin-top:6px}
+  .chang{display:flex;align-items:baseline;gap:8px;margin-top:8px;font-size:13px}
+  .chang .so{font-size:18px;font-variant-numeric:tabular-nums}
+  .loi{font-size:12px;color:var(--do-fg);margin-top:6px}
+
+  /* Nút chọn kết quả: ba ô ngang */
+  .chon{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .chon span{border:1px solid var(--line);border-radius:8px;padding:9px 6px;text-align:center;font-size:13px;cursor:pointer;background:#fff}
+  .chon span.on{border-color:var(--la-fg);background:var(--la-bg);color:var(--la-fg)}
+  .chon span.on-vang{border-color:var(--vang-fg);background:var(--vang-bg);color:var(--vang-fg)}
+  .chon span.on-do{border-color:var(--do-fg);background:var(--do-bg);color:var(--do-fg)}
+  .chon--doc{grid-template-columns:1fr}
+  .chon--doc span{padding:14px;font-size:15px;text-align:left}
+
+  .dsh{margin:0;padding:0;list-style:none;font-size:13px}
+  .dsh li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line)}
+  .dsh li:last-child{border-bottom:0}
+  .dsh .sl{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dsh input{width:80px;border:1px solid #cbd5e1;border-radius:6px;padding:4px 8px;text-align:right;font:inherit}
+  .the-chu{font-size:15px}
+  .nhom-ly{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .nhom-ly span{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;background:#fff}
+  .nhom-ly span.on{border-color:var(--do-fg);color:var(--do-fg);background:var(--do-bg)}
+  .canh{background:var(--vang-bg);color:var(--vang-fg);border-radius:8px;padding:8px 12px;font-size:13px;margin-top:10px}
+
+  /* A: hộp thoại */
+  .hop{background:#fff;border-radius:12px;width:440px;max-width:100%;box-shadow:0 20px 50px rgba(15,23,42,.18);padding:20px 22px}
+  .hop h4{margin:0;font-size:16px}
+  .hop .chan{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+  /* B: thẻ điểm trên lộ trình */
+  .ngan{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 30px rgba(15,23,42,.08);width:900px;max-width:100%;overflow:hidden}
+  .ngan__dau{padding:14px 22px 0}
+  .tabs{display:flex;gap:20px;border-bottom:1px solid var(--line);margin-top:10px}
+  .tabs span{padding:8px 0;color:var(--mute)} .tabs span.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+  .than{padding:16px 22px 22px}
+  .dai{display:flex;align-items:flex-start;margin:0 0 14px}
+  .diem{flex:none;width:120px;text-align:center;padding:6px;border-radius:10px;font-size:13px}
+  .diem.chon-d{background:#eef2ff}
+  .diem .tron{width:26px;height:26px;border-radius:50%;border:1.5px solid #cbd5e1;margin:0 auto 4px;display:grid;place-items:center;font-size:12px;color:var(--mute);background:#fff}
+  .diem.xong .tron{background:var(--la-fg);border-color:var(--la-fg);color:#fff}
+  .diem.dang .tron{border-color:var(--xanh-fg);color:var(--xanh-fg)}
+  .diem small{display:block;color:var(--mute);font-size:12px}
+  .noi{flex:1;height:1.5px;background:#cbd5e1;margin-top:19px;min-width:30px;position:relative}
+  .noi em{position:absolute;top:-17px;left:50%;transform:translateX(-50%);font-style:normal;font-size:11px;color:var(--mute);white-space:nowrap}
+  .the{border:1px solid var(--line);border-radius:10px}
+  .the__dau{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .the__than{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .the__than > div{padding:14px 16px}
+  .the__than > div + div{border-left:1px solid var(--line);background:var(--soft)}
+  .the__chan{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:4px 12px;font-size:13px;margin:0}
+  .kv dt{color:var(--mute)} .kv dd{margin:0}
+
+  /* C: từng bước */
+  .buoc{display:flex;gap:6px;margin:10px 0 4px}
+  .buoc span{flex:1;height:4px;border-radius:2px;background:var(--line)}
+  .buoc span.xong{background:var(--accent)}
+
+  /* Điện thoại */
+  .dt{width:360px;border:10px solid #111827;border-radius:30px;background:#fff;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);flex:none}
+  .dt__dau{padding:12px 16px 8px;border-bottom:1px solid var(--line)}
+  .dt__than{padding:14px 16px;min-height:430px}
+  .dt__chan{border-top:1px solid var(--line);padding:10px 16px;background:#fff;display:flex;gap:8px}
+  .dt__chan .btn{flex:1;padding:12px;font-size:15px}
+  .dt__chan .btn:not(.btn--chinh){flex:0 0 auto}
+
+  .so-sanh{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);margin-top:12px}
+  .so-sanh th,.so-sanh td{border-bottom:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top;font-size:13px}
+  .so-sanh th{background:var(--soft);color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="trang">
+  <h1>Nhập kết quả giao tại khách: 3 phương án</h1>
+  <p class="mo">Hiện là ngăn kéo cao hết màn, nửa dưới trống. Tiêu đề là mã YCGH. Ô số đồng hồ là ô số trần, không có km. Dòng "số gần nhất đã ghi 500" là chữ của máy. Số khách nhận nằm trong ô xám bị khoá. Ô người nhận trống dù yêu cầu đã có tên. Nút Lưu nhạt khi chưa gõ số đồng hồ nhưng vẫn sáng khi thiếu người nhận.</p>
+
+  <div class="ghi">
+    Logic giữ nguyên, chỉ làm lại cách nhập. Chung cho cả ba:
+    <ul>
+      <li>Tiêu đề là tên khách và điểm thứ mấy của lượt. Mã yêu cầu xuống dòng phụ.</li>
+      <li>Kết quả là ba ô bấm: Nhận đủ, Nhận thiếu, Không giao được. Bỏ ô chọn thả xuống.</li>
+      <li>Ô số đồng hồ có chữ km, chấm nghìn, bàn phím số trên điện thoại. Gõ tới đâu hiện chặng tới đó: "Từ Rời kho 500 km, chặng này 18 km". Gõ dở không báo lùi.</li>
+      <li>Nhận đủ thì số hàng là chữ, không phải ô khoá. Nhận thiếu mới mở ô gõ từng món.</li>
+      <li>Người nhận lấy sẵn tên người nhận của yêu cầu, bấm "Người khác nhận" mới gõ. Cùng cách với số rời kho đứng sẵn.</li>
+      <li>Nút Lưu luôn đậm. Bấm khi còn thiếu thì báo đỏ ngay dưới ô thiếu, không để máy chủ báo.</li>
+      <li>Không giao được: chọn nhanh lý do hay gặp hoặc gõ, câu "hàng quay về kho" nói rõ trên hộp.</li>
+    </ul>
+    <p class="nho mute" style="margin:8px 0 0">Tham khảo: các ứng dụng giao hàng cho tài xế như Onfleet và Circuit cho chọn kết quả trước rồi mới hỏi phần còn lại theo kết quả đó; người nhận điền sẵn từ đơn, chỉ sửa khi người khác ký nhận. Fleetio luôn đặt số đồng hồ hiện tại của xe cạnh ô gõ.</p>
+  </div>
+
+  <!-- ======================= A ======================= -->
+  <h2>A. Hộp thoại giữa màn, cùng khuôn hộp Bắt đầu giao</h2>
+  <div class="ghi">Số trước là số của ĐIỂM LIỀN TRƯỚC trên lộ trình: đang ghi điểm 4 thì hiện số điểm 3, và số gõ vào không được thấp hơn số đó (màn chặn, máy chủ cũng chặn). Điểm 1 thì số trước là số rời kho. Điểm liền trước chưa có số thì lùi tiếp tới điểm gần nhất đã có số.</div>
+  <p class="mo">Bấm "Nhập kết quả" ở thẻ điểm thì mở hộp 440px giữa màn, nền mờ phía sau. Hộp chỉ cao theo nội dung. Trên điện thoại hộp phủ cả màn, nút Lưu dính đáy.</p>
+  <div class="hang">
+    <div>
+      <h3 style="margin-top:0">Nhận đủ (mặc định)</h3>
+      <div class="hop">
+        <h4>Tới CAFÉ KATINAT</h4>
+        <div class="mute nho">Điểm 4 trên 5 của lượt LX-261012-O1EQ. Yêu cầu YCGH-261012-NY46</div>
+        <span class="nhan">Kết quả</span>
+        <div class="chon"><span class="on">Nhận đủ</span><span>Nhận thiếu</span><span>Không giao được</span></div>
+        <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Điểm 3 Hoàng Long <em>500 km</em></span></span>
+        <span class="o-km dang"><input value="518"><span>km</span></span>
+        <div class="chang"><span class="mute">Chặng từ điểm 3 tới đây</span><span class="so">18 km</span></div>
+        <span class="nhan">Khách nhận</span>
+        <ul class="dsh"><li><span>Tờ rơi A4 4/4</span><span class="sl">200 tờ</span></li></ul>
+        <span class="nhan">Người nhận</span>
+        <div class="the-chu">Nguyễn Thanh Vy</div>
+        <div class="goi">Người nhận trên yêu cầu giao</div>
+        <button class="btn btn--goi-y" style="margin-top:8px">Người khác nhận</button>
+        <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Lưu kết quả</button></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Nhận thiếu, bấm Lưu khi chưa gõ số đồng hồ</h3>
+      <div class="hop">
+        <h4>Tới CAFÉ KATINAT</h4>
+        <div class="mute nho">Điểm 4 trên 5 của lượt LX-261012-O1EQ. Yêu cầu YCGH-261012-NY46</div>
+        <span class="nhan">Kết quả</span>
+        <div class="chon"><span>Nhận đủ</span><span class="on-vang">Nhận thiếu</span><span>Không giao được</span></div>
+        <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Điểm 3 Hoàng Long <em>500 km</em></span></span>
+        <span class="o-km" style="border-color:var(--do-fg)"><input placeholder="Đọc số trên đồng hồ xe"><span>km</span></span>
+        <div class="loi">Gõ số đồng hồ lúc tới khách</div>
+        <span class="nhan">Khách nhận được bao nhiêu</span>
+        <ul class="dsh"><li><span>Tờ rơi A4 4/4<br><span class="nho mute">đi 200 tờ</span></span><span><input value="180"> tờ</span></li></ul>
+        <div class="goi">20 tờ còn lại quay về kho, máy tự lập đề nghị nhập trả.</div>
+        <span class="nhan">Người nhận</span>
+        <div class="the-chu">Nguyễn Thanh Vy</div>
+        <button class="btn btn--goi-y" style="margin-top:8px">Người khác nhận</button>
+        <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Lưu kết quả</button></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Không giao được</h3>
+      <div class="hop">
+        <h4>Tới CAFÉ KATINAT</h4>
+        <div class="mute nho">Điểm 4 trên 5 của lượt LX-261012-O1EQ. Yêu cầu YCGH-261012-NY46</div>
+        <span class="nhan">Kết quả</span>
+        <div class="chon"><span>Nhận đủ</span><span>Nhận thiếu</span><span class="on-do">Không giao được</span></div>
+        <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Điểm 3 Hoàng Long <em>500 km</em></span></span>
+        <span class="o-km"><input value="518"><span>km</span></span>
+        <div class="chang"><span class="mute">Xe vẫn đã chạy tới nơi, chặng này</span><span class="so">18 km</span></div>
+        <span class="nhan">Lý do</span>
+        <div class="nhom-ly"><span class="on">Khách đóng cửa</span><span>Không liên lạc được</span><span>Khách hẹn ngày khác</span><span>Sai địa chỉ</span></div>
+        <span class="o" style="margin-top:8px"><input value="Khách đóng cửa"></span>
+        <div class="canh">Cả 200 tờ quay về kho. Muốn giao lại thì lập yêu cầu giao mới.</div>
+        <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Lưu kết quả</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Gõ thấp hơn số của điểm 3: chặn ngay, không lưu được</h3>
+  <div class="hop" style="box-shadow:none;border:1px solid var(--line)">
+    <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Điểm 3 Hoàng Long <em>500 km</em></span></span>
+    <span class="o-km" style="border-color:var(--do-fg)"><input value="480"><span>km</span></span>
+    <div class="loi">Thấp nhất là 500 km, số ở điểm 3 Hoàng Long. Đồng hồ không chạy lùi, đọc lại số trên đồng hồ xe.</div>
+    <div class="chan" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn">Thôi</button><button class="btn btn--chinh" style="opacity:.5">Lưu kết quả</button></div>
+  </div>
+  <h3>Điện thoại</h3>
+  <div class="dt">
+    <div class="dt__dau"><div class="nho mute">Điểm 4 trên 5 của LX-261012-O1EQ</div><div>Tới CAFÉ KATINAT</div></div>
+    <div class="dt__than">
+      <div class="chon"><span class="on">Nhận đủ</span><span>Nhận thiếu</span><span>Không giao được</span></div>
+      <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Điểm 3 Hoàng Long <em>500 km</em></span></span>
+      <span class="o-km dang"><input value="518"><span>km</span></span>
+      <div class="chang"><span class="mute">Chặng này</span><span class="so">18 km</span></div>
+      <span class="nhan">Khách nhận</span>
+      <ul class="dsh"><li><span>Tờ rơi A4 4/4</span><span class="sl">200 tờ</span></li></ul>
+      <span class="nhan">Người nhận</span>
+      <div class="the-chu">Nguyễn Thanh Vy</div>
+      <button class="btn btn--goi-y" style="margin-top:8px;padding:8px 12px">Người khác nhận</button>
+    </div>
+    <div class="dt__chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Lưu kết quả</button></div>
+  </div>
+
+  <!-- ======================= B ======================= -->
+  <h2>B. Ghi ngay trên thẻ điểm của lộ trình</h2>
+  <p class="mo">Không mở hộp nào. Bấm "Nhập kết quả" thì thẻ điểm đang chọn dưới dải lộ trình chuyển sang chế độ ghi: cột trái vẫn là thông tin khách và hàng, cột phải xám là phần ghi. Lưu xong thẻ quay về chế độ xem, dải lộ trình đánh dấu xong và nhảy sang điểm kế.</p>
+  <div class="ngan">
+    <div class="ngan__dau">
+      <div class="mute nho">Lượt xe</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:2px"><span style="font-size:20px">LX-261012-O1EQ</span><span class="chip c-xanh">Đang giao</span></div>
+      <div class="tabs"><span class="on">Lộ trình</span><span>Chứng từ</span><span>Lịch sử</span></div>
+    </div>
+    <div class="than">
+      <div class="dai">
+        <div class="diem xong"><div class="tron">✓</div>Rời kho<small>500 km</small></div><div class="noi"><em>18 km</em></div>
+        <div class="diem dang chon-d"><div class="tron">1</div>CAFÉ KATINAT<small>đang ghi</small></div><div class="noi"></div>
+        <div class="diem"><div class="tron"></div>Về kho<small>chưa về</small></div>
+      </div>
+      <div class="the">
+        <div class="the__dau"><span>1. CAFÉ KATINAT</span><span class="mute nho">YCGH-261012-NY46</span></div>
+        <div class="the__than">
+          <div>
+            <dl class="kv">
+              <dt>Nơi giao</dt><dd>Số 18 Đại lộ Độc Lập, KCN VSIP 1, Thuận An</dd>
+              <dt>Người nhận</dt><dd>Nguyễn Thanh Vy 0797 235 637</dd>
+              <dt>Hẹn</dt><dd>13/10</dd>
+            </dl>
+            <span class="nhan">Hàng</span>
+            <ul class="dsh"><li><span>Tờ rơi A4 4/4</span><span class="sl">200 tờ</span></li></ul>
+          </div>
+          <div>
+            <div class="chon"><span class="on">Nhận đủ</span><span>Nhận thiếu</span><span>Không giao được</span></div>
+            <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Số trước <em>500 km</em> lúc rời kho</span></span>
+            <span class="o-km dang"><input value="518"><span>km</span></span>
+            <div class="chang"><span class="mute">Chặng từ Rời kho tới đây</span><span class="so">18 km</span></div>
+            <span class="nhan">Người nhận</span>
+            <div class="the-chu">Nguyễn Thanh Vy</div>
+            <button class="btn btn--goi-y" style="margin-top:8px">Người khác nhận</button>
+          </div>
+        </div>
+        <div class="the__chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Lưu kết quả</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Điện thoại: thẻ điểm là cả màn, phần ghi nằm dưới thông tin khách</h3>
+  <div class="dt">
+    <div class="dt__dau"><div class="nho mute">LX-261012-O1EQ</div><div>1. CAFÉ KATINAT</div></div>
+    <div class="dt__than">
+      <div class="nho mute">Nguyễn Thanh Vy 0797 235 637</div>
+      <div class="nho mute">Tờ rơi A4 4/4: 200 tờ</div>
+      <div class="chon" style="margin-top:14px"><span class="on">Nhận đủ</span><span>Nhận thiếu</span><span>Không giao được</span></div>
+      <span class="nhan nhan--hai"><span>Số đồng hồ lúc tới khách</span><span>Số trước <em>500 km</em> lúc rời kho</span></span>
+      <span class="o-km dang"><input value="518"><span>km</span></span>
+      <div class="chang"><span class="mute">Chặng này</span><span class="so">18 km</span></div>
+      <span class="nhan">Người nhận</span>
+      <div class="the-chu">Nguyễn Thanh Vy</div>
+      <button class="btn btn--goi-y" style="margin-top:8px;padding:8px 12px">Người khác nhận</button>
+    </div>
+    <div class="dt__chan"><button class="btn btn--chinh">Lưu kết quả</button></div>
+  </div>
+
+  <!-- ======================= C ======================= -->
+  <h2>C. Từng bước, mỗi màn một câu hỏi (cho tài xế cầm điện thoại)</h2>
+  <p class="mo">Ba bước: kết quả thế nào, đồng hồ bao nhiêu, ai nhận. Mỗi màn chỉ một việc, nút to. Bước cuối tóm lại để bấm Lưu. Trên máy tính vẫn là hộp thoại nhưng có thanh bước.</p>
+  <div class="hang">
+    <div class="dt">
+      <div class="dt__dau"><div class="nho mute">Tới CAFÉ KATINAT</div><div>Khách nhận hàng thế nào?</div>
+        <div class="buoc"><span class="xong"></span><span></span><span></span></div></div>
+      <div class="dt__than">
+        <div class="chon chon--doc"><span class="on">Nhận đủ 200 tờ</span><span>Nhận thiếu</span><span>Không giao được</span></div>
+      </div>
+      <div class="dt__chan"><button class="btn btn--chinh">Tiếp</button></div>
+    </div>
+    <div class="dt">
+      <div class="dt__dau"><div class="nho mute">Tới CAFÉ KATINAT</div><div>Đồng hồ xe đang chỉ bao nhiêu?</div>
+        <div class="buoc"><span class="xong"></span><span class="xong"></span><span></span></div></div>
+      <div class="dt__than">
+        <span class="o-km dang"><input value="518"><span>km</span></span>
+        <div class="chang"><span class="mute">Chặng từ Rời kho tới đây</span><span class="so">18 km</span></div>
+      </div>
+      <div class="dt__chan"><button class="btn">Lùi</button><button class="btn btn--chinh">Tiếp</button></div>
+    </div>
+    <div class="dt">
+      <div class="dt__dau"><div class="nho mute">Tới CAFÉ KATINAT</div><div>Ai nhận hàng?</div>
+        <div class="buoc"><span class="xong"></span><span class="xong"></span><span class="xong"></span></div></div>
+      <div class="dt__than">
+        <div class="the-chu">Nguyễn Thanh Vy</div>
+        <div class="goi">Người nhận trên yêu cầu giao</div>
+        <button class="btn btn--goi-y" style="margin-top:8px;padding:8px 12px">Người khác nhận</button>
+        <span class="nhan" style="margin-top:22px">Sẽ lưu</span>
+        <ul class="dsh">
+          <li><span class="mute">Kết quả</span><span>Nhận đủ 200 tờ</span></li>
+          <li><span class="mute">Đồng hồ</span><span>518 km</span></li>
+          <li><span class="mute">Chặng</span><span>18 km</span></li>
+        </ul>
+      </div>
+      <div class="dt__chan"><button class="btn">Lùi</button><button class="btn btn--chinh">Lưu kết quả</button></div>
+    </div>
+  </div>
+
+  <h2>So nhanh</h2>
+  <table class="so-sanh">
+    <tr><th></th><th>A. Hộp thoại</th><th>B. Trên thẻ điểm</th><th>C. Từng bước</th></tr>
+    <tr><td>Số lần bấm khi nhận đủ</td><td>Gõ số đồng hồ, bấm Lưu</td><td>Gõ số đồng hồ, bấm Lưu</td><td>Tiếp, gõ số, Tiếp, Lưu</td></tr>
+    <tr><td>Thấy thông tin khách khi ghi</td><td>Chỉ tên và hàng</td><td>Đủ cả nơi giao, điện thoại, hẹn</td><td>Chỉ tên</td></tr>
+    <tr><td>Điện thoại</td><td>Phủ cả màn, gọn</td><td>Dài, phải cuộn qua thông tin khách</td><td>Nút to nhất, ít gõ nhầm nhất</td></tr>
+    <tr><td>Đồng bộ với hộp Bắt đầu giao</td><td>Cùng khuôn</td><td>Khác khuôn</td><td>Khác khuôn</td></tr>
+    <tr><td>Sửa code</td><td>Thay vỏ ngăn kéo bằng hộp thoại có sẵn</td><td>Nhiều hơn: thẻ điểm có hai chế độ</td><td>Nhiều nhất: ba màn và thanh bước</td></tr>
+  </table>
+</div>
+</body>
+</html>

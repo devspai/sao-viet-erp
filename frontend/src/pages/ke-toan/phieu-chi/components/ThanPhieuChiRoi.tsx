@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 
 import type { CompanyBankAccountRow, PaymentVoucherBaseInput, PaymentVoucherSource, PaymentVoucherType } from "../../../../api/client";
 import { BanXemPhieu } from "../../shared/BanXemPhieu";
+import { OChonMuc, type useMucThuChi } from "../../shared/OChonMuc";
 import { KhoiForm, ONgayPhieu, OTienLon } from "../../shared/KhungFormPhieu";
 import { dongPhuPhieuChi } from "../print";
 import { optional } from "../shared/helpers";
@@ -23,11 +24,14 @@ export function BanXemPhieuChi({
   taiKhoan,
   soChungTu,
   nguon,
+  tenMuc,
 }: {
   form: PaymentVoucherBaseInput;
   taiKhoan: CompanyBankAccountRow[];
   soChungTu: number;
   nguon: PaymentVoucherSource;
+  /** Tên mục chi đang chọn — in dòng "Mục chi". */
+  tenMuc?: string | null;
 }) {
   const ck = form.voucher_type === "bank_transfer";
   const tk = taiKhoan.find((t) => t.id === form.company_bank_account_id);
@@ -42,6 +46,7 @@ export function BanXemPhieuChi({
       dongPhu={dongPhuPhieuChi({
         voucher_type: form.voucher_type,
         source_type: nguon,
+        muc_thu_chi_ten: tenMuc ?? null,
         payment_stage: form.payment_stage,
         company_account_number: tk?.account_number ?? null,
         company_bank_name: tk?.bank_name ?? null,
@@ -82,6 +87,9 @@ export function ThanPhieuChiRoi({
   setLoiTep,
   goiSoTien,
   goiY,
+  muc,
+  nutDu,
+  vuot,
 }: {
   form: PaymentVoucherBaseInput;
   set: DatO;
@@ -99,11 +107,19 @@ export function ThanPhieuChiRoi({
   goiSoTien?: ReactNode;
   /** Chip gợi ý người nhận tiền. */
   goiY?: GoiYNguoi[];
+  /** Danh mục mục chi (form cha nạp bằng `useMucThuChi("chi")`). Vắng = phiếu sinh từ nghiệp vụ
+   *  (gia công, trả lại tiền cho khách…): mục cố định của nguồn, không có ô Mục. */
+  muc?: ReturnType<typeof useMucThuChi>;
+  /** Nút "Trả đủ …" dưới ô số tiền. */
+  nutDu?: { nhan: string; so: number };
+  /** Số tiền vượt mức cho phép — viền đỏ + câu đỏ (form cha tự chặn nút lập). */
+  vuot?: string | null;
 }) {
   return (
     <>
       <KhoiForm tieu="Tiền chi">
         <OTienLon khoa="amount" nhan="Số tiền chi" value={form.amount} onChange={(v) => set("amount", v)} loi={loi.amount}
+          nutDu={nutDu} vuot={vuot}
           goiTrong="Nhập số tiền chi ra" con={goiSoTien ? <p className="kt-khac">{goiSoTien}</p> : undefined} />
         <HangTraBang form={form} onDoiCach={onDoiCach} loi={loi} taiKhoan={taiKhoan} dangTai={dangTai} loiTai={loiTai}
           chonTaiKhoan={(v) => set("company_bank_account_id", v ? Number(v) : null)} onMoTaiKhoan={onMoTaiKhoan}
@@ -111,6 +127,11 @@ export function ThanPhieuChiRoi({
       </KhoiForm>
 
       <KhoiNguoiNhan form={form} set={set} loi={loi} luonCoTen goiY={goiY}>
+        {muc && (
+          <OChonMuc loai="chi" ds={muc.ds} dangTai={muc.dangTai} loiTai={muc.loi}
+            value={form.muc_thu_chi_id} loi={loi.muc_thu_chi_id}
+            onChange={(id) => set("muc_thu_chi_id", id)} />
+        )}
         <OF khoa="content" nhan="Lý do chi" batBuoc rong loi={loi.content}>
           <input id={idO("content")} value={form.content} placeholder="VD: Tiền điện tháng 9 xưởng in"
             aria-invalid={loi.content ? true : undefined}

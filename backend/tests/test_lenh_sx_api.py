@@ -273,6 +273,7 @@ def test_item_chi_con_cot_tinh(client, seed_credentials, sess, lenh_that):
     assert set(row) == {
         "id", "ma", "ten", "so_luong_dat", "don_vi_tinh", "khach_hang", "order_id", "order_no",
         "han_hoan_thanh_sx", "is_rush", "khau", "khau_chi_tiet", "da_dong", "created_at",
+        "han_giao_khach", "tron_goi", "nha_gia_cong", "chang",
     }
     assert row["khau"] == trang_thai.KHAU_DANG_SX
     assert row["khau_chi_tiet"] is None
@@ -665,3 +666,27 @@ def test_bo_loc_chi_tra_khach_trong_pham_vi(
 def test_summary_da_go(client, seed_credentials):
     h = _h(_tok(client, seed_credentials))
     assert client.get("/api/lenh-san-xuat/summary", headers=h).status_code in (404, 422)
+
+
+# --- 12/10/2026: dòng có tuyến bước + hạn giao; ngăn gọn ----------------------------------------
+def test_dong_co_tuyen_buoc_va_han_giao(client, seed_credentials, lenh_that):
+    h = _h(_tok(client, seed_credentials))
+    d = client.get("/api/lenh-san-xuat?page_size=200", headers=h).json()
+    row = next(i for i in d["items"] if i["id"] == lenh_that)
+    assert [c["ten"] for c in row["chang"]] == ["CTP", "In", "Đóng gói"]
+    assert {"ngoai", "kcs_loi", "trang_thai", "hien_tai"} <= set(row["chang"][0])
+    assert "han_giao_khach" in row
+    assert row["tron_goi"] is False
+
+
+def test_ngan_gon_khong_co_vat_tu_nhat_ky(client, seed_credentials, lenh_that):
+    h = _h(_tok(client, seed_credentials))
+    r = client.get(f"/api/lenh-san-xuat/{lenh_that}/ngan", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body) == {"thong_tin", "tien_do", "thong_so", "routing", "kcs", "kho", "phien_ban", "tron_goi",
+                         "kcs_cuoi"}
+    assert body["kcs_cuoi"] == {"so_lan": 0, "nhan": 0.0, "dat": 0.0, "khong_dat": 0.0}
+    assert body["tron_goi"] is None
+    assert all("kcs_khong_dat" in n for n in body["routing"]["nodes"])
+    assert client.get("/api/lenh-san-xuat/987654/ngan", headers=h).status_code == 404

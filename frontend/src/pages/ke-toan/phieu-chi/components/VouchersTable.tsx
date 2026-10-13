@@ -25,6 +25,7 @@ export const COT_PHIEU_CHI: CotPhieuChi[] = [
   { key: "ngay_chi", label: "Ngày chi", w: 104 },
   { key: "nguoi_nhan", label: "Người nhận tiền", w: 170 },
   { key: "ly_do", label: "Lý do chi", w: 220 },
+  { key: "muc", label: "Mục chi", w: 160 },
   { key: "chi_theo", label: "Chi theo", w: 190 },
   { key: "hinh_thuc", label: "Hình thức", w: 112 },
   { key: "so_tien", label: "Số tiền", n: true, w: 136 },
@@ -47,8 +48,14 @@ function OPhieuChi({ cot, row, onMoDonMua }: {
       return <td title={row.supplier_name || undefined}>{row.supplier_name || "—"}</td>;
     case "ly_do":
       return <td title={row.content || undefined}>{row.content}</td>;
+    case "muc":
+      return row.muc_thu_chi_ten
+        ? <td title={row.muc_thu_chi_ten}>{row.muc_thu_chi_ten}</td>
+        : <td><span className="lds-mu">Chưa phân loại</span></td>;
     case "chi_theo": {
       const nguon = nguonPhieu(row);
+      // Phiếu chi rời không có chứng từ nguồn — cột Mục đã nói nó là khoản gì, khỏi chữ "Khác".
+      if (!nguon.ma && nguon.loai === "Khác") return <td />;
       return (
         <td title={[nguon.loai, nguon.ma].filter(Boolean).join(" ")}>
           <span className="lds-tag">{nguon.loai}</span>

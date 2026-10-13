@@ -261,6 +261,27 @@ def get_tien_do(
         raise _map(exc)
 
 
+@router.get("/{order_id}/yeu-cau-giao/{yeu_cau_id}/phieu-xuat")
+def get_phieu_xuat_in(
+    order_id: int,
+    yeu_cau_id: int,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    svc: Service,
+    authz: Authz,
+) -> dict:
+    """Dữ liệu in "Phiếu xuất kho bán hàng" (có giá) / "Phiếu xuất kho 02-VT" (không giá) của một
+    yêu cầu giao. Kho chưa ghi sổ phiếu xuất ⇒ 400."""
+    from ..services.phieu_xuat_ban_hang import PhieuXuatChuaCo
+
+    try:
+        return svc.phieu_xuat_in(order_id=order_id, yeu_cau_id=yeu_cau_id, actor=user,
+                                 scope=_scope_for(authz, user))
+    except PhieuXuatChuaCo as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise _map(exc)
+
+
 @router.get("/{order_id}/activity", response_model=OrderActivityOut)
 def get_activity(
     order_id: int,

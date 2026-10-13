@@ -4,6 +4,7 @@ Thân CRUD dùng chung ở `services/catalog_base.CatalogService`; ở đây ch�
 """
 from __future__ import annotations
 
+from ..models.kho_hang import MA_KHO_THANH_PHAM
 from ..repositories.kho_hang_repo import KhoHangRepository
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogInUse, CatalogNotFound, CatalogService,
@@ -40,6 +41,14 @@ _LY_DO = (
 )
 
 
+_KHOA_TP = "Kho thành phẩm là kho cố định của hệ thống."
+
+
+def la_kho_co_dinh(obj) -> bool:
+    """Kho thành phẩm của hệ thống (`MA_KHO_THANH_PHAM`) — xem `models/kho_hang.py`."""
+    return obj is not None and (getattr(obj, "ma", "") or "").upper() == MA_KHO_THANH_PHAM
+
+
 class KhoHangService(CatalogService):
     LOAI = "kho_hang"
     E_NOT_FOUND = KhoHangNotFound
@@ -65,6 +74,18 @@ class KhoHangService(CatalogService):
     def _validate(self, data: dict, obj=None) -> None:
         if not (data.get("ten") or "").strip():
             raise KhoHangValidationError("Tên kho không được trống.")
+        # Kho thành phẩm của hệ thống (12/10/2026): sửa vị trí / ghi chú được, đổi tên hay ngừng dùng
+        # thì không — kể cả qua Excel (nhập Excel cũng đi `update`).
+        if la_kho_co_dinh(obj):
+            if (data.get("ten") or "").strip() != obj.ten:
+                raise KhoHangValidationError(f"{_KHOA_TP} Không đổi tên được.")
+            if data.get("active") is False:
+                raise KhoHangValidationError(f"{_KHOA_TP} Không ngừng dùng được.")
+
+    def dat_active(self, item_id: int, active: bool, actor_id: int | None = None):
+        if not active and la_kho_co_dinh(self.get(item_id)):
+            raise KhoHangValidationError(f"{_KHOA_TP} Không ngừng dùng được.")
+        return super().dat_active(item_id, active, actor_id)
 
     def so_vi_tri(self, kho_ids) -> dict[int, int]:
         """Số vị trí cất đang dùng của từng kho — cột "Vị trí cất" ở màn Khai báo kho."""
@@ -72,4 +93,8 @@ class KhoHangService(CatalogService):
 
     def _blockers(self, obj) -> list[str]:
         dem = self.repo.dem_rang_buoc(obj.id)
-        return [f"{dem[k]} {nhan}" for k, nhan in _LY_DO if dem[k]]
+        ly_do = [f"{dem[k]} {nhan}" for k, nhan in _LY_DO if dem[k]]
+        if la_kho_co_dinh(obj):
+            # Kho cố định không có đường xoá nào — lý do này đứng một mình, khỏi kể tồn / phiếu.
+            return ["kho thành phẩm của hệ thống"]
+        return ly_do

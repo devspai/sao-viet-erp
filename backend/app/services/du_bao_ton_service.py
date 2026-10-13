@@ -74,6 +74,60 @@ class DuBaoTonService:
             })
         return out
 
+    def cho_xuat(self, kho_id: int) -> dict[tuple, list[dict]]:
+        """`{khoá 5 phần: [việc xuất]}` — đề nghị XUẤT còn treo ở KHO NÀY không gắn lệnh/bài (giao hàng
+        đã lên đơn, gia công ngoài, xuất lẻ), cùng dạng phần tử `lenh` để màn trải chung một chuỗi.
+
+        Tính TƯƠI mỗi lượt (một câu theo kho), không qua cache 45 giây của bảng cân đối: kho ghi sổ
+        xong thì số Sắp xuất phải rụng ngay (12/10/2026)."""
+        from ..repositories.nguon_phieu_kho_repo import NguonPhieuKhoRepository
+        from .ke_hoach_vat_tu_service import KeHoachVatTuError
+        from .stock_request_service import StockRequestService
+
+        dong = self.kh.requests.dong_xuat_cho_cua_kho(kho_id)
+        giao = NguonPhieuKhoRepository(self.kh.db).giao_theo_chuyen(
+            {req.delivery_trip_id for _ln, req in dong if req.delivery_trip_id})
+        out: dict[tuple, dict[int, dict]] = {}
+        for ln, req in dong:
+            con = StockRequestService.con_lai(ln)
+            if con <= 0:
+                continue
+            goc = ln.don_vi_goc or None
+            try:
+                if co_don_vi_goc(ln.hang_loai):
+                    sl, _ten = self.kh.ve_don_vi_goc(ln.hang_loai, ln.hang_id, ln.dvt, con, goc=goc)
+                    goc = goc or self.kh.don_vi_goc_cua(ln.hang_loai, ln.hang_id, ln.dvt)
+                else:
+                    sl = con
+            except KeHoachVatTuError:
+                continue   # đơn vị không quy được về gốc — kho cũng không ghi sổ được dòng này
+            khoa = _khoa5((ln.hang_loai, ln.hang_id, ln.kho_rong or 0, ln.kho_dai or 0,
+                           (goc or "") if co_don_vi_goc(ln.hang_loai) else ""))
+            g = giao.get(req.delivery_trip_id) if req.delivery_trip_id else None
+            # Một đề nghị là một việc xuất dù có hai dòng cùng mặt hàng.
+            x = out.setdefault(khoa, {}).get(req.id)
+            if x is None:
+                out[khoa][req.id] = {
+                    "ma": req.ma, "lsx_id": None, "bai_ghep_id": None, "de_nghi_id": req.id,
+                    "ten_viec": (f"Giao đơn {g[2]}" if g and g[2] else "Giao hàng") if g else None,
+                    "khach_ten": None,
+                    "han_sx": req.ngay_can.isoformat() if req.ngay_can else None,
+                    "can": float(sl), "da_giu": 0.0,
+                }
+            else:
+                x["can"] += float(sl)
+        return {k: list(v.values()) for k, v in out.items()}
+
+    @staticmethod
+    def gop_cho_xuat(row: dict | None, khoa: tuple, viec: list[dict]) -> dict:
+        """Dòng dự báo + các việc xuất của `cho_xuat` (đứng sau lệnh; chuỗi tự sắp lại theo ngày)."""
+        if row is None:
+            row = {"hang_loai": khoa[0], "hang_id": khoa[1], "kho_rong": khoa[2], "kho_dai": khoa[3],
+                   "don_vi_goc": khoa[4], "ton_toan_xuong": None, "can_lenh": 0.0, "dang_ve": 0.0,
+                   "lenh": [], "ve": [], "phieu_mua": []}
+        lenh = list(row.get("lenh") or []) + viec
+        return {**row, "lenh": lenh, "can_lenh": sum(float(x["can"]) for x in lenh)}
+
     @staticmethod
     def _ve_json(ngay, ma, sl, muc) -> dict:
         loai, lenh = gop_mua_cho(muc)

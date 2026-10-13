@@ -51,13 +51,13 @@ def _dem(body, khoa) -> dict[str, int]:
 def test_ky_ngay_tao_ranh_gio_vn_va_co_created_at(client):
     t = _token(client)
     # 30/09 17:30 UTC = 01/10 00:30 giờ VN ⇒ THUỘC tháng 10; 16:30 UTC = 30/09 23:30 VN ⇒ ngoài.
-    _them(KhoHang(ma="KHO-T10", ten="Kho A", created_at=_utc(2026, 9, 30, 17, 30)),
-          KhoHang(ma="KHO-T09", ten="Kho B", created_at=_utc(2026, 9, 30, 16, 30)))
-    body = _ds(client, t, "/api/kho", q="KHO-T", **THANG_10)
-    assert [x["ma"] for x in body["items"]] == ["KHO-T10"]
+    _them(KhoHang(ma="KHO-K10", ten="Kho A", created_at=_utc(2026, 9, 30, 17, 30)),
+          KhoHang(ma="KHO-K09", ten="Kho B", created_at=_utc(2026, 9, 30, 16, 30)))
+    body = _ds(client, t, "/api/kho", q="KHO-K", **THANG_10)
+    assert [x["ma"] for x in body["items"]] == ["KHO-K10"]
     assert body["items"][0]["created_at"].startswith("2026-09-30T17:30")
     # Không chọn kỳ ⇒ không chặn ngày.
-    assert body["total"] == 1 and _ds(client, t, "/api/kho", q="KHO-T")["total"] == 2
+    assert body["total"] == 1 and _ds(client, t, "/api/kho", q="KHO-K")["total"] == 2
 
 
 def test_moc_la_chi_nhan_tao(client):
@@ -68,11 +68,11 @@ def test_moc_la_chi_nhan_tao(client):
 
 def test_dem_dang_dung_da_ngung_theo_bo_loc_khac(client):
     t = _token(client)
-    _them(KhoHang(ma="KHO-D1", ten="Dùng", created_at=_utc(2026, 10, 2)),
-          KhoHang(ma="KHO-N1", ten="Ngừng", active=False, created_at=_utc(2026, 10, 3)),
-          KhoHang(ma="KHO-N2", ten="Ngừng cũ", active=False, created_at=_utc(2026, 8, 3)))
-    body = _ds(client, t, "/api/kho", q="KHO-", active="true", **THANG_10)
-    assert [x["ma"] for x in body["items"]] == ["KHO-D1"]
+    _them(KhoHang(ma="KHO-LD1", ten="Dùng", created_at=_utc(2026, 10, 2)),
+          KhoHang(ma="KHO-LN1", ten="Ngừng", active=False, created_at=_utc(2026, 10, 3)),
+          KhoHang(ma="KHO-LN2", ten="Ngừng cũ", active=False, created_at=_utc(2026, 8, 3)))
+    body = _ds(client, t, "/api/kho", q="KHO-L", active="true", **THANG_10)
+    assert [x["ma"] for x in body["items"]] == ["KHO-LD1"]
     # Số của "active" bỏ chính điều kiện active, nhưng vẫn áp kỳ + ô tìm.
     assert _dem(body, "active") == {"true": 1, "false": 1}
 

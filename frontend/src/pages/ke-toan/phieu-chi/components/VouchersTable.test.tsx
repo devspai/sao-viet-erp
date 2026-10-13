@@ -40,11 +40,11 @@ function chuTran(el: Element): string[] {
 }
 
 describe("VouchersTable", () => {
-  it("mười cột đúng thứ tự: Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
+  it("mười một cột đúng thứ tự: Mục chi sau Lý do, Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
     ve();
     const tieuDe = screen.getAllByRole("columnheader").map((th) => th.textContent);
     expect(tieuDe).toEqual([
-      "Số phiếu", "Ngày chi", "Người nhận tiền", "Lý do chi", "Chi theo", "Hình thức", "Số tiền", "Trạng thái",
+      "Số phiếu", "Ngày chi", "Người nhận tiền", "Lý do chi", "Mục chi", "Chi theo", "Hình thức", "Số tiền", "Trạng thái",
       "Ngày tạo", "Ghi chú",
     ]);
     // Khuôn lưới chung: bảng `lds-g`, số tiền canh phải, hai cột ghim không có (chỉ Số phiếu cố định).
@@ -84,8 +84,8 @@ describe("VouchersTable", () => {
     const { container } = ve({ cot: COT_PHIEU_CHI.filter((c) => c.key !== "hinh_thuc" && c.key !== "ghi_chu") });
     expect(screen.queryByRole("columnheader", { name: "Hình thức" })).toBeNull();
     const cong = container.querySelector<HTMLElement>("tr.lds-cong")!;
-    // Số phiếu … Chi theo = 5 cột trước ô tiền.
-    expect(cong.querySelector("td.lead")).toHaveAttribute("colspan", "5");
+    // Số phiếu … Chi theo = 6 cột trước ô tiền (có cột Mục chi).
+    expect(cong.querySelector("td.lead")).toHaveAttribute("colspan", "6");
     expect(within(cong).getByText("31.330.000")).toHaveClass("n");
   });
 

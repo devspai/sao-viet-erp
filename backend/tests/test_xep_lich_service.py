@@ -183,7 +183,7 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
     dòng vật tư của bước, không khai thì lệnh KHÔNG CẦN GÌ và mọi test "vật tư chưa đủ chặn phát
     hành" mất tiền đề. Khai ở đây, một chỗ, đúng thao tác người lập lệnh thật.
     """
-    from app.models.kho_hang import KhoHang
+    from app.models.kho_hang import MA_KHO_THANH_PHAM, KhoHang
     from app.models.stock_lot import LOT_AVAILABLE, StockLot
     from app.models.vat_lieu_kho import VatTuInAn
     from app.repositories.bai_ghep_repo import BaiGhepRepository
@@ -197,7 +197,9 @@ def _giu_cho_du(db, *, lsx_ids=(), bai_ghep_ids=()):
     from app.services.ke_hoach_vat_tu_service import KeHoachVatTuService
     from app.services.vat_lieu_kho_service import VatLieuKhoService
 
-    kho = db.query(KhoHang).first()
+    # Tồn vật tư nằm ở kho thường — Kho thành phẩm (migration tạo sẵn, thường là kho đầu tiên) chỉ
+    # giữ thành phẩm, nạp vào đó là đẻ lô thành phẩm giả 1.000.000 cái.
+    kho = db.query(KhoHang).filter(KhoHang.ma != MA_KHO_THANH_PHAM).first()
     if kho is None:
         kho = KhoHang(ma="K-XL", ten="Kho test xếp lịch")
         db.add(kho)

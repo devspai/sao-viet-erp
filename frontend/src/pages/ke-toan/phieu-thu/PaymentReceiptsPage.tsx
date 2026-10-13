@@ -41,6 +41,7 @@ import {
   type TheLocPT,
 } from "./shared/loc";
 import { dieuKienPhieu, dkTrangThaiPhieu } from "../shared/locPhieu";
+import { useMucThuChi } from "../shared/OChonMuc";
 import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import "../ke-toan.css";
 
@@ -155,6 +156,7 @@ export function PaymentReceiptsPage({
     { key: "thieu", label: "Thiếu chứng từ gốc", mau: "vang", count: soThe?.thieu_chung_tu },
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
   ], [soThe, the]);
+  const mucLoc = useMucThuChi("thu", false).ds;
   // Trạng thái trong nút Lọc = các mục đang hiện của hàng lọc nhanh (đọc/ghi thẳng mục đang chọn).
   const dieuKien = useMemo(
     () => [
@@ -162,9 +164,9 @@ export function PaymentReceiptsPage({
         muc: muc.map((m) => ({ id: m.key, nhan: m.label })),
         n: soThe, dang: the, dat: (id) => setThe(id as TheLocPT),
       }),
-      ...dieuKienPhieu(CAU_HINH_LOC_PT, sp.taiKhoan),
+      ...dieuKienPhieu(CAU_HINH_LOC_PT, sp.taiKhoan, mucLoc),
     ],
-    [muc, soThe, the, setThe, sp.taiKhoan],
+    [muc, soThe, the, setThe, sp.taiKhoan, mucLoc],
   );
   // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
   const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });

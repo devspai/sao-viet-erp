@@ -281,6 +281,8 @@ export const NAV: NavSection[] = [
         icon: "bookOpen",
         module: "bao_cao_cong_no",
       },
+      // Thu, chi theo mục × tháng (11/10/2026) — ô quyền RIÊNG, Xem = xem + xuất Excel.
+      { id: "bao-cao-thu-chi", label: "Báo cáo thu chi", icon: "scale", module: "bao_cao_thu_chi" },
     ],
   },
   {
@@ -311,6 +313,8 @@ export const NAV: NavSection[] = [
       // của từng mức khai ở Cấu hình lương — sửa giá là việc kế toán, không phải việc của
       // người khai biển số.
       { id: "xe", label: "Xe giao hàng", icon: "truck", module: "dm_xe" },
+      // Mục thu chi (11/10/2026): mỗi phiếu thu / phiếu chi mang một mục từ đây.
+      { id: "muc-thu-chi", label: "Mục thu chi", icon: "layers", module: "dm_muc_thu_chi" },
     ],
   },
   {

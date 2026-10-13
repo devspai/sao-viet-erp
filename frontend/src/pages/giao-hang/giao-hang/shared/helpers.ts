@@ -1,6 +1,7 @@
 // Hàm dùng chung của màn Giao hàng (tách từ pages/GiaoHangPage.tsx).
-import type { CaLuotKetQua, DeliveryTrip, LuotXeChiTiet } from "../../../../api/client";
+import type { CaLuotKetQua, DeliveryRequestLine, DeliveryTrip, LuotXeChiTiet } from "../../../../api/client";
 import { api } from "../../../../api/client";
+import { gomCum } from "../../gomCum";
 import { NHAN_TRANG_THAI_CHUYEN } from "./constants";
 
 /** Sắc của pill trạng thái — bộ màu chip chung `--tt-*` (tokens.css). "on"/"off"/"warn" là ba tông
@@ -104,6 +105,15 @@ export function ngayNgan(v?: string | null): string {
   return m ? `${m[3]}/${m[2]}` : "—";
 }
 
+/** Hẹn kho của chuyến (mg 0400 — thay giờ lấy hàng): "14:00 12/10" từ Cần lúc của đề nghị xuất,
+ *  chỉ hẹn ngày thì "12/10". Cần lúc là GIỜ TƯỜNG nhà máy (không múi) nên đọc thẳng chữ, không qua
+ *  `ngayGio` (hàm đó coi chuỗi không múi là UTC). null = chưa gửi kho. */
+export function henKho(t: { yeu_cau_kho_can_luc?: string | null; yeu_cau_kho_ngay_can?: string | null }): string | null {
+  const m = t.yeu_cau_kho_can_luc ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(t.yeu_cau_kho_can_luc) : null;
+  if (m) return `${m[4]}:${m[5]} ${m[3]}/${m[2]}`;
+  return t.yeu_cau_kho_ngay_can ? ngayNgan(t.yeu_cau_kho_ngay_can) : null;
+}
+
 /** "2026-10-04" — ngày theo giờ VN của một mốc giờ; chuỗi đã là ngày thì giữ nguyên. */
 export function ngayIso(v?: string | null): string | null {
   if (!v) return null;
@@ -114,12 +124,61 @@ export function ngayIso(v?: string | null): string | null {
 
 /** Ngày khách nhận so với ngày hẹn: "Trước hẹn 26 ngày" / "Trễ 3 ngày" / "Đúng hẹn". */
 export function soVoiHen(hen?: string | null, nhan?: string | null): { text: string; tre: boolean } | null {
+  const n = lechHen(hen, nhan);
+  if (n == null) return null;
+  if (n === 0) return { text: "Đúng hẹn", tre: false };
+  return n < 0 ? { text: `Trước hẹn ${-n} ngày`, tre: false } : { text: `Trễ ${n} ngày`, tre: true };
+}
+
+/** Số ngày khách nhận lệch so với hẹn (dương = trễ). */
+function lechHen(hen?: string | null, nhan?: string | null): number | null {
   const a = ngayIso(hen);
   const b = ngayIso(nhan);
   if (!a || !b) return null;
-  const n = Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
-  if (n === 0) return { text: "Đúng hẹn", tre: false };
-  return n < 0 ? { text: `Trước hẹn ${-n} ngày`, tre: false } : { text: `Trễ ${n} ngày`, tre: true };
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000);
+}
+
+/** Một MÓN giao như khách mua: cụm Ruột + Bìa là một quyển (một mã kho, một số). */
+export interface MonGiao {
+  /** Dòng đầu cụm — khoá React. */
+  id: number;
+  ten: string;
+  qty: number;
+  dvt: string | null;
+  /** Cụm giao cùng một số ⇒ lấy dòng ít nhất cho chắc. */
+  da_giao: number;
+  /** Tên các dòng giá trong cụm (rỗng khi cụm một dòng) — để rê chuột xem. */
+  thanhPhan: string[];
+}
+
+/** Gom dòng yêu cầu giao theo CỤM BÁN (12/10/2026). Bày thẳng `lines` thì một quyển sách hiện
+ *  thành "Ruột sách +1 món" trong khi kho xuất đúng MỘT mã thành phẩm. */
+export function monGiao(lines: DeliveryRequestLine[]): MonGiao[] {
+  return gomCum(lines.map((l) => ({ ...l, mo_ta: l.mo_ta ?? l.hang_ten ?? null }))).map((c) => ({
+    id: c.dau.id,
+    ten: c.ten,
+    qty: c.dau.qty,
+    dvt: c.donVi ?? c.dau.dvt,
+    da_giao: Math.min(...c.dong.map((d) => d.da_giao)),
+    thanhPhan: c.dong.length > 1 ? c.dong.map((d) => d.mo_ta ?? "").filter(Boolean) : [],
+  }));
+}
+
+/** "So với hẹn" của cả lượt: lấy điểm LỆCH NHẤT trong các điểm đã có kết quả. Lượt nhiều điểm mà
+ *  có điểm trễ thì kèm "k/n điểm trễ". Mọi lần lên đơn đều ra lượt (12/10/2026) — chỉ tính chuyến
+ *  lẻ thì cột này trống với mọi đơn mới. */
+export function soVoiHenLuot(ds: DeliveryTrip[]): { text: string; tre: boolean; phu?: string } | null {
+  const lech = ds
+    .filter(coKetQua)
+    .map((t) => lechHen(t.ngay_can_giao, t.thoi_gian_ket_thuc))
+    .filter((n): n is number => n != null);
+  if (!lech.length) return null;
+  const te = Math.max(...lech);
+  const kq = te === 0 ? { text: "Đúng hẹn", tre: false }
+    : te < 0 ? { text: `Trước hẹn ${-te} ngày`, tre: false }
+    : { text: `Trễ ${te} ngày`, tre: true };
+  const soTre = lech.filter((n) => n > 0).length;
+  return ds.length > 1 && soTre > 0 ? { ...kq, phu: `${soTre}/${ds.length} điểm trễ` } : kq;
 }
 
 /** Địa chỉ rút gọn cho bảng: bỏ số nhà/đường đầu và tỉnh/thành cuối, giữ khu + phường/xã — đủ để
@@ -145,36 +204,33 @@ export function trangThaiLuot(l: LuotXeChiTiet): { text: string; tone: GhTone } 
   if (l.ve_kho_luc) return { text: "Đã về kho", tone: "on" };
   if (l.cho_ve_kho) return { text: "Chờ về kho", tone: "warn" };
   if (l.so_dang_giao > 0) return { text: "Đang giao", tone: "cyan" };
-  if (l.so_cho_bat_dau > 0) return { text: "Đã lấy hàng", tone: "cham" };
+  // Xe chưa đi: lượt theo điểm CHẬM nhất. Một điểm kho đã xuất mà nói cả lượt "Đã lấy hàng" thì
+  // điều phối tưởng xe đủ hàng (lỗi thật 12/10/2026: LX-261012-WKEM lấy 1/3 mà ghi Đã lấy hàng).
   if (l.so_cho_lay_hang > 0) {
+    if (l.so_cho_bat_dau > 0)
+      return { text: `Kho đã xuất ${l.so_cho_bat_dau}/${l.so_cho_bat_dau + l.so_cho_lay_hang}`, tone: "tim" };
     const xong = l.diem.every((t) => t.trang_thai !== "dang_chuan_bi" || t.kho_da_lap_phieu);
-    return { text: xong ? "Kho đã chuẩn bị xong" : "Kho đang chuẩn bị", tone: xong ? "ngoc" : "tim" };
+    return { text: xong ? "Kho đã chuẩn bị xong" : "Chờ kho xuất", tone: xong ? "ngoc" : "tim" };
   }
-  return { text: "Chờ gửi kho", tone: "slate" };
+  if (l.so_cho_bat_dau > 0) return { text: "Đã lấy hàng", tone: "cham" };
+  // Lượt cũ trước 12/10/2026 còn chuyến chưa gửi kho — nay lên đơn là gửi luôn.
+  return { text: "Đã lên đơn", tone: "slate" };
 }
 
 export const coKetQua = (t: DeliveryTrip) => !CHUA_KET_QUA.includes(t.trang_thai);
 
-export type FormLuot = "gui_kho" | "xuat_phat" | "ve_kho";
+export type FormLuot = "xuat_phat" | "ve_kho";
 
 /** Một bước CẢ LƯỢT: hoặc mở ô nhập (`form`), hoặc gọi thẳng máy chủ (`lam`). */
 export type BuocLuot =
   | { nhan: string; form: FormLuot }
   | { nhan: string; lam: (token: string) => Promise<CaLuotKetQua>; bao: (r: CaLuotKetQua) => string };
 
-/** Các bước còn làm được của lượt — cái ĐẦU là việc chính. Thường chỉ có một; có hai khi lượt lệch
- *  nhịp (một điểm kho còn soạn, điểm kia đã lên xe) — vẫn bắt đầu giao được những điểm đã lấy hàng,
- *  không bắt cả xe đứng chờ. Dòng bảng và đầu ngăn đọc CÙNG một hàm. */
-export function buocLuot(l: LuotXeChiTiet, canPlan: boolean, canWrite: boolean): BuocLuot[] {
+/** Các bước còn làm được của lượt — cái ĐẦU là việc chính. Dòng bảng và đầu ngăn đọc CÙNG một hàm.
+ *  Không có bước gửi kho / lấy hàng (12/10/2026): lên đơn là gửi kho, kho ghi sổ xuất là chuyến tự
+ *  sang đã lấy hàng. Lượt lệch nhịp (một điểm kho còn soạn) vẫn bắt đầu giao được điểm đã xuất. */
+export function buocLuot(l: LuotXeChiTiet, canWrite: boolean): BuocLuot[] {
   const ds: BuocLuot[] = [];
-  if (canPlan && l.so_cho_gui_kho > 0)
-    ds.push({ nhan: `Gửi yêu cầu xuất kho (${l.so_cho_gui_kho})`, form: "gui_kho" });
-  if (canWrite && l.so_cho_lay_hang > 0)
-    ds.push({
-      nhan: `Đã lấy hàng cả lượt (${l.so_cho_lay_hang})`,
-      lam: (tk) => api.giaoHang.daLayHangCaLuot(tk, l.id),
-      bao: (r) => `Đã lấy hàng ${r.so_chuyen} điểm.`,
-    });
   if (canWrite && l.so_cho_bat_dau > 0) {
     const nhan = `Bắt đầu giao (${l.so_cho_bat_dau} điểm)`;
     // Chưa có số xuất phát ⇒ hỏi số trước; có rồi (xe đi dở, bốc thêm điểm) thì đi luôn.

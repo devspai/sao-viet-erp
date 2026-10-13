@@ -88,6 +88,8 @@ export function DeliveryDialog({
   // thầm xoá mất hạn đó, và món nợ tụt khỏi cột Quá hạn không ai hay. Bật lại ô thì đổi dòng này
   // về `useState` là xong.
   const hanTra = delivery?.due_date ?? "";
+  // Một hoá đơn = cặp ký hiệu + số (13/10/2026): số chỉ duy nhất trong một ký hiệu.
+  const [kyHieu, setKyHieu] = useState(delivery?.invoice_symbol ?? "");
   const [soHoaDon, setSoHoaDon] = useState(delivery?.invoice_number ?? "");
   const [ngayHoaDon, setNgayHoaDon] = useState(delivery?.invoice_date ?? "");
   const [ghiChu, setGhiChu] = useState(delivery?.note ?? "");
@@ -266,7 +268,11 @@ export function DeliveryDialog({
     // đúng cái bẫy đã sập một lần: ba nơi cùng canh một luật (`max` của ô nhập, khối này, và
     // service) mà chỉ sửa hai. Nay số nhận vượt KHÔNG đẻ nợ nữa, phần vượt hiện ngay dưới ô gõ.
     if (!ngayGiao) {
-      setError("Đợt giao phải có ngày nhận.");
+      setError("Đợt giao phải có ngày nhận hàng.");
+      return;
+    }
+    if (kyHieu.trim() && !soHoaDon.trim()) {
+      setError("Có ký hiệu thì phải có số hoá đơn.");
       return;
     }
     const thieuCanh = lines.find((l) => "kho_rong" in l && !l.kho_rong !== !l.kho_dai);
@@ -299,6 +305,7 @@ export function DeliveryDialog({
       const payload: PurchaseDeliveryInput = {
         delivery_date: ngayGiao,
         due_date: hanTra || null,
+        invoice_symbol: kyHieu.trim().toUpperCase() || null,
         invoice_number: soHoaDon.trim() || null,
         invoice_date: ngayHoaDon || null,
         note: ghiChu.trim() || null,
@@ -347,16 +354,25 @@ export function DeliveryDialog({
   }
 
   // Hoá đơn chung nhiều đợt (NCC giao nhiều đợt rồi xuất một hoá đơn): lối chọn nhanh "Cùng đợt N"
-  // điền lại số + ngày hoá đơn của đợt đó. Mỗi số hoá đơn một nút, lấy đợt đầu tiên mang số đó.
+  // điền lại ký hiệu + số + ngày hoá đơn của đợt đó. Mỗi hoá đơn (ký hiệu + số) một nút, lấy đợt
+  // đầu tiên mang hoá đơn đó.
   const hoaDonCu = useMemo(() => {
-    const out: { seq: number; so: string; ngay: string | null }[] = [];
+    const out: { seq: number; ky: string; so: string; ngay: string | null }[] = [];
     for (const d of [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no)) {
       if (d.id === delivery?.id || !d.invoice_number) continue;
-      if (out.some((h) => h.so === d.invoice_number)) continue;
-      out.push({ seq: d.seq_no, so: d.invoice_number, ngay: d.invoice_date });
+      const ky = d.invoice_symbol ?? "";
+      if (out.some((h) => h.so === d.invoice_number && h.ky === ky)) continue;
+      out.push({ seq: d.seq_no, ky, so: d.invoice_number, ngay: d.invoice_date });
     }
     return out;
   }, [row.deliveries, delivery]);
+  const laHoaDonCu = (h: { ky: string; so: string }) =>
+    h.so === soHoaDon.trim() && h.ky === kyHieu.trim().toUpperCase();
+  const datHoaDon = (ky: string, so: string, ngay: string) => {
+    setKyHieu(ky);
+    setSoHoaDon(so);
+    setNgayHoaDon(ngay);
+  };
   const soDong = row.lines.filter((l) => (Number(soNhan[l.id]) || 0) > 0).length;
   const coGiay = row.lines.some((l) => l.hang_loai === "giay");
 
@@ -381,7 +397,12 @@ export function DeliveryDialog({
       the={row.supplier_name ? <span className="kna-tag">{row.supplier_name}</span> : undefined}
       chan={chan}
       onDong={onClose}
-      chanDong={() => !busy && (anhMoi.length > 0 || soHoaDon !== (delivery?.invoice_number ?? ""))}
+      chanDong={() =>
+        !busy &&
+        (anhMoi.length > 0 ||
+          soHoaDon !== (delivery?.invoice_number ?? "") ||
+          kyHieu !== (delivery?.invoice_symbol ?? ""))
+      }
     >
       <div className="kna">
         {error && <div className="kna-canh kna-canh--do" role="alert">{error}</div>}
@@ -527,7 +548,7 @@ export function DeliveryDialog({
             <section className="kna-the">
               <div className="kna-the__than kna-form">
                 <label className="kna-o-truong">
-                  <span>Ngày nhận <em>*</em></span>
+                  <span>Ngày nhận hàng <em>*</em></span>
                   {/* Chặn TƯƠNG LAI; quá khứ vẫn cho — hàng về hôm qua mới ghi hôm nay là thường. */}
                   <ChonNgay
                     className="kna-o"
@@ -537,23 +558,39 @@ export function DeliveryDialog({
                   />
                 </label>
                 <div className="kna-o-truong">
-                  <span>Hoá đơn</span>
+                  <span>Hoá đơn của nhà cung cấp</span>
+                  {/* Ba ô có nhãn riêng (13/10/2026): ngày hoá đơn KHÁC ngày nhận hàng ở trên —
+                      hạn trả tính từ ngày hoá đơn, chưa có mới lùi về ngày nhận hàng. */}
                   <div className="dgd-hd">
-                    <input
-                      className="kna-o"
-                      maxLength={64}
-                      aria-label="Số hoá đơn"
-                      value={soHoaDon}
-                      onChange={(e) => setSoHoaDon(e.target.value)}
-                      placeholder="Số hoá đơn"
-                    />
-                    <ChonNgay
-                      className="kna-o"
-                      aria-label="Ngày hoá đơn"
-                      max={todayInputValue()}
-                      value={ngayHoaDon}
-                      onChange={(v) => setNgayHoaDon(v)}
-                    />
+                    <label className="dgd-hd__o">
+                      <span>Ký hiệu</span>
+                      <input
+                        className="kna-o"
+                        maxLength={64}
+                        value={kyHieu}
+                        onChange={(e) => setKyHieu(e.target.value.toUpperCase())}
+                        placeholder="VD 1C26TAA"
+                      />
+                    </label>
+                    <label className="dgd-hd__o">
+                      <span>Số hoá đơn</span>
+                      <input
+                        className="kna-o"
+                        maxLength={64}
+                        value={soHoaDon}
+                        onChange={(e) => setSoHoaDon(e.target.value)}
+                      />
+                    </label>
+                    <label className="dgd-hd__o">
+                      <span>Ngày hoá đơn</span>
+                      <ChonNgay
+                        className="kna-o"
+                        aria-label="Ngày hoá đơn"
+                        max={todayInputValue()}
+                        value={ngayHoaDon}
+                        onChange={(v) => setNgayHoaDon(v)}
+                      />
+                    </label>
                   </div>
                   {/* Chọn nhanh CHỈ khi đơn đã có hoá đơn ở đợt trước. Chưa có đợt nào thì để trống
                       hai ô là đủ nói "chưa có hoá đơn" — một nút "Chưa có" đứng lẻ chỉ gây rối. */}
@@ -561,37 +598,28 @@ export function DeliveryDialog({
                   <div className="ycf-pick dgd-pick" role="group" aria-label="Chọn nhanh hoá đơn">
                     {hoaDonCu.map((h) => (
                       <button
-                        key={h.so}
+                        key={`${h.ky} ${h.so}`}
                         type="button"
-                        className={soHoaDon === h.so ? "on" : ""}
-                        title={`Hoá đơn ${h.so}`}
-                        onClick={() => {
-                          setSoHoaDon(h.so);
-                          setNgayHoaDon(h.ngay ?? "");
-                        }}
+                        className={laHoaDonCu(h) ? "on" : ""}
+                        title={`Hoá đơn ${`${h.ky} ${h.so}`.trim()}`}
+                        onClick={() => datHoaDon(h.ky, h.so, h.ngay ?? "")}
                       >
                         Cùng đợt {h.seq}
                       </button>
                     ))}
                       <button
                         type="button"
-                        className={soHoaDon && !hoaDonCu.some((h) => h.so === soHoaDon) ? "on" : ""}
+                        className={soHoaDon && !hoaDonCu.some(laHoaDonCu) ? "on" : ""}
                         onClick={() => {
-                          if (hoaDonCu.some((h) => h.so === soHoaDon)) {
-                            setSoHoaDon("");
-                            setNgayHoaDon("");
-                          }
+                          if (hoaDonCu.some(laHoaDonCu)) datHoaDon("", "", "");
                         }}
                       >
                         Hoá đơn mới
                       </button>
                     <button
                       type="button"
-                      className={!soHoaDon && !ngayHoaDon ? "on" : ""}
-                      onClick={() => {
-                        setSoHoaDon("");
-                        setNgayHoaDon("");
-                      }}
+                      className={!soHoaDon && !ngayHoaDon && !kyHieu ? "on" : ""}
+                      onClick={() => datHoaDon("", "", "")}
                     >
                       Chưa có
                     </button>

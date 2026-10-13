@@ -421,6 +421,29 @@
   flex-basis: 100%;
   margin: 0;
 }
+/* Máy mặc định của công đoạn (`MayCuaCongDoanField`): nhãn ở máy đầu bảng, nút ở các máy còn lại. */
+.rc-may-mac-dinh,
+.rc-may-dat-mac-dinh {
+  margin-left: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.rc-may-mac-dinh {
+  color: var(--ash-2);
+}
+.rc-may-dat-mac-dinh {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+.rc-may-dat-mac-dinh:hover {
+  text-decoration: underline;
+}
+
 /* Chữ "· mặc định" sau chip tổ chọn ĐẦU của ô tổ phụ trách công đoạn (`ToMultiField` `nhanDau`). */
 .rc-to-multi__dau {
   font-weight: 600;
@@ -1576,6 +1599,15 @@
   justify-content: space-between;
   padding: 6px 0;
 }
+/* Ô bật/tắt có câu gợi ý: câu xuống hàng riêng dưới cả nhãn lẫn công tắc. Để chung một hàng thì câu
+   dài ép nhãn gãy thành ba bốn dòng (Mục thu chi, 12/10/2026). */
+.rc-field--check {
+  flex-wrap: wrap;
+  column-gap: 12px;
+}
+.rc-field--check > .rc-field__hint {
+  flex-basis: 100%;
+}
 
 .rc-field__label {
   font-size: 12.5px;
@@ -2123,7 +2155,7 @@ select.rc-input:focus {
 @media (max-width: 640px) { .rc-bands--chip .rc-bands__table th:nth-child(2) { width: 46%; } }
 
 /* ── Bảng định mức dạng lưới (sinh ra cho bảng đầu việc của tổ — gỡ 18/09/2026; nay dùng ở
-   `MayCuaCongDoan`, `VatTuCongDoan`, `SelfRefMulti`) ── */
+   `MayCuaCongDoan`, `VatTuCongDoan`) ── */
 .rc-bands--dinh-muc {
   gap: 10px;
 }
@@ -4123,65 +4155,109 @@ button.rc-formula__nhan--nut.is-chon {
   flex: none;
   margin-left: 0;
 }
+/* Ổ khoá sau tên dòng CHỈ ĐỌC (`config.dongKhoa`, vd mục cố định của Mục thu chi) — rê chuột đọc vì
+   sao khoá. Dòng khoá không mở form nên bỏ con trỏ tay. */
+.rc--dm .dm-ten__khoa {
+  flex: none;
+  display: inline-flex;
+  color: var(--ash-2);
+}
+.rc--dm .lds-g tbody tr.is-khoa {
+  cursor: default;
+}
 
-/* Ô "Đơn vị thêm" của Giấy / Vật tư khác (`danh-muc/ODonViNhieu`, 10/10/2026): mỗi đơn vị một thẻ
-   viền đủ cạnh, dưới tên là dòng mờ nhóm nó kéo theo ("gồm g, tấn"); nút thêm thả danh sách dùng lại
-   khung menu của `RefSearchField`. */
+/* Ô "Đơn vị thêm" của Giấy / Vật tư khác (`danh-muc/ODonViNhieu`, 10/10/2026; làm lại 13/10/2026):
+   MỘT ô cao bằng ô nhập thường, nằm ở cột phải ngay dưới ô ĐVT (cùng chuyện "đơn vị" thì đứng cùng
+   cột). Mỗi đơn vị thêm một thẻ chỉ có tên; nút thêm ở cuối ô; danh sách thả dùng lại khung menu
+   của `RefSearchField`. */
+.rc-field--dvn { grid-column: -2 / -1; }
+@media screen and (max-width: 768px) {
+  .rc-field--dvn { grid-column: auto; }
+}
 .rc-dvn {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--sp-2, 8px);
+  gap: 4px;
+  min-width: 0;
 }
-.rc-dvn__ds {
+.rc-dvn__khung { position: relative; }
+.rc-dvn__o {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2, 8px);
-}
-.rc-dvn__the {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: 5px 6px 6px 10px;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background: var(--canvas);
-}
-.rc-dvn__the--loi { border-color: var(--tt-do-fg); }
-.rc-dvn__dong {
-  display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 38px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+.rc-dvn__o:hover { border-color: var(--ash, #6b665b); }
+.rc-dvn__o--mo {
+  border-color: var(--rust, #c5400a);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--rust, #c5400a) 12%, transparent);
+}
+.rc-dvn__o--khoa {
+  cursor: not-allowed;
+  background: rgba(138, 134, 118, 0.04);
+}
+.rc-dvn__o--khoa:hover { border-color: var(--rule, #d8d2c0); }
+.rc-dvn__the {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 2px 0 9px;
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: 6px;
+  background: var(--rule-hair, #f1f5f9);
   font-size: 13px;
   color: var(--ink);
+  cursor: default;
 }
-.rc-dvn__gom {
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--ash);
-  padding-right: 4px;
+.rc-dvn__the--loi {
+  border-color: var(--tt-do-fg);
+  color: var(--tt-do-fg);
 }
-.rc-dvn__gom--loi { color: var(--tt-do-fg); }
-.rc-dvn__gom-dv { margin-left: 8px; }
-.rc-dvn__them {
-  position: relative;
-  display: flex;
+.rc-dvn__bo {
+  display: inline-flex;
   align-items: center;
-  gap: var(--sp-2, 8px);
-  min-width: 260px;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ash);
+  cursor: pointer;
 }
+.rc-dvn__bo:hover { background: var(--rule-soft, #e2e8f0); color: var(--ink); }
 .rc-dvn__nut {
-  border: 1px solid var(--rule);
-  background: var(--canvas);
-  color: var(--ink);
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
+  color: var(--ash-2, #5c584d);
   font: inherit;
   font-size: 12.5px;
   cursor: pointer;
 }
-.rc-dvn__nut:hover:not(:disabled) { border-color: var(--ink); }
+.rc-dvn__nut:hover:not(:disabled) { background: var(--rule-hair, #f1f5f9); color: var(--ink); }
 .rc-dvn__nut:disabled { color: var(--ash); cursor: not-allowed; }
-.rc-dvn__menu { right: auto; min-width: 260px; }
+.rc-dvn__loi { color: var(--tt-do-fg); }
 .rc-dvn__trong { padding: 10px 12px; color: var(--ash); font-size: 12.5px; }
+.rc-dvn__chu-thich {
+  /* Dính chân khung cuộn của danh sách — danh mục đơn vị dài, để cuối danh sách thì không ai thấy. */
+  position: sticky;
+  bottom: -4px;
+  margin: 4px -4px -4px;
+  background: var(--canvas, #ffffff);
+  padding: 8px 12px 6px;
+  border-top: 1px solid var(--rule-hair, #f1f5f9);
+  color: var(--ash);
+  font-size: 11.5px;
+  line-height: 1.4;
+}

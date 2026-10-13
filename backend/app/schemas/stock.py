@@ -196,12 +196,27 @@ class StockRequestOut(BaseModel):
     don_mua_id: int | None = None
     don_mua_ma: str | None = None
     dot_so: int | None = None
+    # NGUỒN GIAO HÀNG (12/10/2026): đề nghị xuất giao khách / nhập trả hàng do Giao hàng lập — ô
+    # "Nguồn" hiện mã lượt + mã đơn để kho biết phiếu nào lên cùng một xe, của đơn nào.
+    delivery_trip_id: int | None = None
+    giao_luot_ma: str | None = None
+    giao_yeu_cau_ma: str | None = None
+    giao_don_ma: str | None = None
+    #: Khối "Giao hàng" ở ngăn đề nghị (12/10/2026): khách, xe và tài xế TỚI LẤY hàng.
+    giao_khach_ten: str | None = None
+    giao_xe_bien_so: str | None = None
+    giao_tai_xe_ten: str | None = None
+    # KHO BẮT BUỘC của phiếu (12/10/2026): đề nghị có thành phẩm ⇒ id Kho thành phẩm — thành phẩm chỉ
+    # vào / ra kho đó (`services/kho_thanh_pham`), màn lập phiếu khoá ô kho. None = kho chọn tự do.
+    kho_bat_buoc_id: int | None = None
     # Yêu cầu SINH TỪ ĐỀ NGHỊ CẤP VẬT TƯ CÔNG ĐOẠN (spec-de-nghi-cap-vat-tu-cong-doan) — ba trường
     # đều None với yêu cầu kho THƯỜNG (không do sản xuất lập), FE không phải phân nhánh.
     # GIỜ cần thật. `ngay_can` chỉ có DATE nên không diễn đạt được ca chiều cần hàng lúc 13h30
     # khác hẳn ca sáng cần lúc 6h.
     can_luc: datetime | None = None
     san_xuat_cong_viec_id: int | None = None
+    # NGUỒN GIA CÔNG NGOÀI (mg 0339) — ô Nguồn hiện thẻ "Gia công", khớp điều kiện lọc Nguồn.
+    gia_cong_ngoai_id: int | None = None
     san_xuat_cong_doan_ten: str | None = None
     lines: list[StockRequestLineOut] = []
 
@@ -866,6 +881,8 @@ class AllocationLineOut(BaseModel):
     order_ma: str | None = None
     khach_hang: str | None = None
     canh_bao: str | None = None
+    # Lô thành phẩm KCS kế toán chưa gõ giá gốc: `don_gia_nhap` 0 là "chưa biết", không phải 0 đ.
+    chua_gia_goc: bool = False
 
 
 class AllocationOut(BaseModel):
@@ -1057,6 +1074,9 @@ class DuBaoLenhRow(BaseModel):
     can: float = 0
     #: Phần đã giữ chỗ (kho + đang về) của chủ thể — để bày, không vào phép trừ.
     da_giu: float = 0
+    #: Việc xuất là ĐỀ NGHỊ XUẤT còn treo ở kho này (giao hàng, gia công ngoài, xuất lẻ) chứ không
+    #: phải lệnh — `ma` là số đề nghị, `han_sx` là ngày cần (12/10/2026).
+    de_nghi_id: int | None = None
 
 
 class DuBaoVeRow(BaseModel):
@@ -1115,6 +1135,9 @@ class TonNhomMuc(BaseModel):
     can_mua: bool = False
     #: Đã khai ngưỡng cho dòng này ở kho này (cùng khổ + đơn vị gốc; lô giấy chưa có khổ khớp ngưỡng 0 × 0).
     co_nguong: bool = False
+    #: Mặt hàng là THÀNH PHẨM (`vat_tu_in_an.la_thanh_pham`) — thiếu thì phải sản xuất chứ không mua, màn
+    #: đổi chữ "Cần mua" thành "Cần sản xuất" (12/10/2026). Luật tính không đổi.
+    la_thanh_pham: bool = False
     #: `het` · `can_mua` · `vuot` (đang vượt tối đa) · `se_vuot` · `chua` (chưa đặt mức) · None (trong mức).
     tinh_trang: str | None = None
     #: Sắp xuất / Sắp về / Dự kiến còn của dòng; None khi dự báo không dùng được lúc này.
@@ -1140,3 +1163,5 @@ class TonNhomPage(BaseModel):
     nhom: list[TonNhomMuc] = Field(default_factory=list)
     #: False khi dự báo hỏng tạm thời: "Cần mua" lùi về mức tồn so với ngưỡng, các số dự báo để trống.
     du_bao_ok: bool = True
+    #: Mọi mặt hàng của kho đều là thành phẩm — nhóm lọc "Cần mua" đổi tên thành "Cần sản xuất".
+    chi_thanh_pham: bool = False

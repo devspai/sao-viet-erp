@@ -226,6 +226,12 @@ class StockRequestService:
         ⇒ mất luôn toast "có việc mới" (E2E 27/09/2026). Gọi SAU commit."""
         self._notify(req, "Yêu cầu đã bị hủy", targeted=False)
 
+    def thong_bao_da_doi(self, req: StockRequest) -> None:
+        """Giờ hẹn / ghi chú của yêu cầu vừa đổi TỪ NGOÀI luồng kho (bước gửi kho của Giao hàng,
+        12/10/2026) ⇒ màn kho refetch NGAY, cột Cần lúc nhảy giờ mới. Chỉ tín hiệu (targeted=False):
+        số chờ cấp không đổi nên FE không toast. Gọi SAU commit."""
+        self._notify(req, "Yêu cầu đã đổi giờ hẹn", targeted=False)
+
     def create_dieu_chuyen(self, *, user, loai: str, kho_id: int, lines: list[dict],
                            dieu_chuyen: bool = True, kho_nguon_id: int | None = None,
                            xuat_voucher_id: int | None = None, ghi_chu: str | None = None,
@@ -316,9 +322,10 @@ class StockRequestService:
                     raise StockRequestError(
                         "Giấy đếm theo tờ phải khai đủ khổ (rộng × dài, mm).")
             # Giấy: cùng mã khác khổ / khác đơn vị gốc là hai dòng hợp lệ.
+            # Hàng trả về tách dòng theo LÔ GỐC (mg 0401) — cùng mặt hàng hai lô gốc là hai dòng.
             key = (khoa_dong(loai, int(hid), ln["don_vi_goc"],
                              ln.get("kho_rong"), ln.get("kho_dai")),
-                   ln.get("lsx_id"), ln.get("bai_ghep_id"))
+                   ln.get("lsx_id"), ln.get("bai_ghep_id"), ln.get("lo_goc_id"))
             if key in seen:
                 raise StockRequestError(
                     "Một mặt hàng cho cùng một lệnh chỉ được xuất hiện 1 dòng — gộp số lượng lại."

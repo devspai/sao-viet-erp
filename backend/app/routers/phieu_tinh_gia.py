@@ -58,7 +58,7 @@ from ..schemas.phieu_tinh_gia import (
 )
 from ..services import ptg_khach_hang_service, ptg_nhan_ban_service, san_pham_tai_ban_service
 from ..services.rbac_service import AuthorizationService
-from ..services.thanh_phan_engine import chuan_hoa_cot
+from ..services.thanh_phan_engine import chuan_hoa_cot, cum_san_pham
 from ..services.tinh_gia_service import compute_phieu_snapshot, danh_muc_doi_sau_khi_tinh
 
 router = APIRouter(prefix="/api/phieu-tinh-gia", tags=["phieu-tinh-gia"])
@@ -423,16 +423,20 @@ def list_items(
         it.customer_name = ten_khach.get(r.customer_id)
         it.ktv = ten_lap.get(r.created_by, r.ktv)
         it.so_thanh_phan = len(r.thanh_phans)
-        # Cột "SL" ngoài bảng phải là ĐÚNG SỐ MÀ ĐƠN GIÁ ĐANG CHIA: Σ SL các sản phẩm bên trong
+        # Cột "SL" ngoài bảng phải là ĐÚNG SỐ MÀ ĐƠN GIÁ ĐANG CHIA: Σ SL các SẢN PHẨM bên trong
         # phiếu (engine: `compute_phieu.tong_sl`), sản phẩm bỏ trống SL thì rơi về SL mặc định ở
         # đầu phiếu (engine: `_compute_one`). Lấy thẳng `phieu.so_luong` như trước là bày ra hai
         # số không nhân lại được với nhau — PTG-2026-0009 hiện SL 20.000 trong khi 44.856.157đ
         # đang chia cho 60.000 sản phẩm ra 748đ/sp.
-        if r.thanh_phans:
-            it.so_luong = sum(
-                int(tp.so_luong or 0) or int(r.so_luong or 0) for tp in r.thanh_phans
-            )
-        it.ten_thanh_phans = [tp.ten for tp in sorted(r.thanh_phans, key=lambda x: x.thu_tu) if tp.ten]
+        # Sản phẩm = cụm báo giá (`cum_san_pham`, 13/10/2026): ruột + bìa cùng nhóm là MỘT cuốn, nên
+        # cột Sản phẩm hiện tên nhóm và SL không cộng hai lần.
+        cum = cum_san_pham([
+            ((tp.ten or "").strip(), tp.nhom_bao_gia, int(tp.so_luong or 0) or int(r.so_luong or 0))
+            for tp in sorted(r.thanh_phans, key=lambda x: (x.thu_tu or 0, x.id or 0))
+        ])
+        if cum:
+            it.so_luong = sum(k["so_luong"] for k in cum)
+        it.ten_thanh_phans = [k["ten"] for k in cum if k["ten"]]
         if r.id in bao_gia:
             it.bao_gia_id, it.bao_gia_ma = bao_gia[r.id]
         items.append(it)

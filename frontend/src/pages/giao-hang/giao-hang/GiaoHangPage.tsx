@@ -1,8 +1,8 @@
 // Màn Giao hàng — docs/prd-giao-hang.md §10.
 //
 // BA TAB, MỖI TAB MỘT Ô QUYỀN (luật "một ô = một tab", chốt 15/08/2026):
-//   Đơn giao hàng          ← can_read        (tab mặc định)
-//   Yêu cầu giao           ← can_plan
+//   Yêu cầu giao           ← can_plan        (tab mặc định)
+//   Đơn giao hàng          ← can_read        (mặc định khi không có can_plan)
 //   Nhân viên giao hàng    ← can_view_drivers
 //
 // Phạm vi LỌC DÒNG chứ không ẩn tab — máy chủ đã lọc, FE không tự suy lại. Và trạng thái của
@@ -35,7 +35,6 @@ import { DialogDoiChuyen } from "./modals/DialogDoiChuyen";
 import { DialogKetQua } from "./modals/DialogKetQua";
 import { DialogLenKeHoach } from "./modals/DialogLenKeHoach";
 import { napNguonLenDon } from "./shared/nguonLenDon";
-import { DialogYeuCauXuatKho } from "./modals/DialogYeuCauXuatKho";
 import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import { thamSoKy } from "../../thanh-loc/ky-danh-sach";
 import { useLocMan } from "../../thanh-loc/useLocMan";
@@ -107,7 +106,8 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
   const canWrite = can("giao_hang", "create");
   const canCancel = can("giao_hang", "cancel");
 
-  const [tab, setTab] = useState<TabId>("ke-hoach");
+  // Mặc định Yêu cầu giao; người không có ô `plan` thì `tabDang` rơi về Đơn giao hàng.
+  const [tab, setTab] = useState<TabId>("cho-len-ke-hoach");
   const [khoi, setKhoi] = useState<BangGiaoItem[]>([]);
   const [khoiPage, setKhoiPage] = useState(1);
   const [khoiSize, setKhoiSize] = useState(PAGE_SIZE);
@@ -131,16 +131,16 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
   const [planFor, setPlanFor] = useState<
     { requests: DeliveryRequest[]; theoLuot: boolean } | null
   >(null);
-  // Lượt vừa lập — khối của nó được làm nổi + cuộn tới (bước kế tiếp: gửi yêu cầu xuất kho).
+  // Lượt vừa lập — khối của nó được làm nổi + cuộn tới (lên đơn đã gửi kho, chờ kho xuất).
   const [luotMoi, setLuotMoi] = useState<number | null>(null);
   const [ketQuaFor, setKetQuaFor] = useState<DeliveryTrip | null>(null);
-  const [xuatKhoFor, setXuatKhoFor] = useState<DeliveryTrip | null>(null);
   const [doiFor, setDoiFor] = useState<DeliveryTrip | null>(null);
   // Ngăn chi tiết của MỘT dòng tab Đơn giao hàng. Giữ bản chụp cuối: bảng tải lại (SSE, lọc) mà
   // dòng rơi khỏi trang thì ngăn vẫn đứng, không tự đóng giữa lúc người ta đang đọc.
   const [ngan, setNgan] = useState<{ khoa: string; form: FormLuot | null } | null>(null);
   const [nganItem, setNganItem] = useState<BangGiaoItem | null>(null);
-  // Báo của nút bước kế tiếp bấm ngay trên dòng bảng (ngăn có dòng báo riêng của nó).
+  // Báo của nút bước kế tiếp bấm ngay trên dòng bảng (ngăn có dòng báo riêng của nó), và báo
+  // "đã gửi kho" sau khi lên đơn.
   const [tin, setTin] = useState<string | null>(null);
   const [canhBaoDong, setCanhBaoDong] = useState<string[]>([]);
   // Tháng đang xem ở tab Nhân viên. `YYYY-MM` theo giờ ĐỊA PHƯƠNG — `toISOString()` trả UTC nên
@@ -271,13 +271,13 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
   const viTriYc = detail ? choLenKeHoachRows.findIndex((r) => r.id === detail.request.id) : -1;
 
   const tabs: { id: TabId; label: string; count: number; hien: boolean }[] = [
-    { id: "ke-hoach", label: "Đơn giao hàng", count: soDon, hien: true },
     {
       id: "cho-len-ke-hoach",
       label: "Yêu cầu giao",
       count: reqTotal,
       hien: canPlan,
     },
+    { id: "ke-hoach", label: "Đơn giao hàng", count: soDon, hien: true },
     { id: "nhan-vien", label: "Nhân viên giao hàng", count: drivers.length, hien: canViewDrivers },
   ];
   const tabHien = tabs.filter((t) => t.hien);
@@ -353,7 +353,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           <span>{error}</span>
         </div>
       )}
-      {tabDang === "ke-hoach" && tin && (
+      {tin && (
         <div className="banner banner--success" role="status">{tin}</div>
       )}
       {tabDang === "ke-hoach" && canhBaoDong.map((c) => (
@@ -418,16 +418,12 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
 
       {tabDang === "ke-hoach" && token && (
         <BangKeHoach items={khoi} loading={loading} coLoc={khoaDon !== "{}"}
-          canPlan={canPlan} canWrite={canWrite} luotMoi={luotMoi}
+          canWrite={canWrite} luotMoi={luotMoi}
           dangMo={ngan?.khoa ?? null} onMoNgan={moNgan} onLamLuot={lamLuot}
           luoi={luoiDon}
           cotAn={luoiDon.an}
           thuTu={luoiDon.thuTu}
           onKetQua={canWrite ? setKetQuaFor : undefined}
-          onGuiDeNghi={canPlan ? setXuatKhoFor : undefined}
-          onDaLay={canWrite
-            ? (t) => lam(api.giaoHang.daLayHang(token, t.id), "Không ghi được đã lấy hàng")
-            : undefined}
           onBatDau={canWrite
             ? (t) => lam(api.giaoHang.batDauGiao(token, t.id), "Không bắt đầu giao được")
             : undefined}
@@ -526,7 +522,6 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           key={ngan.khoa}
           item={nganItem}
           token={token}
-          canPlan={canPlan}
           canWrite={canWrite}
           formDau={ngan.form}
           onDoi={load}
@@ -534,10 +529,6 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           len={viTriNgan > 0 ? () => moNgan(khoi[viTriNgan - 1]) : undefined}
           xuong={viTriNgan >= 0 && viTriNgan < khoi.length - 1 ? () => moNgan(khoi[viTriNgan + 1]) : undefined}
           onKetQua={canWrite ? setKetQuaFor : undefined}
-          onGuiDeNghi={canPlan ? setXuatKhoFor : undefined}
-          onDaLay={canWrite
-            ? (t) => lam(api.giaoHang.daLayHang(token, t.id), "Không ghi được đã lấy hàng")
-            : undefined}
           onBatDau={canWrite
             ? (t) => lam(api.giaoHang.batDauGiao(token, t.id), "Không bắt đầu giao được")
             : undefined}
@@ -554,27 +545,19 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           theoLuot={planFor.theoLuot}
           token={token}
           onClose={() => setPlanFor(null)}
-          onXong={(luotId) => {
+          onXong={(luotId, phieu) => {
             setPlanFor(null);
-            // Lên lượt xong ⇒ về tab Đơn giao hàng, dòng lượt đó nổi lên: bước kế tiếp (gửi yêu
-            // cầu xuất kho cả lượt) nằm ngay trên dòng.
+            // Lên đơn = gửi kho luôn (12/10/2026) — nói mã đề nghị để điều phối biết kho đã nhận.
+            setCanhBaoDong([]);
+            setTin(phieu.length
+              ? `Đã lên đơn và gửi kho ${phieu.length > 1 ? `${phieu.length} đề nghị xuất` : "đề nghị xuất"} ${phieu.join(", ")}. Kho ghi sổ xuất xong thì chuyến tự sang Đã lấy hàng.`
+              : "Đã lên đơn giao hàng.");
+            // Lên lượt xong ⇒ về tab Đơn giao hàng, dòng lượt đó nổi lên.
             if (luotId != null) {
               setTab("ke-hoach");
               setKhoiPage(1);
               setLuotMoi(luotId);
             }
-            load();
-          }}
-        />
-      )}
-
-      {xuatKhoFor && token && (
-        <DialogYeuCauXuatKho
-          trip={xuatKhoFor}
-          token={token}
-          onClose={() => setXuatKhoFor(null)}
-          onXong={() => {
-            setXuatKhoFor(null);
             load();
           }}
         />
@@ -595,6 +578,7 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
       {ketQuaFor && token && (
         <DialogKetQua
           trip={ketQuaFor}
+          luotCt={khoi.find((k) => k.luot?.diem.some((d) => d.id === ketQuaFor.id))?.luot ?? null}
           token={token}
           onClose={() => setKetQuaFor(null)}
           onXong={() => {

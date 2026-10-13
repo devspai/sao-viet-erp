@@ -2087,7 +2087,8 @@ chỉ là một con số cộng dồn trên dòng nên công nợ chỉ biết "
 | `seq_no` | `Integer` → `INTEGER` | **U** cùng `purchase_request_id` | no | — | Đợt 1, 2, 3… trong phạm vi MỘT phiếu mua. Cố ý không cấp mã chứng từ toàn hệ. |
 | `delivery_date` | `Date` → `DATE` | — | no | — | Ngày hàng về — gốc tính hạn trả. |
 | `due_date` | `Date` → `DATE` | — | yes | — | Hạn trả riêng của đợt. `NULL` ⇒ suy `delivery_date + suppliers.credit_days`; NCC chưa khai số ngày thì đợt KHÔNG có hạn ⇒ không vào cột Quá hạn. |
-| `invoice_number` | `String(64)` → `VARCHAR(64)` | **IX** | yes | — | Số hoá đơn. Nhiều đợt mang CÙNG số = cùng MỘT hoá đơn (NCC hay giao 3 đợt rồi mới xuất một hoá đơn chung). |
+| `invoice_symbol` | `String(64)` → `VARCHAR(64)` | — | yes | — | Ký hiệu hoá đơn (mg 0404). Một hoá đơn = cặp ký hiệu + số. |
+| `invoice_number` | `String(64)` → `VARCHAR(64)` | **IX** | yes | — | Số hoá đơn. Nhiều đợt mang CÙNG ký hiệu + số = cùng MỘT hoá đơn (NCC hay giao 3 đợt rồi mới xuất một hoá đơn chung). |
 | `invoice_date` | `Date` → `DATE` | — | yes | — | Ngày hoá đơn. |
 | `amount` | `BigInteger` → `BIGINT` | — | yes | — | SỐ TIỀN của đợt **theo hoá đơn**, người khai gõ tay — công nợ bám con số này. `NULL` = chưa khai ⇒ lùi về số máy tính từ đơn giá đã chốt trên phiếu (cũng là số form điền sẵn). Cố ý KHÔNG ràng buộc khớp đơn giá và KHÔNG chặn vượt giá trị đơn: hoá đơn là chứng từ, ghi sao nhập vậy; lệch thì `purchase_money` gắn cờ `vuot_gia_tri_don`. Migration 0170. |
 | `note` | `Text` → `TEXT` | — | yes | — | Ghi chú. |
@@ -2452,6 +2453,9 @@ cần mua trong phiếu.
 | `delivery_id`                         | `Integer` → `INTEGER`                                  | **IX** (soft ref → `purchase_deliveries.id`) | yes  | —                   | Đợt giao mà phiếu này trả cho. `NULL` = phiếu ĐẶT CỌC/ứng trước (chi khi hàng chưa về), hoặc phiếu lập trước 06/08/2026. Soft ref có chủ ý: xoá đợt còn phiếu chi đã bị chặn ở service. Migration 0168. |
 | `gia_cong_ngoai_id`                   | `Integer` → `INTEGER`                                  | **FK→gia_cong_ngoai.id** (RESTRICT), **U riêng phần** (`uq_payment_voucher_gia_cong_ngoai` WHERE `status <> 'cancelled'`), **IX** | yes | — | Nguồn `gia_cong_ngoai`; một lần ⇄ một phiếu còn sống (mg 0339). |
 | `supplier_id`                         | `Integer` → `INTEGER`                                  | **FK→suppliers.id**, **IX**              | yes  | —                   | Nhà cung cấp hiện tại; thông tin pháp lý còn được snapshot bên dưới.           |
+| `muc_thu_chi_id` | `Integer` → `INTEGER` | **FK→muc_thu_chi.id (RESTRICT)**, **IX** | yes | — | Mục chi (11/10/2026, mg 0395). Phiếu lập tay bắt buộc; phiếu sinh từ đơn mua / gia công / tạm ứng để trống vì thuộc mục CỐ ĐỊNH suy từ `source_type` (mg 0396); phiếu lập tay trống = "Chưa phân loại" ở Báo cáo thu chi. |
+| `customer_id` | `Integer` → `INTEGER` | **FK→customers.id (RESTRICT)**, **IX** | yes | — | Khách nhận tiền — chỉ phiếu TRẢ LẠI TIỀN CHO KHÁCH (`source_type='customer_refund'`, lập từ ngăn Công nợ phải thu hoặc "Trả lại cọc" trên đơn đã huỷ; mg 0397 chuyển phiếu cũ mang khách sang nguồn này). Tiền này vào Công nợ phải thu của khách đó. |
+| `order_id` | `Integer` → `INTEGER` | **FK→orders.id (RESTRICT)**, **IX** | yes | — | Đơn bán ĐÃ HUỶ mà phiếu trả lại cọc (mg 0397). Không vượt cọc còn lại = Σ phiếu thu cọc `received` − Σ phiếu chi `paid` trỏ đơn này. NULL = trả lại tiền chung của khách. |
 | `voucher_type`                        | `String(24)` → `VARCHAR(24)`                           | **IX**                                   | no   | —                   | `cash` hoặc `bank_transfer`.                                                   |
 | `payment_stage`                       | `String(16)` → `VARCHAR(16)`                           | —                                        | no   | —                   | `advance`, `partial`, `final`, `other`.                                        |
 | `status`                              | `String(24)` → `VARCHAR(24)`                           | **IX**                                   | no   | `"waiting_payment"` | `waiting_payment`, `paid`, `cancelled`.                                        |
@@ -2530,6 +2534,7 @@ giá trị đơn đã chốt. One row = 1 hóa đơn bán.
 | `payment_term_days_snapshot` | `Integer` → `INTEGER`                                  | —                                 | yes  | —          | Số ngày công nợ được chụp tại lúc phát hành.                    |
 | `due_date`                   | `Date` → `DATE`                                        | —                                 | yes  | —          | Hạn thanh toán của hóa đơn.                                     |
 | `customer_name_snapshot`     | `String(255)` → `VARCHAR(255)`                         | —                                 | no   | —          | Tên khách hàng tại lúc phát hành.                               |
+| `delivery_trip_id`           | `Integer` → `INTEGER`                                  | **FK→delivery_trips.id**, **IX**  | yes  | —          | Lượt giao (khách đã nhận) mà hóa đơn lập cho; `ON DELETE RESTRICT`. Hóa đơn mới bắt buộc, giá trị không vượt hàng của lượt. Hóa đơn cũ để trống. Migration 0402. |
 | `status`                     | `String(16)` → `VARCHAR(16)`                           | **IX**                            | no   | `issued`   | `issued` hoặc `cancelled`.                                      |
 | `created_by_user_id`         | `Integer` → `INTEGER`                                  | **FK→users.id**                   | yes  | —          | Người ghi nhận hóa đơn; `ON DELETE CASCADE`.                   |
 | `created_at`                 | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                 | no   | now (UTC)  | Khi tạo.                                                        |
@@ -2568,6 +2573,8 @@ vào số tiền thực thu.
 | `purchase_request_id`             | `Integer` → `INTEGER`                                  | **FK→purchase_requests.id**, **IX**     | yes  | —                   | PMH nguồn (denormalize). NULL cho đơn bán. Nới NOT NULL mig 0070.  |
 | `order_id`                        | `Integer` → `INTEGER`                                  | **FK→orders.id**, **IX**                | yes  | —                   | Đơn bán (RESTRICT) — cọc khách nộp. NULL cho đường phiếu chi. Migration 0070. |
 | `sales_invoice_id`                | `Integer` → `INTEGER`                                  | **FK→sales_invoices.id**, **IX**        | yes  | —                   | Hóa đơn bán nguồn (RESTRICT) khi thu công nợ. Migration 0187.    |
+| `supplier_id` | `Integer` → `INTEGER` | **FK→suppliers.id (RESTRICT)**, **IX** | yes | — | NCC hoàn tiền (`purchase_refund`, mg 0397). Phiếu lập từ ngăn Công nợ phải trả gắn thẳng NCC, không cần `payment_voucher_id`; phiếu cũ lập từ phiếu chi được điền ngược từ phiếu chi gốc. |
+| `muc_thu_chi_id` | `Integer` → `INTEGER` | **FK→muc_thu_chi.id (RESTRICT)**, **IX** | yes | — | Mục thu (11/10/2026, mg 0395) — cùng luật với `payment_vouchers.muc_thu_chi_id`. |
 | `order_no_snapshot`               | `String(32)` → `VARCHAR(32)`                           | —                                       | yes  | —                   | Mã đơn snapshot (đường đơn bán). Migration 0070.                   |
 | `customer_name_snapshot`          | `String(255)` → `VARCHAR(255)`                         | —                                       | yes  | —                   | Tên khách snapshot (đường đơn bán). Migration 0070.                |
 | `payer_name`                      | `String(255)` → `VARCHAR(255)`                         | —                                       | no   | —                   | Người nộp tiền (NCC/nhân viên) — default suy từ phiếu chi.         |
@@ -3329,9 +3336,9 @@ dùng cho bình bài.
 
 **Purpose:** tờ giấy nguyên (khổ mua). Một row = một loại giấy cụ thể. (`chung_loai_giay_id` GỠ ở mg 0342 cùng danh mục Chủng loại giấy.)
 
-**Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `caliper_micron`, `tho`, `don_vi_gia`, `don_vi_them`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `thay_the_ids`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `caliper_micron`, `tho`, `don_vi_gia`, `don_vi_them`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
 
-`thay_the_ids` (JSON nullable, mảng int, mg 0239): **NVL THAY THẾ** — id các dòng `giay_nguyen` KHÁC dùng thay được món này. MỘT CHIỀU (khai A→B không tự suy B→A; cần cả hai chiều thì người khai tự thêm cả hai). Chỉ để tra cứu/gợi ý khi thiếu hàng, không ràng buộc gì ở engine tính giá/kế hoạch vật tư.
+`thay_the_ids` ĐÃ GỠ (mg 0405, 13/10/2026): danh sách giấy thay thế chỉ để tra cứu, không đường nào đọc.
 
 🔴 **`cong_thuc_luong` GỠ (mg `0348`)** — ô "Công thức tính định mức" của Giấy (mg 0195 + 0197) và bảng `cong_thuc_lich_su` đi kèm. Giấy đếm theo TỜ × KHỔ nên không còn ra kg bằng công thức; mất câu đã khai ở từng mã giấy, không khôi phục được. `audit_logs` giữ nguyên.
 
@@ -3353,13 +3360,13 @@ dùng cho bình bài.
 
 **Purpose:** vật tư in ấn — danh mục PHẲNG (mực/kẽm/hoá chất/màng/keo… chung 1 bảng, phân biệt bằng tên) theo bảng xưởng: Mã · Tên · ĐVT · Giá · Ghi chú. Thay 2 bảng cũ `muc`+`ban_kem`.
 
-**Tất cả cột:** `id`, `ma`, `ten`, `don_vi_gia`, `don_vi_them`, `don_vi_dong_goi`, `he_so_dong_goi`, `don_gia`, `cong_thuc_gia`, `cong_thuc_dinh_muc`, `ghi_chu`, `thay_the_ids`, `anh_url`, `active`, `created_at`, `updated_at`, `customer_id`, `la_thanh_pham`, `order_id`, `order_line_id`, `cau_hinh_tai_ban`, `tai_ban_luc`.
+**Tất cả cột:** `id`, `ma`, `ten`, `don_vi_gia`, `don_vi_them`, `don_vi_dong_goi`, `he_so_dong_goi`, `don_gia`, `cong_thuc_gia`, `cong_thuc_dinh_muc`, `ghi_chu`, `anh_url`, `active`, `created_at`, `updated_at`, `customer_id`, `la_thanh_pham`, `order_id`, `order_line_id`, `cau_hinh_tai_ban`, `tai_ban_luc`.
 
 `cau_hinh_tai_ban` (JSON nullable, mg `0394`, 11/10/2026): **CẤU HÌNH TÁI BẢN** của thành phẩm — list `ThanhPhanIn` (ruột + bìa… theo thứ tự dòng đơn) chụp ở lần CHỐT ĐƠN gần nhất có phiếu tính giá. Ô "Sản phẩm tái bản" của phiếu tính giá nạp lại từ đây, lọc theo KHÁCH. NULL = mã chưa từng chốt qua phiếu tính giá (khai tay / nhập Excel) — vẫn chọn được, chỉ gắn mã. mg `0394` chép một lần từ bảng cũ `san_pham_tai_ban`. `tai_ban_luc` (TIMESTAMPTZ nullable) = lúc chụp cấu hình đó.
 
 `cong_thuc_dinh_muc` (TEXT nullable, mg 0357, 01/10/2026): **CÔNG THỨC ĐỊNH MỨC** — số lượng vật tư này tiêu hao cho MỘT bước; biến = bộ `LOAI_QUY_DOI` + chip riêng (`vat_tu_chip`). Lệnh sản xuất tự tính, người dùng không nhập tay. Backfill từ `cong_doan_vat_tu.cong_thuc_luong` khi vật tư chỉ có đúng một công thức.
 
-`thay_the_ids` (JSON nullable, mảng int, mg 0239): **NVL THAY THẾ** — id các dòng `vat_tu_in_an` KHÁC dùng thay được món này. Xem ghi chú đầy đủ ở `giay_nguyen.thay_the_ids` (một chiều, chỉ tra cứu/gợi ý).
+`thay_the_ids` ĐÃ GỠ (mg 0405, 13/10/2026) — xem `giay_nguyen`.
 
 `la_thanh_pham` (BOOLEAN NOT NULL default `false`, mg 0228): **CÔNG TẮC chia hai màn danh mục** — `false` ⇒ *Vật tư khác* (`dm_vat_tu`), `true` ⇒ *Thành phẩm* (`dm_thanh_pham`). Người dùng **không khai** ô này: `_VatTuRepo` / `_ThanhPhamRepo` tự đóng dấu ở `_sau_gan`, vì `_gan` chỉ chép cột có trong `fields` nên cờ do nơi gọi đặt sẽ bị nuốt không một tiếng động.
 
@@ -3699,6 +3706,8 @@ Thứ phụ thuộc từng mặt hàng ("1 thùng keo = 3 kg" khác "1 thùng m�
 
 **Tất cả cột:** `id`, `ma`, `ten`, `vi_tri`, `ghi_chu`, `active`, `created_at`, `updated_at`.
 
+Kho cố định `KHO-TP` "Kho thành phẩm" (mg 0398, 12/10/2026): dòng hệ thống, migration tạo (hoặc nhận kho tên "Kho thành phẩm" đã khai) — không xoá / ngừng dùng / đổi tên được (`KhoHangService`), sửa vị trí / ghi chú được.
+
 ### `kho_vi_tri`
 
 **Purpose:** DANH SÁCH vị trí cất (kệ/ô) khai cho TỪNG kho — để khai lô chọn từ dropdown thay vì gõ tay. KHÔNG ràng buộc cứng lên `stock_lots.vi_tri`/`stock_voucher_lines.vi_tri` (2 cột đó vẫn là chuỗi tự do; danh sách này chỉ làm GỢI Ý/chọn, khỏi vỡ dữ liệu cũ). Bảng mới → `create_all` tự dựng (không migration). Gác quyền module `dm_kho_hang` (như khai báo kho). Xóa mềm `active=false`.
@@ -3714,6 +3723,23 @@ Thứ phụ thuộc từng mặt hàng ("1 thùng keo = 3 kg" khác "1 thùng m�
 
 - UNIQUE `(kho_id, ma)` (`uq_kho_vi_tri_kho_ma`) — không trùng tên vị trí trong CÙNG kho; khác kho được trùng.
 - **Tất cả cột:** `id`, `kho_id`, `ma`, `ghi_chu`, `active`, `created_at`.
+
+### `muc_thu_chi`
+
+**Purpose:** danh mục MỤC THU CHI (11/10/2026) — mỗi phiếu thu, phiếu chi mang một mục từ đây; Báo cáo thu chi gom Mục × tháng theo bảng này. Không có khái niệm "thu chi khác": phiếu chưa có mục hiện ở dòng "Chưa phân loại". Bảy mục CỐ ĐỊNH theo nguồn phiếu (trả đơn mua, gia công ngoài, tạm ứng lương, trả lại tiền cho khách, thu theo hoá đơn, cọc đơn, nhà cung cấp hoàn tiền) KHÔNG có dòng ở đây — `models/muc_thu_chi.MUC_CO_DINH`, id âm (mg 0396, 0397). Cột `can_khach_hang` ĐÃ BỎ ở mg 0397 (mục bật cờ chuyển Ngừng dùng). Mục KHÔNG có ô tài khoản kế toán (hệ không định khoản). Bảng mới → `create_all` tự dựng. Gác quyền module `dm_muc_thu_chi`; đọc mở thêm cho `phieu_chi`, `phieu_thu`, `bao_cao_thu_chi`. Xóa = ngừng dùng (`active=false`) vì phiếu trỏ vào bằng FK.
+
+| Cột | Kiểu | Ràng buộc | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `id` | `Integer` → `INTEGER` | PK | no | auto | — |
+| `ma` | `String(30)` → `VARCHAR(30)` | UNIQUE, **IX** | no | — | Mã mục, bỏ trống thì máy cấp `MTC-####`. |
+| `ten` | `String(150)` → `VARCHAR(150)` | — | no | — | Tên mục ("Điện nước"). |
+| `loai` | `String(8)` → `VARCHAR(8)` | **IX** | no | — | `thu` hoặc `chi` — phiếu thu chỉ chọn được mục thu, phiếu chi chỉ mục chi. |
+| `ghi_chu` | `String(500)` → `VARCHAR(500)` | — | yes | — | — |
+| `active` | `Boolean` → `BOOLEAN` | — | no | `true` | Ngừng dùng = false; ô chọn mục trên phiếu chỉ hiện mục đang dùng. |
+| `created_at` | `DateTime(tz)` → `TIMESTAMPTZ` | — | no | now | — |
+| `updated_at` | `DateTime(tz)` → `TIMESTAMPTZ` | — | no | now | — |
+
+- **Tất cả cột:** `id`, `ma`, `ten`, `loai`, `ghi_chu`, `active`, `created_at`, `updated_at`.
 
 ### `khuon_be`
 
@@ -4068,7 +4094,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Kế toán — chứng từ chi (Phiếu chi / Ủy nhiệm chi) từ PMH. One row = 1 chứng từ; nhiều cột `*_snapshot` chốt thông tin NCC/ngân hàng tại thời điểm lập.
 
-**Tất cả cột:** `id`, `code`, `doc_no`, `source_type`, `purchase_request_id`, `supplier_id`, `voucher_type`, `payment_stage`, `status`, `voucher_date`, `planned_payment_date`, `amount`, `amount_vnd`, `currency`, `exchange_rate`, `content`, `invoice_number`, `invoice_date`, `contract_number`, `company_bank_account_id`, `supplier_bank_account_id`, `cash_recipient_name`, `cash_recipient_address`, `cash_recipient_identity`, `bank_fee_bearer`, `bank_reference`, `debit_account`, `credit_account`, `source_code_snapshot`, `supplier_name_snapshot`, `supplier_tax_code_snapshot`, `supplier_address_snapshot`, `company_account_holder_snapshot`, `company_account_number_snapshot`, `company_bank_name_snapshot`, `company_bank_branch_snapshot`, `beneficiary_account_holder_snapshot`, `beneficiary_account_number_snapshot`, `beneficiary_bank_name_snapshot`, `beneficiary_bank_branch_snapshot`, `created_by_user_id`, `paid_by_user_id`, `paid_at`, `cancelled_by_user_id`, `cancelled_at`, `cancel_reason`, `note`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `code`, `doc_no`, `source_type`, `purchase_request_id`, `supplier_id`, `muc_thu_chi_id`, `customer_id`, `order_id`, `voucher_type`, `payment_stage`, `status`, `voucher_date`, `planned_payment_date`, `amount`, `amount_vnd`, `currency`, `exchange_rate`, `content`, `invoice_number`, `invoice_date`, `contract_number`, `company_bank_account_id`, `supplier_bank_account_id`, `cash_recipient_name`, `cash_recipient_address`, `cash_recipient_identity`, `bank_fee_bearer`, `bank_reference`, `debit_account`, `credit_account`, `source_code_snapshot`, `supplier_name_snapshot`, `supplier_tax_code_snapshot`, `supplier_address_snapshot`, `company_account_holder_snapshot`, `company_account_number_snapshot`, `company_bank_name_snapshot`, `company_bank_branch_snapshot`, `beneficiary_account_holder_snapshot`, `beneficiary_account_number_snapshot`, `beneficiary_bank_name_snapshot`, `beneficiary_bank_branch_snapshot`, `created_by_user_id`, `paid_by_user_id`, `paid_at`, `cancelled_by_user_id`, `cancelled_at`, `cancel_reason`, `note`, `created_at`, `updated_at`.
 
 ---
 
@@ -4092,7 +4118,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Kế toán — Phiếu thu đa nguồn (V5): hoàn ứng từ Phiếu chi đã chi (`purchase_refund`), thu cọc khách từ Đơn hàng bán (`order_deposit`), thu công nợ theo Hóa đơn bán (`sales_invoice`) hoặc thu khác/thu độc lập (`other`).
 
-**Tất cả cột:** `id`, `code`, `doc_no`, `source_type`, `payment_voucher_id`, `purchase_request_id`, `order_id`, `sales_invoice_id`, `payer_name`, `payer_address`, `receipt_method`, `status`, `receipt_date`, `amount`, `amount_vnd`, `currency`, `exchange_rate`, `content`, `company_bank_account_id`, `bank_reference`, `debit_account`, `credit_account`, `voucher_code_snapshot`, `purchase_code_snapshot`, `supplier_name_snapshot`, `customer_name_snapshot`, `order_no_snapshot`, `company_account_holder_snapshot`, `company_account_number_snapshot`, `company_bank_name_snapshot`, `company_bank_branch_snapshot`, `created_by_user_id`, `received_by_user_id`, `received_at`, `cancelled_by_user_id`, `cancelled_at`, `cancel_reason`, `note`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `code`, `doc_no`, `source_type`, `payment_voucher_id`, `purchase_request_id`, `order_id`, `sales_invoice_id`, `supplier_id`, `muc_thu_chi_id`, `payer_name`, `payer_address`, `receipt_method`, `status`, `receipt_date`, `amount`, `amount_vnd`, `currency`, `exchange_rate`, `content`, `company_bank_account_id`, `bank_reference`, `debit_account`, `credit_account`, `voucher_code_snapshot`, `purchase_code_snapshot`, `supplier_name_snapshot`, `customer_name_snapshot`, `order_no_snapshot`, `company_account_holder_snapshot`, `company_account_number_snapshot`, `company_bank_name_snapshot`, `company_bank_branch_snapshot`, `created_by_user_id`, `received_by_user_id`, `received_at`, `cancelled_by_user_id`, `cancelled_at`, `cancel_reason`, `note`, `created_at`, `updated_at`.
 
 ---
 
@@ -5846,6 +5872,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `don_vi_goc` | `String(16)` → `VARCHAR(16)` | — | no | `''` | **Đơn vị gốc** dòng giấy (mg 0388, thay `dang_giay` mg 0349): máy suy từ `dvt` — họ tờ ⇒ `to`, còn lại ⇒ `don_vi_gia` của mã. Vật tư khác ''. |
 | `kho_rong` | `Integer` → `INTEGER` | — | no | `0` | **Khổ** mm (mg 0349): cạnh NGẮN của tờ, hoặc khổ rộng của cuộn. Chuẩn hoá lúc ghi (`services/kho_giay.chuan_kho`: 780×905 và 905×780 là một khổ). 0 = không có. |
 | `kho_dai` | `Integer` → `INTEGER` | — | no | `0` | **Khổ** mm (mg 0349): cạnh DÀI của tờ; cuộn luôn 0. 0 = không có. |
+| `lo_goc_id` | `Integer` → `INTEGER` | — | yes | — | **Lô gốc của hàng khách trả về** (mg 0401): yêu cầu nhập trả của Giao hàng tách dòng theo lô gốc đã xuất; ghi sổ chép sang `stock_lots.lo_goc_id` ⇒ lô trả về thuộc họ lô gốc, nhận giá gốc kế toán gõ sau. Soft ref `stock_lots.id`. NULL với mọi yêu cầu khác. |
 
 **Keys & indexes**
 
@@ -5857,7 +5884,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 - Nhiều dòng thuộc một `stock_requests`; được `stock_voucher_lines.request_line_id` trỏ vào để chặn ứng vượt.
 
-**Tất cả cột:** `id`, `request_id`, `material_id`, `ten_tu_do`, `dvt`, `sl_de_nghi`, `sl_duyet`, `sl_da_ung`, `don_gia`, `don_vi_phu`, `he_so_quy_doi`, `ly_do_thieu`, `ghi_chu`, `don_vi_goc`, `kho_rong`, `kho_dai`.
+**Tất cả cột:** `id`, `request_id`, `material_id`, `ten_tu_do`, `dvt`, `sl_de_nghi`, `sl_duyet`, `sl_da_ung`, `don_gia`, `don_vi_phu`, `he_so_quy_doi`, `ly_do_thieu`, `ghi_chu`, `don_vi_goc`, `kho_rong`, `kho_dai`, `lo_goc_id`.
 
 ---
 
@@ -6139,8 +6166,6 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `request_id` | `Integer` → `INTEGER` | **FK→delivery_requests.id** (CASCADE), **IX** | no | — | Yêu cầu nguồn. |
 | `lan_thu` | `Integer` → `INTEGER` | **UQ** (cặp với `request_id`) | no | `1` | **NGƯNG DÙNG từ 22/08/2026** — luôn `1` vì một yêu cầu chỉ còn một chuyến. Giữ cột (không drop): chuyến cũ mang giá trị thật, và drop cột là việc không đảo được. |
 | `employee_id` | `Integer` → `INTEGER` | **FK→employees.id**, **IX** | no | — | Tài xế. Dùng `employees` chứ KHÔNG dựng bảng `drivers` riêng — trạng thái *"đang nghỉ"* chỉ đọc được nếu tài xế là nhân viên thật (đơn `nghi_phep` đã duyệt + chấm công). |
-| `gio_lay_hang` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | — | Giờ tài xế tới kho lấy hàng. Đây là cột KHO nhìn để xếp thứ tự chuẩn bị. |
-| `gio_du_kien_giao` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | — | Giờ dự kiến giao tới khách. Cặp `[gio_lay_hang, gio_du_kien_giao]` là khoảng dùng để phát hiện **trùng lịch** tài xế. |
 | `ghi_chu_phan_cong` | `String(500)` → `VARCHAR(500)` | — | yes | — | Ghi chú của quản lý khi phân công. |
 | `gia_cong_ngoai_id` | `Integer` → `INTEGER` | **IX** | yes | — | Chuyến "nhà gia công giao thẳng" — không xe, không kho, loại khỏi tiền km (mg 0339). |
 | `trang_thai` | `String(20)` → `VARCHAR(20)` | **IX** | no | `da_len_ke_hoach` | Tám trạng thái một chiều: `da_len_ke_hoach` → `dang_chuan_bi` (kho DUYỆT đề nghị) → `da_lay_hang` (TÀI XẾ tự bấm) → `dang_giao` → `thanh_cong` \| `giao_thieu` \| `hen_lai` \| `that_bai` → `dang_tra_hang` → `da_tra_hang`. Thêm `da_huy`. |

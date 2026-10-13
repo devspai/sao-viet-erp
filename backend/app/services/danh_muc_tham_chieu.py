@@ -277,6 +277,16 @@ def _xe(db: Session, obj) -> ThamChieu:
         _dem(db, DeliveryTrip, DeliveryTrip.vehicle_id == obj.id), "chuyến giao đã chạy xe này")))
 
 
+def _muc_thu_chi(db: Session, obj) -> ThamChieu:
+    """Mục đã có phiếu mang thì KHÔNG xoá hẳn — Báo cáo thu chi của các kỳ cũ cần tên mục đó."""
+    from ..models.accounting import PaymentReceipt, PaymentVoucher
+
+    return ThamChieu(chan=_gom(
+        _cau(_dem(db, PaymentVoucher, PaymentVoucher.muc_thu_chi_id == obj.id), "phiếu chi"),
+        _cau(_dem(db, PaymentReceipt, PaymentReceipt.muc_thu_chi_id == obj.id), "phiếu thu"),
+    ))
+
+
 DEM_THEO_LOAI = {
     "cong_doan": _cong_doan,
     "may_thiet_bi": _may_thiet_bi,
@@ -286,6 +296,7 @@ DEM_THEO_LOAI = {
     "vat_tu": lambda db, obj: _mat_hang(db, obj, "vat_tu"),
     "san_xuat_kcs_tieu_chi": _san_xuat_kcs_tieu_chi,
     "xe": _xe,
+    "muc_thu_chi": _muc_thu_chi,
 }
 
 

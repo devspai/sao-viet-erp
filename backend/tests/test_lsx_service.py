@@ -569,17 +569,21 @@ def test_hang_cho_chi_hien_don_da_chuyen_va_con_no_lenh(db, orders, lsx_svc, adm
 def test_preview_bao_KHO_DANG_CO_hang_cua_khach(db, orders, lsx_svc, admin, customer):
     """11/10/2026: thành phẩm thuộc về khách ⇒ đơn trước làm dư thì KHSX thấy "kho đang có N" để
     chỉ làm phần thiếu. Số là tồn của mã trừ phần đơn khác đang giữ."""
-    from app.models.kho_hang import KhoHang
+    from app.models.kho_hang import MA_KHO_THANH_PHAM, KhoHang
     from app.models.order import Order
     from app.models.stock_lot import StockLot
 
     d = _don_da_chuyen_sx(db, orders, admin, customer, _ptg_2_san_pham(db))
     hop_id = db.get(Order, d.id).lines[0].thanh_pham_id
-    kho = KhoHang(ma="KTP-LSX", ten="Kho thanh pham")
-    db.add(kho)
+    kho_tp = db.query(KhoHang).filter_by(ma=MA_KHO_THANH_PHAM).one()
+    khac = KhoHang(ma="KTP-LSX", ten="Kho khac")
+    db.add(khac)
     db.flush()
-    db.add(StockLot(hang_loai="vat_tu", hang_id=hop_id, kho_id=kho.id, ma_lo="LO-LSX-1",
+    db.add(StockLot(hang_loai="vat_tu", hang_id=hop_id, kho_id=kho_tp.id, ma_lo="LO-LSX-1",
                     ngay_nhap=date.today(), sl_ban_dau=500, sl_con_lai=500))
+    # Thành phẩm chỉ đếm ở Kho thành phẩm (12/10/2026) — lô nằm kho khác không tính.
+    db.add(StockLot(hang_loai="vat_tu", hang_id=hop_id, kho_id=khac.id, ma_lo="LO-LSX-2",
+                    ngay_nhap=date.today(), sl_ban_dau=300, sl_con_lai=300))
     db.commit()
 
     hop, tem = lsx_svc.preview(d.id)["lines"]
@@ -1111,15 +1115,15 @@ def test_may_in_dien_san_o_buoc_in_phai_la_may_cong_doan_chay_duoc(
     assert [x for x in lsx_svc._soi_danh_muc(lsx) if x.get("may_canh_bao")] == []
 
 
-@pytest.mark.parametrize("so_may, dien", [(1, True), (2, False)])
-def test_may_in_phieu_bo_trong_thi_chi_dien_khi_cong_doan_khai_dung_mot_may(
-    db, orders, lsx_svc, admin, customer, so_may, dien
+@pytest.mark.parametrize("so_may", [1, 2])
+def test_may_in_phieu_bo_trong_thi_dien_may_mac_dinh_cua_cong_doan(
+    db, orders, lsx_svc, admin, customer, so_may
 ):
-    """Phiếu bỏ trống ô Máy in: công đoạn khai 1 máy ⇒ điền; khai 2 máy ⇒ để trống cho KHSX chọn.
+    """Phiếu bỏ trống ô Máy in ⇒ bước In nhận MÁY MẶC ĐỊNH của công đoạn (máy đầu danh sách).
 
     Sale rất hay bỏ trống ô này (phiếu chỉ cần đơn giá công in), nên bước In xuống xưởng trống máy
-    là ca THƯỜNG chứ không phải ngoại lệ. Một máy thì không có gì để đoán — điền. Hai máy trở lên
-    là quyết định của người xếp lịch, máy không chọn hộ.
+    là ca THƯỜNG chứ không phải ngoại lệ. Trước 12/10/2026 công đoạn hai máy trở lên thì để trống;
+    nay máy đầu danh sách là mặc định (cùng luật tổ đầu), người xếp lịch vẫn đổi được.
     """
     mays = [_may_in(db)] + [_may_khac(db, f"MAY-IN-{i}") for i in range(1, so_may)]
     ptg = _ptg_mot_buoc_in(db, may_cua_phieu=None, may_lam_duoc=mays)
@@ -1130,7 +1134,7 @@ def test_may_in_phieu_bo_trong_thi_chi_dien_khi_cong_doan_khai_dung_mot_may(
 
     assert lsx.may_id is None
     buoc_in = {c.ten: c for c in lsx.cong_doans}["In AB"]
-    assert buoc_in.may_id == (mays[0].id if dien else None)
+    assert buoc_in.may_id == mays[0].id
 
 
 def test_may_in_cong_doan_chua_khai_may_nao_thi_tin_phieu(

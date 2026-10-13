@@ -1378,6 +1378,28 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     }
 
 
+def cum_san_pham(ds: list[tuple[str, str | None, int]]) -> list[dict]:
+    """Gom các thành phần thành SẢN PHẨM khách mua — đúng luật gộp dòng của bản in báo giá
+    (`frontend/src/utils/gop-nhom.ts`): cùng nhãn `nhom_bao_gia` (bỏ khoảng trắng, không phân biệt
+    hoa thường) VÀ cùng SL mới là một sản phẩm. Ruột 1.000 + bìa 1.000 của cụm "Sách A5" là MỘT
+    sản phẩm 1.000 cuốn, không phải 2.000. Thành phần không nhãn đứng riêng.
+
+    `ds` = [(tên thành phần, nhãn nhóm, SL đã rơi về SL mặc định phiếu)]. Trả [{ten, so_luong}]
+    theo thứ tự thành phần đầu của mỗi cụm; cụm lấy tên NHÃN, SL của cụm (không cộng dồn)."""
+    out: list[dict] = []
+    vi_tri: dict[tuple[str, int], int] = {}
+    for ten, nhom, sl in ds:
+        nhan = (nhom or "").strip()
+        if not nhan:
+            out.append({"ten": ten, "so_luong": sl})
+            continue
+        khoa = (nhan.lower(), sl)
+        if khoa not in vi_tri:
+            vi_tri[khoa] = len(out)
+            out.append({"ten": nhan, "so_luong": sl})
+    return out
+
+
 def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str] | None = None) -> dict:
     """Tính giá vốn 1 phiếu theo thành phần → 2 nhóm (nvl · cong_doan).
 
@@ -1438,14 +1460,22 @@ def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str]
         groups.append({"idx": idx, "name": _NAMES[idx], "columns": _COLS[idx],
                        "rows": rws, "subtotal": _r(subtotal)})
 
-    tong_sl = sum(_i(c.get("so_luong")) for c in components)
+    # Đếm theo SẢN PHẨM khách mua, không theo thành phần (13/10/2026): cuốn sách = ruột + bìa cùng
+    # nhóm báo giá là MỘT sản phẩm. Cộng SL từng thành phần thì 1.000 cuốn thành 2.000 SP và giá vốn
+    # mỗi sản phẩm ra một nửa số đúng (PTG-2026-0005: 10.206 đ thay vì 20.412 đ/cuốn).
+    cum = cum_san_pham([
+        (str(c.get("name") or ""), (thanh_phans[c["idx"]] or {}).get("nhom_bao_gia"), _i(c.get("so_luong")))
+        for c in components
+    ])
+    tong_sl = sum(_i(k["so_luong"]) for k in cum)
     gia_von_don = (grand_total / tong_sl) if tong_sl > 0 else 0.0
     return {
         "meta": {
             "so_luong": so_luong,            # SL mặc định phiếu (dùng khi sản phẩm chưa nhập SL)
-            "tong_so_luong": tong_sl,        # Σ SL các sản phẩm
-            "so_thanh_phan": len(thanh_phans or []),   # = SỐ SẢN PHẨM
-            "gia_von_don": _r(gia_von_don),            # đơn giá BÌNH QUÂN (Σ giá vốn / Σ SL)
+            "tong_so_luong": tong_sl,        # Σ SL các SẢN PHẨM (cụm báo giá, xem `cum_san_pham`)
+            "so_thanh_phan": len(thanh_phans or []),   # số THÀNH PHẦN (ruột, bìa tính riêng)
+            "so_san_pham": len(cum),                   # số SẢN PHẨM khách mua (ruột + bìa = 1)
+            "gia_von_don": _r(gia_von_don),            # đơn giá BÌNH QUÂN (Σ giá vốn / Σ SL sản phẩm)
             # Σ phí khuôn CẢ PHIẾU — số để SOI, đã nằm SẴN trong `grand_total` và `gia_von_don`.
             # Báo giá KHÔNG đẻ dòng riêng cho nó: nó lấy `gia_von_tp` của từng sản phẩm làm giá vốn
             # rồi markup, nên tiền dao được markup cùng phần còn lại. Đừng cộng nó vào đâu nữa.

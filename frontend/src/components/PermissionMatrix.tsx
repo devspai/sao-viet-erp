@@ -577,6 +577,10 @@ const MODULE_HINTS: Record<string, string> = {
     "Xem: tiêu chí KCS. Thao tác: thêm, sửa, xoá, ngừng / dùng lại.",
   dm_xe:
     "Xem: danh mục xe giao hàng, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
+  dm_muc_thu_chi:
+    "Xem: danh mục mục thu chi. Thao tác: thêm, sửa, xoá, ngừng / dùng lại. Lưu ý: người lập phiếu thu, phiếu chi vẫn chọn được mục dù không có ô này.",
+  bao_cao_thu_chi:
+    "Xem: báo cáo thu chi theo mục và tháng, xuất Excel. Thao tác: chuyển phiếu sang mục khác.",
   activity_log:
     "Xem: nhật ký thao tác. Lưu ý: chỉ thấy dòng của những màn mình được vào.",
 };
@@ -752,12 +756,12 @@ const MODULE_GROUPS: {
     label: "Báo cáo",
     // PHÂN HỆ "Báo cáo" (01/10/2026) — ba màn trước nằm rải ở Kinh doanh · Kế toán · Kho hàng, nay
     // gom về một khối, đúng thứ tự mục menu. Khoá quyền KHÔNG đổi, chỉ đổi nhóm hiển thị.
-    modules: ["bao_cao_kinh_doanh", "bao_cao_kho", "bao_cao_cong_no"],
+    modules: ["bao_cao_kinh_doanh", "bao_cao_kho", "bao_cao_cong_no", "bao_cao_thu_chi"],
   },
   {
     key: "cau_hinh_danh_muc",
     label: "Cấu hình danh mục",
-    // MỘT MÀN = MỘT DÒNG, đúng thứ tự menu "Cấu hình danh mục". 10 mục menu → 10 dòng.
+    // MỘT MÀN = MỘT DÒNG, đúng thứ tự menu "Cấu hình danh mục". 11 mục menu → 11 dòng.
     // (Màn "Lý do & lỗi SX" + ô `dm_ly_do_san_xuat` ĐÃ GỠ HẲN — mg 0288. Màn "Bù hao" +
     // `dm_bu_hao` GỠ 22/09/2026 — mg 0327: bậc bù hao nay khai trong chính Công đoạn. Màn
     // "Loại sản phẩm" + "Chủng loại giấy" GỠ 27/09/2026 — mg 0342.)
@@ -773,6 +777,7 @@ const MODULE_GROUPS: {
       "dm_kho_hang",
       "dm_kcs_tieu_chi",
       "dm_xe",
+      "dm_muc_thu_chi",
     ],
     noScope: true,
   },
@@ -996,6 +1001,7 @@ const PHAM_VI_CHO_PHEP: Record<string, Scope[]> = {
   cong_no_phai_tra: ["all"],
   cong_no_phai_thu: ["all"],
   bao_cao_cong_no: ["all"],
+  bao_cao_thu_chi: ["all"],
   nhan_su: ["department", "all"],
   // Bốn màn sổ sách kế toán / tài sản (05/10/2026): máy chủ KHÔNG đọc phạm vi của các khoá này
   // (`routers/accounting.py`, `routers/tai_san.py`) — chọn gì cũng thấy toàn bộ. Nay vào

@@ -73,6 +73,8 @@ export function AccountingPayablesPage({
   // Tích đợt / trả nhiều đợt = lập phiếu chi ⇒ hỏi quyền của MÀN PHIẾU CHI, không phải màn này.
   const quyen = {
     lap: can("phieu_chi", "create"),
+    // Nhà cung cấp hoàn tiền = lập phiếu thu ⇒ quyền của màn Phiếu thu.
+    thuHoan: can("phieu_thu", "create"),
     xemDonMua: can("ke_toan", "read"),
     xemNcc: can("nha_cung_cap", "read"),
     xemPhieuChi: can("phieu_chi", "read"),

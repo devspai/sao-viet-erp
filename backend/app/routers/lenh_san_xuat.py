@@ -22,7 +22,7 @@ from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.user import User
 from ..schemas.loc_danh_sach import LuaChonLoc
-from ..schemas.lenh_san_xuat import LenhSxBoLocOut, LenhSxHoSoOut, LenhSxListOut
+from ..schemas.lenh_san_xuat import LenhSxBoLocOut, LenhSxHoSoOut, LenhSxListOut, LenhSxNganOut
 from ..services.lenh_sx import danh_sach, ho_so, pham_vi, phieu_cong_nghe
 from ..services.rbac_service import AuthorizationService
 
@@ -68,6 +68,17 @@ def don_loc(
     return danh_sach.don_loc(db, sale_ids=sale_ids)
 
 
+@router.get("/phu-trach-loc", response_model=list[LuaChonLoc])
+def phu_trach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+):
+    """Ô "Phụ trách" của thanh lọc — chủ đơn của các lệnh trong phạm vi, kèm số lệnh."""
+    sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
+    return danh_sach.phu_trach_loc(db, sale_ids=sale_ids)
+
+
 @router.get("", response_model=LenhSxListOut)
 def danh_sach_lenh(
     db: Annotated[Session, Depends(get_db)],
@@ -77,6 +88,7 @@ def danh_sach_lenh(
     q: Annotated[str | None, Query(max_length=200)] = None,
     khach_hang_id: int | None = None,
     order_id: int | None = None,
+    phu_trach_id: int | None = None,
     gia_cong: Annotated[
         str | None, Query(pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$")
     ] = None,
@@ -102,6 +114,7 @@ def danh_sach_lenh(
         den_ngay=den_ngay,
         moc=moc,
         order_id=order_id,
+        phu_trach_id=phu_trach_id,
         gia_cong=gia_cong,
         page=page,
         page_size=page_size,
@@ -124,6 +137,18 @@ def ho_so_lenh(
     """
     sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
     return ho_so.ho_so(db, lsx_id, sale_ids=sale_ids)
+
+
+@router.get("/{lsx_id}/ngan", response_model=LenhSxNganOut)
+def ngan_lenh(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    lsx_id: int,
+):
+    """Ngăn hồ sơ gọn của MỘT lệnh (12/10/2026) — cùng cửa 404/403 với `ho_so_lenh`."""
+    sale_ids = pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
+    return ho_so.ngan(db, lsx_id, sale_ids=sale_ids)
 
 
 @router.get(

@@ -1,62 +1,78 @@
-// Màn "Theo dõi sản xuất" — bàn quét TOÀN XƯỞNG cho điều độ, QC, trưởng phòng (làm gọn 05/10/2026).
-// Trả lời "bây giờ xưởng thế nào, máy nào đứng, lệnh nào có vấn đề". Tra lệnh cũ là việc của màn Hồ
-// sơ lệnh sản xuất. Đặc tả: `docs/superpowers/specs/2026-10-05-lam-gon-ho-so-lenh-theo-doi-sx-design.md`
-// mục 3.
+// Màn "Theo dõi sản xuất" — THEO ĐƠN (phương án A bản 3, 12/10/2026). Kinh doanh và chủ xưởng theo dõi
+// đơn đã xuống xưởng tới đâu: một dòng một đơn, bốn chấm chặng Lệnh / SX / Kho / Giao theo mặt hàng
+// chậm nhất, đang làm gì, hạn giao còn bao lâu, đang vướng gì. Bấm dòng mở ngăn bảng mặt hàng
+// (`TdsxNganDon`). Ai thấy đơn nào: theo luật của Đơn hàng bán (người phụ trách của khách, nhóm dùng
+// chung) với cấp phạm vi của module này — máy chủ gắn từ token.
+// Kế hoạch: `docs/superpowers/plans/2026-10-12-theo-doi-don-ho-so-lenh.md`.
 //
-// Từ trên xuống (lưới chung 08/10/2026): đầu trang, thẻ lọc bất thường + hàng công cụ (ô tìm, Lọc,
-// nút đổi góc Theo máy / Theo lệnh nhớ trong `localStorage`, Cột), tấm lưới. MỖI lượt tải chỉ gọi
-// ĐÚNG góc đang xem.
-//
-// ⚠️ MÀN NÀY KHÔNG GHI GÌ CẢ, KHÔNG MỘT SỐ TIỀN NÀO. Lọc ở MÁY CHỦ — không `rows.filter` ở đây.
+// ⚠️ MÀN NÀY KHÔNG GHI GÌ CẢ, KHÔNG MỘT SỐ TIỀN NÀO. Lọc, đếm chip, cắt trang đều ở MÁY CHỦ.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "../api/client";
-import type {
-  TdsxBoLocOut,
-  TdsxDemBatThuong,
-  TdsxLocParams,
-  TdsxTheoLenhOut,
-  TdsxTheoMayOut,
-} from "../api/client";
+import type { TdsxChip, TdsxDonDong } from "../api/client";
+import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import type { NavigateFn } from "../components/AppShell";
-import { ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MauTT } from "../components/LuoiDs";
+import { EmptyRow } from "../components/EmptyState";
+import {
+  ChipTT, ChonCot, CuonLuoi, LocNhanhTrangThai, OTim, ngayVN, rongLuoi, soVN, tenKhachGon, useCauHinhLuoi,
+  type CotLuoi, type MauTT,
+} from "../components/LuoiDs";
+import { trangHopLe } from "../components/Pager";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
-import { LenhSxHoSoView } from "./LenhSxHoSoView";
-import { COT_LENH, TdsxTheoLenh } from "./TdsxTheoLenh";
-import { COT_MAY, TdsxTheoMay } from "./TdsxTheoMay";
 import { BangLoi } from "./keHoachSxShared";
 import {
-  BAT_THUONG,
-  LOC_TDSX_TRONG,
-  dieuKienTdsx,
-  locTdsxLenUrl,
-  locTdsxTuUrl,
-  thamSoLocTdsx,
-} from "./loc-san-xuat/dieu-kien-theo-doi-sx";
-import { useNapTenDonVi } from "./tenDonVi";
+  LOC_THEO_DOI_DON_TRONG,
+  MOC_THEO_DOI_DON,
+  locTheoDoiDonLenUrl,
+  locTheoDoiDonTuUrl,
+  thamSoLocTheoDoiDon,
+  useDieuKienTheoDoiDon,
+  type LocTheoDoiDon,
+} from "./loc-san-xuat/dieu-kien-theo-doi-don";
+import { ngayThang } from "./lsxRoutingDoc";
+import { TdsxNganDon } from "./TdsxNganDon";
+import { CHANG4, cauVuong, chipHan, dangLamDon } from "./tdsxDon";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
+import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
+import { daAp } from "./thanh-loc/thanh-loc";
 import { useLocMan } from "./thanh-loc/useLocMan";
-// `ke-hoach-sx.css` (lớp `.khsx-*` mà hồ sơ lệnh mở đè lên có thể dùng), rồi CSS chung `lsc-` (thẻ, chip,
-// dải chặng của hồ sơ lệnh và của ô Đang ở), rồi CSS riêng màn này (nạp CUỐI để `.tdsx-*` thắng).
+// `ke-hoach-sx.css` cho `EmptyState` (lớp `.khsx-*`), CSS chung `lsc-` (routing dọc), rồi CSS riêng.
 import "./ke-hoach-sx.css";
 import "./lenh-sx-chung.css";
 import "./theo-doi-san-xuat.css";
 
-/** Gộp sự kiện SSE sát nhau rồi mới tải lại — `useTre` là debounce, không nhân số lần gọi. */
-const SSE_GOP_MS = 400;
+/** Gộp sự kiện SSE rồi mới tải lại — mỗi lượt danh sách tính lại mọi đơn của trang. */
+const SSE_GOP_MS = 2000;
 
-type Goc = "theo_may" | "theo_lenh";
-const KHOA_GOC = "tdsx.goc";
+const CHIP: { key: TdsxChip; label: string; mau?: MauTT }[] = [
+  { key: "tat_ca", label: "Tất cả" },
+  { key: "can_de_y", label: "Cần để ý", mau: "do" },
+  { key: "dang_lam", label: "Đang làm", mau: "xanh" },
+  { key: "cho_giao", label: "Chờ giao", mau: "ngoc" },
+  { key: "da_giao", label: "Đã giao đủ", mau: "la" },
+];
 
-function docGoc(): Goc {
-  try {
-    if (typeof localStorage === "undefined") return "theo_may";
-    return localStorage.getItem(KHOA_GOC) === "theo_lenh" ? "theo_lenh" : "theo_may";
-  } catch {
-    return "theo_may";
-  }
-}
+interface CotDon extends CotLuoi { w?: number; n?: boolean }
+const COT_DON: CotDon[] = [
+  { key: "don", label: "Đơn", coDinh: true, w: 84 },
+  { key: "khach", label: "Khách hàng", w: 120 },
+  { key: "mh", label: "Mặt hàng", w: 170 },
+  { key: "sl", label: "Số lượng", w: 96, n: true },
+  { key: "chang", label: "Chặng", w: 150 },
+  { key: "lam", label: "Đang làm", w: 170 },
+  { key: "han", label: "Hạn giao", w: 172 },
+  { key: "vuong", label: "Đang vướng" },
+];
+
+type LocMan = { ky: KyDS; loc: LocTheoDoiDon };
+const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "chot" }, loc: LOC_THEO_DOI_DON_TRONG };
+const docLocMan = (p: URLSearchParams): LocMan => ({
+  ky: kyTuUrl(p, MOC_THEO_DOI_DON.map(([m]) => m), "chot"),
+  loc: locTheoDoiDonTuUrl(p),
+});
+const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "chot"), ...locTheoDoiDonLenUrl(t.loc) });
 
 export function TheoDoiSanXuatPage({
   eventTick,
@@ -67,27 +83,21 @@ export function TheoDoiSanXuatPage({
   navigate?: NavigateFn;
 }) {
   const { token } = useAuth();
-  // Nhãn đơn vị của cột Sản lượng tốt ("tờ in", "thành phẩm") — không nạp thì hiện mã trần.
-  useNapTenDonVi();
+  const can = useCan();
+  const coHoSo = can("lenh_san_xuat", "read");
 
-  // --- góc nhìn -------------------------------------------------------------------------------
-  const [goc, setGoc] = useState<Goc>(docGoc);
-  useEffect(() => {
-    try {
-      localStorage.setItem(KHOA_GOC, goc);
-    } catch {
-      /* chế độ riêng tư chặn lưu ⇒ lần sau về mặc định, không sao */
-    }
-  }, [goc]);
-
-  // --- bộ lọc (chạy ở máy chủ) ------------------------------------------------------------------
-  const khungRef = useRef<HTMLElement | null>(null);
-  const timRef = useRef<HTMLInputElement>(null);
+  const timRef = useRef<HTMLInputElement | null>(null);
+  const trangRef = useRef<HTMLElement | null>(null);
   const [q, setQ] = useState("");
   const qTre = useTre(q);
-  // Khách / Máy / Bất thường — thanh lọc chung, ghi lên URL, nhớ theo màn.
-  const [loc, setLoc] = useLocMan("theo-doi-san-xuat", LOC_TDSX_TRONG, locTdsxTuUrl, locTdsxLenUrl);
-  const batThuong = loc.bat_thuong ?? null;
+  const luoi = useCauHinhLuoi("tdsx-don");
+  const cotHien = luoi.rongHien(luoi.xep(COT_DON).filter((c) => !luoi.an.has(c.key)));
+  const [locMan, setLocMan] = useLocMan("theo-doi-san-xuat", LOC_MAN_TRONG, docLocMan, ghiLocMan);
+  const dieuKien = useDieuKienTheoDoiDon();
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocTheoDoiDon(locMan.loc) });
+  const [chip, setChip] = useState<TdsxChip>("tat_ca");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   useEffect(() => {
     function phim(e: KeyboardEvent) {
@@ -100,51 +110,34 @@ export function TheoDoiSanXuatPage({
     return () => window.removeEventListener("keydown", phim);
   }, []);
 
-  const [boLoc, setBoLoc] = useState<TdsxBoLocOut | null>(null);
-  useEffect(() => {
-    if (!token) return;
-    let song = true;
-    api.theoDoiSanXuat
-      .boLoc(token)
-      .then((r) => {
-        if (song) setBoLoc(r);
-      })
-      .catch(() => {
-        // Hỏng ⇒ điều kiện Khách/Máy không có giá trị để chọn, ô tìm và dải bất thường vẫn chạy.
-        if (song) setBoLoc(null);
-      });
-    return () => {
-      song = false;
-    };
-  }, [token]);
-
-  // --- dữ liệu: MỘT yêu cầu cho góc đang xem ------------------------------------------------------
-  const [mayData, setMayData] = useState<TdsxTheoMayOut | null>(null);
-  const [lenhData, setLenhData] = useState<TdsxTheoLenhOut | null>(null);
+  const [rows, setRows] = useState<TdsxDonDong[]>([]);
+  const [total, setTotal] = useState(0);
+  const [dem, setDem] = useState<Partial<Record<TdsxChip, number>> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [daTai, setDaTai] = useState(false);
   const [loi, setLoi] = useState<{ text: string; cam: boolean } | null>(null);
-  // Lượt về muộn của bộ lọc cũ không được đè lượt mới.
   const luot = useRef(0);
+
+  useEffect(() => {
+    setPage(1);
+  }, [qTre, khoaLoc, chip]);
 
   const load = useCallback(() => {
     if (!token) return;
     const so = ++luot.current;
-    const params: TdsxLocParams = {
-      q: qTre.trim() || undefined,
-      ...thamSoLocTdsx(loc, goc === "theo_lenh"),
-    };
     setLoading(true);
-    const p: Promise<unknown> =
-      goc === "theo_may"
-        ? api.theoDoiSanXuat.theoMay(token, params).then((r) => {
-            if (so === luot.current) setMayData(r);
-          })
-        : api.theoDoiSanXuat.theoLenh(token, params).then((r) => {
-            if (so === luot.current) setLenhData(r);
-          });
-    p.then(() => {
-      if (so === luot.current) setLoi(null);
-    })
+    api.theoDoiSanXuat
+      .theoDon(token, { chip, q: qTre.trim() || undefined, ...JSON.parse(khoaLoc), page, page_size: pageSize })
+      .then((r) => {
+        if (so !== luot.current) return;
+        setRows(r.items);
+        setTotal(r.total);
+        setDem(r.dem);
+        setLoi(null);
+        setDaTai(true);
+        const ve = trangHopLe(page, r.total, pageSize);
+        if (ve !== null) setPage(ve);
+      })
       .catch((e) => {
         if (so !== luot.current) return;
         const cam = e instanceof ApiError && e.isForbidden;
@@ -160,13 +153,11 @@ export function TheoDoiSanXuatPage({
       .finally(() => {
         if (so === luot.current) setLoading(false);
       });
-    // `loc` đổi danh tính mỗi lần chọn — đúng nhịp cần tải lại.
-  }, [token, goc, qTre, loc]);
+  }, [token, chip, qTre, khoaLoc, page, pageSize]);
   useEffect(() => {
     load();
   }, [load]);
 
-  // Realtime: gộp rồi tải lại ĐÚNG góc đang xem; hồ sơ đang mở nhận CÙNG nhịp đã gộp.
   const tickTre = useTre(eventTick ?? 0, SSE_GOP_MS);
   const tickDau = useRef(tickTre);
   useEffect(() => {
@@ -175,179 +166,259 @@ export function TheoDoiSanXuatPage({
     load();
   }, [tickTre, load]);
 
-  // --- hồ sơ một lệnh: vẽ ĐÈ lên bảng ----------------------------------------------------------
-  const [hoSoId, setHoSoId] = useState<number | null>(null);
-  const dongHoSo = useCallback(() => {
-    const id = hoSoId;
-    setHoSoId(null);
+  // --- ngăn một đơn ------------------------------------------------------------------------------
+  const [moId, setMoId] = useState<number | null>(null);
+  const viTri = moId == null ? -1 : rows.findIndex((r) => r.order_id === moId);
+  const dongNgan = useCallback(() => {
+    const id = moId;
+    setMoId(null);
     requestAnimationFrame(() => {
-      const nut = khungRef.current?.querySelector<HTMLButtonElement>(`[data-lsx="${id}"]`);
-      if (nut) nut.focus();
-      else khungRef.current?.focus();
+      const dong = trangRef.current?.querySelector<HTMLElement>(`tr[data-don="${id}"]`);
+      if (dong) dong.focus();
+      else timRef.current?.focus();
     });
-  }, [hoSoId]);
+  }, [moId]);
 
-  // Cột hiện / thứ tự cột nhớ theo từng góc (mỗi góc một lưới riêng).
-  const luoiLenh = useCauHinhLuoi("tdsx-lenh");
-  const luoiMay = useCauHinhLuoi("tdsx-may");
-
-  const dangLoc =
-    qTre.trim() !== "" || loc.khach != null || batThuong !== null
-    || (goc === "theo_lenh" && (loc.may != null || loc.khau != null));
+  const dangLoc = qTre.trim() !== "" || locMan.ky.loai !== "tat_ca" || dieuKien.some((d) => daAp(d, locMan.loc));
   const xoaLoc = useCallback(() => {
     setQ("");
-    setLoc(LOC_TDSX_TRONG);
-  }, [setLoc]);
+    setLocMan({ ky: { loai: "tat_ca", moc: locMan.ky.moc }, loc: LOC_THEO_DOI_DON_TRONG });
+    setChip("tat_ca");
+  }, [setLocMan, locMan.ky.moc]);
 
-  const data = goc === "theo_may" ? mayData : lenhData;
-  const dem: TdsxDemBatThuong | null = data?.bat_thuong ?? null;
-  const dieuKien = dieuKienTdsx(boLoc, dem, goc === "theo_lenh");
-
-  // Ô báo khi bảng rỗng — gom MỘT chỗ cho cả hai góc (chữ trong ô `lds-trong` của lưới).
-  const rong = loi ? (
-    <>
-      <span className="lds-do">{loi.cam ? loi.text : "Không tải được bảng theo dõi."}</span>
-      {!loi.cam && <span className="lds-mu"> {loi.text} </span>}
-      {!loi.cam && (
-        <button type="button" className="lds-lk" onClick={load}>
-          Thử lại
-        </button>
-      )}
-    </>
-  ) : dangLoc ? (
-    <>
-      {goc === "theo_may" ? "Không có việc nào khớp điều kiện đang lọc." : "Không có lệnh nào khớp điều kiện đang lọc."}{" "}
-      <button type="button" className="lds-lk" onClick={xoaLoc}>
-        Xoá bộ lọc
-      </button>
-    </>
-  ) : goc === "theo_may" ? (
-    "Chưa có việc nào trên máy. Lệnh phát hành xuống xưởng sẽ hiện ở đây."
-  ) : (
-    "Chưa có lệnh nào đang sản xuất trong phạm vi của bạn."
-  );
-
-  // Lỗi lúc CHƯA có dữ liệu ⇒ thay hàng xương bằng ô báo lỗi (không để xương mãi).
-  const dataHien = data ?? (loi ? (goc === "theo_may" ? MAY_RONG : LENH_RONG) : null);
-
-  // Thẻ lọc nhanh bất thường: "Tất cả" + sáu mục, số do MÁY CHỦ đếm (`data.bat_thuong`) trên cả tập
-  // đã lọc. Một mục một lúc; bấm lại mục đang chọn thì bỏ.
-  const muc = [
-    { key: "", label: "Tất cả" },
-    ...BAT_THUONG.map((b) => ({
-      key: b.key as string,
-      label: b.ten,
-      count: dem ? dem[b.key] : undefined,
-      mau: MAU_BAT_THUONG[b.key],
-    })),
-  ];
-  const chonBatThuong = (key: string) =>
-    setLoc({
-      ...loc,
-      bat_thuong: key === "" || key === batThuong ? undefined : BAT_THUONG.find((b) => b.key === key)?.key,
-    });
-
-  const cot = goc === "theo_may" ? COT_MAY : COT_LENH;
-  const luoi = goc === "theo_may" ? luoiMay : luoiLenh;
+  const muc = CHIP.map((c) => ({ key: c.key, label: c.label, count: dem ? dem[c.key] ?? 0 : undefined, mau: c.mau }));
+  const nhanChip = CHIP.find((c) => c.key === chip)?.label ?? "Tất cả";
 
   return (
-    <main className="tdsx lds" ref={khungRef} tabIndex={-1}>
+    <main className="tdsx lds" ref={trangRef}>
       <header className="lds-dau">
         <h1 className="lds-dau__ten">Theo dõi sản xuất</h1>
       </header>
 
-      {/* Lỗi khi ĐÃ có bảng: giữ bảng cũ, báo một dòng phía trên. */}
-      {loi && data && <BangLoi text="Không làm mới được bảng theo dõi." onRetry={load} />}
+      {loi && rows.length > 0 && <BangLoi text="Không làm mới được danh sách." onRetry={load} />}
 
-      <section className="lds-loc" aria-label="Lọc bảng theo dõi">
-        <LocNhanhTrangThai
-          muc={muc}
-          dang={batThuong ?? ""}
-          onChon={chonBatThuong}
-          ariaLabel="Bất thường, bấm để lọc bảng"
-        />
+      <section className="lds-loc" aria-label="Lọc đơn">
+        <LocNhanhTrangThai muc={muc} dang={chip} onChon={(k) => setChip(k as TdsxChip)} ariaLabel="Lọc đơn theo tình trạng" />
         <div className="lds-loc__thanh tl-thanh" role="search">
           <OTim
+            inputRef={timRef}
             value={q}
             onChange={setQ}
-            inputRef={timRef}
             maxLength={120}
-            placeholder="Tìm mã lệnh, sản phẩm, số đơn, khách"
-            ariaLabel="Tìm mã lệnh, sản phẩm, số đơn, khách"
+            placeholder="Tìm số đơn, khách, mặt hàng, mã lệnh"
+            ariaLabel="Tìm số đơn, khách, mặt hàng, mã lệnh"
           />
-          <ThanhLoc dieuKien={dieuKien} loc={loc} onLoc={setLoc} />
-          <div className="lds-loc__phai">
-            <div className="tdsx-goc" role="group" aria-label="Góc nhìn">
-              <button
-                type="button"
-                className={`lds-btn${goc === "theo_may" ? " is-on" : ""}`}
-                aria-pressed={goc === "theo_may"}
-                onClick={() => setGoc("theo_may")}
-              >
-                Theo máy
-              </button>
-              <button
-                type="button"
-                className={`lds-btn${goc === "theo_lenh" ? " is-on" : ""}`}
-                aria-pressed={goc === "theo_lenh"}
-                onClick={() => setGoc("theo_lenh")}
-              >
-                Theo lệnh
-              </button>
-            </div>
-            <ChonCot cot={cot} {...luoi.chonCot} />
-          </div>
+          <ThanhLoc
+            ky={locMan.ky}
+            moc={MOC_THEO_DOI_DON}
+            onKy={(ky) => setLocMan({ ...locMan, ky })}
+            dieuKien={dieuKien}
+            loc={locMan.loc}
+            onLoc={(loc) => setLocMan({ ...locMan, loc })}
+            onXoaHet={xoaLoc}
+          />
+          {(dangLoc || chip !== "tat_ca") && !dieuKien.some((d) => daAp(d, locMan.loc) && !d.anKhoi) && (
+            <button type="button" className="lds-lk" onClick={xoaLoc}>
+              Xoá bộ lọc
+            </button>
+          )}
+          <ChonCot cot={COT_DON} {...luoi.chonCot} />
         </div>
       </section>
 
-      {goc === "theo_may" ? (
-        <TdsxTheoMay
-          data={dataHien as TdsxTheoMayOut | null}
-          dangTai={loading}
-          rong={rong}
-          onMo={setHoSoId}
-          luoi={luoiMay}
-          cotAn={luoiMay.an}
-          thuTu={luoiMay.thuTu}
-        />
-      ) : (
-        <TdsxTheoLenh
-          data={dataHien as TdsxTheoLenhOut | null}
-          dangTai={loading}
-          rong={rong}
-          onMo={setHoSoId}
-          dangMo={hoSoId}
-          luoi={luoiLenh}
-          cotAn={luoiLenh.an}
-          thuTu={luoiLenh.thuTu}
-        />
-      )}
+      <div className="lds-sheet">
+        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 160) }}>
+            <caption className="sr-only">Danh sách đơn đã xuống xưởng</caption>
+            <colgroup>
+              {cotHien.map((c) => (
+                <col key={c.key} style={c.w ? { width: c.w } : undefined} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr>
+                {cotHien.map((c) => (
+                  <th key={c.key} scope="col" className={c.n ? "n" : undefined}>
+                    {c.key === "chang" ? (
+                      <span className="tdsx-c4__nhan">
+                        {CHANG4.map((x) => <span key={x.key}>{x.ten}</span>)}
+                      </span>
+                    ) : (
+                      c.label
+                    )}
+                    {luoi.keo(c.key)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className={loading && rows.length > 0 ? "is-mo" : undefined}>
+              {loading && rows.length === 0 && !loi ? (
+                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={cotHien.length} className="lds-trong">
+                    {loi ? (
+                      <>
+                        <span className="lds-do">{loi.cam ? loi.text : `Không tải được danh sách đơn. ${loi.text}`}</span>
+                        {!loi.cam && (
+                          <>
+                            {" "}
+                            <button type="button" className="lds-lk" onClick={load}>
+                              Thử lại
+                            </button>
+                          </>
+                        )}
+                      </>
+                    ) : daTai && chip !== "tat_ca" && (dem?.tat_ca ?? 0) > 0 ? (
+                      <>
+                        {`Nhóm «${nhanChip}» hiện không có đơn nào.`}{" "}
+                        <button type="button" className="lds-lk" onClick={() => setChip("tat_ca")}>
+                          Về Tất cả
+                        </button>
+                      </>
+                    ) : daTai && dangLoc ? (
+                      <>
+                        Không có đơn nào khớp điều kiện đang lọc.{" "}
+                        <button type="button" className="lds-lk" onClick={xoaLoc}>
+                          Xoá bộ lọc
+                        </button>
+                      </>
+                    ) : (
+                      "Chưa có đơn nào xuống xưởng trong phạm vi của bạn."
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr
+                    key={r.order_id}
+                    className={`lds-dong${r.order_id === moId ? " is-chon" : ""}`}
+                    data-don={r.order_id}
+                    tabIndex={0}
+                    onClick={() => setMoId(r.order_id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setMoId(r.order_id);
+                      }
+                    }}
+                  >
+                    {cotHien.map((c) => (
+                      <ODon key={c.key} cot={c.key} r={r} />
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </CuonLuoi>
 
-      {hoSoId !== null && (
-        <LenhSxHoSoView
-          lsxId={hoSoId}
-          onClose={dongHoSo}
+        {total > 0 && (
+          <PhanTrangDayDu
+            trang={page}
+            size={pageSize}
+            tong={total}
+            soDong={rows.length}
+            onTrang={setPage}
+            onSize={(n) => {
+              setPageSize(n);
+              setPage(1);
+            }}
+            loading={loading}
+            donVi="đơn"
+            ariaLabel="Phân trang đơn"
+          />
+        )}
+      </div>
+
+      {moId !== null && (
+        <TdsxNganDon
+          orderId={moId}
+          onDong={dongNgan}
           eventTick={tickTre}
-          onMoDon={navigate ? (orderId) => navigate("don-hang-ban", { openOrderId: orderId }) : undefined}
+          len={viTri > 0 ? () => setMoId(rows[viTri - 1].order_id) : undefined}
+          xuong={viTri >= 0 && viTri < rows.length - 1 ? () => setMoId(rows[viTri + 1].order_id) : undefined}
+          onMoLenh={coHoSo && navigate ? (id) => navigate("lenh-san-xuat", { openHoSoLsxId: id }) : undefined}
         />
       )}
     </main>
   );
 }
 
-/** Chấm màu thẻ lọc — mỗi mục một sắc nhận diện của thẻ, không nhất thiết trùng chip của dòng (chip cờ ở
- *  Theo lệnh trùng ở Trễ hạn, Sự cố, Tạm dừng, KCS không đạt; chip tình trạng máy ở Theo máy có bảng màu riêng). */
-const MAU_BAT_THUONG: Record<string, MauTT> = {
-  tre_han: "do",
-  su_co: "cam",
-  tam_dung: "vang",
-  kcs_khong_dat: "cham",
-  may_hong: "xam",
-  chua_may: "cyan",
-};
+/** Bốn chấm chặng: qua rồi xám đặc, chặng đang nằm có vòng (đỏ khi đơn đang vướng hoặc trễ). */
+function Chang4({ r }: { r: TdsxDonDong }) {
+  const vt = r.chang === "xong" ? CHANG4.length : CHANG4.findIndex((c) => c.key === r.chang);
+  const ten = r.chang === "xong" ? "đã giao xong" : `đang ở chặng ${CHANG4[vt]?.ten ?? ""}`;
+  return (
+    <span className="tdsx-c4" role="img" aria-label={`Đơn ${ten}${r.chang_ket ? ", đang vướng" : ""}`}>
+      {CHANG4.map((c, i) => (
+        <i
+          key={c.key}
+          className={i < vt ? "is-xong" : i === vt ? (r.chang_ket ? "is-o is-ket" : "is-o") : undefined}
+        />
+      ))}
+    </span>
+  );
+}
 
-const DEM_RONG: TdsxDemBatThuong = {
-  tre_han: 0, su_co: 0, tam_dung: 0, kcs_khong_dat: 0, may_hong: 0, chua_may: 0,
-};
-const MAY_RONG: TdsxTheoMayOut = { nhom: [], may_trong: [], bat_thuong: DEM_RONG };
-const LENH_RONG: TdsxTheoLenhOut = { items: [], total: 0, bat_thuong: DEM_RONG };
+function ODon({ cot, r }: { cot: string; r: TdsxDonDong }) {
+  switch (cot) {
+    case "don":
+      return <td>{r.order_no}</td>;
+    case "khach":
+      return r.khach_hang ? <td title={r.khach_hang}>{tenKhachGon(r.khach_hang)}</td> : <td className="lds-mu3">—</td>;
+    case "mh":
+      return (
+        <td title={r.mon_dau ?? undefined}>
+          {r.mon_dau ?? <span className="lds-mu3">Chưa đặt tên</span>}
+          {r.so_mon > 1 && <span className="tdsx-mu tdsx-cach">và {r.so_mon - 1} mặt hàng khác</span>}
+        </td>
+      );
+    case "sl":
+      return r.so_mon > 1 ? (
+        <td className="n">
+          {r.so_mon}
+          <span className="lds-u">mặt hàng</span>
+        </td>
+      ) : (
+        <td className="n">
+          {soVN(r.so_luong)}
+          {r.don_vi && <span className="lds-u">{r.don_vi}</span>}
+        </td>
+      );
+    case "chang":
+      return (
+        <td>
+          <Chang4 r={r} />
+        </td>
+      );
+    case "lam": {
+      const [a, b] = dangLamDon(r);
+      return (
+        <td>
+          <span>{a}</span>
+          {b && <span className="tdsx-mu tdsx-cach">{b}</span>}
+        </td>
+      );
+    }
+    case "han": {
+      const c = chipHan(r);
+      return (
+        <td>
+          {r.han_giao ? <span title={ngayVN(r.han_giao)}>{ngayThang(r.han_giao)}</span> : <span className="lds-mu3">Chưa hẹn</span>}
+          {c && (
+            <span className="tdsx-cach">
+              <ChipTT mau={c[1]}>{c[0]}</ChipTT>
+            </span>
+          )}
+        </td>
+      );
+    }
+    case "vuong": {
+      const v = cauVuong(r);
+      return v ? <td className="tdsx-do" title={v}>{v}</td> : <td className="lds-mu3">—</td>;
+    }
+    default:
+      return <td />;
+  }
+}

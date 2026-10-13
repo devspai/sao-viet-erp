@@ -30,6 +30,8 @@ export interface MatHangTongQuan {
   goc?: string;
   khoRong?: number;
   khoDai?: number;
+  /** Thành phẩm: thiếu thì sản xuất thêm, không mua — đổi chữ và bỏ nút Mua. */
+  laThanhPham?: boolean;
 }
 
 const ngayNgan = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "chưa hạn");
@@ -220,7 +222,8 @@ function DuongTon({ ton, duBao, th, sang, onSang }: {
 }
 
 /** Câu kết luận một dòng: trạng thái + vì sao + nên làm gì, một nút. */
-function KetLuan({ duBao, th, dvt, ton, coTheMua, onMua, onXemDonMua }: {
+function KetLuan({ duBao, th, dvt, ton, coTheMua, onMua, onXemDonMua, laTp }: {
+  laTp: boolean;
   duBao: DuBao;
   th: StockThreshold | undefined;
   dvt: string;
@@ -232,8 +235,10 @@ function KetLuan({ duBao, th, dvt, ton, coTheMua, onMua, onXemDonMua }: {
   const min = th?.nguong_ton ?? null;
   const max = th?.nguong_toi_da ?? null;
   const nL = duBao.suKien.filter((s) => s.loai === "lenh").length;
+  const dongTu = laTp ? "Sản xuất thêm" : "Mua";
+  const nhac = laTp ? "nhắc sản xuất" : "nhắc mua";
   const nV = duBao.suKien.filter((s) => s.loai === "ve").length;
-  const viec = [nL && `${nL} lệnh xuất`, nV && `${nV} đợt hàng về`].filter(Boolean).join(" và ");
+  const viec = [nL && `${nL} lượt xuất`, nV && `${nV} đợt hàng về`].filter(Boolean).join(" và ");
   let mau: "do" | "cam" | "la" | "tin";
   let tieu: string;
   let phu: ReactNode;
@@ -252,13 +257,13 @@ function KetLuan({ duBao, th, dvt, ton, coTheMua, onMua, onXemDonMua }: {
           ? `${viec} đưa tồn xuống ${fmtQty(duBao.duKien)} ${dvt}, dưới tối thiểu ${fmtQty(min)}.`
           : `${ton <= min ? tonNay : `Lệnh xuất trước khi hàng về kéo tồn xuống ${fmtQty(duBao.thapNhat)} ${dvt}, dưới tối thiểu ${fmtQty(min)}.`} Hàng về sau đó mới đưa lên lại ${fmtQty(duBao.duKien)} ${dvt}.`;
       phu = <>{vi} {duBao.deNghi > 0 && (duBao.dich?.day
-        ? <>Mua {fmtQty(duBao.deNghi)} {dvt} về trước ngày đó thì không lúc nào dưới tối thiểu.</>
-        : <>Mua {fmtQty(duBao.deNghi)} {dvt} thì về lại mức {duBao.dich?.nhan.toLowerCase()} {fmtQty(duBao.dich?.so ?? 0)}.</>)}</>;
+        ? <>{dongTu} {fmtQty(duBao.deNghi)} {dvt} {laTp ? "xong" : "về"} trước ngày đó thì không lúc nào dưới tối thiểu.</>
+        : <>{dongTu} {fmtQty(duBao.deNghi)} {dvt} thì về lại mức {duBao.dich?.nhan.toLowerCase()} {fmtQty(duBao.dich?.so ?? 0)}.</>)}</>;
     } else {
       tieu = `Lệnh sắp xuất vượt tồn ${fmtQty(-duBao.thapNhat)} ${dvt}`;
-      phu = <>Chưa đặt mức nên chỉ tính phần lệnh thiếu. Mua {fmtQty(duBao.deNghi)} {dvt} thì đủ cho các lệnh.</>;
+      phu = <>Chưa đặt mức nên chỉ tính phần lệnh thiếu. {dongTu} {fmtQty(duBao.deNghi)} {dvt} thì đủ cho các lệnh.</>;
     }
-    if (coTheMua && duBao.deNghi > 0) {
+    if (coTheMua && !laTp && duBao.deNghi > 0) {
       nut = (
         <button type="button" className="tkh-btn tkh-btn--chinh tkh-btn--nho" onClick={onMua}>
           <ShoppingCart aria-hidden="true" />Mua {fmtQty(duBao.deNghi)} {dvt}
@@ -287,11 +292,11 @@ function KetLuan({ duBao, th, dvt, ton, coTheMua, onMua, onXemDonMua }: {
     tieu = nL ? `Đủ cho ${nL} lệnh sắp xuất` : th ? "Hàng về vẫn nằm trong mức" : "Chưa lệnh nào cần mặt hàng này";
     phu = th
       ? `Dự kiến còn ${fmtQty(duBao.duKien)} ${dvt}, nằm trong mức.`
-      : `Dự kiến còn ${fmtQty(duBao.duKien)} ${dvt}. Chưa đặt mức nên máy không nhắc mua khi sắp hết.`;
+      : `Dự kiến còn ${fmtQty(duBao.duKien)} ${dvt}. Chưa đặt mức nên máy không ${nhac} khi sắp hết.`;
   } else {
     mau = "tin";
     tieu = "Chưa lệnh nào cần mặt hàng này";
-    phu = th ? "Không có đơn mua nào sắp về." : "Chưa đặt mức nên máy không nhắc mua khi sắp hết.";
+    phu = th ? (laTp ? "Không có hàng nào sắp về." : "Không có đơn mua nào sắp về.") : `Chưa đặt mức nên máy không ${nhac} khi sắp hết.`;
   }
   return (
     <div className={`tkh-msg tkh-msg--${mau}`}>
@@ -375,7 +380,7 @@ export function TongQuanTon({
       </div>
     );
   } else if (duBao) {
-    ketLuan = <KetLuan duBao={duBao} th={th} dvt={dvt} ton={mh.ton} coTheMua={coTheMua} onMua={onMua} onXemDonMua={onXemDonMua} />;
+    ketLuan = <KetLuan duBao={duBao} th={th} dvt={dvt} ton={mh.ton} coTheMua={coTheMua} onMua={onMua} onXemDonMua={onXemDonMua} laTp={!!mh.laThanhPham} />;
   }
 
   // ---- Phép tính Dự kiến còn: từng việc một dòng; loại việc nào trống thì một dòng 0 giữ chỗ. ----
@@ -425,7 +430,7 @@ export function TongQuanTon({
                 {duBao && !coLenh && (
                   <tr>
                     <td className="c lds-mu">−</td>
-                    <td>Sắp xuất cho lệnh<span className="tkh-phu">chưa lệnh nào cần</span></td>
+                    <td>Sắp xuất<span className="tkh-phu">chưa lệnh hay đề nghị xuất nào</span></td>
                     <td />
                     <td className="n lds-mu">0</td>
                   </tr>
@@ -435,7 +440,7 @@ export function TongQuanTon({
                     onMouseEnter={() => setSang(i)} onMouseLeave={() => setSang(null)}>
                     <td className="c lds-mu">{s.loai === "ve" ? "+" : "−"}</td>
                     <td>
-                      {s.loai === "ve" ? "Sắp về" : "Xuất cho"}
+                      {s.loai === "ve" ? "Sắp về" : s.lenh.de_nghi_id ? "Đề nghị xuất" : "Xuất cho"}
                       {s.loai === "ve" && s.ma && onXemDonMua ? (
                         <button type="button" className="tkh-lk" onClick={() => onXemDonMua(s.ma as string)}>{s.ma}</button>
                       ) : <span className="tkh-ma">{tenViec(s)}</span>}
@@ -536,7 +541,9 @@ export function TongQuanTon({
               </table></div>
             ) : (
               <div className="tkh-chua-muc">
-                <p className="tkh-goi">Chưa đặt mức nên máy không nhắc mua khi sắp hết, và mặt hàng không vào nhóm Cần mua.</p>
+                <p className="tkh-goi">{mh.laThanhPham
+                  ? "Chưa đặt mức nên máy không nhắc sản xuất khi sắp hết, và mặt hàng không vào nhóm Cần sản xuất."
+                  : "Chưa đặt mức nên máy không nhắc mua khi sắp hết, và mặt hàng không vào nhóm Cần mua."}</p>
                 {canSetThreshold && (
                   <button type="button" className={`tkh-btn tkh-btn--nho${duBao?.canMua ? "" : " tkh-btn--chinh"}`} onClick={onDatNguong}>
                     <Gauge aria-hidden="true" />Đặt mức

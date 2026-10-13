@@ -98,6 +98,7 @@ from .cong_doan import (
 )
 from .don_vi_do import DonViDo, DonViQuyDoi
 from .kho_hang import KhoHang, KhoViTri
+from .muc_thu_chi import MucThuChi
 from .cong_no_khoa_so import CongNoKhoaSo, CongNoKyChot
 from .kho_khoa_so import KhoKhoaSo
 from .kho_ky_ton import KhoKyTon
@@ -265,6 +266,7 @@ __all__ = [
     "PhieuThanhPham",
     "SanPhamTaiBan",
     "KhoHang",
+    "MucThuChi",
     "KhoViTri",
     "CongNoKhoaSo",
     "CongNoKyChot",

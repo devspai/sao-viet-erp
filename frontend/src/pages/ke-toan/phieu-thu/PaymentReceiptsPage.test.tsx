@@ -21,7 +21,7 @@ vi.mock("../../../auth/permissions", async (goc) => ({
 }));
 vi.mock("../../../api/client", async (goc) => ({
   ...(await goc<typeof import("../../../api/client")>()),
-  api: { accounting: goi },
+  api: { accounting: goi, mucThuChi: { list: vi.fn().mockResolvedValue({ items: [] }) } },
 }));
 
 import { PaymentReceiptsPage } from "./PaymentReceiptsPage";
@@ -47,14 +47,14 @@ describe("PaymentReceiptsPage — nối dây", () => {
   it("mở từ link có lọc + kỳ: lời gọi chính mang đúng tham số, sắp theo ngày thu; mốc Ngày thu đọc từ URL", async () => {
     window.history.replaceState(
       null, "",
-      "/?man=ke-toan-phieu-thu&ky=nam&moc=thu&the=thieu&q=PT-26&nguon=hd,coc&hinh_thuc=bank_transfer",
+      "/?man=ke-toan-phieu-thu&ky=nam&moc=thu&the=thieu&q=PT-26&muc=7,0&hinh_thuc=bank_transfer",
     );
     render(<PaymentReceiptsPage navigate={() => {}} />);
     await waitFor(() => expect(goi.receipts).toHaveBeenCalled());
     const nam = khoangSo({ loai: "nam", moc: "thu" });
     const p = goi.receipts.mock.calls[0][1];
     expect(p).toMatchObject({
-      status: "received", chung_tu: "thieu", q: "PT-26", nguon: ["sales_invoice", "order_deposit"],
+      status: "received", chung_tu: "thieu", q: "PT-26", muc: [7, 0],
       hinh_thuc: "bank_transfer", tu_ngay: nam.tu, den_ngay: nam.den, moc: "thu", page: 1, sort: "-receipt_date",
     });
     expect(p.nhan).toBeUndefined();

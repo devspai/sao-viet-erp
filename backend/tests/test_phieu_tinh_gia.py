@@ -297,6 +297,25 @@ def test_danh_sach_kem_ten_san_pham_ben_trong(client, auth_headers):
     assert dong["ten_thanh_phans"] == ["Ruột sách 160 trang", "Bìa sách"]
 
 
+def test_danh_sach_dem_ruot_bia_cung_nhom_la_mot_san_pham(client, auth_headers):
+    """Cột Sản phẩm hiện TÊN NHÓM, SL không cộng hai lần, giá vốn mỗi sp chia cho số cuốn."""
+    giay_id, cd_id = _seed_catalog()
+    body = {
+        "ten_san_pham": "",
+        "so_luong": 1000,
+        "thanh_phans": [
+            {**_component(giay_id, cd_id), "ten": "Ruột sách A5", "nhom_bao_gia": "Sách A5 64 trang"},
+            {**_component(giay_id), "ten": "Bìa sách A5", "nhom_bao_gia": "Sách A5 64 trang"},
+        ],
+    }
+    pid = client.post("/api/phieu-tinh-gia", json=body, headers=auth_headers).json()["id"]
+    ds = client.get("/api/phieu-tinh-gia", headers=auth_headers).json()["items"]
+    dong = next(it for it in ds if it["id"] == pid)
+    assert dong["ten_thanh_phans"] == ["Sách A5 64 trang"]
+    assert dong["so_luong"] == 1000
+    assert dong["gia_von_don"] == pytest.approx(dong["tong_gia_von"] / 1000, abs=0.01)
+
+
 def test_tim_kiem_cham_ten_san_pham_ben_trong(client, auth_headers):
     """Nhìn thấy chữ gì ở cột Sản phẩm thì gõ chữ đó phải ra phiếu."""
     giay_id, cd_id = _seed_catalog()

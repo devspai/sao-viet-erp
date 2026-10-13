@@ -93,6 +93,7 @@ const AccountingPayablesPage = lazy(() =>
 const AccountingReceivablesPage = lazy(() =>
   import("../pages/ke-toan/cong-no-phai-thu").then((m) => ({ default: m.AccountingReceivablesPage })));
 const BaoCaoKeToanPage = lazy(() => import("../pages/ke-toan/bao-cao").then((m) => ({ default: m.BaoCaoKeToanPage })));
+const BaoCaoThuChiPage = lazy(() => import("../pages/bao-cao-thu-chi").then((m) => ({ default: m.BaoCaoThuChiPage })));
 const AccountingPurchaseInboxPage = lazy(() =>
   import("../pages/ke-toan/don-mua-hang").then((m) => ({ default: m.AccountingPurchaseInboxPage })));
 const PaymentVouchersPage = lazy(() =>
@@ -129,6 +130,8 @@ export interface NavParams {
   openQuoteId?: number;
   /** Open this order's detail on the Đơn hàng bán screen. */
   openOrderId?: number;
+  /** Đi kèm `openOrderId`: mở ngăn đơn ở chặng Hóa đơn (liên kết từ Công nợ phải thu). */
+  openOrderChang?: "hoadon";
   /** Mở thẳng hồ sơ của đúng khách này ở màn Khách hàng (nút "Hồ sơ khách hàng" ở Công nợ phải thu). */
   openCustomerId?: number;
   /** Mở thẳng hồ sơ của đúng NCC này ở màn Nhà cung cấp (nút "Hồ sơ nhà cung cấp" ở Công nợ phải trả). */
@@ -150,6 +153,8 @@ export interface NavParams {
   focusLsxMa?: string;
   /** Liên thông: mở màn Phiếu chi / UNC với ô tìm kiếm điền sẵn (mã PC/PMH...). */
   focusVoucherQuery?: string;
+  /** Liên thông Mục thu chi → Báo cáo thu chi (số "Đã dùng"): mở báo cáo lọc đúng mục này. */
+  locMucThuChi?: number;
   /** Liên thông: mở màn Phiếu thu với ô tìm kiếm điền sẵn (mã PC/PT...). */
   focusReceiptQuery?: string;
   /** Liên thông Phiếu thu → Công nợ phải thu (lỗi 11): tìm theo tên khách và mở ngăn của đúng
@@ -208,7 +213,7 @@ export interface NavParams {
   openHoSoLsxId?: number;
   /** Đi kèm `openHoSoLsxId`: phiên bản phát hành đang IN TRÊN TỜ GIẤY đã quét. Hồ sơ so số này với
    *  `phien_ban` hiện tại của lệnh để báo "phiếu giấy này là bản cũ" khi lệch — xem
-   *  `LenhSxHoSoView`. `null` = QR không mang `pv` (không có gì để so, không bày băng). */
+   *  `LenhSxNgan`. `null` = QR không mang `pv` (không có gì để so, không bày băng). */
   openHoSoPv?: number | null;
   /** Số thứ tự tăng dần MỖI LƯỢT gọi `navigate(...)` (xem `navigate` bên dưới) — bất kể tới màn
    *  nào, bất kể tham số gì. KHÔNG phải "cái gì trong params đã đổi" mà là "đây có phải MỘT LƯỢT
@@ -345,7 +350,7 @@ export function AppShell() {
   // Chỗ đọc CHỈ ở đây vì AppShell chỉ mount khi ĐÃ có phiên (App.tsx); hash SỐNG SÓT qua lượt đăng
   // nhập vì `LoginPage` không đụng `window.location` (bài canh: `LoginPage.test.tsx`).
   // KHÔNG tự kiểm quyền lần hai ở đây — lệnh ngoài phạm vi thì `ho_so.ho_so()` phía backend đã
-  // chặn (404/403), `LenhSxHoSoView` chỉ việc hiện lỗi đó tử tế (ruling C108).
+  // chặn (404/403), `LenhSxNgan` chỉ việc hiện lỗi đó tử tế (ruling C108).
   //
   // Sửa vòng 1 (P2): KHÔNG được chỉ đọc MỘT LẦN lúc mount. Tổ trưởng đã mở sẵn hệ thống trong tab
   // đó (AppShell đã mount, hash lần trước đã bị `replaceState` xoá) rồi quét mã THỨ HAI — trình
@@ -610,7 +615,7 @@ export function AppShell() {
       boGop.danhDau(nhomCua(e.type));
       pushToast(
         String(e.message ?? "Chuyến giao của bạn vừa cập nhật."),
-        e.viec === "kho_xong" ? "ok" : "info",
+        e.viec === "kho_xong" || e.viec === "da_xuat_kho" ? "ok" : "info",
       );
       return;
     }
@@ -1312,6 +1317,7 @@ export function AppShell() {
           <DonHangBanPage
             navigate={navigate}
             openOrderId={navParams?.openOrderId ?? null}
+            openOrderChang={navParams?.openOrderChang ?? null}
             eventTick={tickCua("ban_hang", "san_xuat", "kho", "giao_hang")}
             keToanTick={tickCua("mua_ke_toan")}
           />
@@ -1348,9 +1354,8 @@ export function AppShell() {
           />
         );
       case "theo-doi-san-xuat":
-        // Bàn quét TOÀN XƯỞNG (Kanban · Theo máy — 17b; Theo ca · Gantt để chỗ cho 18b), chỉ đọc.
-        // Hồ sơ một lệnh là LỚP PHỦ do chính màn này mở (tái dùng `LenhSxHoSoView`, cùng khuôn
-        // `lenh-san-xuat`) — không cần `navParams` nào ở đây, màn không có deep-link riêng.
+        // Theo dõi THEO ĐƠN (12/10/2026), chỉ đọc. Ngăn một đơn do chính màn này mở; mã lệnh trong
+        // ngăn điều hướng sang `lenh-san-xuat` (openHoSoLsxId) — màn không có deep-link riêng.
         return <TheoDoiSanXuatPage eventTick={tickCua("san_xuat")} navigate={navigate} />;
       case "ke-hoach-vat-tu":
         return (
@@ -1440,6 +1445,8 @@ export function AppShell() {
         );
       case "ke-toan-bao-cao":
         return <BaoCaoKeToanPage navigate={navigate} />;
+      case "bao-cao-thu-chi":
+        return <BaoCaoThuChiPage navigate={navigate} locMuc={navParams?.locMucThuChi ?? null} />;
       case "ke-toan-tai-khoan-ngan-hang":
         return <AccountingBankAccountsPage navigate={navigate} eventTick={tickCua("mua_ke_toan", "ban_hang")} />;
       case "tai-san":

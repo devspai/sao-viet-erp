@@ -11,7 +11,6 @@ export { MayCuaCongDoanField } from "./MayCuaCongDoan";
 export { NhomMayField, NhomMayMultiField } from "./NhomMay";
 export { RefMultiField, RefSearchField } from "./RefFields";
 export { RowEditor } from "./RowEditor";
-export { SelfRefMultiField } from "./SelfRefMulti";
 export { ToMultiField } from "./ToMulti";
 export { VatTuCongDoanField } from "./VatTuCongDoan";
 export { VatTuChipsField, chipsThanhBien, maTuTenChip } from "./VatTuChips";

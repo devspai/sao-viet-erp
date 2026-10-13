@@ -99,9 +99,8 @@ def test_hen_giao_qua_bo_don_da_giao_du(sess, admin, orders, monkeypatch):
                           ngay_can_giao=date(2026, 10, 1))
     sess.add(req)
     sess.flush()
-    luc = datetime(2026, 10, 1, 3, tzinfo=timezone.utc)
     trip = DeliveryTrip(request_id=req.id, lan_thu=1, trang_thai=LG_THANH_CONG,
-                        employee_id=nhan_vien_cua(sess, admin).id, gio_lay_hang=luc, gio_du_kien_giao=luc)
+                        employee_id=nhan_vien_cua(sess, admin).id)
     sess.add(trip)
     sess.flush()
     sess.add(DeliveryTripLine(trip_id=trip.id, order_line_id=ln.id, qty_giao=100))
@@ -134,9 +133,8 @@ def test_tab_hoan_tat_can_giao_du_va_hoa_don_du(sess, admin, orders):
                           ngay_can_giao=date(2026, 10, 1))
     sess.add(req)
     sess.flush()
-    luc = datetime(2026, 10, 1, 3, tzinfo=timezone.utc)
     trip = DeliveryTrip(request_id=req.id, lan_thu=1, trang_thai=LG_THANH_CONG,
-                        employee_id=nhan_vien_cua(sess, admin).id, gio_lay_hang=luc, gio_du_kien_giao=luc)
+                        employee_id=nhan_vien_cua(sess, admin).id)
     sess.add(trip)
     sess.flush()
     sess.add(DeliveryTripLine(trip_id=trip.id, order_line_id=ln.id, qty_giao=100))

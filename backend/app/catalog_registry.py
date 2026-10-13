@@ -79,6 +79,9 @@ DANH_MUC: tuple[DanhMuc, ...] = (
     # Xe giao hàng (12/09/2026). Chỉ DANH TÍNH xe + xe này ăn MỨC khoán km nào. Bảng bậc giá
     # thuộc về MỨC và khai ở màn Cấu hình lương — xem docs/prd-khoan-km-giao-hang.md §11.
     DanhMuc("xe", "dm_xe", "Xe giao hàng", "xe", model="models.xe:Xe"),
+    # Mục thu chi (11/10/2026) — mỗi phiếu thu/chi mang một mục, Báo cáo thu chi gom theo đây.
+    DanhMuc("muc_thu_chi", "dm_muc_thu_chi", "Mục thu chi", "muc-thu-chi",
+            model="models.muc_thu_chi:MucThuChi"),
 )
 
 #: Khoá quyền của nhóm danh mục, đúng thứ tự menu.

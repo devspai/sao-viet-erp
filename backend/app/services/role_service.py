@@ -94,6 +94,8 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # KCS (09/10/2026): kiểm cả chuỗi của MỌI tổ — không có "lần kiểm của tôi". Phạm vi theo tổ là
     # việc của dòng `to_sx_<id>`, không phải dòng này.
     "kcs",
+    # Báo cáo thu chi (11/10/2026): sổ thu chi của CẢ CÔNG TY, router không đọc phạm vi.
+    "bao_cao_thu_chi",
 }
 
 def _la_scopeless(module_key: str) -> bool:

@@ -165,7 +165,7 @@ const COT_TON: CotKho[] = [
   { key: "vitri", label: "Vị trí", w: 150 },
   { key: "hsd", label: "Hạn sử dụng", w: 150, tip: "Hạn SỚM NHẤT của lô còn tồn" },
   { key: "co", label: "Đang có", w: 130, n: true },
-  { key: "sapxuat", label: "Sắp xuất", w: 100, n: true, tip: "Lệnh còn phải lấy hàng này (theo bảng cân đối vật tư)" },
+  { key: "sapxuat", label: "Sắp xuất", w: 100, n: true, tip: "Lệnh còn phải lấy hàng này (theo bảng cân đối vật tư) cộng đề nghị xuất chưa ghi sổ (giao hàng, gia công ngoài)" },
   { key: "sapve", label: "Sắp về", w: 100, n: true, tip: "Đơn mua đã hẹn ngày về" },
   { key: "dukien", label: "Dự kiến còn", w: 120, n: true, tip: "Đang có trừ Sắp xuất cộng Sắp về" },
   { key: "giatri", label: "Giá trị", w: 130, n: true },
@@ -194,6 +194,14 @@ const CHIP_TINH_TRANG: Record<TinhTrangTon, { nhan: string; lop: "mua" | "thua" 
   vuot: { nhan: "Vượt tối đa", lop: "thua" },
   se_vuot: { nhan: "Sẽ vượt tối đa", lop: "se-vuot" },
   chua: { nhan: "Chưa đặt mức", lop: "chua" },
+};
+
+/** Chip của dòng: thành phẩm thiếu thì phải SẢN XUẤT chứ không mua (12/10/2026) — chỉ đổi chữ, luật
+ *  tính và màu giữ nguyên. */
+const chipTinhTrang = (muc: TonNhomMuc | null | undefined) => {
+  if (!muc?.tinh_trang) return null;
+  const c = CHIP_TINH_TRANG[muc.tinh_trang];
+  return muc.tinh_trang === "can_mua" && muc.la_thanh_pham ? { ...c, nhan: "Cần sản xuất" } : c;
 };
 
 /** Phán quyết của trang theo khoá dòng tồn (cùng dạng `MaterialGroup.key`). */
@@ -320,6 +328,7 @@ export function KhoTonKhoPage({
   // Phán quyết từng dòng của trang hiện tại, theo khoá dòng tồn; `duBaoOk` false = dự báo hỏng tạm thời.
   const [mucTheo, setMucTheo] = useState<Record<string, TonNhomMuc>>({});
   const [duBaoOk, setDuBaoOk] = useState(true);
+  const [chiThanhPham, setChiThanhPham] = useState(false);
   // Khoá `"giay:12"` — cặp (hang_loai, hang_id) dẹp thành chuỗi để dùng làm key Record/JSX.
   const [thresholds, setThresholds] = useState<Record<string, StockThreshold>>({});
   // Phiếu của tab đang xem — ĐÚNG một trang, máy chủ đã lọc/đếm/phân trang (06/10/2026).
@@ -445,6 +454,7 @@ export function KhoTonKhoPage({
         setCoHsd(r.co_hsd);
         setMucTheo(mucTheoKhoa(r.nhom));
         setDuBaoOk(r.du_bao_ok);
+        setChiThanhPham(!!r.chi_thanh_pham);
         setError(null);
       })
       .catch((e) => {
@@ -639,7 +649,7 @@ export function KhoTonKhoPage({
   // Hàng lọc nhanh của bảng tồn — số do máy chủ đếm trên tập đã lọc bởi ô tìm, kỳ Nhập và các khoảng; bỏ riêng bộ lọc nhóm (không theo trang).
   const mucTon: { key: NhomTon; label: string; count: number; mau?: MauTT }[] = [
     { key: "all", label: "Tất cả", count: demNhom.all },
-    { key: "can_mua", label: "Cần mua", count: demNhom.can_mua, mau: "cam" },
+    { key: "can_mua", label: chiThanhPham ? "Cần sản xuất" : "Cần mua", count: demNhom.can_mua, mau: "cam" },
     { key: "du_ton", label: "Vượt tối đa", count: demNhom.du_ton, mau: "xanh" },
     { key: "chuakhai", label: "Chưa đặt mức", count: demNhom.chuakhai, mau: "xam" },
     ...(demNhom.sap_het_han > 0 || nhom === "sap_het_han"
@@ -704,8 +714,9 @@ export function KhoTonKhoPage({
                   <QrCode size={14} aria-hidden="true" />In tem QR
                 </button>
               )}
-              {coTheMua && (
-                <Button variant="accent" onClick={() => moFormMua(chonDs())}>
+              {/* Thành phẩm thiếu thì sản xuất chứ không mua — chỉ mua được các dòng không phải thành phẩm. */}
+              {coTheMua && chonDs().some((g) => !g.muc?.la_thanh_pham) && (
+                <Button variant="accent" onClick={() => moFormMua(chonDs().filter((g) => !g.muc?.la_thanh_pham))}>
                   <ShoppingCart size={14} aria-hidden="true" />Tạo yêu cầu mua
                 </Button>
               )}
@@ -1120,7 +1131,7 @@ function MaterialRow({
   const max = threshold?.nguong_toi_da ?? null;
   // Cần mua, chip Tình trạng và các số dự báo đều do máy chủ trả (`g.muc`); ở đây chỉ trình bày.
   const muc = g.muc;
-  const tt = muc?.tinh_trang ? CHIP_TINH_TRANG[muc.tinh_trang] : null;
+  const tt = chipTinhTrang(muc);
   // Số 0 để gạch mờ — cột Sắp xuất / Sắp về phần lớn trống, in "0" khắp nơi chỉ thêm nhiễu. null = dự báo
   // chưa dùng được lúc này.
   const soPhu = (n: number | null | undefined) =>
@@ -1481,7 +1492,7 @@ function MaterialHistoryDrawer({
     ...(AN_DIEU_CHUYEN ? [] : [{ id: "chuyen", nhan: "Lịch sử chuyển kho", dem: dem?.chuyen }]),
   ];
   // Chip đầu ngăn = đúng chip cột Tình trạng của dòng trên bảng.
-  const tt = material.muc?.tinh_trang ? CHIP_TINH_TRANG[material.muc.tinh_trang] : null;
+  const tt = chipTinhTrang(material.muc);
 
   return (
     <>
@@ -1524,7 +1535,7 @@ function MaterialHistoryDrawer({
             <button type="button" className="tkh-btn" onClick={printQr}>
               <Printer aria-hidden="true" />In tem kệ
             </button>
-            {coTheMua && (
+            {coTheMua && !material.muc?.la_thanh_pham && (
               <button type="button" className="tkh-btn" onClick={onMua}>
                 <ShoppingCart aria-hidden="true" />Tạo yêu cầu mua
               </button>
@@ -1561,6 +1572,7 @@ function MaterialHistoryDrawer({
                 goc: material.goc,
                 khoRong: material.khoRong,
                 khoDai: material.khoDai,
+                laThanhPham: !!material.muc?.la_thanh_pham,
               }}
               loTon={loTon}
               th={threshold}

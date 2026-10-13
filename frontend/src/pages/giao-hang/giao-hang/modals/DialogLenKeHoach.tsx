@@ -1,58 +1,31 @@
-// Hộp LÊN ĐƠN GIAO HÀNG — chọn xe, tài xế, phụ xe, giờ lấy hàng, giờ dự kiến giao
-// (tách từ pages/GiaoHangPage.tsx). ⚠️ Payload `plan` / `lenLuot` là logic nghiệp vụ — giữ nguyên văn.
+// Hộp LÊN ĐƠN GIAO HÀNG — chọn xe, tài xế, phụ xe (tách từ pages/GiaoHangPage.tsx). ⚠️ Payload `plan` / `lenLuot` là logic nghiệp vụ — giữ nguyên văn.
 //
 // HAI chế độ, MỘT form (chủ chốt 18/09/2026 — "gom nhiều phiếu lại chạy 1 lượt"):
 //   một yêu cầu   — nút "Lên đơn giao" ở từng dòng ⇒ `plan`.
 //   `theoLuot`    — tick nhiều yêu cầu rồi "Lên lượt xe" ⇒ `lenLuot`: MỖI yêu cầu một chuyến, một
 //                   phiếu kho, chung MỘT lượt xe; một yêu cầu hỏng là cả lô không lưu.
+// Lên đơn = gửi kho luôn (12/10/2026): máy chủ lập đề nghị xuất kho cho từng chuyến ngay lúc lưu.
+// Lưu xong ngăn KHÔNG đóng mà sang bước "Đề nghị xuất kho" (BuocGuiKho) để hẹn kho — hai ô giờ lấy
+// hàng / dự kiến giao đã gỡ (mg 0400): giờ kho cần là Cần lúc của đề nghị.
 //
 // Bố cục phương án B bản chỉnh (docs/mockups/giao-hang-len-don-phuong-an-B.html, chủ chọn
 // 07/10/2026): việc chính của hộp là CHỌN XE VÀ NGƯỜI, nên bày thẳng hai danh sách kèm trạng thái
 // (bấm hàng là chọn xe; mỗi người có nút Tài xế / Phụ xe), mỗi danh sách một ô tìm gần đúng vì thực
-// tế sẽ dài. Hàng đã chọn GHIM trên đầu — gõ tìm không làm mất. Cột phải: yêu cầu, lượt, giờ, ghi
-// chú. Không chữ đậm; chọn = viền đủ bốn cạnh.
+// tế sẽ dài. Hàng đã chọn đứng yên chỗ cũ, gõ tìm không lọc mất nó. Cột phải: yêu cầu, lượt, ghi chú.
+// Không chữ đậm; chọn = viền đủ bốn cạnh.
 import { useEffect, useState } from "react";
-import type { DeliveryDriver, DeliveryDriverPick, DeliveryRequest } from "../../../../api/client";
+import type { DeliveryDriver, DeliveryRequest } from "../../../../api/client";
 import { api } from "../../../../api/client";
 import type { Row } from "../../../../api/rebuildCatalog";
 import { Button } from "../../../../components/Button";
-import { ChonNgayGio } from "../../../../components/ChonNgay";
-import { boDau, khopGanDung } from "../../../../utils/timGanDung";
-import {
-  GIO_NHAP_MAX, GIO_NHAP_MIN, gioNhapHopLe, gioNhapSai,
-} from "../../../../lib/gioNhap";
+import { khopGanDung } from "../../../../utils/timGanDung";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
+import { ChonKipXe, GiuCho } from "../components/ChonKipXe";
 import { Pill } from "../components/giaoHangCells";
-import { NHAN_TRANG_THAI_NV } from "../shared/constants";
-import { hanGiao, ngayThuan, sdtDoc, TONE_NV } from "../shared/helpers";
+import { hanGiao, monGiao, ngayThuan, sdtDoc } from "../shared/helpers";
 import { napNguonLenDon, nguonLenDonSan, type NguonLenDon } from "../shared/nguonLenDon";
+import { BuocGuiKho } from "./BuocGuiKho";
 import "../../../ke-toan/ke-toan.css";
-
-/** Người rảnh lên trước, người nghỉ xuống cuối — thứ tự đọc từ trạng thái hôm nay. */
-const THU_TU_NV = ["ranh", "co_lich", "dang_giao", "dang_tra_hang", "nghi"];
-
-/** Mốc `datetime-local` (giờ máy, tròn phút) — hai ô giờ mở ra là BÂY GIỜ và bây giờ + 2 tiếng. */
-function gioLocal(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-/** Chữ cái đầu mỗi từ — gõ "nvv" ra Nguyễn Văn Việt. */
-const dauChu = (s: string) => boDau(s).split(" ").map((w) => w[0] ?? "").join("");
-
-/** Hàng giữ chỗ lúc nguồn chưa về — khung ngăn đứng yên, không nhảy khi danh sách đổ vào. */
-function GiuCho({ so }: { so: number }) {
-  return (
-    <div className="gh-ld__ds" aria-busy="true" aria-label="Đang tải">
-      {Array.from({ length: so }, (_, i) => (
-        <div key={i} className="gh-ld__hang gh-ld__hang--cho"><i /><i /><i /></div>
-      ))}
-    </div>
-  );
-}
-
-/** Hai chữ cái của avatar: hai từ cuối của tên. */
-const viet = (ten: string) => ten.trim().split(/\s+/).slice(-2).map((w) => w[0] ?? "").join("").toUpperCase();
 
 // =============================================================================
 // Ngăn · Lên đơn giao hàng
@@ -68,8 +41,9 @@ export function DialogLenKeHoach({
   theoLuot?: boolean;
   token: string;
   onClose: () => void;
-  /** `luotId` có khi lên theo lượt — màn ngoài mở luôn ngăn Lượt xe cho bước kế tiếp. */
-  onXong: (luotId?: number) => void;
+  /** `luotId` có khi lên theo lượt — màn ngoài làm nổi dòng lượt đó. `phieu` = mã đề nghị xuất
+   *  kho máy chủ vừa gửi kèm. */
+  onXong: (luotId: number | undefined, phieu: string[]) => void;
 }) {
   const request = requests[0];
   const [employeeId, setEmployeeId] = useState("");
@@ -88,14 +62,13 @@ export function DialogLenKeHoach({
   // Không có quyền xem tab Nhân viên ⇒ trạng thái rỗng, người vẫn chọn được, chỉ thiếu cột đó.
   const [nguon, setNguon] = useState<NguonLenDon | null>(() => nguonLenDonSan(token));
   const [timXe, setTimXe] = useState("");
-  const [timNv, setTimNv] = useState("");
-  const [lay, setLay] = useState(() => gioLocal(new Date()));
-  const [giao, setGiao] = useState(() => gioLocal(new Date(Date.now() + 2 * 3_600_000)));
   const [ghiChu, setGhiChu] = useState("");
   const [loi, setLoi] = useState<string | null>(null);
-  const [canhBao, setCanhBao] = useState<string[]>([]);
   const [dangGui, setDangGui] = useState(false);
-  const gioSai = gioNhapSai(lay) || gioNhapSai(giao);
+  // Lưu xong ⇒ sang bước hẹn kho. Giữ lại để báo màn ngoài lúc người dùng xong bước đó.
+  const [daLuu, setDaLuu] = useState<{
+    tripIds: number[]; luotId?: number; phieu: string[]; canhBao: string[]; bao: string;
+  } | null>(null);
 
   useEffect(() => {
     let bo = false;
@@ -116,44 +89,15 @@ export function DialogLenKeHoach({
   const luotDs = xeId ? luotTheoXe[xeId] ?? [] : [];
   const tenMuc = (id: unknown) => mucDs.find((m) => m.id === Number(id))?.ten ?? null;
 
-  // ---- Danh sách xe: xe đã chọn ghim đầu, còn lại lọc theo ô tìm ----
-  const xeChon = xeDs.find((x) => String(x.id) === xeId) ?? null;
-  const xeLoc = xeDs.filter((x) => String(x.id) !== xeId && khopGanDung(
+  // ---- Danh sách xe: hàng ĐỨNG YÊN chỗ cũ khi bấm (chủ chốt 12/10/2026 — nhảy lên đầu làm mất
+  // dấu chỗ vừa bấm). Xe đã chọn vẫn hiện dù ô tìm không khớp nó, ở đúng vị trí của nó.
+  const xeLoc = xeDs.filter((x) => String(x.id) === xeId || khopGanDung(
     [x.ma, x.ten, x.tai_trong != null ? `${x.tai_trong} tấn` : "", tenMuc(x.muc_khoan_km_id) ?? ""]
       .map((v) => String(v ?? "")).join(" "),
     timXe,
   ));
 
-  // ---- Danh sách người: tài xế + phụ xe đã chọn ghim đầu ----
-  const thuTu = (id: number) => {
-    const k = THU_TU_NV.indexOf(trangThai.get(id)?.trang_thai ?? "");
-    return k < 0 ? THU_TU_NV.length : k;
-  };
-  const nguoiChon = [employeeId, phuXeId].filter(Boolean)
-    .map((id) => taiXe.find((t) => String(t.id) === id))
-    .filter((t): t is DeliveryDriverPick => !!t);
-  const nguoiLoc = taiXe
-    .filter((t) => String(t.id) !== employeeId && String(t.id) !== phuXeId)
-    .filter((t) => khopGanDung(`${t.full_name} ${t.code ?? ""} ${dauChu(t.full_name)}`, timNv))
-    .sort((a, b) => thuTu(a.id) - thuTu(b.id));
-
-  const chonTaiXe = (id: string) => {
-    setEmployeeId((cu) => (cu === id ? "" : id));
-    if (phuXeId === id) setPhuXeId("");
-  };
-  const chonPhuXe = (id: string) => {
-    setPhuXeId((cu) => (cu === id ? "" : id));
-    if (employeeId === id) setEmployeeId("");
-  };
-
-  const xongVoiCanhBao = (canh: string[], luotId?: number) => {
-    if (canh.length) {
-      setCanhBao(canh);
-      window.setTimeout(() => onXong(luotId), 1500);
-    } else {
-      onXong(luotId);
-    }
-  };
+  const xeChon = xeDs.find((x) => String(x.id) === xeId);
 
   const gui = () => {
     setLoi(null);
@@ -166,11 +110,13 @@ export function DialogLenKeHoach({
           ...(phuXeId ? { phu_xe_employee_id: Number(phuXeId) } : {}),
           vehicle_id: Number(xeId),
           luot_xe_id: luot === "moi" ? "moi" : Number(luot),
-          gio_lay_hang: new Date(lay).toISOString(),
-          gio_du_kien_giao: new Date(giao).toISOString(),
           ghi_chu_phan_cong: ghiChu || null,
         })
-        .then((r) => xongVoiCanhBao(r.canh_bao, r.luot_id))
+        .then((r) => setDaLuu({
+          tripIds: r.trips.map((t) => t.id), luotId: r.luot_id, phieu: r.phieu ?? [], canhBao: r.canh_bao,
+          bao: `Đã lên lượt ${r.code} cho ${r.trips.length} đơn${xeChon ? `, xe ${String(xeChon.ma ?? "")}` : ""}. `
+            + `Kho thành phẩm đã nhận ${r.trips.length} đề nghị.`,
+        }))
         .catch((e: unknown) => setLoi(e instanceof Error ? e.message : "Không lưu được lượt xe"))
         .finally(() => setDangGui(false));
       return;
@@ -183,18 +129,18 @@ export function DialogLenKeHoach({
         ...(xeId
           ? { vehicle_id: Number(xeId), luot_xe_id: luot === "moi" ? "moi" as const : Number(luot) }
           : {}),
-        gio_lay_hang: new Date(lay).toISOString(),
-        gio_du_kien_giao: new Date(giao).toISOString(),
         ghi_chu_phan_cong: ghiChu || null,
       })
-      .then((r) => xongVoiCanhBao(r.canh_bao))
+      .then((r) => setDaLuu({
+        tripIds: [r.trip.id], phieu: r.phieu ?? [], canhBao: r.canh_bao,
+        bao: `Đã lên đơn ${request.code}${r.trip.luot ? ` vào lượt ${r.trip.luot.code}` : ""}. Kho thành phẩm đã nhận đề nghị.`,
+      }))
       .catch((e: unknown) => setLoi(e instanceof Error ? e.message : "Không lưu được đơn giao hàng"))
       .finally(() => setDangGui(false));
   };
 
   const thieu = [thieuXe && "xe", !employeeId && "tài xế"].filter(Boolean) as string[];
-  const khoa = thieu.length > 0 || !gioNhapHopLe(lay) || !gioNhapHopLe(giao) || dangGui;
-  const taiXeChon = taiXe.find((t) => String(t.id) === employeeId);
+  const khoa = thieu.length > 0 || dangGui;
 
   const hangXe = (x: Row) => {
     const id = String(x.id);
@@ -224,37 +170,6 @@ export function DialogLenKeHoach({
     );
   };
 
-  const hangNguoi = (t: DeliveryDriverPick) => {
-    const id = String(t.id);
-    const tt = trangThai.get(t.id);
-    const la = id === employeeId ? "tai" : id === phuXeId ? "phu" : null;
-    return (
-      <div key={id} className={`gh-ld__hang gh-ld__hang--nv${la ? " is-chon" : ""}${tt?.trang_thai === "nghi" ? " is-mo" : ""}`}>
-        <span className="gh-ld__av" aria-hidden="true">{viet(t.full_name)}</span>
-        <span className="gh-ld__cat">
-          {t.full_name}
-          {t.code && <span className="gh-nho"> {t.code}</span>}
-        </span>
-        {/* Cột riêng: nằm trong ô tên thì tên dài cắt "…" mất luôn thẻ — đúng thứ cần thấy. */}
-        <span>
-          {!t.co_thao_tac && (
-            <span className="gh-the">{t.co_tai_khoan === false ? "Chưa có tài khoản" : "Chưa cấp quyền"}</span>
-          )}
-        </span>
-        <span>
-          {tt && <Pill text={NHAN_TRANG_THAI_NV[tt.trang_thai] ?? tt.trang_thai} tone={TONE_NV[tt.trang_thai] ?? "slate"} />}
-        </span>
-        <span className={tt?.so_chuyen_xong ? "gh-muc" : "gh-mo"}>{tt ? `${tt.so_chuyen_xong} chuyến` : ""}</span>
-        <span className="gh-ld__vai">
-          <button type="button" aria-pressed={la === "tai"} aria-label={`Tài xế: ${t.full_name}`}
-            className={la === "tai" ? "is-chon" : undefined} onClick={() => chonTaiXe(id)}>Tài xế</button>
-          <button type="button" aria-pressed={la === "phu"} aria-label={`Phụ xe: ${t.full_name}`}
-            className={la === "phu" ? "is-chon" : undefined} onClick={() => chonPhuXe(id)}>Phụ xe</button>
-        </span>
-      </div>
-    );
-  };
-
   const chan = (
     <>
       <span className="gh-nho">{thieu.length > 0 ? `Còn thiếu ${thieu.join(" và ")}.` : ""}</span>
@@ -265,6 +180,13 @@ export function DialogLenKeHoach({
       </Button>
     </>
   );
+
+  if (daLuu) {
+    return (
+      <BuocGuiKho tripIds={daLuu.tripIds} token={token} moi bao={daLuu.bao} canhBao={daLuu.canhBao}
+        onXong={() => onXong(daLuu.luotId, daLuu.phieu)} />
+    );
+  }
 
   return (
     <NganPhai
@@ -295,43 +217,15 @@ export function DialogLenKeHoach({
             </p>
           ) : (
             <div className="gh-ld__ds" role="radiogroup" aria-label="Xe">
-              {xeChon && hangXe(xeChon)}
-              {xeChon && timXe && <div className="gh-ld__ngan">Kết quả tìm</div>}
               {xeLoc.map(hangXe)}
-              {xeLoc.length === 0 && timXe && (
+              {xeLoc.every((x) => String(x.id) === xeId) && timXe && (
                 <div className="gh-ld__khong">Không có xe nào khớp «{timXe}»</div>
               )}
             </div>
           )}
 
-          <div className="gh-ld__dau">
-            <h3>Người</h3>
-            <span className="gh-nho">bấm Tài xế hoặc Phụ xe trên hàng</span>
-            <span className="rc__spacer" />
-            {(dangNap || taiXe.length > 0) && (
-              <input className="input gh-ld__tim" type="search" value={timNv} aria-label="Tìm người"
-                disabled={dangNap} placeholder="Tìm tên, mã nhân viên, chữ cái đầu"
-                onChange={(e) => setTimNv(e.target.value)} />
-            )}
-          </div>
-          {dangNap ? <GiuCho so={5} /> : taiXe.length === 0 ? (
-            <p className="rc__sub gh-ld__rong">
-              Chưa ai được cấp ô Giao hàng ngoài bạn. Tài xế phải có tài khoản đăng nhập và vai của họ
-              phải bật ô Giao hàng, nếu không họ không bấm được “Đã lấy hàng”.
-            </p>
-          ) : (
-            <div className="gh-ld__ds gh-ld__ds--nv" role="group" aria-label="Người">
-              {nguoiChon.map(hangNguoi)}
-              {nguoiChon.length > 0 && timNv && <div className="gh-ld__ngan">Kết quả tìm</div>}
-              {nguoiLoc.map(hangNguoi)}
-              {nguoiLoc.length === 0 && timNv && (
-                <div className="gh-ld__khong">Không có ai khớp «{timNv}»</div>
-              )}
-            </div>
-          )}
-          {trangThai.size > 0 && taiXe.length > 0 && (
-            <p className="gh-ld__goi">Người rảnh xếp trước, người nghỉ xuống cuối. Số chuyến là số đã giao hôm nay.</p>
-          )}
+          <ChonKipXe taiXe={taiXe} trangThai={trangThai} dangNap={dangNap}
+            employeeId={employeeId} phuXeId={phuXeId} onEmployee={setEmployeeId} onPhuXe={setPhuXeId} />
         </div>
 
         <div className="gh-ld__phai">
@@ -370,12 +264,12 @@ export function DialogLenKeHoach({
                 </div>
                 <div>
                   <dt>Hàng</dt>
-                  {request.lines.length === 0 ? <dd>—</dd> : request.lines.map((x) => (
-                    <dd key={x.id} className="gh-ld__mon">
-                      <span>{x.mo_ta ?? x.hang_ten}</span>
+                  {request.lines.length === 0 ? <dd>—</dd> : monGiao(request.lines).map((x) => (
+                    <dd key={x.id} className="gh-ld__mon" title={x.thanhPhan.join(" + ") || undefined}>
+                      <span>{x.ten}</span>
                       <span className="gh-num">
                         {x.qty.toLocaleString("vi-VN")}
-                        {x.don_vi_tinh && <span className="gh-nho"> {x.don_vi_tinh}</span>}
+                        {x.dvt && <span className="gh-nho"> {x.dvt}</span>}
                       </span>
                     </dd>
                   ))}
@@ -422,49 +316,15 @@ export function DialogLenKeHoach({
             </section>
           )}
 
-          {/* Nhãn TRÁI ô PHẢI, mỗi giờ một dòng: cột phải hẹp, hai ô ngày-giờ đứng cạnh nhau thì
-              tràn mép (ô ngày-giờ có bề rộng tối thiểu của trình duyệt). */}
-          <section className="gh-ld__nhom">
-            <h3 className="gh-ld__tieu">Thời gian</h3>
-            <div className="gh-ld__dong-o">
-              <label htmlFor="gh-ld-lay">Lấy hàng <span className="gh-bat-buoc">*</span></label>
-              <ChonNgayGio id="gh-ld-lay" className="input gh-ld__nhap" min={GIO_NHAP_MIN} aria-label="Lấy hàng"
-                max={GIO_NHAP_MAX} value={lay} onChange={(v) => setLay(v)} />
-            </div>
-            <div className="gh-ld__dong-o">
-              <label htmlFor="gh-ld-giao">Dự kiến giao <span className="gh-bat-buoc">*</span></label>
-              <ChonNgayGio id="gh-ld-giao" className="input gh-ld__nhap" min={GIO_NHAP_MIN} aria-label="Dự kiến giao"
-                max={GIO_NHAP_MAX} value={giao} onChange={(v) => setGiao(v)} />
-            </div>
-            {gioSai && (
-              <div className="banner banner--warn" role="status" style={{ margin: 0 }}>
-                {gioNhapSai(lay) && gioNhapSai(giao)
-                  ? "Giờ lấy hàng và giờ dự kiến giao"
-                  : gioNhapSai(lay) ? "Giờ lấy hàng" : "Giờ dự kiến giao"}{" "}
-                không đọc được — năm phải 4 chữ số, trong khoảng 2000–2099.
-              </div>
-            )}
-          </section>
-
           <section className="gh-ld__nhom">
             <label className="gh-ld__tieu" htmlFor="gh-ld-ghi-chu">Ghi chú cho kíp xe</label>
             <textarea id="gh-ld-ghi-chu" className="input gh-ld__nhap" rows={3} value={ghiChu}
               placeholder="Ví dụ: gọi trước cho bảo vệ KCN" onChange={(e) => setGhiChu(e.target.value)} />
           </section>
 
-          {taiXeChon && !taiXeChon.co_thao_tac && (
-            <div className="banner banner--warn" role="status" style={{ margin: 0 }}>
-              {taiXeChon.full_name}{" "}
-              {taiXeChon.co_tai_khoan === false ? "chưa có tài khoản" : "chưa được cấp quyền thao tác"}
-              {" "}— vẫn phân chuyến được, nhưng bạn phải bấm hộ.
-            </div>
-          )}
           {phuXeId && (
             <p className="gh-ld__goi">Có phụ xe nên tiền chuyến chia theo tỷ lệ khai ở Phòng ban.</p>
           )}
-          {canhBao.map((c) => (
-            <div key={c} className="banner banner--warn" role="status" style={{ margin: 0 }}>{c}</div>
-          ))}
           {loi && <div className="banner banner--error" role="alert" style={{ margin: 0 }}>{loi}</div>}
         </div>
       </div>

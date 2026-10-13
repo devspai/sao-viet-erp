@@ -226,6 +226,27 @@ def test_confirm_gate_blocks_then_locks_quote(svc, admin, customer, db):
         svc.confirm(order_id=d.id, actor=admin, scope="all")
 
 
+def test_ngan_don_nguoi_chot_va_nhat_ky_noi_chu_nguoi(svc, admin, customer, db):
+    """Ngăn đơn (12/10/2026): thẻ Chốt có tên người chốt; nhật ký không in mã máy ("bank_transfer",
+    "(seam)") và không còn vết "Đẩy xuống Sản xuất" ghi lúc chốt trùng với vết chuyển thật."""
+    from app.services.order_service import _chu_nhat_ky
+
+    q = _accepted_quote(db, customer)
+    d = svc.create(actor=admin, scope="all", payload=OrderCreate(quotation_id=q.id))
+    svc.add_deposit_receipt(order_id=d.id, actor=admin, scope="all",
+                    payload=OrderDepositReceiptIn(receipt_method="bank_transfer", amount=486_000))
+    svc.update(order_id=d.id, actor=admin, scope="all",
+               payload=OrderUpdate(customer_po_no="PO1", delivery_committed_date=date.today()))
+    d = svc.confirm(order_id=d.id, actor=admin, scope="all")
+    assert d.ordered_by_name
+    chu = [it.detail or "" for it in svc.activity(order_id=d.id, actor=admin, scope="all").items]
+    assert "Thu cọc 486.000 bằng chuyển khoản" in chu
+    assert not any("bank_transfer" in c or "(seam)" in c for c in chu)
+    # Vết cũ trong DB được dịch lúc trả về.
+    assert _chu_nhat_ky("Thu cọc 500,000đ (cash) — đơn DH003") == "Thu cọc 500.000 bằng tiền mặt"
+    assert _chu_nhat_ky("Hủy đơn DH1 (lỗi khach) — đổi ý") == "Hủy đơn DH1 (lỗi tại khách hàng) — đổi ý"
+
+
 def test_confirm_gate_chan_dvt_khong_co_trong_danh_muc(svc, admin, customer, db):
     """ĐVT dòng đơn không tra ra mã danh mục ⇒ chặn chốt NGAY. Trước đây chốt vẫn qua, thành phẩm
     mang đơn vị trống và chỉ lộ ra lúc nhập kho (TP-00003 «Tờ rơi A4 4/4», ĐVT «tờ»)."""

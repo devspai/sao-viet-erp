@@ -94,6 +94,12 @@ class PaymentVoucherBaseIn(BaseModel):
     debit_account: str | None = Field(default=None, max_length=64)
     credit_account: str | None = Field(default=None, max_length=64)
     note: str | None = Field(default=None, max_length=2000)
+    # Mục chi (danh mục Mục thu chi). Phiếu lập tay bắt buộc; phiếu sinh từ nghiệp vụ bỏ qua — mục
+    # của nó là mục cố định theo nguồn. `customer_id` (+ `order_id` khi trả lại cọc của đơn đã huỷ)
+    # chỉ dùng cho phiếu trả lại tiền cho khách (`source_type = customer_refund`).
+    muc_thu_chi_id: int | None = Field(default=None, gt=0)
+    customer_id: int | None = Field(default=None, gt=0)
+    order_id: int | None = Field(default=None, gt=0)
 
 
 class PaymentVoucherIn(PaymentVoucherBaseIn):
@@ -124,6 +130,13 @@ class PaymentVoucherOut(BaseModel):
     debit_account: str | None = None
     credit_account: str | None = None
     source_type: str = "purchase_request"
+    muc_thu_chi_id: int | None = None
+    muc_thu_chi_ten: str | None = None
+    customer_id: int | None = None
+    customer_name: str | None = None
+    # Đơn đã huỷ mà phiếu trả lại cọc (chỉ phiếu trả lại tiền cho khách).
+    order_id: int | None = None
+    order_code: str | None = None
     purchase_request_id: int | None = None
     salary_advance_id: int | None = None
     gia_cong_ngoai_id: int | None = None
@@ -338,6 +351,9 @@ class PaymentReceiptIn(BaseModel):
     company_bank_account_id: int | None = Field(default=None, gt=0)
     bank_reference: str | None = Field(default=None, max_length=64)
     note: str | None = Field(default=None, max_length=2000)
+    # Mục thu — phiếu thu lập tay bắt buộc; phiếu theo hoá đơn / cọc / NCC hoàn tiền bỏ qua — mục
+    # của nó là mục cố định theo nguồn.
+    muc_thu_chi_id: int | None = Field(default=None, gt=0)
 
 
 class MarkPaymentReceiptReceivedIn(BaseModel):
@@ -354,11 +370,15 @@ class PaymentReceiptOut(BaseModel):
     doc_no: str | None = None
     # Nguồn: purchase_refund | order_deposit | sales_invoice | other.
     source_type: str = "purchase_refund"
+    muc_thu_chi_id: int | None = None
+    muc_thu_chi_ten: str | None = None
     # Nhánh Phiếu chi — nullable từ V5 (phiếu thu cọc đơn không có phiếu chi/PMH/NCC).
     payment_voucher_id: int | None = None
     payment_voucher_code: str | None = None
     purchase_request_id: int | None = None
     purchase_request_code: str | None = None
+    #: NCC của phiếu nhà cung cấp hoàn tiền (gắn thẳng hoặc suy từ phiếu chi gốc).
+    supplier_id: int | None = None
     supplier_name: str | None = None
     # Nhánh Đơn hàng bán (V5) — None với phiếu thu nguồn Phiếu chi.
     order_id: int | None = None
@@ -436,7 +456,9 @@ class SalesInvoiceIn(BaseModel):
     invoice_symbol: str = Field(min_length=1, max_length=64)
     invoice_number: str = Field(min_length=1, max_length=64)
     invoice_date: date
-    # Bỏ trống = xuất toàn bộ phần giá trị đơn chưa ghi hóa đơn.
+    # Lượt giao khách đã nhận mà hóa đơn lập cho — service bắt buộc (mg 0402).
+    delivery_trip_id: int | None = Field(default=None, gt=0)
+    # Bỏ trống = toàn bộ phần hàng đã giao của lượt chưa ghi hóa đơn.
     amount_vnd: int | None = Field(default=None, gt=0)
 
 
@@ -468,6 +490,28 @@ class SalesInvoiceOut(BaseModel):
     cancelled_by_name: str | None = None
     cancelled_at: datetime | None = None
     cancel_reason: str | None = None
+    delivery_trip_id: int | None = None
+    luot_giao_ma: str | None = None
+
+
+class LuotGiaoHoaDonOut(BaseModel):
+    trip_id: int
+    ma: str
+    ngay_giao: date | None = None
+    gia_tri: int
+    da_ghi: int
+    con_ghi: int
+
+
+class PhieuThuHoaDonOut(BaseModel):
+    """Một phiếu thu ĐÃ THU gắn thẳng vào hoá đơn của đơn (không gồm cọc)."""
+
+    id: int
+    code: str
+    doc_no: str | None = None
+    invoice_id: int
+    amount: int
+    receipt_date: date
 
 
 class SalesInvoiceListOut(BaseModel):
@@ -479,6 +523,10 @@ class SalesInvoiceListOut(BaseModel):
     deposit_received: int
     payment_term_days: int | None = None
     last_invoice_symbol: str | None = None
+    delivered_amount: int = 0
+    invoiceable_amount: int = 0
+    luot_giao: list[LuotGiaoHoaDonOut] = []
+    phieu_thu: list[PhieuThuHoaDonOut] = []
     items: list[SalesInvoiceOut]
 
 
@@ -635,6 +683,7 @@ class PayableItemOut(BaseModel):
     # Chụp bằng đúng `ro_tuoi()` server dùng cho dải phân tuổi tổng, để một đợt KHÔNG BAO GIỜ hiện
     # hai mức khẩn khác nhau ở hai màn — đây là đúng bài học "hai chỗ nói hai kiểu tiền" đã trả giá.
     aging_bucket: str | None = None
+    invoice_symbol: str | None = None
     invoice_number: str | None = None
     invoice_date: date | None = None
     #: File hoá đơn/biên bản đã đính kèm cho đợt này (04/09/2026). RỖNG = chưa ai upload ảnh —
@@ -874,6 +923,9 @@ class CongNoDongOut(BaseModel):
     dau_co: int = 0
     ps_no: int = 0
     ps_co: int = 0
+    #: Tiền HOÀN trong kỳ, đã nằm trong PS (131: hoàn cho khách ở PS Nợ; 331: NCC hoàn ở PS Có).
+    #: Giao diện trừ ra khỏi Bán ra / Nhận hàng và tính là thu âm / trả âm. File MISA không dùng.
+    hoan: int = 0
     cuoi_no: int = 0
     cuoi_co: int = 0
     #: 6 rổ tuổi của RIÊNG đối tượng này, tính trên dư CUỐI kỳ TẠI `den_ngay`. Đủ 6 khoá kể cả
@@ -890,6 +942,7 @@ class CongNoTongOut(BaseModel):
     dau_co: int = 0
     ps_no: int = 0
     ps_co: int = 0
+    hoan: int = 0
     cuoi_no: int = 0
     cuoi_co: int = 0
 
@@ -954,6 +1007,15 @@ class SoChiTietDongOut(BaseModel):
     #: `hoa_don` · `phieu_thu` · `dot_giao` · `phieu_chi` · `hoan_tien` — giao diện đổi ra nhãn.
     loai: str
     so_ct: str
+    #: Dòng hoá đơn bán: ký hiệu (đã nằm đầu `so_ct`) và đơn bán của hoá đơn — sao kê tách cột
+    #: Ký hiệu và cho bấm số hoá đơn mở đơn. Dòng đợt giao (phải trả): ký hiệu hoá đơn của đợt.
+    ky_hieu: str | None = None
+    don_id: int | None = None
+    #: Chỉ dòng đợt giao (phải trả): số + ngày hoá đơn NCC của đợt (ngày của dòng là ngày nhận
+    #: hàng) và mã đơn mua để bấm mở.
+    so_hoa_don: str | None = None
+    ngay_hoa_don: date | None = None
+    don_ma: str | None = None
     dien_giai: str
     no: int = 0
     co: int = 0
@@ -984,6 +1046,9 @@ class SoChiTietCongNoOut(BaseModel):
     so_dong: int = 0
     ps_no: int = 0
     ps_co: int = 0
+    #: Tiền HOÀN trong kỳ, đã nằm trong PS (131: hoàn cho khách ở PS Nợ; 331: NCC hoàn ở PS Có).
+    #: Giao diện trừ ra khỏi Bán ra / Nhận hàng và tính là thu âm / trả âm. File MISA không dùng.
+    hoan: int = 0
     cuoi_no: int = 0
     cuoi_co: int = 0
 

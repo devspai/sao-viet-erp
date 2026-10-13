@@ -431,6 +431,8 @@ class PurchaseDelivery(Base):
     # Hạn trả riêng của đợt/dữ liệu cũ. Khi có ngày hóa đơn + số ngày cho nợ, service ưu tiên suy
     # `invoice_date + suppliers.credit_days`; chưa có ngày hóa đơn mới dùng hạn này hoặc ngày giao.
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Ký hiệu hoá đơn (VD 1C26TAA). Một hoá đơn = cặp ký hiệu + số: số chỉ duy nhất trong một ký hiệu.
+    invoice_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True)
     invoice_number: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # SỐ TIỀN của đợt, theo HOÁ ĐƠN — người khai gõ tay (chủ chốt 06/08/2026, sửa Đ4).

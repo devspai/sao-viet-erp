@@ -129,7 +129,7 @@ class SheetCon:
 
     * `field` — field của `InModel` nhận danh sách dòng con (`bac`, `vat_tus`…).
     * `rut_gon` — field này là danh sách VÔ HƯỚNG (id / tên), không phải danh sách dict: lấy đúng
-      một khoá của mỗi dòng con (`routing_template`, `thay_the_ids`, `nhom_may_cho_phep`).
+      một khoá của mỗi dòng con (`routing_template`, `nhom_may_cho_phep`).
     * `trong_json` — field nằm LỒNG trong một cột JSON (`fields_theo_loai` → `chuan_bi_khoan`).
     * `rieng` — sheet do `spec.gop_con` tự ghép (cấu trúc hai tầng: hạng mục trong gói bảo trì).
       Nền chỉ parse rồi đưa nguyên vào tay hook.

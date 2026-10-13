@@ -275,7 +275,8 @@ _HD += _dong("ke_toan", "phieu_thu", {
     "update_payment_receipt": "Sửa phiếu thu",
     "cancel_payment_receipt": "Huỷ phiếu thu",
     "mark_payment_receipt_received": "Đánh dấu đã nhận tiền",
-    "create_other_payment_receipt": "Tạo phiếu thu khác",
+    "create_other_payment_receipt": "Lập phiếu thu",
+    "create_supplier_refund_receipt": "Lập phiếu thu nhà cung cấp hoàn tiền",
     "upload_payment_receipt_attachment": "Đính kèm tệp vào phiếu thu",
     "delete_payment_receipt_attachment": "Xoá tệp đính kèm phiếu thu",
     "create_order_receipt": "Tạo phiếu thu theo đơn hàng",
@@ -286,6 +287,9 @@ _HD += _dong("ke_toan", "phieu_chi", {
     "cancel_payment_voucher": "Huỷ phiếu chi",
     "upload_payment_voucher_attachment": "Đính kèm tệp vào phiếu chi",
     "delete_payment_voucher_attachment": "Xoá tệp đính kèm phiếu chi",
+})
+_HD += _dong("ke_toan", "bao_cao_thu_chi", {
+    "chuyen_muc_thu_chi": "Chuyển phiếu sang mục khác",
 })
 _HD += _dong("ke_toan", "tk_ngan_hang", {
     "create_company_bank_account": "Thêm tài khoản ngân hàng công ty",

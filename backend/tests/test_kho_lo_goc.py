@@ -6,6 +6,8 @@ phiếu nhập đích, ghi sổ chép sang lô mới — A → B → C vẫn tr�
 """
 from __future__ import annotations
 
+import pytest
+
 from app.models.kho_hang import KhoHang
 from app.models.lsx import Lsx
 from app.models.order import Order
@@ -23,6 +25,15 @@ from tests.test_san_xuat_kcs import (  # noqa: F401
     orders,
 )
 from tests.test_san_xuat_nhap_kho_tp import _gui, _nhan
+
+
+@pytest.fixture
+def thanh_pham_nhieu_kho(monkeypatch):
+    """Dữ liệu TRƯỚC 12/10/2026: thành phẩm từng điều chuyển qua nhiều kho. Từ ngày đó thành phẩm chỉ
+    vào / ra Kho thành phẩm (`kho_thanh_pham`), nhưng lô cũ đã nằm ở kho khác vẫn phải đọc đúng lô gốc
+    / giá gốc ⇒ các test chuỗi điều chuyển tắt luật để dựng lại cảnh đó."""
+    from app.services import kho_thanh_pham
+    monkeypatch.setattr(kho_thanh_pham, "id_kho_thanh_pham", lambda _db: None)
 
 
 def _kho(db, ma: str) -> KhoHang:
@@ -44,7 +55,8 @@ def _chuyen(db, admin, tp_id: int, tu: KhoHang, den: KhoHang, so_luong: float) -
     return [db.get(StockLot, i) for i in ids]
 
 
-def test_dieu_chuyen_a_b_c_tro_ve_mot_lo_goc_va_doc_dung_nguon(db, orders, lsx_svc, admin, customer):
+def test_dieu_chuyen_a_b_c_tro_ve_mot_lo_goc_va_doc_dung_nguon(db, orders, lsx_svc, admin, customer,
+                                                             thanh_pham_nhieu_kho):
     _to, cv, rb = _batch(db, orders, lsx_svc, admin, customer, dat=90, khong_dat=0, cuoi=True)
     r = _gui(db, cv, rb)
     a, b, c = _kho(db, "KHO-TP"), _kho(db, "KHO-B"), _kho(db, "KHO-C")

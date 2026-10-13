@@ -51,8 +51,18 @@ export function ChonDotGiao({
               <span className="kt-vong-chon" aria-hidden="true" />
               <Cum>
                 <b>{`Đợt ${d.seq_no}`}</b>
-                <span>{`Giao ${ngay(d.delivery_date)}`}</span>
-                <TheNho>{d.invoice_number ? `Hoá đơn ${d.invoice_number}` : "Chưa có hoá đơn"}</TheNho>
+                {/* Ngày nhận hàng và ngày hoá đơn là hai mốc khác nhau (hạn trả tính từ ngày hoá đơn)
+                    ⇒ mỗi mẩu một nhãn riêng, ký hiệu đứng cạnh số hoá đơn. */}
+                <span>{`Nhận hàng ${ngay(d.delivery_date)}`}</span>
+                {d.invoice_number ? (
+                  <>
+                    <TheNho>{`Số hoá đơn ${d.invoice_number}`}</TheNho>
+                    {d.invoice_symbol && <TheNho>{`Ký hiệu ${d.invoice_symbol}`}</TheNho>}
+                    {d.invoice_date && <TheNho>{`Ngày hoá đơn ${ngay(d.invoice_date)}`}</TheNho>}
+                  </>
+                ) : (
+                  <TheNho>Chưa có hoá đơn</TheNho>
+                )}
               </Cum>
               {du ? (
                 <span className="kt-pill kt-pill--xanh">Đã trả đủ</span>

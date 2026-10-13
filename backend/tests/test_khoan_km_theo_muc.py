@@ -74,10 +74,7 @@ def _tao_xe(client, h, ma: str, ten: str, tai_trong=None, muc_id=None, *, cho=20
 def _len_kh_kem_xe(client, h, request_id, tai_xe, xe_id):
     """POST kế hoạch KÈM xe. Từ 12/09/2026 xe là BẮT BUỘC ngay ở bước lên đơn, nên không dùng
     được `_len_kh` (nó không gửi xe) cho những bài đã khai xe trong danh mục."""
-    from tests.test_giao_hang_api import _gio
-
-    body = {"request_id": request_id, "employee_id": tai_xe,
-            "gio_lay_hang": _gio(8), "gio_du_kien_giao": _gio(11)}
+    body = {"request_id": request_id, "employee_id": tai_xe}
     if xe_id is not None:
         body["vehicle_id"] = xe_id
     return client.post("/api/giao-hang/plans", json=body, headers=h)

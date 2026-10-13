@@ -296,3 +296,37 @@ describe("Thanh lọc chung (06/10/2026) — kỳ Ngày tạo + điều kiện +
     expect(window.location.search).toContain("active=tat_ca");
   });
 });
+
+describe("dòng khoá (Mục thu chi, 12/10/2026)", () => {
+  const CFG_KHOA: CatalogConfig = {
+    ...CFG, title: "Mục thu chi", prefix: "/api/muc-thu-chi", softDelete: true, moduleQuyen: "dm_muc_thu_chi",
+    dongKhoa: (r) => (r.co_dinh ? "Mục cố định" : null),
+    anNgayTao: true,
+  };
+
+  it("dòng khoá có ổ khoá, không nút Xoá, bấm không mở form; hàng trạng thái như mọi danh mục", async () => {
+    const goi = vi.fn((_url: string) => Promise.resolve(new Response(JSON.stringify({
+      items: [
+        { id: -1, ma: "HT-01", ten: "Trả nhà cung cấp", co_dinh: true, active: true },
+        { id: 3, ma: "MTC-0001", ten: "Tiền điện", active: true },
+      ],
+      total: 2, page: 1, size: 25,
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    vi.stubGlobal("fetch", goi);
+    moMan(CFG_KHOA, [quyen("dm_muc_thu_chi", { can_delete: true })]);
+
+    await screen.findByText("Tiền điện");
+    // Mặc định "Đang dùng" như mọi màn xoá mềm.
+    const dsMuc = () => goi.mock.calls.map((c) => String(c[0])).filter((u) => u.includes("/api/muc-thu-chi?"));
+    expect(dsMuc()[0]).toMatch(/active=true/);
+    expect(screen.queryByText("Ngày tạo")).toBeNull();
+    expect(screen.getByLabelText("Mục cố định")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /^Xóa / }).map((b) => b.getAttribute("aria-label")))
+      .toEqual(["Xóa Tiền điện"]);
+    await userEvent.click(screen.getByText("Trả nhà cung cấp"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Đã ngừng/ }));
+    await waitFor(() => expect(dsMuc().at(-1)).toMatch(/active=false/));
+  });
+});

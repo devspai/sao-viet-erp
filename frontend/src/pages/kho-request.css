@@ -1578,6 +1578,9 @@ input.kho-num,
 .kho-vt .lds-tag { flex: none; }
 /* Ô Nguồn / Tiến độ của ngăn A dựng sẵn cho ô cao: trong lưới 34px/dòng gói về MỘT hàng. */
 .lds-g .kna-nguon { flex-wrap: nowrap; white-space: nowrap; }
+/* Bảng nhập (dòng cao tự do, ô không cắt chữ) thì xuống hàng — gói một hàng ở đây là tên khách
+   tràn đè sang cột Nhập/Vị trí. */
+.lds-bang--nhap .lds-g .kna-nguon { flex-wrap: wrap; white-space: normal; }
 .lds-g .kna-tien { flex-direction: row; align-items: center; gap: 8px; }
 .lds-g .kna-tien__vach { width: 56px; min-width: 56px; flex: none; }
 .kho-user-cell {

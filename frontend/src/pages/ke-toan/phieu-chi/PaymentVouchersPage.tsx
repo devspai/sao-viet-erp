@@ -43,6 +43,7 @@ import {
   type TheLocPC,
 } from "./shared/loc";
 import { dieuKienPhieu, dkTrangThaiPhieu } from "../shared/locPhieu";
+import { useMucThuChi } from "../shared/OChonMuc";
 import { ThanhLoc } from "../../thanh-loc/ThanhLoc";
 import "../ke-toan.css";
 
@@ -112,6 +113,7 @@ export function PaymentVouchersPage({
   const moDonMua = coXemDonMua ? (code: string) => navigate("ke-toan-don-mua-hang", { focusRequestCode: code }) : undefined;
   const { the, setThe, loc, rows, mo, setMo, load } = sp;
   const { soThe } = sp;
+  const mucLoc = useMucThuChi("chi", false).ds;
   const muc = useMemo<MucLocNhanh[]>(() => [
     { key: "tat_ca", label: "Tất cả", count: soThe?.tat_ca },
     { key: "xong", label: "Đã chi", mau: "la", count: soThe?.xong },
@@ -131,9 +133,9 @@ export function PaymentVouchersPage({
         muc: muc.filter((m) => m.key !== "gc").map((m) => ({ id: m.key, nhan: m.label })),
         n: soThe, dang: the, dat: (id) => setThe(id as TheLocPC),
       }),
-      ...dieuKienPhieu(CAU_HINH_LOC_PC, sp.taiKhoan),
+      ...dieuKienPhieu(CAU_HINH_LOC_PC, sp.taiKhoan, mucLoc),
     ],
-    [muc, soThe, the, setThe, sp.taiKhoan],
+    [muc, soThe, the, setThe, sp.taiKhoan, mucLoc],
   );
   // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
   const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });

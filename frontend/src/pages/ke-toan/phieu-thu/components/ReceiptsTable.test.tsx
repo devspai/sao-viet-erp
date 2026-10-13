@@ -46,10 +46,10 @@ function chuTran(el: Element): string[] {
 }
 
 describe("ReceiptsTable", () => {
-  it("mười cột đúng thứ tự: Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
+  it("mười một cột đúng thứ tự: Mục thu sau Lý do, Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
     ve();
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
-      "Số phiếu", "Ngày thu", "Người nộp tiền", "Lý do nộp", "Thu theo", "Hình thức", "Số tiền", "Trạng thái",
+      "Số phiếu", "Ngày thu", "Người nộp tiền", "Lý do nộp", "Mục thu", "Thu theo", "Hình thức", "Số tiền", "Trạng thái",
       "Ngày tạo", "Ghi chú",
     ]);
     expect(screen.getByRole("table")).toHaveClass("lds-g");
@@ -71,7 +71,9 @@ describe("ReceiptsTable", () => {
     expect(within(dong[1]).getByText("38.100.000")).toHaveAttribute("title", "USD 1.500 tỷ giá 25.400");
     expect(within(dong[1]).getByText("Cọc đơn bán")).toHaveClass("lds-tag");
     expect(within(dong[1]).getByText("DH-0415")).toBeInTheDocument();
-    expect(within(dong[2]).getByText("Khác")).toHaveClass("lds-tag");
+    // Phiếu thu lập tay: ô Thu theo trống (cột Mục nói nó là khoản gì); chưa gắn mục thì "Chưa phân loại".
+    expect(within(dong[2]).queryByText("Khác")).toBeNull();
+    expect(within(dong[2]).getAllByText("Chưa phân loại")[0]).toHaveClass("lds-mu");
     // Phiếu đã thu: chip xanh lá; thiếu chứng từ gốc nhắc bằng chữ vàng ở Ghi chú.
     expect(within(dong[0]).getByText("Đã thu")).toHaveClass("lds-chip", "lds-chip--la");
     expect(within(dong[2]).getByText("Thiếu chứng từ gốc")).toHaveClass("lds-vang");
@@ -86,7 +88,6 @@ describe("ReceiptsTable", () => {
     expect(within(dong[4]).getByText("UNC-260810-AB12")).toBeInTheDocument();
     // Ô Thu theo hẹp: chữ nổi giữ đủ nhãn + mã khi mã bị cắt.
     expect(within(dong[4]).getByText("UNC-260810-AB12").closest("td")).toHaveAttribute("title", "Thu lại tiền chi UNC-260810-AB12");
-    expect(within(dong[2]).getByText("Khác").closest("td")).toHaveAttribute("title", "Khác");
   });
 
   it("mã nguồn là nút khi mở được; bấm nút không mở ngăn phiếu", async () => {

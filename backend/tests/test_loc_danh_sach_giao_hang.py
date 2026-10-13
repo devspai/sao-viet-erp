@@ -138,8 +138,8 @@ def test_bang_giao_loc_tai_xe_trang_thai_moc_va_tim(client):
     b = _yc(client, h, "BB")
     tx_a = _tai_xe("Tai xe bang A")
     tx_b = _tai_xe("Tai xe bang B")
-    ta = _len_kh(client, h, a["id"], tx_a, ngay=1).json()["trip"]
-    tb = _len_kh(client, h, b["id"], tx_b, ngay=1).json()["trip"]
+    ta = _len_kh(client, h, a["id"], tx_a).json()["trip"]
+    tb = _len_kh(client, h, b["id"], tx_b).json()["trip"]
 
     assert _bang(client, h)["so_don"] == 2
     r = _bang(client, h, tai_xe=tx_a)
@@ -148,18 +148,18 @@ def test_bang_giao_loc_tai_xe_trang_thai_moc_va_tim(client):
     _dat(DeliveryTrip, tb["id"], trang_thai="da_huy")
     r = _bang(client, h, trang_thai=["da_huy"])
     assert _ma_chuyen(r) == {b["code"]}
-    r = _bang(client, h, trang_thai=["da_len_ke_hoach", "da_huy"])
+    r = _bang(client, h, trang_thai=["dang_chuan_bi", "da_huy"])   # lên đơn là gửi kho ⇒ chờ kho xuất
     assert r["so_don"] == 2
 
-    # Mốc giờ lấy hàng: chuyến A lấy 02/10 01:00 giờ VN (01/10 18:00 UTC), chuyến B ngoài kỳ.
-    _dat(DeliveryTrip, ta["id"], gio_lay_hang=datetime(2026, 10, 1, 18, 0),
-         gio_du_kien_giao=datetime(2026, 10, 1, 20, 0))
-    _dat(DeliveryTrip, tb["id"], gio_lay_hang=datetime(2026, 9, 20, 3, 0),
-         gio_du_kien_giao=datetime(2026, 9, 20, 5, 0))
-    r = _bang(client, h, tu_ngay="2026-10-02", den_ngay="2026-10-02", moc="lay")
+    # Kỳ lọc theo NGÀY LÊN ĐƠN (mg 0400 gỡ giờ lấy / giờ giao — chỉ còn mốc "tao").
+    # Chuyến A lên đơn 02/10 01:00 giờ VN (01/10 18:00 UTC), chuyến B tháng 9.
+    _dat(DeliveryTrip, ta["id"], created_at=datetime(2026, 10, 1, 18, 0))
+    _dat(DeliveryTrip, tb["id"], created_at=datetime(2026, 9, 20, 3, 0))
+    r = _bang(client, h, tu_ngay="2026-10-02", den_ngay="2026-10-02")
     assert _ma_chuyen(r) == {a["code"]}
-    r = _bang(client, h, tu_ngay="2026-09-01", den_ngay="2026-09-30", moc="giao")
+    r = _bang(client, h, tu_ngay="2026-09-01", den_ngay="2026-09-30")
     assert _ma_chuyen(r) == {b["code"]}
+    assert client.get(f"{GOC}/bang-giao", params={"moc": "lay"}, headers=h).status_code == 422
 
     assert _ma_chuyen(_bang(client, h, q="DH-GH-BB")) == {b["code"]}
 
@@ -204,8 +204,8 @@ def test_bang_giao_dem_theo_nhom_tinh_trang(client):
     h = _admin(client)
     a = _yc(client, h, "NA")
     b = _yc(client, h, "NB")
-    _len_kh(client, h, a["id"], _tai_xe("Tai xe nhom A"), ngay=1)
-    tb = _len_kh(client, h, b["id"], _tai_xe("Tai xe nhom B"), ngay=1).json()["trip"]
+    _len_kh(client, h, a["id"], _tai_xe("Tai xe nhom A"))
+    tb = _len_kh(client, h, b["id"], _tai_xe("Tai xe nhom B")).json()["trip"]
     _dat(DeliveryTrip, tb["id"], trang_thai="thanh_cong")
     r = _bang(client, h, trang_thai=["thanh_cong"])
     assert _ma_chuyen(r) == {b["code"]}

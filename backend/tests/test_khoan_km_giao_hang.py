@@ -57,8 +57,6 @@ def _chuyen_xong(client, h, *, suffix, tai_xe, phu_xe=None, km=100, xe_id=None):
     """Đơn → yêu cầu → kế hoạch → giao thành công. Trả `trip_id`."""
     oid, lid = _don_da_chot(suffix=suffix)
     yc = _tao_yc(client, h, oid, lid)
-    body = {"request_id": yc["id"], "employee_id": tai_xe,
-            "gio_lay_hang": None, "gio_du_kien_giao": None}
     # Xe gửi NGAY ở lượt POST: từ 12/09/2026 nó bắt buộc ở bước lên đơn (khi danh mục đã có xe),
     # nên xếp chuyến trước rồi gán xe sau là ăn 400.
     r = _len_kh_kem_phu_xe(client, h, yc["id"], tai_xe, phu_xe, xe_id=xe_id)
@@ -68,18 +66,13 @@ def _chuyen_xong(client, h, *, suffix, tai_xe, phu_xe=None, km=100, xe_id=None):
     r = client.post(f"/api/giao-hang/trips/{trip}/ket-qua", json={
         "ket_qua": "thanh_cong", "km": km, "nguoi_nhan_thuc_te": "Chi Lan"}, headers=h)
     assert r.status_code == 200, r.text
-    del body
     return trip
 
 
-def _len_kh_kem_phu_xe(client, h, request_id, tai_xe, phu_xe=None, *, xe_id=None,
-                       lay=8, giao=11):
+def _len_kh_kem_phu_xe(client, h, request_id, tai_xe, phu_xe=None, *, xe_id=None):
     """POST kế hoạch, kèm phụ xe và/hoặc XE nếu có. Gửi khoá nào cũng chỉ khi có giá trị —
     `null` ở đường ĐỔI kế hoạch nghĩa là GỠ, giữ hai nghĩa tách bạch ngay từ màn tạo."""
-    from tests.test_giao_hang_api import _gio
-
-    body = {"request_id": request_id, "employee_id": tai_xe,
-            "gio_lay_hang": _gio(lay), "gio_du_kien_giao": _gio(giao)}
+    body = {"request_id": request_id, "employee_id": tai_xe}
     if phu_xe is not None:
         body["phu_xe_employee_id"] = phu_xe
     if xe_id is not None:
@@ -151,11 +144,11 @@ def test_14_MOT_NGUOI_KHONG_duoc_vao_ca_hai_o(client):
     assert "cùng một người" in r.json()["detail"]
 
 
-def test_15_PHU_XE_trung_lich_bi_chan_va_bao_DUNG_NGUOI(client):
-    """⭐ Phụ xe cũng là một con người: kíp xe SINH RA TIỀN, trùng lịch là trả hai chuyến cho
-    cùng một khoảng thời gian.
+def test_15_PHU_XE_dang_ban_thi_NHAC_va_bao_DUNG_NGUOI(client):
+    """⭐ Phụ xe cũng là một con người. Từ mg 0400 (gỡ giờ lấy / giờ giao) không còn "trùng
+    giờ" để chặn — chỉ nhắc người đang ôm chuyến ở lượt khác.
 
-    Và câu báo phải nói "Phụ xe", không phải "Tài xế" — báo sai người là cử người ta đi sửa
+    Và câu nhắc phải nói "Phụ xe", không phải "Tài xế" — báo sai người là cử người ta đi sửa
     nhầm ô.
     """
     _bat_khoi_giao_hang()
@@ -169,9 +162,10 @@ def test_15_PHU_XE_trung_lich_bi_chan_va_bao_DUNG_NGUOI(client):
 
     o2, l2 = _don_da_chot(suffix="km4b")
     yc2 = _tao_yc(client, h, o2, l2)
-    r = _len_kh_kem_phu_xe(client, h, yc2["id"], tx2, px)     # cùng khung giờ
-    assert r.status_code == 400, r.text
-    assert "Phụ xe" in r.json()["detail"], f"báo sai người: {r.json()['detail']}"
+    r = _len_kh_kem_phu_xe(client, h, yc2["id"], tx2, px)
+    assert r.status_code == 201, r.text
+    assert [c for c in r.json()["canh_bao"] if c.startswith("Phụ xe")], \
+        f"nhắc sai người: {r.json()['canh_bao']}"
 
 
 def test_16_HAI_O_PHAN_TRAM_khong_cong_du_100_thi_chan(client):
@@ -452,9 +446,9 @@ def test_km_bang_0_khong_lam_vo_va_khong_ra_tien(client):
     assert _tien(trip) == {}
 
 
-def test_gio_ket_thuc_quyet_dinh_KY_chu_khong_phai_gio_lay_hang(client):
+def test_gio_ket_thuc_quyet_dinh_KY_chu_khong_phai_luc_len_don(client):
     """Chuyến chạy đêm cuối tháng sang mùng 1 ⇒ tiền thuộc kỳ chuyến ĐÓNG, cùng kỳ với số km
-    được chốt. Xếp theo `gio_lay_hang` là tiền và km nằm hai kỳ khác nhau."""
+    được chốt. Xếp theo lúc lên đơn là tiền và km nằm hai kỳ khác nhau."""
     from app.services.khoan_km_service import KhoanKmService
 
     _bat_khoi_giao_hang()

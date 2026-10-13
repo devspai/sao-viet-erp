@@ -10,6 +10,8 @@
 //   lúc bấm (ngăn dưới nạp lại / tải hỏng cũng không đổi form đang gõ).
 // - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
 // - "Lịch sử": dòng thời gian mọi chứng từ với nhà cung cấp + các đợt đã trễ.
+// Nút "Nhà cung cấp hoàn tiền" trên đầu ngăn (12/10/2026) mở ngăn chồng phiếu thu gắn thẳng NCC, số
+// tiền điền sẵn bằng số NCC đang nợ lại mình.
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -18,6 +20,7 @@ import {
   type PayableItemRow,
   type PayablePaidRow,
   type PayablesDetail,
+  type PaymentReceiptRow,
   type VoucherBatchResult,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
@@ -30,6 +33,7 @@ import { RayThuocTinh } from "../../shared/LuoiGon";
 import { NganCongNo, oRayCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
 import { TabSaoKe } from "../../shared/TabSaoKe";
+import { NccHoanTienModal } from "../../phieu-thu/modals/NccHoanTienModal";
 import { PAID_PAGE } from "../shared/constants";
 import { tenKhoan } from "../shared/helpers";
 import type { Bucket } from "../shared/types";
@@ -39,6 +43,8 @@ import { DotConNoBlock } from "./DotConNoBlock";
 export type QuyenCongNoTra = {
   /** Lập phiếu chi (`phieu_chi.create`) — tích đợt và trả nhiều đợt. */
   lap: boolean;
+  /** Lập phiếu thu (`phieu_thu.create`) — nút "Nhà cung cấp hoàn tiền". */
+  thuHoan?: boolean;
   xemDonMua: boolean;
   xemNcc: boolean;
   xemPhieuChi: boolean;
@@ -104,6 +110,8 @@ export function PayablesDrawer({
   const [moHang, setMoHang] = useState<string | null>(null);
   const [moTra, setMoTra] = useState<PayableItemRow[] | null>(null);
   const [daLap, setDaLap] = useState<VoucherBatchResult | null>(null);
+  const [moHoan, setMoHoan] = useState(false);
+  const [daThuHoan, setDaThuHoan] = useState<PaymentReceiptRow | null>(null);
   const [dangIn, setDangIn] = useState(false);
   const [soLanLap, setSoLanLap] = useState(0);
 
@@ -141,6 +149,11 @@ export function PayablesDrawer({
     const t = window.setTimeout(() => setDaLap(null), 8000);
     return () => window.clearTimeout(t);
   }, [daLap]);
+  useEffect(() => {
+    if (!daThuHoan) return;
+    const t = window.setTimeout(() => setDaThuHoan(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [daThuHoan]);
 
   // Backend cũ hơn giao diện có thể thiếu `items`/`aging` — báo rõ, không sập, không coi là rỗng.
   const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.aging);
@@ -204,6 +217,7 @@ export function PayablesDrawer({
         ma={ma}
         coSo={hopLe}
         nutHoSo={moHoSo ? { nhan: "Hồ sơ nhà cung cấp", onMo: moHoSo } : undefined}
+        nutTraLai={quyen.thuHoan ? { nhan: "Nhà cung cấp hoàn tiền", onMo: () => setMoHoan(true) } : undefined}
         onInSaoKe={() => {
           setTab("sk");
           setDangIn(true);
@@ -274,7 +288,7 @@ export function PayablesDrawer({
 
         {hopLe && tab === "sk" && (
           <TabSaoKe ben="payables" id={supplierId} ten={ten} ma={ma} kyTrang={ky} lan={lan}
-            dangIn={dangIn} onDongIn={() => setDangIn(false)} onMoPhieu={moPhieu} />
+            dangIn={dangIn} onDongIn={() => setDangIn(false)} onMoPhieu={moPhieu} onMoDonMua={moDon} />
         )}
 
         {hopLe && tab === "ls" && (
@@ -295,7 +309,35 @@ export function PayablesDrawer({
             </button>
           </div>
         )}
+        {daThuHoan && (
+          <div className="kt-bao" role="status">
+            <span>{`Đã lập ${daThuHoan.code}`}</span>
+            <button type="button"
+              onClick={() => {
+                setTab("ls");
+                setDaThuHoan(null);
+              }}>
+              Xem phiếu
+            </button>
+          </div>
+        )}
       </NganCongNo>
+
+      {moHoan && (
+        <NccHoanTienModal
+          nccId={supplierId}
+          nccTen={ten}
+          onClose={() => setMoHoan(false)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onSaved={(pt) => {
+            setMoHoan(false);
+            setDaThuHoan(pt);
+            setSoLanLap((n) => n + 1);
+            reload();
+            onChanged();
+          }}
+        />
+      )}
 
       {moTra && (
         <BatchPaymentDialog

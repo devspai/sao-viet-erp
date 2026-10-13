@@ -1,0 +1,135 @@
+/* BÁO CÁO THU CHI (11/10/2026). Lưới, thanh lọc, phân trang dùng khuôn chung `lds-*`
+ * (components/luoi-ds.css); ngăn dùng vỏ `NganPhai` (ke-toan.css). File này chỉ có phần riêng của màn:
+ * dòng nhóm Thu / Chi, dòng thụt lề, câu chân bảng, dải số đầu ngăn, chip lọc trong ngăn, thông báo nhỏ. */
+
+/* Kỳ dài là nhiều cột tháng — bỏ trần 1320px của trang kế toán, kẻo nửa lưới phải cuộn ngang. */
+.kt-trang.bctc { max-width: none; }
+
+/* Nút "Theo mục | Theo người nhận, nộp" cao bằng các ô khác của hàng công cụ (32px). */
+.bctc .lds-loc__phai .kt-seg button { height: 30px; font-size: 13px; }
+
+/* Dòng nhóm Thu / Chi: nền nhạt hơn dòng Chênh lệch, không bấm được. */
+.bctc .lds-g tbody tr.bctc-nhom > td { background: color-mix(in srgb, var(--paper) 55%, var(--canvas, #fff)); cursor: default; }
+.bctc-dem { font-size: 12px; }
+/* Ô tên của dòng nhóm cũng ghim như dòng mục — không thì cuộn ngang là chữ "Thu"/"Chi" trôi mất. */
+.bctc .lds-cuon[data-ghim] tbody tr.bctc-nhom > td:first-child { position: sticky; left: var(--lds-trai, 0); z-index: 1; }
+
+/* Dòng mục / người thuộc nhóm: thụt lề cho thấy nằm dưới dòng nhóm. */
+.bctc .lds-g tbody tr.bctc-con > td:first-child { padding-left: 26px; }
+
+.bctc-chan { margin: 0 2px; font-size: var(--fs-xs); }
+
+/* Thông báo nhỏ sau khi chuyển mục — nổi trên cả ngăn. */
+.bctc-bao { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 130; display: flex; align-items: center;
+  gap: 12px; max-width: calc(100vw - 32px); padding: 10px 10px 10px 16px; border-radius: 10px; background: var(--charcoal);
+  color: var(--on-charcoal); font-size: 13px; box-shadow: 0 10px 30px rgba(15, 23, 42, .22); }
+.bctc-bao__x { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px;
+  background: transparent; color: inherit; cursor: pointer; opacity: .75; }
+.bctc-bao__x:hover { opacity: 1; background: rgba(255, 255, 255, .12); }
+
+/* Dải số đầu ngăn: từng cột kỳ + … = Cả kỳ. Ô bấm được để lọc; ô đang chọn gạch chân số. */
+.bctc-pt { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 14px; }
+.bctc-pt__cum { display: inline-flex; align-items: flex-end; gap: 14px; }
+.bctc-pt__o { display: grid; gap: 2px; text-align: left; border: 1px solid transparent; border-radius: 8px; background: none;
+  padding: 4px 8px; margin: -4px -8px; font: inherit; color: inherit; }
+button.bctc-pt__o { cursor: pointer; }
+button.bctc-pt__o:hover { background: var(--rule-hair); }
+button.bctc-pt__o:focus-visible { outline: 2px solid var(--ash-2); outline-offset: 0; }
+.bctc-pt__nhan { font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; }
+.bctc-pt__so { font-size: var(--fs-lg); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.bctc-pt__o.on .bctc-pt__so { text-decoration: underline; text-underline-offset: 4px; }
+.bctc-pt__o--ca .bctc-pt__so { font-size: 20px; letter-spacing: -.01em; }
+.bctc-pt__dau { color: var(--ash-2); font-size: var(--fs-lg); padding-bottom: 2px; }
+
+/* Chip lọc đang áp trong ngăn (vd "Tháng 9 ×"): bấm để bỏ. */
+.bctc-loc { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.bctc-loc__x { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 10px; border: 1px solid var(--rule);
+  border-radius: 999px; background: var(--canvas, #fff); font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.bctc-loc__x svg { color: var(--ash-2); }
+.bctc-loc__x:hover { background: var(--rule-hair); }
+
+.bctc-dang-tai { opacity: .6; transition: opacity .15s; }
+
+/* Hộp chọn mục khi chuyển phiếu. */
+.bctc-chuyen { display: grid; gap: 6px; }
+.bctc-chuyen__nhan { font-size: 12px; color: var(--ash); }
+.bctc-chuyen__ghi { font-size: var(--fs-xs); }
+
+/* Cột kỳ được tô khi bấm một tháng ở dạng biểu đồ. */
+.bctc .lds-g th.bctc-hl, .bctc .lds-g td.bctc-hl { background: var(--tt-xanh-bg); }
+
+/* ---- Dạng biểu đồ (phương án C, mockup bao-cao-thu-chi-pinterest-3-phuong-an.html) ---- */
+.bctc-bd { display: grid; gap: 12px; container-type: inline-size; }
+.bctc-bd__rong { margin: 0; padding: 28px 16px; text-align: center; }
+.bctc-bd__hang { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
+.bctc-bd__hang--1 { grid-template-columns: 1.5fr 1fr; }
+.bctc-bd__khoi { min-width: 0; display: flex; flex-direction: column; background: var(--canvas, #fff);
+  border: 1px solid var(--rule-soft); border-radius: 8px; padding: 10px 14px; }
+.bctc-bd__dau { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; flex: none; }
+.bctc-bd__tieu { font-size: 13.5px; color: var(--ink); white-space: nowrap; }
+.bctc-bd__ph { font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bctc-bd__sp { flex: 1; }
+.bctc-bd__cg { display: flex; gap: 12px; color: var(--ash-2); font-size: var(--fs-xs); flex: none; }
+.bctc-bd__cg span { display: inline-flex; align-items: center; gap: 5px; }
+.bctc-bd__cg i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.bctc-bd__ve { min-width: 0; overflow: hidden; }
+.bctc-bd__svg { display: block; }
+.bctc-bd__svg text, .bctc-bd__vong text { font-family: inherit; }
+.bctc-bd__luoi { stroke: var(--rule-hair); }
+.bctc-bd__truc0 { stroke: var(--ash-3); }
+.bctc-bd__so { font-size: 11px; fill: var(--ash-2); }
+.bctc-bd__dv { font-size: 10.5px; fill: var(--ash-3); }
+.bctc-bd__thang { font-size: 11.5px; fill: var(--ash); }
+.bctc-bd .bam { cursor: pointer; }
+.bctc-bd .bam:hover { opacity: .82; }
+
+/* Kết quả kỳ: danh sách cuộn trong khối, cao bằng khối đường thu chi. */
+.bctc-bd__kq { max-height: 300px; }
+.bctc-bd__kq-ds { flex: 1; overflow: auto; min-height: 0; }
+.bctc-bd__kq-r { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; height: 30px;
+  padding: 0 6px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 13px; color: var(--ink); text-align: left; }
+.bctc-bd__kq-r .n, .bctc-bd__lg-r .n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bctc-bd__kq-r--con { padding-left: 20px; font-size: 12.5px; color: var(--ash-2); cursor: pointer; }
+.bctc-bd__kq-r--con:hover, .bctc-bd__lg-r:is(button):hover { background: var(--rule-hair); }
+.bctc-bd__kq-r--tong { margin-top: 6px; background: var(--paper); }
+.bctc-bd__gach { height: 1px; background: var(--rule-soft); margin: 6px 0; }
+.bctc-bd__ten { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Hai tab Cơ cấu mục chi | Cơ cấu mục thu. */
+.bctc-bd__tab { display: flex; gap: 20px; border-bottom: 1px solid var(--rule-soft); margin: -2px 0 10px; }
+.bctc-bd__tab button { padding: 4px 0 7px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none;
+  font: inherit; font-size: 13.5px; color: var(--ash-2); cursor: pointer; }
+.bctc-bd__tab button.on { color: var(--ink); border-bottom-color: var(--ink); }
+
+.bctc-bd__dn { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
+.bctc-bd__vong { display: block; }
+.bctc-bd__lat { stroke: var(--canvas, #fff); stroke-width: 1.5; }
+.bctc-bd__vong-so { font-size: 15px; fill: var(--ink); }
+.bctc-bd__vong-nhan { font-size: 11.5px; fill: var(--ash-2); }
+.bctc-bd__lg { min-width: 0; max-width: 560px; }
+.bctc-bd__lg-r { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; width: 100%;
+  height: 26px; padding: 0 6px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 12.5px; color: var(--ink);
+  text-align: left; }
+button.bctc-bd__lg-r { cursor: pointer; }
+.bctc-bd__lg-r i { width: 10px; height: 10px; border-radius: 2px; }
+.bctc-bd__lg-r .p, .bctc-bd__lg-r .n { text-align: right; }
+.bctc-bd__lg-r .p { min-width: 44px; color: var(--ash-2); font-variant-numeric: tabular-nums; }
+.bctc-bd__lg-r .n { min-width: 96px; }
+.bctc-bd__trong { margin: 8px 6px; font-size: 13px; }
+
+.bctc-bd__tip { position: fixed; z-index: 140; pointer-events: none; padding: 6px 9px; border-radius: 6px; background: var(--charcoal);
+  color: var(--on-charcoal, #fff); font-size: 12px; line-height: 1.5; white-space: nowrap; }
+
+/* Khung hẹp (laptop có thanh bên): hàng dưới xếp dọc trước để vòng + chú giải đủ chỗ đọc tên mục,
+ * hẹp nữa thì cả hàng trên. */
+@container (max-width: 1180px) { .bctc-bd__hang:not(.bctc-bd__hang--1) { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 760px) { .bctc-bd__hang--1 { grid-template-columns: minmax(0, 1fr); } }
+
+@media (max-width: 640px) {
+  .bctc-bd__dn { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .bctc-bd__lg { width: 100%; }
+  .bctc-bd__ph { display: none; }
+  .bctc-pt__cum { gap: 8px; }
+  .bctc-pt { gap: 6px 8px; }
+}

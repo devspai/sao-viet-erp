@@ -14,7 +14,7 @@ export type DatOThu = <K extends keyof PaymentReceiptInput>(key: K, value: Payme
 
 /** Thứ tự ô của form kiểu mới (khối Tiền thu → Người nộp) — con trỏ nhảy tới ô sai đầu tiên. */
 export const THU_TU_O_THU_MOI = [
-  "amount", "exchange_rate", "receipt_date", "company_bank_account_id", "bank_reference", "payer_name", "content",
+  "amount", "exchange_rate", "receipt_date", "company_bank_account_id", "bank_reference", "payer_name", "muc_thu_chi_id", "content",
 ];
 
 export function PhanNhanBang({

@@ -61,8 +61,6 @@ class GiayIn(BaseModel):
     kho_tinh_gia: bool = True
     ghi_chu: str | None = None
     cong_thuc_gia: str | None = None
-    # NVL thay thế (mg 0239) — id các Giấy khác dùng thay được món này. MỘT CHIỀU.
-    thay_the_ids: list[int] | None = None
     active: bool = True
 
 
@@ -85,7 +83,6 @@ class GiayRow(BaseModel):
     ghi_chu: str | None = None
     version_no: int = 1
     cong_thuc_gia: str | None = None
-    thay_the_ids: list[int] | None = None
     active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -118,8 +115,6 @@ class VatTuIn(BaseModel):
     chips: list[VatTuChipIn] | None = None       # None/vắng = không đụng chip hiện có
     # Ô công thức tính lượng ĐÃ GỠ khỏi Vật tư khác (mg `0274`) — định mức nay khai theo
     # TỪNG DÒNG vật tư của đầu việc trong công đoạn. Schema Giấy ở trên GIỮ NGUYÊN.
-    # NVL thay thế (mg 0239) — id các Vật tư khác dùng thay được món này. MỘT CHIỀU.
-    thay_the_ids: list[int] | None = None
     active: bool = True
 
 
@@ -138,7 +133,6 @@ class VatTuRow(BaseModel):
     cong_thuc_gia: str | None = None
     cong_thuc_dinh_muc: str | None = None
     chips: list[VatTuChipRow] = Field(default_factory=list)
-    thay_the_ids: list[int] | None = None
     active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None

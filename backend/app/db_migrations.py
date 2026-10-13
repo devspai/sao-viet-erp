@@ -17763,3 +17763,443 @@ def _migrate_thanh_pham_cua_khach_tai_ban(db: Session) -> None:
 
 
 MIGRATIONS.append(("0394_thanh_pham_theo_khach", _migrate_thanh_pham_cua_khach_tai_ban))
+
+
+def _migrate_muc_thu_chi(db: Session) -> None:
+    """mg 0395 — Mục thu chi + Báo cáo thu chi (11/10/2026).
+
+    · `payment_vouchers.muc_thu_chi_id`, `payment_vouchers.customer_id`,
+      `payment_receipts.muc_thu_chi_id` — bảng `muc_thu_chi` do `create_all` dựng (chạy TRƯỚC
+      migration), ở đây chỉ thêm cột trỏ vào cho DB cũ.
+    · Hai ô quyền mới: `dm_muc_thu_chi` cấp cho vai đang Xem phiếu chi hoặc phiếu thu (Thêm/Sửa/Xoá
+      theo ô Thao tác của hai màn đó — người lập phiếu là người khai mục); `bao_cao_thu_chi` cấp cho
+      vai đang Xem báo cáo công nợ (Thao tác theo ô Thao tác của báo cáo công nợ).
+    · KHÔNG tạo sẵn mục nào (SEED_DEMO=false ⇒ không seed gì). Phiếu cũ để trống mục = "Chưa phân
+      loại"; phiếu sinh từ nghiệp vụ thuộc mục cố định theo nguồn (mg 0396).
+    Đọc inspector TRƯỚC lệnh ghi đầu; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot = {t: _existing_columns(insp, t) for t in ("payment_vouchers", "payment_receipts") if t in bang}
+    cot_quyen = ([c for c in insp.get_columns("role_permissions") if c["name"] != "id"]
+                 if "role_permissions" in bang else [])
+
+    if "payment_vouchers" in cot:
+        if "muc_thu_chi_id" not in cot["payment_vouchers"]:
+            db.execute(text("ALTER TABLE payment_vouchers ADD COLUMN muc_thu_chi_id INTEGER"))
+            db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_vouchers_muc_thu_chi_id "
+                            "ON payment_vouchers (muc_thu_chi_id)"))
+        if "customer_id" not in cot["payment_vouchers"]:
+            db.execute(text("ALTER TABLE payment_vouchers ADD COLUMN customer_id INTEGER"))
+            db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_vouchers_customer_id "
+                            "ON payment_vouchers (customer_id)"))
+    if "payment_receipts" in cot and "muc_thu_chi_id" not in cot["payment_receipts"]:
+        db.execute(text("ALTER TABLE payment_receipts ADD COLUMN muc_thu_chi_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_receipts_muc_thu_chi_id "
+                        "ON payment_receipts (muc_thu_chi_id)"))
+
+    if not cot_quyen or "modules" not in bang:
+        db.commit()
+        return
+
+    def _cap(khoa: str, nhan: str, nguon: tuple[str, ...], thao_tac: dict[str, str]) -> None:
+        """Cấp `khoa` cho mọi vai đang Xem một trong `nguon`. `thao_tac`: cột → biểu thức SQL trên
+        bảng tạm `g` (cờ gộp của các dòng nguồn)."""
+        db.execute(
+            text("INSERT INTO modules (key, label, created_at) "
+                 "SELECT :k, :l, CURRENT_TIMESTAMP "
+                 "WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+            {"k": khoa, "l": nhan},
+        )
+        ds_nguon = ", ".join(f"'{n}'" for n in nguon)
+        vai = db.execute(text(
+            f"SELECT role_id, MAX(CASE WHEN can_create THEN 1 ELSE 0 END), "
+            f"MAX(CASE WHEN can_update THEN 1 ELSE 0 END) FROM role_permissions "
+            f"WHERE module_key IN ({ds_nguon}) AND can_read = :t GROUP BY role_id"), {"t": True}).all()
+        co = {r[0] for r in db.execute(text(
+            "SELECT role_id FROM role_permissions WHERE module_key = :k"), {"k": khoa}).all()}
+        ten_cot = [c["name"] for c in cot_quyen]
+        for role_id, tao, sua in vai:
+            if role_id in co:
+                continue
+            g = {"tao": bool(tao), "sua": bool(sua)}
+            gia_tri: dict[str, object] = {}
+            for c in cot_quyen:
+                ten = c["name"]
+                if ten == "role_id":
+                    gia_tri[ten] = role_id
+                elif ten == "module_key":
+                    gia_tri[ten] = khoa
+                elif ten == "scope":
+                    gia_tri[ten] = "all"
+                elif ten == "can_read":
+                    gia_tri[ten] = True
+                elif ten in thao_tac:
+                    gia_tri[ten] = g[thao_tac[ten]]
+                elif str(c["type"]).upper().startswith("BOOL"):
+                    gia_tri[ten] = False
+                elif ten in ("created_at", "updated_at"):
+                    gia_tri[ten] = datetime.now(timezone.utc)
+                else:
+                    gia_tri[ten] = None
+            db.execute(
+                text(f"INSERT INTO role_permissions ({', '.join(ten_cot)}) "
+                     f"VALUES ({', '.join(':' + t for t in ten_cot)})"),
+                gia_tri,
+            )
+
+    _cap("dm_muc_thu_chi", "Mục thu chi", ("phieu_chi", "phieu_thu"),
+         {"can_create": "tao", "can_update": "tao", "can_delete": "tao"})
+    _cap("bao_cao_thu_chi", "Báo cáo thu chi", ("bao_cao_cong_no",), {"can_update": "sua"})
+    db.commit()
+
+
+MIGRATIONS.append(("0395_muc_thu_chi", _migrate_muc_thu_chi))
+
+
+def _migrate_muc_co_dinh_theo_nguon(db: Session) -> None:
+    """mg 0396 — Sáu mục cố định theo nguồn phiếu thay ô "Điền sẵn cho phiếu lập từ" (12/10/2026).
+
+    Phiếu sinh từ nghiệp vụ (trả đơn mua, gia công ngoài, tạm ứng lương, thu theo hoá đơn, cọc đơn,
+    nhà cung cấp hoàn tiền) nay thuộc mục cố định suy từ `source_type` (`MUC_CO_DINH`, không có
+    dòng trong bảng). Vì vậy:
+      · bỏ cột `muc_thu_chi.dien_san_cho`;
+      · phiếu loại đó đang trỏ vào một mục tự khai (do ô Điền sẵn gán) thì trả về trống — mục của
+        nó giờ là mục cố định. Phiếu chi loại đó cũng bỏ `customer_id` (chỉ phiếu lập tay mang
+        mục "Trả lại tiền cho khách" mới có khách).
+    Đọc inspector TRƯỚC lệnh ghi đầu; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    co_cot = "muc_thu_chi" in bang and "dien_san_cho" in _existing_columns(insp, "muc_thu_chi")
+    pv = "payment_vouchers" in bang and "muc_thu_chi_id" in _existing_columns(insp, "payment_vouchers")
+    pr = "payment_receipts" in bang and "muc_thu_chi_id" in _existing_columns(insp, "payment_receipts")
+    if pv:
+        db.execute(text(
+            "UPDATE payment_vouchers SET muc_thu_chi_id = NULL, customer_id = NULL "
+            "WHERE source_type IN ('purchase_request', 'gia_cong_ngoai', 'salary_advance') "
+            "AND (muc_thu_chi_id IS NOT NULL OR customer_id IS NOT NULL)"))
+    if pr:
+        db.execute(text(
+            "UPDATE payment_receipts SET muc_thu_chi_id = NULL "
+            "WHERE source_type IN ('sales_invoice', 'order_deposit', 'purchase_refund') "
+            "AND muc_thu_chi_id IS NOT NULL"))
+    if co_cot:
+        db.execute(text("ALTER TABLE muc_thu_chi DROP COLUMN dien_san_cho"))
+    db.commit()
+
+
+MIGRATIONS.append(("0396_muc_co_dinh_theo_nguon", _migrate_muc_co_dinh_theo_nguon))
+
+
+def _migrate_tra_lai_tien_hai_chieu(db: Session) -> None:
+    """mg 0397 — Trả lại tiền hai chiều (12/10/2026).
+
+    Trả lại tiền cho khách và nhà cung cấp hoàn tiền nay lập từ ngăn công nợ của đúng người đó (và
+    "Trả lại cọc" trên đơn đã huỷ), thuộc mục cố định "Trả lại tiền cho khách" / "Nhà cung cấp hoàn
+    tiền". Cờ "Trả lại tiền cho khách" trên mục tự khai bỏ hẳn. Vì vậy:
+      · `payment_vouchers.order_id` — đơn đã huỷ mà phiếu trả lại cọc;
+      · `payment_receipts.supplier_id` — NCC hoàn tiền; phiếu cũ lập từ phiếu chi được điền ngược
+        từ phiếu chi gốc (NCC của phiếu, không có thì NCC của đơn mua);
+      · phiếu chi lập tay đang mang khách (mục bật cờ) chuyển sang nguồn `customer_refund`, bỏ mục;
+      · mục bật cờ chuyển Ngừng dùng (phiếu của nó đã sang mục cố định), rồi bỏ cột `can_khach_hang`.
+    Đọc inspector TRƯỚC lệnh ghi đầu; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot_pv = _existing_columns(insp, "payment_vouchers") if "payment_vouchers" in bang else set()
+    cot_pr = _existing_columns(insp, "payment_receipts") if "payment_receipts" in bang else set()
+    co_co = "muc_thu_chi" in bang and "can_khach_hang" in _existing_columns(insp, "muc_thu_chi")
+
+    if cot_pv and "order_id" not in cot_pv:
+        db.execute(text("ALTER TABLE payment_vouchers ADD COLUMN order_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_vouchers_order_id "
+                        "ON payment_vouchers (order_id)"))
+    if cot_pr and "supplier_id" not in cot_pr:
+        db.execute(text("ALTER TABLE payment_receipts ADD COLUMN supplier_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_receipts_supplier_id "
+                        "ON payment_receipts (supplier_id)"))
+    if cot_pr and "purchase_requests" in bang:
+        db.execute(text(
+            "UPDATE payment_receipts SET supplier_id = ("
+            " SELECT COALESCE(v.supplier_id, pr.supplier_id) FROM payment_vouchers v"
+            " LEFT JOIN purchase_requests pr ON pr.id = v.purchase_request_id"
+            " WHERE v.id = payment_receipts.payment_voucher_id) "
+            "WHERE source_type = 'purchase_refund' AND supplier_id IS NULL "
+            "AND payment_voucher_id IS NOT NULL"))
+    if "customer_id" in cot_pv:
+        db.execute(text(
+            "UPDATE payment_vouchers SET source_type = 'customer_refund', muc_thu_chi_id = NULL "
+            "WHERE customer_id IS NOT NULL AND source_type IN ('other', 'internal_expense')"))
+    if co_co:
+        db.execute(text("UPDATE muc_thu_chi SET active = :f WHERE can_khach_hang = :t"),
+                   {"f": False, "t": True})
+        db.execute(text("ALTER TABLE muc_thu_chi DROP COLUMN can_khach_hang"))
+    db.commit()
+
+
+MIGRATIONS.append(("0397_tra_lai_tien_hai_chieu", _migrate_tra_lai_tien_hai_chieu))
+
+
+def _migrate_kho_thanh_pham_he_thong(db: Session) -> None:
+    """mg 0398 — Kho thành phẩm là KHO CỐ ĐỊNH của hệ thống (12/10/2026), mã `KHO-TP`.
+
+    Cùng khuôn mục cố định `HT-xx` của Mục thu chi, nhưng phải là dòng THẬT (lô tồn, phiếu, yêu cầu
+    kho trỏ khoá ngoại `kho_hang.id`). Không phải seed: DB nào cũng cần đúng một kho này, và nó không
+    xoá được nên không có chuyện "xoá rồi mọc lại".
+      · Đã có `KHO-TP` ⇒ thôi.
+      · Có kho tên "Kho thành phẩm" (khai tay trước ngày này) ⇒ nhận làm kho cố định: đổi mã sang
+        `KHO-TP`, bật lại nếu đang ngừng — giữ nguyên lô / phiếu đang trỏ vào.
+      · Không có ⇒ tạo mới.
+    Gỡ luôn cột `la_kho_thanh_pham` nếu bản thử trước đó (cờ đánh dấu, cùng ngày) đã thêm.
+    Dòng quyền `ton_kho_<id>` của kho mới do `dong_bo_danh_muc_he_thong` sinh lúc khởi động.
+    Đọc inspector TRƯỚC lệnh ghi đầu; raw SQL đích danh cột; idempotent."""
+    insp = inspect(db.get_bind())
+    if "kho_hang" not in set(insp.get_table_names()):
+        return
+    co_co = "la_kho_thanh_pham" in _existing_columns(insp, "kho_hang")
+    if co_co:
+        db.execute(text("ALTER TABLE kho_hang DROP COLUMN la_kho_thanh_pham"))
+    ma, ten = "KHO-TP", "Kho thành phẩm"
+    if db.execute(text("SELECT 1 FROM kho_hang WHERE UPPER(ma) = :m"), {"m": ma}).first() is None:
+        dong = db.execute(text("SELECT id, ten, active FROM kho_hang ORDER BY id")).all()
+        trung = [r for r in dong if (r[1] or "").strip().lower() == ten.lower()]
+        trung.sort(key=lambda r: (not r[2], r[0]))      # ưu tiên kho đang dùng, rồi kho khai sớm nhất
+        if trung:
+            db.execute(text("UPDATE kho_hang SET ma = :m, ten = :t, active = :a WHERE id = :i"),
+                       {"m": ma, "t": ten, "a": True, "i": trung[0][0]})
+        else:
+            now = datetime.now(timezone.utc)
+            db.execute(text("INSERT INTO kho_hang (ma, ten, active, created_at, updated_at) "
+                            "VALUES (:m, :t, :a, :n, :n)"), {"m": ma, "t": ten, "a": True, "n": now})
+    db.commit()
+
+
+MIGRATIONS.append(("0398_kho_thanh_pham_he_thong", _migrate_kho_thanh_pham_he_thong))
+
+
+def _migrate_yeu_cau_thanh_pham_gan_kho_tp(db: Session) -> None:
+    """mg 0399 — Thành phẩm chỉ vào / ra Kho thành phẩm (12/10/2026, `services/kho_thanh_pham`).
+
+    Từ nay đề nghị nhập thành phẩm (KCS cuối, gia công ngoài về kho) và đề nghị xuất / nhập trả của
+    Giao hàng tạo ra là gắn sẵn kho `KHO-TP`. Đề nghị CÒN MỞ tạo trước ngày này để trống kho (thủ kho
+    chọn lúc lập phiếu) ⇒ gắn luôn kho đó, để màn phiếu khoá ô kho như đề nghị mới.
+    Chỉ đụng đề nghị: có nguồn (công việc SX / gia công ngoài / chuyến giao), MỌI dòng là thành phẩm,
+    trạng thái chưa đóng, `kho_id` trống. Đọc inspector TRƯỚC lệnh ghi; raw SQL; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"stock_requests", "stock_request_lines", "vat_tu_in_an", "kho_hang"} <= bang:
+        return
+    cot = _existing_columns(insp, "stock_requests")
+    nguon = [c for c in ("san_xuat_cong_viec_id", "gia_cong_ngoai_id", "delivery_trip_id") if c in cot]
+    if not nguon:
+        return
+    kho_tp = db.execute(text("SELECT id FROM kho_hang WHERE UPPER(ma) = 'KHO-TP'")).scalar()
+    if kho_tp is None:
+        return
+    co_nguon = " OR ".join(f"r.{c} IS NOT NULL" for c in nguon)
+    db.execute(text(f"""
+        UPDATE stock_requests SET kho_id = :k
+        WHERE id IN (
+            SELECT r.id FROM stock_requests r
+            WHERE r.kho_id IS NULL AND ({co_nguon})
+              AND r.trang_thai NOT IN ('done', 'rejected', 'cancelled')
+              AND EXISTS (SELECT 1 FROM stock_request_lines l WHERE l.request_id = r.id)
+              AND NOT EXISTS (
+                  SELECT 1 FROM stock_request_lines l
+                  LEFT JOIN vat_tu_in_an v ON l.hang_loai = 'vat_tu' AND v.id = l.hang_id
+                  WHERE l.request_id = r.id AND (v.id IS NULL OR v.la_thanh_pham IS NOT TRUE)))
+    """), {"k": kho_tp})
+    db.commit()
+
+
+MIGRATIONS.append(("0399_yeu_cau_thanh_pham_gan_kho_tp", _migrate_yeu_cau_thanh_pham_gan_kho_tp))
+
+
+def _migrate_bo_gio_chuyen_giao(db: Session) -> None:
+    """mg 0400 — Gỡ `delivery_trips.gio_lay_hang` + `gio_du_kien_giao` (12/10/2026).
+
+    Người lên đơn không biết trước giờ xe tới kho hay giờ tới khách, hai ô chỉ mang số mặc định
+    (bây giờ / bây giờ + 2 tiếng) nên phép chặn trùng lịch dựng trên chúng cũng vô nghĩa. Giờ kho
+    phải soạn xong hàng nay hẹn ở `stock_requests.can_luc` của đề nghị xuất kho của chuyến.
+    Đọc inspector TRƯỚC lệnh ghi đầu; idempotent."""
+    insp = inspect(db.get_bind())
+    if "delivery_trips" not in set(insp.get_table_names()):
+        return
+    cot = _existing_columns(insp, "delivery_trips")
+    for c in ("gio_lay_hang", "gio_du_kien_giao"):
+        if c in cot:
+            db.execute(text(f"ALTER TABLE delivery_trips DROP COLUMN {c}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0400_bo_gio_chuyen_giao", _migrate_bo_gio_chuyen_giao))
+
+
+def _migrate_dong_yeu_cau_lo_goc(db: Session) -> None:
+    """mg 0401 — `stock_request_lines.lo_goc_id` (12/10/2026).
+
+    Hàng khách trả về nhập lại kho thành lô mới. Trước đây lô đó mang giá chụp lúc trả và không thuộc
+    họ lô gốc: lô gốc chưa có giá gốc thì hàng trả về kẹt 0 đ mãi. Nay dòng yêu cầu nhập trả nhớ lô gốc,
+    ghi sổ chép sang lô ⇒ giá gốc kế toán gõ sau lan tới. Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    if "stock_request_lines" not in set(insp.get_table_names()):
+        return
+    if "lo_goc_id" not in _existing_columns(insp, "stock_request_lines"):
+        db.execute(text("ALTER TABLE stock_request_lines ADD COLUMN lo_goc_id INTEGER"))
+    db.commit()
+
+
+MIGRATIONS.append(("0401_dong_yeu_cau_lo_goc", _migrate_dong_yeu_cau_lo_goc))
+
+
+def _migrate_hoa_don_gan_luot_giao(db: Session) -> None:
+    """mg 0402 — `sales_invoices.delivery_trip_id` (13/10/2026).
+
+    Hóa đơn bán hàng lập theo số đã giao: mỗi lượt khách đã nhận một hóa đơn, giá trị không vượt
+    hàng của lượt đó. Hóa đơn cũ để trống. Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    if "sales_invoices" not in set(insp.get_table_names()):
+        return
+    if "delivery_trip_id" not in _existing_columns(insp, "sales_invoices"):
+        db.execute(text(
+            "ALTER TABLE sales_invoices ADD COLUMN delivery_trip_id INTEGER "
+            "REFERENCES delivery_trips(id) ON DELETE RESTRICT"
+        ))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_sales_invoices_delivery_trip_id "
+        "ON sales_invoices (delivery_trip_id)"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0402_hoa_don_gan_luot_giao", _migrate_hoa_don_gan_luot_giao))
+
+
+# Cột lưu MÃ đơn vị đo (đọc theo `don_vi_do.ma`) — nơi mã `to_tp` từng nằm trên DB dev.
+_COT_MA_DON_VI = (
+    ("vat_tu_in_an", "don_vi_gia"),
+    ("stock_request_lines", "dvt"),
+    ("stock_request_lines", "don_vi_goc"),
+    ("stock_voucher_lines", "don_vi_goc"),
+    ("stock_lots", "don_vi_goc"),
+    ("delivery_request_lines", "dvt"),
+    ("cong_doan_khoan", "unit"),
+    ("san_xuat_batch", "don_vi_khoan_snapshot"),
+)
+
+
+def _migrate_gop_to_tp_vao_to(db: Session) -> None:
+    """mg 0403 — gộp đơn vị `to_tp` vào `to` (13/10/2026).
+
+    `to_tp` ("tờ" của thành phẩm, khai tay 06/10) trùng tên «tờ» với `to`; luật cấm trùng tên
+    (11/10) buộc đổi nó thành «thành phẩm» ⇒ kho in "200 thành phẩm". Mặt hàng tạo sau 11/10 đã
+    dùng `to`. Chuyển mọi dòng đang mang `to_tp` sang `to` rồi xoá `to_tp` (không có quy đổi nào).
+    DB không có `to_tp` (prod, DB trắng) thì không làm gì. Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "don_vi_do" not in bang:
+        return
+    cot = {t: _existing_columns(insp, t) for t, _ in _COT_MA_DON_VI if t in bang}
+    co_qd = "don_vi_quy_doi" in bang
+    co_nguong = "stock_thresholds" in bang and "don_vi_goc" in _existing_columns(insp, "stock_thresholds")
+    ids = dict(db.execute(text("SELECT ma, id FROM don_vi_do WHERE ma IN ('to', 'to_tp')")).all())
+    if "to_tp" not in ids or "to" not in ids:
+        return
+    for t, c in _COT_MA_DON_VI:
+        if c in cot.get(t, ()):
+            db.execute(text(f"UPDATE {t} SET {c} = 'to' WHERE {c} = 'to_tp'"))
+    if co_nguong:
+        # Ngưỡng tồn khoá theo (hàng, kho, khổ, đơn vị): có sẵn dòng `to` cùng khoá thì bỏ dòng cũ.
+        db.execute(text(
+            "DELETE FROM stock_thresholds AS a WHERE a.don_vi_goc = 'to_tp' AND EXISTS ("
+            "SELECT 1 FROM stock_thresholds b WHERE b.don_vi_goc = 'to' AND b.hang_loai = a.hang_loai "
+            "AND b.hang_id = a.hang_id AND b.kho_id = a.kho_id AND b.kho_rong = a.kho_rong "
+            "AND b.kho_dai = a.kho_dai)"
+        ))
+        db.execute(text("UPDATE stock_thresholds SET don_vi_goc = 'to' WHERE don_vi_goc = 'to_tp'"))
+    if co_qd:
+        db.execute(text("DELETE FROM don_vi_quy_doi WHERE tu_id = :i OR den_id = :i"), {"i": ids["to_tp"]})
+    db.execute(text("DELETE FROM don_vi_do WHERE id = :i"), {"i": ids["to_tp"]})
+    db.commit()
+
+
+MIGRATIONS.append(("0403_gop_to_tp_vao_to", _migrate_gop_to_tp_vao_to))
+
+
+def _migrate_ky_hieu_hoa_don_dot_giao(db: Session) -> None:
+    """mg 0404 — `purchase_deliveries.invoice_symbol` (13/10/2026).
+
+    Số hoá đơn chỉ phân biệt được trong một ký hiệu (mỗi năm NCC đổi ký hiệu và đánh số lại từ
+    0000001), nên một hoá đơn đầu vào nhận theo cặp ký hiệu + số. Đợt cũ để trống.
+    Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    if "purchase_deliveries" not in set(insp.get_table_names()):
+        return
+    if "invoice_symbol" not in _existing_columns(insp, "purchase_deliveries"):
+        db.execute(text("ALTER TABLE purchase_deliveries ADD COLUMN invoice_symbol VARCHAR(64)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0404_ky_hieu_hoa_don_dot_giao", _migrate_ky_hieu_hoa_don_dot_giao))
+
+def _migrate_bo_hang_thay_the(db: Session) -> None:
+    """mg 0405 — bỏ `thay_the_ids` của `giay_nguyen` + `vat_tu_in_an` (13/10/2026).
+
+    Danh sách "giấy/vật tư thay thế" (mg 0239) chỉ để tra cứu, không đường nào của kho, mua hàng
+    hay sản xuất đọc tới; ô Vật tư thay thế đã ẩn từ 09/09/2026, ô Giấy thay thế nay gỡ theo.
+    Đọc inspector TRƯỚC lệnh ghi; idempotent, no-op trên DB trắng."""
+    insp = inspect(db.get_bind())
+    bang_co = set(insp.get_table_names())
+    can_bo = [b for b in ("giay_nguyen", "vat_tu_in_an")
+              if b in bang_co and "thay_the_ids" in _existing_columns(insp, b)]
+    for bang in can_bo:
+        db.execute(text(f"ALTER TABLE {bang} DROP COLUMN thay_the_ids"))
+    db.commit()
+
+
+MIGRATIONS.append(("0405_bo_hang_thay_the", _migrate_bo_hang_thay_the))
+
+def _migrate_gia_von_don_theo_san_pham(db: Session) -> None:
+    """mg 0406 — tính lại `phieu_tinh_gia.gia_von_don` theo SẢN PHẨM khách mua (13/10/2026).
+
+    Engine nay đếm ruột + bìa cùng nhóm báo giá (cùng nhãn, cùng SL) là MỘT sản phẩm
+    (`thanh_phan_engine.cum_san_pham`). Phiếu đã tính trước đó còn giữ giá vốn mỗi sp chia cho SL
+    cộng dồn mọi thành phần — sách 1.000 cuốn ra 2.000 SP, giá vốn mỗi sp còn một nửa. Chỉ sửa
+    phiếu CÓ nhãn nhóm: chia lại `tong_gia_von` cho Σ SL các cụm, vá luôn ba số trong
+    `result_json.meta` để thẻ tổng trong phiếu khớp ngay, khỏi phải bấm Tính giá lại.
+    Đọc inspector TRƯỚC lệnh ghi; raw SQL đích danh cột; chạy lại cho cùng kết quả."""
+    from sqlalchemy import JSON, bindparam
+
+    from .services.thanh_phan_engine import cum_san_pham
+
+    insp = inspect(db.get_bind())
+    if not {"phieu_tinh_gia", "phieu_thanh_phan"} <= set(insp.get_table_names()):
+        return
+    if "nhom_bao_gia" not in _existing_columns(insp, "phieu_thanh_phan"):
+        return
+    ids = [r[0] for r in db.execute(text(
+        "SELECT DISTINCT phieu_id FROM phieu_thanh_phan "
+        "WHERE nhom_bao_gia IS NOT NULL AND TRIM(nhom_bao_gia) <> ''")).all()]
+    ghi = text("UPDATE phieu_tinh_gia SET gia_von_don = :g, result_json = :j WHERE id = :i")         .bindparams(bindparam("j", type_=JSON))
+    for pid in ids:
+        dau = db.execute(text(
+            "SELECT so_luong, tong_gia_von, result_json FROM phieu_tinh_gia WHERE id = :i"),
+            {"i": pid}).first()
+        if dau is None:
+            continue
+        sl_mac_dinh, tong, rj = int(dau[0] or 0), float(dau[1] or 0), dau[2]
+        if isinstance(rj, str):
+            rj = json.loads(rj)
+        cum = cum_san_pham([
+            (ten or "", nhom, int(sl or 0) or sl_mac_dinh)
+            for ten, nhom, sl in db.execute(text(
+                "SELECT ten, nhom_bao_gia, so_luong FROM phieu_thanh_phan WHERE phieu_id = :i "
+                "ORDER BY thu_tu, id"), {"i": pid}).all()
+        ])
+        tong_sl = sum(k["so_luong"] for k in cum)
+        gia = round(tong / tong_sl, 2) if tong_sl > 0 else 0.0
+        if isinstance(rj, dict) and isinstance(rj.get("meta"), dict):
+            rj["meta"].update(tong_so_luong=tong_sl, so_san_pham=len(cum), gia_von_don=gia)
+        db.execute(ghi, {"g": gia, "j": rj, "i": pid})
+    db.commit()
+
+
+MIGRATIONS.append(("0406_gia_von_don_theo_san_pham", _migrate_gia_von_don_theo_san_pham))

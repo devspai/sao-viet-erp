@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from tests.giao_hang_fixtures import giao_het
 from app.db import SessionLocal
 from app.models.customer import Customer, CustomerTag
 from app.models.order import Order, OrderLine, STATUS_ORDERED
@@ -291,8 +292,10 @@ def _sales_order(
 
 
 def _invoice_payload(order_id: int, *, number: str, amount: int | None = None) -> dict:
+    # Hóa đơn gắn lượt khách đã nhận (mg 0402) — dựng sẵn lượt giao hết đơn.
     payload = {
         "order_id": order_id,
+        "delivery_trip_id": giao_het(order_id),
         "invoice_symbol": "1C26TSV",
         "invoice_number": number,
         "invoice_date": _hom_nay().isoformat(),

@@ -168,7 +168,7 @@ def test_buoc_may_trong_may_bao_dung_cho_khong_do_cho_cau_quy_doi():
 
 
 def test_may_mac_dinh_dien_cho_ca_buoc_ngoai_nhom_in(db, orders, lsx_svc, admin, customer):
-    """Công đoạn khai ĐÚNG MỘT máy còn dùng ⇒ điền sẵn, kể cả bước không thuộc nhóm in."""
+    """Máy mặc định = máy còn dùng đứng ĐẦU bảng máy của công đoạn, kể cả bước không thuộc nhóm in."""
     from app.models.may_thiet_bi import MayThietBi
 
     cat = CongDoan(ma="CD-CAT1", ten="Cắt tờ", nhom="prepress", don_vi_vao="to", don_vi_ra="to")
@@ -183,11 +183,21 @@ def test_may_mac_dinh_dien_cho_ca_buoc_ngoai_nhom_in(db, orders, lsx_svc, admin,
 
     assert lsx_svc._may_mac_dinh(cat, None) == m1.id, "một máy ⇒ không có gì để đoán sai"
 
-    # Hai máy ⇒ để TRỐNG, không chọn hộ (cùng luật với đầu việc khoán).
+    # Hai máy ⇒ máy ĐẦU danh sách là mặc định (12/10/2026; trước đó để trống, Cắt tờ hai máy là
+    # bước nào cũng phải chọn tay) — cùng luật tổ mặc định.
     cat.may_lam_duoc.append(CongDoanMay(may_id=m2.id, cong_thuc_gio="sl_vao", thu_tu=1))
     db.commit()
     lsx_svc._mon_cache = None
-    assert lsx_svc._may_mac_dinh(cat, None) is None
+    assert lsx_svc._may_mac_dinh(cat, None) == m1.id
+
+    # Máy đầu ngừng dùng ⇒ máy còn dùng kế tiếp.
+    m1.active = False
+    db.commit()
+    assert lsx_svc._may_mac_dinh(cat, None) == m2.id
+    # Phiếu tính giá chọn máy trong danh sách ⇒ máy của phiếu thắng máy mặc định.
+    m1.active = True
+    db.commit()
+    assert lsx_svc._may_mac_dinh(cat, m2.id) == m2.id
 
 
 def test_cong_thuc_gia_cua_may_ghi_de_cua_cong_doan(db):

@@ -787,6 +787,26 @@ def test_lenh_ROI_KHOI_pham_vi_van_hien_de_con_duong_NHA(db, svc, customer):
         "rơi khỏi bảng KHÔNG tự nhả — đó chính là lý do phải bày ra"
 
 
+def test_luoi_o_cua_lenh_ROI_KHOI_pham_vi_con_giu_la_NEN_NHA(db, svc, customer):
+    """Trên lưới Kế hoạch vật tư, ô của lệnh đã rơi khỏi kế hoạch mà còn giữ hàng phải nói VIỆC
+    PHẢI LÀM ("Nên nhả hàng") — không phải chip xanh "Có trong kho" trông như mọi thứ ổn."""
+    from app.models.lsx import TT_NHAP
+    from app.services.luoi_vat_tu import TT_NEN_NHA, dung_luoi
+
+    g = _giay(db)
+    _ton(db, _giay_hang(g), 100)
+    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=200)
+    svc.bat(lsx_id=a.id)
+    db.get(Lsx, a.id).trang_thai = TT_NHAP
+    db.commit()
+
+    o = next(d for d in dung_luoi(svc)["dong"] if d["lsx_id"] == a.id and d["hang_id"] == g.id)
+    assert o["tinh_trang"] == TT_NEN_NHA
+    assert o["ngoai_pham_vi"] is True, "cách xem theo mặt hàng ghi nhãn cạnh mã lệnh từ cờ này"
+    assert not any("kế hoạch" in c for c in o["ghi_chu"]), \
+        "dòng nhóm lệnh đã nói lệnh ra khỏi kế hoạch — ghi chú không nhắc lại"
+
+
 def test_dem_giu_lau_tinh_ca_lenh_da_ROI_KHOI_bang(db, svc, customer):
     """Badge "giữ lâu" đếm không cần bảng cân đối — nhưng vẫn phải thấy lệnh đã rơi khỏi bảng.
 

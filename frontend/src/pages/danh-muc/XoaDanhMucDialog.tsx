@@ -67,7 +67,7 @@ export function XoaDanhMucDialog({
                 + (kiem?.chan?.length
                     ? ` Đang được dùng ở: ${kiem.chan.join(" · ")} — nên không xóa hẳn được.` : "")
                 + ` Mục này sẽ không còn hiện ở các ô chọn, nhưng chứng từ cũ vẫn giữ nguyên.`
-                + ` Bật lại ở "Hiện mục đã ngừng" trên dải lọc.`
+                + ` Bật lại ở thẻ "Đã ngừng".`
       }
       confirmLabel={(xoaHan || cung) ? "Xóa hẳn" : "Ngừng dùng"}
       hideConfirm={dangHoi}

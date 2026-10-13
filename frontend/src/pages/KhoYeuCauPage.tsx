@@ -92,6 +92,7 @@ import {
   NguonA,
   SoA,
   TheA,
+  TheGiaoHang,
   TheNguonHang,
   TienDoA,
   canLucCua,
@@ -193,7 +194,7 @@ export function KhoYeuCauPage({
     setPage(1);
   };
   const dieuKien = useDieuKienYeuCauKho(dieuChuyen);
-  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc) });
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc, dieuChuyen) });
 
   const [openRequest, setOpenRequest] = useState<number | null>(null);
   const [creatingFor, setCreatingFor] = useState<StockRequest | null>(null);
@@ -1438,6 +1439,7 @@ export function InboxRequestDrawer({
                     </div>
                   </TheA>
                   <TheNguonHang r={req} />
+                  <TheGiaoHang r={req} />
                   {req.ghi_chu && (
                     <TheA tieuDe="Ghi chú người tạo">
                       <div className="kna-the__than kna-ghi">{req.ghi_chu}</div>
@@ -1516,6 +1518,8 @@ interface LotPick {
   order_ma: string | null;
   khach_hang: string | null;
   canh_bao: string | null;
+  /** Thành phẩm KCS chưa có giá gốc — giá vốn phần lấy từ lô này chưa tính được. */
+  chua_gia_goc: boolean;
 }
 
 interface AllocBlock {
@@ -1583,6 +1587,7 @@ function toLotPick(a: StockAllocationLine, catalog: StockLot[]): LotPick {
     order_ma: a.order_ma ?? null,
     khach_hang: a.khach_hang ?? null,
     canh_bao: a.canh_bao ?? null,
+    chua_gia_goc: !!a.chua_gia_goc,
   };
 }
 
@@ -1631,7 +1636,9 @@ function VoucherCreateDrawer({
   const canViewCost = true;
   // Kho do BƯỚC LẬP PHIẾU quyết định (yêu cầu không còn chọn kho). Mặc định = kho đang xem ở
   // toolbar; thủ kho đổi được ngay tại đây. Đổi kho = nạp lại toàn bộ lô (dep của effect dưới).
-  const [khoId, setKhoId] = useState<number>(request.kho_id ?? initialKhoId);
+  // Đề nghị có thành phẩm ⇒ kho BẮT BUỘC là Kho thành phẩm (máy chủ chặn kho khác) — ô kho khoá.
+  const khoBatBuoc = request.kho_bat_buoc_id ?? null;
+  const [khoId, setKhoId] = useState<number>(khoBatBuoc ?? request.kho_id ?? initialKhoId);
   // NGÀY NHẬP/XUẤT KHO = HÔM NAY, KHÓA CỨNG (không cho chọn). Đây là NGÀY HẠCH TOÁN — mốc
   // quyết định phiếu thuộc kỳ nào (khóa sổ + Sổ kho + N-X-T), nên không để người lập tự đặt.
   const [ngay] = useState(todayISO());
@@ -1672,7 +1679,7 @@ function VoucherCreateDrawer({
   // setKhoId idempotent, có unmount sớm cũng chỉ là no-op (React 18 không cảnh báo).
   const daGoiYKho = useRef(false);
   useEffect(() => {
-    if (daGoiYKho.current || isNhap || request.dieu_chuyen) return;
+    if (daGoiYKho.current || isNhap || request.dieu_chuyen || khoBatBuoc != null) return;
     daGoiYKho.current = true;
     api.kho.deNghi
       .goiYKho(token, request.id)
@@ -1681,7 +1688,7 @@ function VoucherCreateDrawer({
         setKhoId(r.kho_id);
       })
       .catch(() => {});
-  }, [token, request, isNhap, khoList]);
+  }, [token, request, isNhap, khoList, khoBatBuoc]);
 
   // Gợi ý lô chạy NGAY khi mở drawer, không chờ bấm nút: thủ kho mở phiếu ra là để lấy hàng,
   // bắt bấm thêm một nút "gợi ý" chỉ để có đúng cái FEFO mặc định là thao tác thừa.
@@ -1872,8 +1879,10 @@ function VoucherCreateDrawer({
     return Math.round(sum);
   }, [blocks, isNhap, canViewCost]);
   // Còn dòng thành phẩm KCS chưa có giá gốc ⇒ tổng "0 đ" là sai nghĩa, báo thẳng thay vì in số.
-  const thieuGiaGoc =
-    isNhap && blocks.some((b) => b.line.tu_kcs && b.line.sl_con_lai > 0 && !(Number(b.donGia) > 0));
+  // XUẤT: lấy từ lô KCS chưa có giá gốc ⇒ tổng chỉ là phần đã biết giá (12/10/2026).
+  const thieuGiaGoc = isNhap
+    ? blocks.some((b) => b.line.tu_kcs && b.line.sl_con_lai > 0 && !(Number(b.donGia) > 0))
+    : blocks.some((b) => b.line.sl_con_lai > 0 && b.lots.some((x) => x.chua_gia_goc && x.so_luong > 0));
   // Cột Giá bán riêng — server chỉ trả giá bán cho người có `view_cost` nên không cần gate thêm.
   const hienGiaBan = isNhap && blocks.some((b) => b.line.don_gia_ban != null);
 
@@ -2085,7 +2094,8 @@ function VoucherCreateDrawer({
                           {isNhap && <th>Hạn dùng</th>}
                           {coGiay && <th>Khổ thực nhận</th>}
                           {isNhap && <th className="n">{blocks.some((b) => b.line.tu_kcs) ? "Giá gốc" : "Đơn giá"}</th>}
-                          <th className="n">Thành tiền</th>
+                          {/* XUẤT: giá vốn đích danh theo lô — chữ "Thành tiền" bị đọc nhầm là tiền bán. */}
+                          <th className="n">{isNhap ? "Thành tiền" : "Giá vốn"}</th>
                           {hienGiaBan && <th className="n">Giá bán</th>}
                         </tr>
                       </thead>
@@ -2179,6 +2189,13 @@ function VoucherCreateDrawer({
                       ["Từ kho", request.kho_nguon_ten || "—"],
                       ["Đến kho", request.kho_ten || khoList.find((w) => w.id === khoId)?.ten || "—"],
                     ]} />
+                  ) : khoBatBuoc != null ? (
+                    <label className="kna-o-truong">
+                      <span>{isNhap ? "Nhập về kho" : "Xuất từ kho"}</span>
+                      <input className="kna-o kna-o--khoa" readOnly
+                        value={request.kho_ten || khoList.find((w) => w.id === khoBatBuoc)?.ten || "Kho thành phẩm"}
+                        title="Thành phẩm chỉ nhập, xuất ở Kho thành phẩm." />
+                    </label>
                   ) : (
                     <div className="kna-o-truong">
                       <span>{isNhap ? "Nhập về kho" : "Xuất từ kho"} <em>*</em></span>
@@ -2219,13 +2236,19 @@ function VoucherCreateDrawer({
                 </div>
               </TheA>
               <TheNguonHang r={request} />
+              <TheGiaoHang r={request} />
               <TheA>
                 <div className="kna-the__than" style={{ paddingTop: 16 }}>
                   <KvA dong={[
                     dongCan.length > 0 && [isNhap ? "Nhập đủ" : "Cấp đủ", `${soDuLanNay}/${dongCan.length} mặt hàng`],
                     canViewCost && [
                       isNhap ? "Tổng tiền nhập" : "Tổng giá vốn",
-                      <span className="kna-lon kna-so">{thieuGiaGoc && giaVon === 0 ? "Chưa có giá gốc" : money(giaVon)}</span>,
+                      thieuGiaGoc && giaVon === 0 ? <span className="kna-lon">Chưa có giá gốc</span> : (
+                        <span className="kna-tong-gv">
+                          <span className="kna-lon kna-so">{money(giaVon)}</span>
+                          {thieuGiaGoc && <span className="kna-dv">chưa gồm hàng chưa có giá gốc</span>}
+                        </span>
+                      ),
                     ],
                   ]} />
                   <div className="kna-chot">
@@ -2380,6 +2403,8 @@ function AllocRow({
   const thanhTien = isNhap ? block.cap * nhapGia : lotCost;
   // Thành phẩm KCS: dòng yêu cầu giữ 0 đ, giá gốc kế toán gõ SAU khi ghi sổ — nói thẳng, đừng in "0 đ".
   const kcsChuaGia = isNhap && l.tu_kcs && !(nhapGia > 0);
+  // XUẤT: số lấy từ lô KCS chưa có giá gốc (đơn vị gốc) — giá vốn dòng chỉ là phần đã biết giá.
+  const slChuaGia = isNhap ? 0 : block.lots.reduce((s, x) => s + (x.chua_gia_goc ? x.so_luong : 0), 0);
 
   // Con số THẬT SỰ vào tồn — nhập "10 ram" mà lô ghi 419,25 kg thì phải nói ra ngay đây.
   const quyDoiHint =
@@ -2576,10 +2601,15 @@ function AllocRow({
           {/* "≈" nhỏ phía trước khi số bị làm tròn (giá trị thật lẻ hơn); số tròn thì để nguyên. */}
           {settled || kcsChuaGia || !canViewCost ? (
             <span className="kna-mo">—</span>
+          ) : slChuaGia > 0 && !(thanhTien > 0) ? (
+            <GiaGocKcs gia={null} />
           ) : thanhTien > 0 ? (
             <>
               <ApproxMark raw={thanhTien} decimals={0} />
               {money(Math.round(thanhTien))}
+              {slChuaGia > 0 && (
+                <span className="kna-dv kna-dv--duoi">{fmtQty(slChuaGia)} {dvtGoc} chưa có giá gốc</span>
+              )}
             </>
           ) : (
             <span className="kna-mo">—</span>
@@ -2656,7 +2686,9 @@ function AllocRow({
                               <td>{lot.hsd ? <span className="kna-so">{fmtDateISO(lot.hsd)}</span> : <span className="kna-mo">Không hạn</span>}</td>
                               <td className="n kna-so">{fmtQty(lot.sl_con_lai)}</td>
                               {canViewCost && (
-                                <td className="n kna-so">{lot.don_gia_nhap != null ? money(lot.don_gia_nhap) : ""}</td>
+                                <td className="n kna-so">
+                                  {lot.chua_gia_goc ? <GiaGocKcs gia={null} /> : lot.don_gia_nhap != null ? money(lot.don_gia_nhap) : ""}
+                                </td>
                               )}
                               <td className="n">
                                 <DecimalInput
@@ -3141,7 +3173,7 @@ export function VoucherDrawer({
                           {hienCat && <th>Hạn dùng</th>}
                           <th className="n">Số lượng</th>
                           {hienGia && <th className="n">{laKcs ? "Giá gốc" : "Đơn giá"}</th>}
-                          {hienGia && <th className="n">Thành tiền</th>}
+                          {hienGia && <th className="n">{nhap ? "Thành tiền" : "Giá vốn"}</th>}
                           {hienGiaBan && <th className="n">Giá bán</th>}
                         </tr>
                       </thead>

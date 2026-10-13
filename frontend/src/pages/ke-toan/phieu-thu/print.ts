@@ -24,7 +24,13 @@ export function printReceipt(row: PaymentReceiptRow): boolean {
             },
           ]
         : []),
-      { label: "Nguồn thu", value: sourceLabel(row) },
+      // Mục thu (11/10/2026) thay dòng "Nguồn thu: Khác". Phiếu chưa phân loại chỉ in nguồn khi nguồn
+      // nói được điều gì (hoá đơn, cọc, thu lại tiền chi).
+      ...(row.muc_thu_chi_ten
+        ? [{ label: "Mục thu", value: row.muc_thu_chi_ten }]
+        : row.source_type !== "other"
+          ? [{ label: "Nguồn thu", value: sourceLabel(row) }]
+          : []),
       ...(linkedSourceCode ? [{ label: "Mã nguồn", value: linkedSourceCode }] : []),
       ...(row.bank_reference ? [{ label: "Mã giao dịch", value: row.bank_reference }] : []),
     ],

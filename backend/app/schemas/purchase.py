@@ -649,6 +649,7 @@ class PurchaseDeliveryOut(BaseModel):
     # True = NCC chưa khai số ngày cho nợ ⇒ đợt này không bao giờ vào cột Quá hạn. Màn hình phải
     # đẩy nó lên đầu kèm badge, không để chìm — im lặng ở đây là một món nợ không ai canh.
     chua_dat_han: bool = False
+    invoice_symbol: str | None = None
     invoice_number: str | None = None
     invoice_date: date | None = None
     note: str | None = None
@@ -690,6 +691,7 @@ class PurchaseDeliveryLineIn(BaseModel):
 class PurchaseDeliveryIn(BaseModel):
     delivery_date: date
     due_date: date | None = None
+    invoice_symbol: str | None = Field(default=None, max_length=64)
     invoice_number: str | None = Field(default=None, max_length=64)
     invoice_date: date | None = None
     note: str | None = Field(default=None, max_length=2000)
@@ -701,6 +703,7 @@ class PurchaseInvoiceAssignIn(BaseModel):
     """Gán MỘT hoá đơn cho NHIỀU đợt giao — ca NCC giao 3 đợt rồi mới xuất một hoá đơn chung."""
 
     delivery_ids: list[int] = Field(min_length=1)
+    invoice_symbol: str | None = Field(default=None, max_length=64)
     invoice_number: str | None = Field(default=None, max_length=64)
     invoice_date: date | None = None
 

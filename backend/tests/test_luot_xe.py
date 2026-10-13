@@ -10,12 +10,12 @@ tháng 8 (xe 3,5T, thang thường 18.000 · 11.200 · 8.200 · 7.200 …, kíp 
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from app.db import SessionLocal
 from app.models.delivery import DeliveryTrip, LuotXe
 from app.services.khoan_km_service import KhoanKmService
-from tests.test_giao_hang_api import _admin, _don_da_chot, _gio, _gui_yeu_cau_xuat_kho, _tao_yc
+from tests.test_giao_hang_api import _admin, _don_da_chot, _kho_xuat, _tao_yc
 from tests.test_khoan_km_giao_hang import PHONG_GH, _bat_khoi_giao_hang, _tai_xe
 from tests.test_khoan_km_theo_muc import _muc_co_gia, _tao_xe
 
@@ -34,12 +34,11 @@ def _canh(client, ma_xe: str = "51D-853.66"):
     return h, tx, px, xe
 
 
-def _len_don(client, h, *, suffix, tx, xe, luot="moi", px=None, lay=8, giao=11, cho=201):
+def _len_don(client, h, *, suffix, tx, xe, luot="moi", px=None, cho=201):
     """Đơn → yêu cầu → lên đơn giao hàng vào lượt (`"moi"` hoặc id lượt đang mở)."""
     oid, lid = _don_da_chot(suffix=suffix)
     yc = _tao_yc(client, h, oid, lid)
-    body = {"request_id": yc["id"], "employee_id": tx, "vehicle_id": xe,
-            "gio_lay_hang": _gio(lay), "gio_du_kien_giao": _gio(giao)}
+    body = {"request_id": yc["id"], "employee_id": tx, "vehicle_id": xe}
     if luot is not None:
         body["luot_xe_id"] = luot
     if px is not None:
@@ -50,9 +49,8 @@ def _len_don(client, h, *, suffix, tx, xe, luot="moi", px=None, lay=8, giao=11, 
 
 
 def _lay_hang(client, h, trip_id):
-    _gui_yeu_cau_xuat_kho(client, h, trip_id)
-    r = client.post(f"{GOC}/trips/{trip_id}/da-lay-hang", headers=h)
-    assert r.status_code == 200, r.text
+    """Kho xuất + ghi sổ ⇒ chuyến tự "Đã lấy hàng" (lên đơn đã tự gửi đề nghị xuất)."""
+    _kho_xuat(client, h, trip_id)
 
 
 def _bat_dau(client, h, trip_id, xuat_phat=None, *, cho=200):
@@ -127,7 +125,7 @@ def _vong_young_poong_aobo(client):
 # Lập lượt — người lên đơn giao hàng
 # =============================================================================================
 def test_LEN_DON_luot_moi_roi_GHEP_chuyen_thu_hai_cung_tai_xe_khong_bao_trung_gio(client):
-    """Gom đơn một vòng: hai chuyến cùng tài xế, cùng khung giờ, cùng lượt ⇒ KHÔNG phải trùng lịch."""
+    """Gom đơn một vòng: hai chuyến cùng tài xế, cùng lượt ⇒ KHÔNG nhắc "đang bận"."""
     h, tx, px, xe = _canh(client)
     a = _len_don(client, h, suffix="g1", tx=tx, px=px, xe=xe)
     assert a["luot"]["code"].startswith("LX-") and a["luot"]["so_diem"] == 1
@@ -138,11 +136,44 @@ def test_LEN_DON_luot_moi_roi_GHEP_chuyen_thu_hai_cung_tai_xe_khong_bao_trung_gi
     assert [(x["code"], x["so_diem"], x["da_xuat_phat"]) for x in mo] == [(a["luot"]["code"], 2, False)]
 
 
-def test_hai_luot_KHAC_nhau_cung_gio_van_la_trung_lich(client):
+def test_hai_luot_KHAC_nhau_thi_NHAC_tai_xe_dang_ban_chu_khong_chan(client):
+    """mg 0400 gỡ giờ lấy / giờ giao ⇒ hết "trùng giờ". Lượt thứ hai cùng tài xế vẫn lưu được,
+    chỉ kèm câu nhắc; ghép cùng lượt thì im."""
     h, tx, _px, xe = _canh(client)
-    _len_don(client, h, suffix="t1", tx=tx, xe=xe)
-    r = _len_don(client, h, suffix="t2", tx=tx, xe=xe, cho=400)
-    assert "trùng giờ" in r["detail"]
+    a = _len_don(client, h, suffix="t1", tx=tx, xe=xe)
+    oid, lid = _don_da_chot(suffix="t2")
+    yc = _tao_yc(client, h, oid, lid)
+    r = client.post(f"{GOC}/plans", json={"request_id": yc["id"], "employee_id": tx,
+                                          "vehicle_id": xe, "luot_xe_id": "moi"}, headers=h)
+    assert r.status_code == 201, r.text
+    assert any("Tài xế đang có 1 chuyến chưa xong" in c for c in r.json()["canh_bao"]), r.json()
+    oid, lid = _don_da_chot(suffix="t3")
+    yc = _tao_yc(client, h, oid, lid)
+    r = client.post(f"{GOC}/plans", json={"request_id": yc["id"], "employee_id": tx,
+                                          "vehicle_id": xe, "luot_xe_id": a["luot"]["id"]}, headers=h)
+    assert r.status_code == 201, r.text
+    # Còn chuyến ở lượt thứ hai (khác lượt a) nên vẫn nhắc — nhưng chỉ đếm chuyến NGOÀI lượt a.
+    assert any("Tài xế đang có 1 chuyến chưa xong" in c for c in r.json()["canh_bao"]), r.json()
+
+
+def test_LUOT_ba_khach_hen_kho_CHUNG_gio_ghi_chu_RIENG(client):
+    """⭐ Lượt 3 khách ⇒ 3 đề nghị xuất (mỗi yêu cầu một chứng từ), hẹn kho một giờ chung cho cả
+    lượt, ghi chú cho kho thì mỗi đề nghị một câu."""
+    h, tx, _px, xe = _canh(client)
+    ids = [_yc(client, h, f"hk{i}") for i in range(3)]
+    kq = _len_luot(client, h, ids, tx=tx, xe=xe)
+    trips = [t["id"] for t in kq["trips"]]
+    ds = client.get(f"{GOC}/de-nghi-kho", params={"trip_ids": trips},
+                    headers=h).json()
+    assert len(ds) == 3 and len({d["ma"] for d in ds}) == 3, ds
+
+    mai = (date.today() + timedelta(days=1)).isoformat()
+    r = client.put(f"{GOC}/de-nghi-kho", json={"ngay_can": mai, "gio_can": "14:00", "dong": [
+        {"trip_id": t, "ghi_chu": f"Khach {i}"} for i, t in enumerate(trips)]}, headers=h)
+    assert r.status_code == 200, r.text
+    ra = {d["trip_id"]: d for d in r.json()}
+    assert {d["can_luc"][:16] for d in ra.values()} == {f"{mai}T14:00"}
+    assert [ra[t]["ghi_chu"] for t in trips] == ["Khach 0", "Khach 1", "Khach 2"]
 
 
 def test_GHEP_vao_luot_cua_xe_KHAC_bi_chan(client):
@@ -150,7 +181,7 @@ def test_GHEP_vao_luot_cua_xe_KHAC_bi_chan(client):
     muc = _muc_co_gia(client, h, "Muc xe hai")
     xe2 = _tao_xe(client, h, "61C-532.70", "Xe a Giang", 2.5, muc)
     a = _len_don(client, h, suffix="k1", tx=tx, xe=xe)
-    r = _len_don(client, h, suffix="k2", tx=tx, xe=xe2, luot=a["luot"]["id"], lay=13, giao=15,
+    r = _len_don(client, h, suffix="k2", tx=tx, xe=xe2, luot=a["luot"]["id"],
                  cho=400)
     assert "xe khác" in r["detail"]
 
@@ -201,13 +232,13 @@ def test_KET_QUA_trong_luot_ghi_so_dong_ho_khong_go_km(client):
                     headers=h)
     assert r.status_code == 400 and "số đồng hồ" in r.json()["detail"], r.text
     assert "nhỏ hơn số lúc xuất phát" in _ket_qua(client, h, a["id"], 999, cho=400)["detail"]
-    assert "lớn bất thường" in _ket_qua(client, h, a["id"], 1501, cho=400)["detail"]
-    ra = _ket_qua(client, h, a["id"], 1501, xac_nhan_km_lon=True)
+    # Số đồng hồ không còn ngưỡng 500 km (13/10/2026): chặng dài lưu thẳng, không hỏi xác nhận.
+    ra = _ket_qua(client, h, a["id"], 1501)
     assert ra["km"] == 501 and ra["luot"]["so_dong_ho"] == 1501
 
 
 def test_CHANG_theo_SO_DONG_HO_khong_theo_thu_tu_len_don(client):
-    """Ghé khách nào trước là chuyện ngoài đường — ghi B trước A thì chặng vẫn tính theo đồng hồ."""
+    """Ghé khách nào trước là chuyện ngoài đường — ghi B trước A thì B là điểm 1 của lộ trình."""
     h, tx, _px, xe = _canh(client)
     a = _len_don(client, h, suffix="o1", tx=tx, xe=xe)
     b = _len_don(client, h, suffix="o2", tx=tx, xe=xe, luot=a["luot"]["id"])
@@ -217,8 +248,22 @@ def test_CHANG_theo_SO_DONG_HO_khong_theo_thu_tu_len_don(client):
     _bat_dau(client, h, b["id"])
     _ket_qua(client, h, b["id"], 1030)
     assert _chuyen(b["id"]).km == 30
-    _ket_qua(client, h, a["id"], 1010)            # ghi muộn: A nằm giữa xuất phát và B
-    assert _chuyen(a["id"]).km == 10 and _chuyen(b["id"]).km == 20
+    _ket_qua(client, h, a["id"], 1045)
+    assert _chuyen(a["id"]).km == 15 and _chuyen(b["id"]).km == 30
+
+
+def test_KET_QUA_thap_hon_so_diem_truoc_bi_chan(client):
+    """Thấp nhất là số của điểm liền trước trên lộ trình (13/10/2026)."""
+    h, tx, _px, xe = _canh(client)
+    a = _len_don(client, h, suffix="tt1", tx=tx, xe=xe)
+    b = _len_don(client, h, suffix="tt2", tx=tx, xe=xe, luot=a["luot"]["id"])
+    for t in (a, b):
+        _lay_hang(client, h, t["id"])
+    _bat_dau(client, h, a["id"], 1000)
+    _bat_dau(client, h, b["id"])
+    _ket_qua(client, h, a["id"], 1030)
+    assert "thấp hơn số ở điểm trước (1030)" in _ket_qua(client, h, b["id"], 1010, cho=400)["detail"]
+    assert _ket_qua(client, h, b["id"], 1030)["luot"]["so_dong_ho"] == 1030
 
 
 def test_VE_KHO_bi_chan_khi_con_diem_chua_co_ket_qua_hoac_so_lui(client):
@@ -298,7 +343,7 @@ def test_XE_CHAY_NGOAI_SO_duoc_nhac_khi_luot_sau_xuat_phat_xa_hon_so_cuoi(client
     _bat_dau(client, h, a["id"], 5000)
     _ket_qua(client, h, a["id"], 5010)
     _ve_kho(client, h, a["luot"]["id"], 5020)
-    b = _len_don(client, h, suffix="ns2", tx=tx, xe=xe, lay=13, giao=15)
+    b = _len_don(client, h, suffix="ns2", tx=tx, xe=xe)
     assert b["luot"]["id"] != a["luot"]["id"]
     _lay_hang(client, h, b["id"])
     assert b["luot"]["goi_y_xuat_phat"] == 5020
@@ -306,26 +351,54 @@ def test_XE_CHAY_NGOAI_SO_duoc_nhac_khi_luot_sau_xuat_phat_xa_hon_so_cuoi(client
     assert any("ngoài sổ 30 km" in c for c in ra["canh_bao"]), ra["canh_bao"]
 
 
-def test_XUAT_PHAT_bat_thuong_bi_CHAN_truoc_khi_luu_xac_nhan_moi_qua(client):
-    """Gõ nối vào số cũ (5020 → 50201008) hoặc số lùi ⇒ chặn, chưa lưu; xác nhận thì qua."""
+def test_XUAT_PHAT_so_lui_bi_CHAN_truoc_khi_luu_xac_nhan_moi_qua(client):
+    """Số lùi ⇒ chặn, chưa lưu; xác nhận thì qua. Số lớn hơn bao nhiêu cũng không hỏi (gỡ ngưỡng
+    500 km 13/10/2026 — từ lượt thứ hai hộp đã lấy sẵn số cuối, không gõ nữa)."""
     h, tx, _px, xe = _canh(client)
     a = _len_don(client, h, suffix="bt1", tx=tx, xe=xe)
     _lay_hang(client, h, a["id"])
     _bat_dau(client, h, a["id"], 5000)
     _ket_qua(client, h, a["id"], 5010)
     _ve_kho(client, h, a["luot"]["id"], 5020)
-    b = _len_don(client, h, suffix="bt2", tx=tx, xe=xe, lay=13, giao=15)
+    b = _len_don(client, h, suffix="bt2", tx=tx, xe=xe)
     _lay_hang(client, h, b["id"])
-    loi = _bat_dau(client, h, b["id"], 50201008, cho=400)
-    assert "bất thường" in loi["detail"], loi
     loi = _bat_dau(client, h, b["id"], 4000, cho=400)
     assert "nhỏ hơn số cuối" in loi["detail"], loi
-    assert _bat_dau(client, h, b["id"], 5521, cho=400)
     r = client.get(f"{GOC}/luot-xe/{b['luot']['id']}", headers=h)
     assert r.json()["so_dong_ho_xuat_phat"] is None, "bị chặn thì KHÔNG được lưu số"
     r = client.post(f"{GOC}/trips/{b['id']}/bat-dau-giao", headers=h,
                     json={"so_dong_ho_xuat_phat": 4000, "xac_nhan_km_lon": True})
     assert r.status_code == 200, r.text
+
+
+def test_XUAT_PHAT_nhay_xa_khong_con_hoi(client):
+    h, tx, _px, xe = _canh(client)
+    a = _len_don(client, h, suffix="nx1", tx=tx, xe=xe)
+    _lay_hang(client, h, a["id"])
+    _bat_dau(client, h, a["id"], 5000)
+    _ket_qua(client, h, a["id"], 5010)
+    _ve_kho(client, h, a["luot"]["id"], 5020)
+    b = _len_don(client, h, suffix="nx2", tx=tx, xe=xe)
+    _lay_hang(client, h, b["id"])
+    assert _bat_dau(client, h, b["id"], 5521)["luot"]["so_dong_ho_xuat_phat"] == 5521
+
+
+def test_GOI_Y_XUAT_PHAT_noi_ro_so_lay_tu_luot_nao(client):
+    h, tx, _px, xe = _canh(client)
+    a = _len_don(client, h, suffix="ng1", tx=tx, xe=xe)
+    _lay_hang(client, h, a["id"])
+    _bat_dau(client, h, a["id"], 7000)
+    _ket_qua(client, h, a["id"], 7012)
+    b = _len_don(client, h, suffix="ng2", tx=tx, xe=xe)
+    _lay_hang(client, h, b["id"])
+    ct = client.get(f"{GOC}/luot-xe/{b['luot']['id']}", headers=h).json()
+    # Lượt trước chưa về kho ⇒ số cuối là số tới khách.
+    assert ct["goi_y_xuat_phat"] == 7012
+    assert ct["goi_y_nguon"]["loai"] == "toi_khach" and ct["goi_y_nguon"]["luot_code"] == a["luot"]["code"]
+    _ve_kho(client, h, a["luot"]["id"], 7030)
+    ct = client.get(f"{GOC}/luot-xe/{b['luot']['id']}", headers=h).json()
+    assert ct["goi_y_xuat_phat"] == 7030
+    assert ct["goi_y_nguon"]["loai"] == "ve_kho" and ct["goi_y_nguon"]["luc"]
 
 
 # =============================================================================================
@@ -420,9 +493,8 @@ def _yc(client, h, suffix) -> int:
     return _tao_yc(client, h, oid, lid)["id"]
 
 
-def _len_luot(client, h, request_ids, *, tx, xe, luot="moi", px=None, lay=8, giao=11, cho=201):
-    body = {"request_ids": request_ids, "employee_id": tx, "vehicle_id": xe,
-            "gio_lay_hang": _gio(lay), "gio_du_kien_giao": _gio(giao), "luot_xe_id": luot}
+def _len_luot(client, h, request_ids, *, tx, xe, luot="moi", px=None, cho=201):
+    body = {"request_ids": request_ids, "employee_id": tx, "vehicle_id": xe, "luot_xe_id": luot}
     if px is not None:
         body["phu_xe_employee_id"] = px
     r = client.post(f"{GOC}/luot-xe", json=body, headers=h)
@@ -455,15 +527,19 @@ def test_LEN_LUOT_nhieu_yeu_cau_mot_lan_moi_yeu_cau_mot_chuyen_chung_mot_luot(cl
 
 def test_LEN_LUOT_mot_yeu_cau_hong_thi_CA_LO_KHONG_LUU(client):
     """Tất cả hoặc không gì — lưu nửa lô thì người lên đơn phải tự dò cái nào đã vào lượt."""
+    from app.models.stock_request import StockRequest
+
     h, tx, px, xe = _canh(client)
     ok = _yc(client, h, "c1")
-    da_co = _len_don(client, h, suffix="c2", tx=tx, xe=xe, lay=14, giao=16)   # đã có chuyến
+    da_co = _len_don(client, h, suffix="c2", tx=tx, xe=xe)   # đã có chuyến
     r = _len_luot(client, h, [ok, da_co["request_id"]], tx=tx, xe=xe, cho=400)
     assert da_co["request_code"] in r["detail"]     # nói RÕ yêu cầu nào hỏng
     db = SessionLocal()
     try:
         assert db.query(DeliveryTrip).filter(DeliveryTrip.request_id == ok).count() == 0
         assert db.query(LuotXe).count() == 1        # chỉ còn lượt của chuyến c2 — lượt lô hỏng không sinh
+        # Đề nghị xuất của yêu cầu ok (gửi kèm lên đơn) cũng không sót lại — chỉ còn của c2.
+        assert db.query(StockRequest).filter(StockRequest.delivery_trip_id.isnot(None)).count() == 1
     finally:
         db.close()
 
@@ -474,28 +550,38 @@ def test_LEN_LUOT_khong_chon_xe_bi_chan(client):
     assert "xe" in r["detail"]
 
 
-def test_CA_LUOT_gui_kho_moi_chuyen_MOT_PHIEU_lay_hang_bat_dau_mot_lan_roi_chi_tiet_theo_chang(client):
-    """⭐ Vòng 01/08 đi bằng nút CẢ LƯỢT: SVN 91424 → AOBO 91445 → Young Poong 91452 → SVN 91469."""
+def test_CA_LUOT_len_don_moi_chuyen_MOT_PHIEU_kho_xuat_bat_dau_mot_lan_roi_chi_tiet_theo_chang(client):
+    """⭐ Vòng 01/08: SVN 91424 → AOBO 91445 → Young Poong 91452 → SVN 91469. Lên lượt là gửi kho
+    luôn (12/10/2026) — mỗi chuyến một đề nghị xuất; kho ghi sổ là chuyến tự sang đã lấy hàng."""
     from app.models.stock_request import StockRequest
 
     h, tx, px, xe = _canh(client)
     kq = _len_luot(client, h, [_yc(client, h, "yp"), _yc(client, h, "aobo")], tx=tx, px=px, xe=xe)
     lid, (a, b) = kq["luot_id"], kq["trips"]
 
-    gui = _ca_luot(client, h, lid, "yeu-cau-xuat-kho", {"ghi_chu": "Soạn trước 7h"})
-    assert gui["so_chuyen"] == 2 and len(set(gui["phieu"])) == 2          # MỖI chuyến MỘT phiếu
+    assert len(set(kq["phieu"])) == 2                                     # MỖI chuyến MỘT phiếu
     db = SessionLocal()
     try:
-        gc = [p.ghi_chu for p in db.query(StockRequest).filter(StockRequest.ma.in_(gui["phieu"]))]
+        gc = [p.ghi_chu for p in db.query(StockRequest).filter(StockRequest.ma.in_(kq["phieu"]))]
     finally:
         db.close()
-    # Kho đọc ghi chú là biết những phiếu nào lên cùng một xe.
-    assert all(kq["code"] in g and "Soạn trước 7h" in g for g in gc)
-    _ca_luot(client, h, lid, "yeu-cau-xuat-kho", cho=400)                 # hết chuyến chờ gửi
+    # Ghi chú tự sinh đã gỡ (mg 0400): ô ghi chú là của NGƯỜI hẹn kho, máy không chèn chữ vào.
+    assert gc == [None, None]
+    # Lượt / yêu cầu / xe / tài xế kho đọc từ khối Giao hàng của đề nghị.
+    nguon = {x["ma"]: x for x in client.get("/api/kho/de-nghi", headers=h).json()["items"]}
+    assert {nguon[m]["giao_luot_ma"] for m in kq["phieu"]} == {kq["code"]}
+    assert {nguon[m]["giao_yeu_cau_ma"] for m in kq["phieu"]} == {t["request_code"] for t in kq["trips"]}
+    assert {nguon[m]["giao_xe_bien_so"] for m in kq["phieu"]} == {"51D-853.66"}
+    # Đường bấm tay đã gỡ.
+    _ca_luot(client, h, lid, "yeu-cau-xuat-kho", cho=404)
+    _ca_luot(client, h, lid, "da-lay-hang", cho=404)
 
     ct = client.get(f"{GOC}/luot-xe/{lid}", headers=h).json()
-    assert (ct["so_cho_gui_kho"], ct["so_cho_lay_hang"]) == (0, 2)
-    assert _ca_luot(client, h, lid, "da-lay-hang")["so_chuyen"] == 2
+    assert (ct["so_cho_lay_hang"], ct["so_cho_bat_dau"]) == (2, 0)
+    for t in (a, b):
+        _kho_xuat(client, h, t["id"])
+    ct = client.get(f"{GOC}/luot-xe/{lid}", headers=h).json()
+    assert (ct["so_cho_lay_hang"], ct["so_cho_bat_dau"]) == (0, 2)
 
     # Chưa có số xuất phát ⇒ chặn, và KHÔNG chuyến nào nhích (cả lô bỏ).
     loi = _ca_luot(client, h, lid, "bat-dau-giao", cho=400)
@@ -523,10 +609,8 @@ def test_CA_LUOT_bat_dau_giao_khi_con_chuyen_chua_lay_hang_thi_NHAC(client):
     h, tx, px, xe = _canh(client)
     kq = _len_luot(client, h, [_yc(client, h, f"f{i}") for i in range(3)], tx=tx, xe=xe)
     lid, trips = kq["luot_id"], kq["trips"]
-    _ca_luot(client, h, lid, "yeu-cau-xuat-kho")
     for t in trips[:2]:
-        r = client.post(f"{GOC}/trips/{t['id']}/da-lay-hang", headers=h)
-        assert r.status_code == 200, r.text
+        _kho_xuat(client, h, t["id"])
     bd = _ca_luot(client, h, lid, "bat-dau-giao", {"so_dong_ho_xuat_phat": 5000})
     assert bd["so_chuyen"] == 2
     assert any("Còn 1 chuyến" in c for c in bd["canh_bao"])
@@ -538,9 +622,8 @@ def test_CA_LUOT_bat_dau_giao_khi_con_chuyen_chua_lay_hang_thi_NHAC(client):
 # =============================================================================================
 def test_BANG_GIAO_moi_luot_mot_khoi_trang_hoa_theo_khoi_khong_cat_doi_luot(client):
     h, tx, px, xe = _canh(client)
-    luot = _len_luot(client, h, [_yc(client, h, f"k{i}") for i in range(3)], tx=tx, xe=xe,
-                     lay=8, giao=11)
-    le = _len_don(client, h, suffix="le", tx=tx, xe=xe, luot=None, lay=14, giao=16)
+    luot = _len_luot(client, h, [_yc(client, h, f"k{i}") for i in range(3)], tx=tx, xe=xe)
+    le = _len_don(client, h, suffix="le", tx=tx, xe=xe, luot=None)
 
     r = client.get(f"{GOC}/bang-giao", params={"page": 1, "size": 1}, headers=h)
     assert r.status_code == 200, r.text
@@ -555,4 +638,4 @@ def test_BANG_GIAO_moi_luot_mot_khoi_trang_hoa_theo_khoi_khong_cat_doi_luot(clie
     assert khoi["trip"] is None and khoi["luot"]["id"] == luot["luot_id"]
     # Trang 1 phần tử mà lượt vẫn đủ 3 điểm — không bị cắt đôi qua hai trang.
     assert len(khoi["luot"]["diem"]) == 3
-    assert khoi["luot"]["so_cho_gui_kho"] == 3 and khoi["luot"]["xe_bien_so"] == "51D-853.66"
+    assert khoi["luot"]["so_cho_lay_hang"] == 3 and khoi["luot"]["xe_bien_so"] == "51D-853.66"

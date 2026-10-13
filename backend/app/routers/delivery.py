@@ -40,7 +40,11 @@ from ..repositories.xe_repo import MucKhoanKmRepository, XeRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
 from ..schemas.loc_danh_sach import LuaChonLoc
+from ..services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
 from ..schemas.delivery import (
+    DeNghiKhoHangOut,
+    DeNghiKhoIn,
+    DeNghiKhoOut,
     GiaoThangOut,
     PhieuKhoOut,
     DinhKemListOut,
@@ -70,9 +74,6 @@ from ..schemas.delivery import (
     PlanUpdate,
     RequestDetailOut,
     TaiXeChonOut,
-    HangCanXuatOut,
-    YeuCauKhoOut,
-    YeuCauXuatKhoIn,
     TaiXeChonPage,
     TripLineOut,
     TripOut,
@@ -81,9 +82,9 @@ from ..schemas.delivery import (
     BangGiaoPage,
     BatDauGiaoIn,
     CaLuotOut,
-    GuiXuatKhoCaLuotIn,
     LenLuotIn,
     LenLuotOut,
+    GoiYXuatPhatOut,
     LuotXeChiTietOut,
     LuotXeMoOut,
     LuotXeMoPage,
@@ -98,6 +99,7 @@ from ..services.delivery_service import (
     DeliveryService,
 )
 from ..services.rbac_service import AuthorizationService
+from ..services.stock_request_service import StockRequestError
 from ..services.thanh_pham_khai_bao import cum_ban
 from ..tai_len import doc_gioi_han
 
@@ -251,8 +253,14 @@ def _ten_nguoi_nhieu(db: Session, user_ids: set[int | None]) -> dict[int, str | 
 def _hang_theo_yeu_cau(db: Session, svc: DeliveryService,
                        request_ids: list[int]) -> dict[int, list[DeliveryRequestLineOut]]:
     """Dòng hàng (tên, số yêu cầu, đã giao) của NHIỀU yêu cầu, gộp cả trang: 4 truy vấn bất kể bao
-    nhiêu chuyến — yêu cầu + dòng, mô tả dòng đơn, đã giao, tên mặt hàng kho. Bảng giao gắn vào
-    từng chuyến để ngăn chi tiết có bảng hàng ngay lúc mở (07/10/2026)."""
+    nhiêu chuyến — yêu cầu + dòng, dòng đơn, đã giao, tên mặt hàng kho. Bảng giao gắn vào
+    từng chuyến để ngăn chi tiết có bảng hàng ngay lúc mở (07/10/2026).
+
+    Kèm CỤM BÁN (12/10/2026) như `_request_out`: Ruột + Bìa là MỘT quyển — thiếu `cum_*` thì ngăn
+    lượt xe bày hai món "Ruột sách" / "Bìa sách" trong khi kho xuất một mã thành phẩm."""
+    from collections import defaultdict
+    from types import SimpleNamespace
+
     from sqlalchemy import select as _select
 
     from ..models.order import OrderLine
@@ -262,17 +270,22 @@ def _hang_theo_yeu_cau(db: Session, svc: DeliveryService,
         return {}
     dong = [ln for r in reqs for ln in r.lines]
     mo_ta: dict[int, tuple[str, str]] = {}
-    olids = {ln.order_line_id for ln in dong}
-    if olids:
-        for r in db.execute(_select(OrderLine.id, OrderLine.description, OrderLine.don_vi_tinh)
-                            .where(OrderLine.id.in_(olids))).all():
-            mo_ta[int(r[0])] = (r[1] or "", r[2] or "")
+    # MỌI dòng của các đơn (không chỉ dòng có trong yêu cầu) — cụm tính trên cả đơn như `cum_ban`.
+    theo_don: dict[int, list] = defaultdict(list)
+    for ol in db.execute(_select(OrderLine)
+                         .where(OrderLine.order_id.in_({r.order_id for r in reqs}))).scalars():
+        theo_don[ol.order_id].append(ol)
+        mo_ta[ol.id] = (ol.description or "", ol.don_vi_tinh or "")
+    cum: dict = {}
+    for lns in theo_don.values():
+        cum.update(_cum_theo_dong(SimpleNamespace(lines=lns)))
     da_giao = svc.deliveries.da_giao_theo_yeu_cau([r.id for r in reqs])
     ten_kho = _ten_mat_hang(db, {(ln.hang_loai, ln.hang_id) for ln in dong
                                  if ln.hang_loai and ln.hang_id is not None})
     return {
         r.id: [
             DeliveryRequestLineOut(
+                **_cum_cua(cum, ln.order_line_id),
                 id=ln.id, order_line_id=ln.order_line_id, qty=ln.qty,
                 mo_ta=mo_ta.get(ln.order_line_id, ("", ""))[0],
                 don_vi_tinh=mo_ta.get(ln.order_line_id, ("", ""))[1],
@@ -414,7 +427,7 @@ def _nap_chuyen(db: Session, svc: DeliveryService, trips) -> _NapChuyen:
         yc_xuat=yc_xuat,
         yc_tra=yc_tra,
         phieu={
-            rid: PhieuKhoOut(ma=p.ma, trang_thai=p.trang_thai, luc=p.ghi_so_luc or p.created_at,
+            rid: PhieuKhoOut(id=p.id, ma=p.ma, trang_thai=p.trang_thai, luc=p.ghi_so_luc or p.created_at,
                              boi_ten=ten.get(p.nguoi_ghi_so_id or p.nguoi_lap_id))
             for rid, p in phieu.items()
         },
@@ -468,8 +481,6 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         vehicle_id=trip.vehicle_id,
         xe_bien_so=getattr(xe, "ma", None),
         xe_ten=getattr(xe, "ten", None),
-        gio_lay_hang=trip.gio_lay_hang,
-        gio_du_kien_giao=trip.gio_du_kien_giao,
         ghi_chu_phan_cong=trip.ghi_chu_phan_cong,
         trang_thai=trip.trang_thai,
         km=trip.km,
@@ -483,9 +494,13 @@ def _trip_out(db: Session, svc: DeliveryService, trip, *, tong_km: int | None = 
         lines=[TripLineOut(order_line_id=l.order_line_id, qty_giao=l.qty_giao) for l in trip.lines],
         yeu_cau_kho_ma=getattr(yc_kho, "ma", None),
         yeu_cau_kho_trang_thai=getattr(yc_kho, "trang_thai", None),
+        yeu_cau_kho_id=getattr(yc_kho, "id", None),
+        yeu_cau_kho_can_luc=can_luc_hien_thi(getattr(yc_kho, "can_luc", None)),
+        yeu_cau_kho_ngay_can=getattr(yc_kho, "ngay_can", None),
         kho_da_lap_phieu=phieu_xuat is not None,
         tra_hang_ma=getattr(yc_tra, "ma", None),
         tra_hang_trang_thai=getattr(yc_tra, "trang_thai", None),
+        tra_hang_id=getattr(yc_tra, "id", None),
         luot=_luot_out(nap.luot.get(trip.id)),
         canh_bao=list(canh_bao or []),
         created_at=trip.created_at,
@@ -719,15 +734,27 @@ def len_ke_hoach(body: PlanIn, svc: Service, db: Db, authz: Authz, user: Planner
             request_id=body.request_id, employee_id=body.employee_id,
             phu_xe_employee_id=body.phu_xe_employee_id,
             vehicle_id=body.vehicle_id,
-            gio_lay_hang=body.gio_lay_hang, gio_du_kien_giao=body.gio_du_kien_giao,
-            actor=user, kho_id=body.kho_id, ghi_chu_phan_cong=body.ghi_chu_phan_cong,
+            actor=user, ghi_chu_phan_cong=body.ghi_chu_phan_cong,
             scope=_scope(authz, user), luot_xe_id=body.luot_xe_id,
         )
     except DeliveryError as e:
+        db.rollback()
         raise _err(e)
+    except StockRequestError as e:  # luật của KHO khi tự gửi đề nghị xuất (đơn vị không đổi được…)
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     db.commit()
+    _bao_kho(svc, [kq["phieu"]])
     return PlanOut(trip=_trip_out(db, svc, svc.deliveries.get_trip(kq["trip"].id)),
-                   canh_bao=kq["canh_bao"])
+                   canh_bao=kq["canh_bao"], phieu=[kq["phieu"].ma] if kq["phieu"] else [])
+
+
+def _bao_kho(svc: DeliveryService, phieu: list) -> None:
+    """Đề nghị xuất kho gửi kèm lên đơn ⇒ báo kho SAU commit — bắn trước thì kho refetch trên
+    kết nối khác, chưa thấy phiếu."""
+    for p in phieu:
+        if p is not None:
+            svc.stock_requests.thong_bao_yeu_cau_moi(p)
 
 
 @router.put("/plans/{trip_id}", response_model=PlanOut)
@@ -741,53 +768,6 @@ def doi_ke_hoach(trip_id: int, body: PlanUpdate, svc: Service, db: Db,
     db.commit()
     return PlanOut(trip=_trip_out(db, svc, svc.deliveries.get_trip(trip_id)),
                    canh_bao=kq["canh_bao"])
-
-
-@router.get("/plans/{trip_id}/hang-can-xuat", response_model=list[HangCanXuatOut])
-def hang_can_xuat(trip_id: int, svc: Service, db: Db, authz: Authz, user: Planner):
-    """Xem trước dòng sẽ gửi kho — SUY RA từ yêu cầu giao, người dùng không sửa được.
-
-    Có đường này để giao diện hiện đúng thứ sắp gửi, thay vì bắt gõ lại rồi hy vọng khớp.
-    """
-    trip = svc.deliveries.get_trip(trip_id)
-    if trip is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy chuyến giao")
-    try:
-        svc.chan_ngoai_pham_vi_trip(trip, scope=_scope(authz, user), actor=user)
-        ds = svc.hang_can_xuat(trip)
-    except DeliveryError as e:
-        raise _err(e)
-    ten = _ten_mat_hang(db, {(d["hang_loai"], d["hang_id"]) for d in ds})
-    return [
-        HangCanXuatOut(hang_loai=d["hang_loai"], hang_id=d["hang_id"], dvt=d["dvt"],
-                       sl_de_nghi=d["sl_de_nghi"],
-                       hang_ten=ten.get((d["hang_loai"], d["hang_id"])))
-        for d in ds
-    ]
-
-
-@router.post("/plans/{trip_id}/yeu-cau-xuat-kho", response_model=YeuCauKhoOut,
-             status_code=status.HTTP_201_CREATED)
-def gui_yeu_cau_xuat_kho(trip_id: int, body: YeuCauXuatKhoIn, svc: Service, db: Db,
-                         authz: Authz, user: Planner):
-    """Gửi YÊU CẦU XUẤT KHO thật cho chuyến — không phải chứng từ riêng của Giao hàng.
-
-    Hàng ra khỏi kho phải có phiếu kho, giao khách không ngoại lệ (chủ chốt 19/08/2026). Đường
-    này gọi thẳng service của kho nên mọi luật bên đó áp y hệt: mặt hàng phải có trong danh mục
-    Giấy / Vật tư khác, đơn vị phải đổi được, tạo là duyệt luôn ⇒ kho lập phiếu ngay.
-    """
-    try:
-        req = svc.gui_yeu_cau_xuat_kho(
-            trip_id, actor=user, scope=_scope(authz, user), kho_id=body.kho_id,
-            ngay_can=body.ngay_can, ghi_chu=body.ghi_chu,
-        )
-    except DeliveryError as e:
-        raise _err(e)
-    except Exception as e:  # lỗi nghiệp vụ của KHO (mặt hàng không có, đơn vị không đổi được…)
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    db.commit()
-    return YeuCauKhoOut(id=req.id, ma=req.ma, trang_thai=req.trang_thai)
 
 
 @router.post("/plans/{trip_id}/huy", response_model=TripOut)
@@ -833,17 +813,6 @@ def danh_sach_chuyen(svc: Service, db: Db, authz: Authz, user: Reader,
         items=_trips_out(db, svc, trips, tong_km=tong_km_map),
         total=total,
     )
-
-
-@router.post("/trips/{trip_id}/da-lay-hang", response_model=TripOut)
-def da_lay_hang(trip_id: int, svc: Service, db: Db, authz: Authz, user: Writer):
-    """TÀI XẾ tự bấm khi đã cầm được hàng. Trước đây do KHO bấm — đổi 19/08/2026."""
-    try:
-        svc.da_lay_hang(trip_id, actor=user, scope=_scope(authz, user))
-    except DeliveryError as e:
-        raise _err(e)
-    db.commit()
-    return _trip_out(db, svc, svc.deliveries.get_trip(trip_id))
 
 
 @router.post("/trips/{trip_id}/bat-dau-giao", response_model=TripOut)
@@ -897,7 +866,7 @@ def ve_kho(luot_id: int, body: VeKhoIn, svc: Service, db: Db, authz: Authz, user
     """Tài xế ghi số đồng hồ VỀ KHO ⇒ đóng lượt, tính chặng về kho."""
     try:
         kq = svc.ve_kho(luot_id, so_dong_ho=body.so_dong_ho, actor=user,
-                        scope=_scope(authz, user), xac_nhan_km_lon=body.xac_nhan_km_lon)
+                        scope=_scope(authz, user))
     except DeliveryError as e:
         raise _err(e)
     db.commit()
@@ -911,24 +880,83 @@ def ve_kho(luot_id: int, body: VeKhoIn, svc: Service, db: Db, authz: Authz, user
 # Lỗi giữa chừng ⇒ ném trước `db.commit()` ⇒ phiên đóng không commit ⇒ cả lô không lưu.
 @router.post("/luot-xe", response_model=LenLuotOut, status_code=status.HTTP_201_CREATED)
 def len_luot(body: LenLuotIn, svc: Service, db: Db, authz: Authz, user: Planner):
-    """Lên đơn NHIỀU yêu cầu giao vào MỘT lượt xe — mỗi yêu cầu vẫn một chuyến, một phiếu kho."""
+    """Lên đơn NHIỀU yêu cầu giao vào MỘT lượt xe — mỗi yêu cầu vẫn một chuyến, một đề nghị xuất
+    kho gửi luôn lúc lên đơn."""
     try:
         kq = svc.len_luot(
             request_ids=body.request_ids, employee_id=body.employee_id,
             phu_xe_employee_id=body.phu_xe_employee_id, vehicle_id=body.vehicle_id,
-            gio_lay_hang=body.gio_lay_hang, gio_du_kien_giao=body.gio_du_kien_giao,
             ghi_chu_phan_cong=body.ghi_chu_phan_cong, luot_xe_id=body.luot_xe_id,
             actor=user, scope=_scope(authz, user),
         )
     except DeliveryError as e:
         db.rollback()
         raise _err(e)
+    except StockRequestError as e:  # luật của KHO khi tự gửi đề nghị xuất
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     db.commit()
+    _bao_kho(svc, kq["phieu"])
     nap = svc.deliveries.trips_theo_ids([t.id for t in kq["trips"]])
     return LenLuotOut(
         luot_id=kq["luot"].id, code=kq["luot"].code, canh_bao=kq["canh_bao"],
+        phieu=[p.ma for p in kq["phieu"]],
         trips=_trips_out(db, svc, [nap[t.id] for t in kq["trips"] if t.id in nap]),
     )
+
+
+# --- Bước gửi kho (12/10/2026): hẹn giờ + dặn kho ngay sau Lên đơn / Lên lượt -------------------
+def _de_nghi_kho_out(db: Session, svc: DeliveryService, rows: list[dict]) -> list[DeNghiKhoOut]:
+    """Dòng hàng đọc tên + mã từ danh mục gốc, ĐVT ra tên có dấu — cùng cách Báo cáo kho."""
+    from ..repositories.don_vi_do_repo import DonViDoRepository
+    from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
+    from ..services.vat_lieu_kho_service import VatLieuKhoService
+
+    dong = [ln for r in rows for ln in r["dong"]]
+    hang = VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db)).map_theo_cap(
+        list({(ln.hang_loai, ln.hang_id) for ln in dong if ln.hang_loai and ln.hang_id}))
+    dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()} if dong else {}
+    return [
+        DeNghiKhoOut(
+            **{k: v for k, v in r.items() if k not in ("dong", "can_luc")},
+            can_luc=can_luc_hien_thi(r["can_luc"]),
+            hang=[DeNghiKhoHangOut(ten=getattr(hang.get((ln.hang_loai, ln.hang_id)), "ten", None),
+                                   ma=getattr(hang.get((ln.hang_loai, ln.hang_id)), "ma", None),
+                                   so_luong=float(ln.sl_de_nghi or 0),
+                                   dvt=dv_ten.get(ln.dvt, ln.dvt))
+                  for ln in r["dong"]],
+        )
+        for r in rows
+    ]
+
+
+@router.get("/de-nghi-kho", response_model=list[DeNghiKhoOut])
+def de_nghi_kho(svc: Service, db: Db, authz: Authz, user: Planner,
+                trip_ids: list[int] = Query(..., min_length=1, max_length=100)):
+    """Đề nghị xuất kho của các chuyến — bước gửi kho mở ngay sau Lên đơn, hoặc nút Sửa ở tab
+    Chứng từ của đơn."""
+    try:
+        rows = svc.de_nghi_kho(trip_ids, actor=user, scope=_scope(authz, user))
+    except DeliveryError as e:
+        raise _err(e)
+    return _de_nghi_kho_out(db, svc, rows)
+
+
+@router.put("/de-nghi-kho", response_model=list[DeNghiKhoOut])
+def hen_kho(body: DeNghiKhoIn, svc: Service, db: Db, authz: Authz, user: Planner):
+    """Hẹn giờ kho soạn xong (chung) + ghi chú cho kho (riêng từng đề nghị). Kho thấy ngay."""
+    try:
+        doi = svc.hen_kho(ngay_can=body.ngay_can, gio_can=body.gio_can,
+                          dong=[d.model_dump() for d in body.dong],
+                          actor=user, scope=_scope(authz, user))
+    except DeliveryError as e:
+        db.rollback()
+        raise _err(e)
+    db.commit()
+    for y in doi:
+        svc.stock_requests.thong_bao_da_doi(y)
+    return _de_nghi_kho_out(db, svc, svc.de_nghi_kho([d.trip_id for d in body.dong],
+                                                     actor=user, scope=_scope(authz, user)))
 
 
 def _luot_chi_tiet_out(db: Session, svc: DeliveryService, kq: dict,
@@ -946,9 +974,10 @@ def _luot_chi_tiet_out(db: Session, svc: DeliveryService, kq: dict,
         so_dong_ho_xuat_phat=luot.so_dong_ho_xuat_phat,
         so_dong_ho_ve_kho=luot.so_dong_ho_ve_kho, ve_kho_luc=luot.ve_kho_luc,
         km_ve_kho=luot.km_ve_kho, goi_y_xuat_phat=kq["goi_y_xuat_phat"],
+        goi_y_nguon=GoiYXuatPhatOut(**kq["goi_y_nguon"]) if kq.get("goi_y_nguon") else None,
         so_dong_ho_gan_nhat=kq["so_dong_ho_gan_nhat"], cho_ve_kho=kq["cho_ve_kho"],
         tong_km=kq["tong_km"], diem=[_trip_out(db, svc, t, hang=hang.get(t.request_id), nap=nap) for t in kq["trips"]],
-        so_cho_gui_kho=kq["so_cho_gui_kho"], so_cho_lay_hang=kq["so_cho_lay_hang"],
+        so_cho_lay_hang=kq["so_cho_lay_hang"],
         so_cho_bat_dau=kq["so_cho_bat_dau"], so_dang_giao=kq["so_dang_giao"],
         created_at=luot.created_at,
     )
@@ -1005,7 +1034,7 @@ def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
               q: str | None = Query(None, max_length=100),
               tu_ngay: date | None = Query(None),
               den_ngay: date | None = Query(None),
-              moc: str = Query("tao", pattern="^(tao|lay|giao)$"),
+              moc: str = Query("tao", pattern="^tao$"),
               xe: int | None = Query(None),
               tai_xe: int | None = Query(None),
               trang_thai: list[str] | None = Query(None),
@@ -1051,37 +1080,6 @@ def bang_giao(svc: Service, db: Db, authz: Authz, user: Reader,
     return BangGiaoPage(items=items, total=total, so_don=so_don, dem_tinh_trang=dem_tinh_trang)
 
 
-@router.post("/luot-xe/{luot_id}/yeu-cau-xuat-kho", response_model=CaLuotOut)
-def gui_xuat_kho_ca_luot(luot_id: int, svc: Service, db: Db, authz: Authz, user: Planner,
-                         body: GuiXuatKhoCaLuotIn | None = None):
-    """Mỗi chuyến của lượt MỘT phiếu yêu cầu xuất kho — gửi cả lượt bằng một lần bấm."""
-    try:
-        phieu = svc.gui_xuat_kho_ca_luot(luot_id, actor=user, scope=_scope(authz, user),
-                                         ghi_chu=body.ghi_chu if body is not None else None)
-    except DeliveryError as e:
-        db.rollback()
-        raise _err(e)
-    except Exception as e:  # lỗi nghiệp vụ của KHO — như đường gửi từng chuyến
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    db.commit()
-    # Báo kho SAU commit — bắn trước thì kho refetch trên kết nối khác, chưa thấy phiếu.
-    for p in phieu:
-        svc.stock_requests.thong_bao_yeu_cau_moi(p)
-    return CaLuotOut(so_chuyen=len(phieu), phieu=[p.ma for p in phieu])
-
-
-@router.post("/luot-xe/{luot_id}/da-lay-hang", response_model=CaLuotOut)
-def da_lay_hang_ca_luot(luot_id: int, svc: Service, db: Db, authz: Authz, user: Writer):
-    try:
-        trips = svc.da_lay_hang_ca_luot(luot_id, actor=user, scope=_scope(authz, user))
-    except DeliveryError as e:
-        db.rollback()
-        raise _err(e)
-    db.commit()
-    return CaLuotOut(so_chuyen=len(trips))
-
-
 @router.post("/luot-xe/{luot_id}/bat-dau-giao", response_model=CaLuotOut)
 def bat_dau_giao_ca_luot(luot_id: int, svc: Service, db: Db, authz: Authz, user: Writer,
                          body: BatDauGiaoIn | None = None):
@@ -1124,7 +1122,7 @@ def _ai_la_tai_xe(db, *, scope, actor, svc):
 
     Trả `(danh sách nhân viên, {user_id: có ô Thao tác}, có-đi-theo-bộ-phận-không)`.
 
-    KHÔNG loại người chưa có tài khoản: `da-lay-hang` / `ket-qua` gác bằng ô **Thao tác**, nên
+    KHÔNG loại người chưa có tài khoản: `bat-dau-giao` / `ket-qua` gác bằng ô **Thao tác**, nên
     quản lý bấm hộ được — chuyến không tắc. Chỉ đánh dấu `co_thao_tac` để người phân công biết ai
     tự bấm được.
     """
@@ -1202,10 +1200,11 @@ def nhan_vien_giao_hang(svc: Service, db: Db, authz: Authz, user: DriverViewer,
     )
     items: list[DriverOut] = []
     for e in emps:
-        trips = svc.deliveries.list_trips(employee_ids=[e.id])
+        # Cả vai phụ xe — phụ xe đang trên xe cũng có "chuyến đang thực hiện".
+        trips = svc.deliveries.chuyen_cua_kip(e.id)
         dang = next((t for t in trips if t.trang_thai in LAN_GIAO_DANG_CHAY), None)
         ke_tiep = next(
-            (t for t in sorted(trips, key=lambda x: x.gio_lay_hang)
+            (t for t in sorted(trips, key=lambda x: x.created_at)
              if t.trang_thai in LAN_GIAO_DANG_CHAY and (dang is None or t.id != dang.id)),
             None,
         )

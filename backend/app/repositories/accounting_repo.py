@@ -4,7 +4,9 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import MetaData, Table, and_, asc, case, desc, exists, func, inspect, or_, select, update
+from sqlalchemy import (
+    MetaData, Table, and_, asc, case, desc, exists, false, func, inspect, or_, select, update,
+)
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.accounting import (
@@ -26,6 +28,7 @@ from ..models.accounting import (
     SupplierBankAccount,
 )
 from ..models.customer import Customer, CustomerContact
+from ..models.muc_thu_chi import MUC_CO_DINH, NGUON_CO_DINH_CHI, NGUON_CO_DINH_THU
 from .customer_repo import CustomerRepository
 from .loc_danh_sach import dk_khoang_ngay
 from ..models.payroll import SalaryAdvance
@@ -48,6 +51,20 @@ _RECEIPT_SORTABLE = {
     "receipt_date": PaymentReceipt.receipt_date,
     "created_at": PaymentReceipt.created_at,
 }
+
+
+def _loc_muc(bang, loai: str, muc: list[int]):
+    """Lọc theo mục thu chi. Id dương = mục tự khai; id âm = mục CỐ ĐỊNH (lọc theo nguồn phiếu);
+    `0` = chưa phân loại (phiếu lập tay chưa có mục)."""
+    co_dinh = tuple(m["nguon"] for m in MUC_CO_DINH if m["id"] in muc and m["loai"] == loai)
+    nguon_cd = NGUON_CO_DINH_CHI if loai == "chi" else NGUON_CO_DINH_THU
+    ids = [m for m in muc if m > 0]
+    dk = [bang.muc_thu_chi_id.in_(ids)] if ids else []
+    if co_dinh:
+        dk.append(bang.source_type.in_(co_dinh))
+    if 0 in muc:
+        dk.append(and_(bang.muc_thu_chi_id.is_(None), bang.source_type.not_in(nguon_cd)))
+    return or_(*dk) if dk else false()
 
 
 class AccountingRepository:
@@ -263,6 +280,7 @@ class AccountingRepository:
         tien_tu: int | None = None,
         tien_den: int | None = None,
         nguon: list[str] | None = None,
+        muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
         nhan: str | None = None,
@@ -296,6 +314,8 @@ class AccountingRepository:
             c.append(PaymentVoucher.source_type == source_type)
         if nguon:
             c.append(PaymentVoucher.source_type.in_(list(nguon)))
+        if muc:
+            c.append(_loc_muc(PaymentVoucher, "chi", muc))
         if voucher_type:
             c.append(PaymentVoucher.voucher_type == voucher_type)
         if supplier_id is not None:
@@ -371,6 +391,7 @@ class AccountingRepository:
         tien_den: int | None = None,
         hinh_thuc: str | None = None,
         nguon: list[str] | None = None,
+        muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
         chung_tu: str | None = None,
@@ -385,7 +406,7 @@ class AccountingRepository:
             q=q, source_type=source_type, voucher_type=hinh_thuc or voucher_type,
             supplier_id=supplier_id, purchase_request_id=purchase_request_id,
             tu_ngay=tu_ngay, den_ngay=den_ngay, tien_tu=tien_tu, tien_den=tien_den,
-            nguon=nguon, tai_khoan_id=tai_khoan_id, nguoi_lap_id=nguoi_lap_id, nhan=nhan, moc=moc,
+            nguon=nguon, muc=muc, tai_khoan_id=tai_khoan_id, nguoi_lap_id=nguoi_lap_id, nhan=nhan, moc=moc,
         )
         conditions = list(nen)
         if status:
@@ -495,6 +516,7 @@ class AccountingRepository:
         tien_den: int | None = None,
         hinh_thuc: str | None = None,
         nguon: list[str] | None = None,
+        muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
         nhan: str | None = None,
@@ -507,6 +529,8 @@ class AccountingRepository:
             conditions.append(PaymentReceipt.source_type == source_type)
         if nguon:
             conditions.append(PaymentReceipt.source_type.in_(list(nguon)))
+        if muc:
+            conditions.append(_loc_muc(PaymentReceipt, "thu", muc))
         if hinh_thuc:
             conditions.append(PaymentReceipt.receipt_method == hinh_thuc)
         # Kỳ theo mốc: `thu` = ngày thu trên chứng từ (Date), `tao` = lúc lập phiếu (giờ VN).
@@ -589,6 +613,7 @@ class AccountingRepository:
         tien_den: int | None = None,
         hinh_thuc: str | None = None,
         nguon: list[str] | None = None,
+        muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
         chung_tu: str | None = None,
@@ -602,7 +627,7 @@ class AccountingRepository:
         nen = self._dieu_kien_phieu_thu(
             q=q, payment_voucher_id=payment_voucher_id, source_type=source_type,
             tu_ngay=tu_ngay, den_ngay=den_ngay, tien_tu=tien_tu, tien_den=tien_den,
-            hinh_thuc=hinh_thuc, nguon=nguon, tai_khoan_id=tai_khoan_id, nguoi_lap_id=nguoi_lap_id,
+            hinh_thuc=hinh_thuc, nguon=nguon, muc=muc, tai_khoan_id=tai_khoan_id, nguoi_lap_id=nguoi_lap_id,
             nhan=nhan, moc=moc,
         )
         conditions = list(nen)
@@ -903,6 +928,19 @@ class AccountingRepository:
             ).scalar_one()
         )
 
+    def issued_invoice_amount_by_trip(self, order_id: int) -> dict[int, int]:
+        """{delivery_trip_id: tổng hóa đơn issued đã ghi cho lượt} của một đơn."""
+        rows = self.db.execute(
+            select(SalesInvoice.delivery_trip_id, func.coalesce(func.sum(SalesInvoice.amount_vnd), 0))
+            .where(
+                SalesInvoice.order_id == order_id,
+                SalesInvoice.status == SALES_INVOICE_ISSUED,
+                SalesInvoice.delivery_trip_id.is_not(None),
+            )
+            .group_by(SalesInvoice.delivery_trip_id)
+        ).all()
+        return {int(r[0]): int(r[1] or 0) for r in rows}
+
     def received_invoice_receipt_sums(self, invoice_ids: list[int]) -> dict[int, int]:
         if not invoice_ids:
             return {}
@@ -918,6 +956,21 @@ class AccountingRepository:
             .group_by(PaymentReceipt.sales_invoice_id)
         )
         return {int(iid): int(amount) for iid, amount in self.db.execute(stmt)}
+
+    def received_invoice_receipts(self, invoice_ids: list[int]) -> list[PaymentReceipt]:
+        """Phiếu thu ĐÃ THU gắn thẳng vào các hoá đơn — từng phiếu, cùng tập với
+        `received_invoice_receipt_sums`."""
+        if not invoice_ids:
+            return []
+        stmt = (
+            select(PaymentReceipt)
+            .where(
+                PaymentReceipt.sales_invoice_id.in_(invoice_ids),
+                PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+            )
+            .order_by(PaymentReceipt.receipt_date, PaymentReceipt.id)
+        )
+        return list(self.db.execute(stmt).scalars())
 
     def sales_invoice_has_active_receipts(self, invoice_id: int) -> bool:
         return bool(
@@ -989,6 +1042,27 @@ class AccountingRepository:
             .order_by(PaymentReceipt.receipt_date, PaymentReceipt.id)
         )
         return list(self.db.execute(stmt).scalars().unique().all())
+
+    def coc_da_tra_lai(self, order_id: int) -> int:
+        """Σ phiếu chi TRẢ LẠI CỌC (còn hiệu lực) của một đơn đã huỷ. Cọc còn lại của đơn =
+        `received_deposit_sum` − số này."""
+        stmt = select(func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0)).where(
+            PaymentVoucher.order_id == order_id,
+            PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
+        )
+        return int(self.db.execute(stmt).scalar_one())
+
+    def phieu_chi_hoan_khach(self) -> list[PaymentVoucher]:
+        """Phiếu chi ĐÃ CHI có gắn khách (trả lại tiền cho khách, nguồn `customer_refund`) — vế Nợ
+        của Công nợ phải thu. Lọc ngày bằng `ngay_chi` ở service, cùng lý do `phieu_chi_cho_bao_cao`."""
+        stmt = (
+            select(PaymentVoucher)
+            .options(selectinload(PaymentVoucher.company_bank_account))
+            .where(PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
+                   PaymentVoucher.customer_id.is_not(None))
+            .order_by(PaymentVoucher.voucher_date, PaymentVoucher.id)
+        )
+        return list(self.db.execute(stmt).scalars().all())
 
     def phieu_chi_cho_bao_cao(self) -> list[PaymentVoucher]:
         """Mọi phiếu chi ĐÃ CHI, không chặn ngày.
@@ -1065,14 +1139,8 @@ class AccountingRepository:
         ).scalars()
         return {row.id: row for row in rows}
 
-    def ncc_theo_ids(self, supplier_ids: set[int]) -> dict[int, Supplier]:
-        """`{supplier_id: NCC}` — song sinh của `customers_by_ids` cho phía 331."""
-        if not supplier_ids:
-            return {}
-        rows = self.db.execute(
-            select(Supplier).where(Supplier.id.in_(supplier_ids))
-        ).scalars()
-        return {row.id: row for row in rows}
+    def get_supplier(self, supplier_id: int) -> Supplier | None:
+        return self.db.get(Supplier, supplier_id)
 
     def save_sales_invoice(self, invoice: SalesInvoice) -> SalesInvoice:
         # Tương thích DB SQLite/PG đã từng chạy schema hóa đơn đời cũ. Các cột cũ
@@ -1102,6 +1170,8 @@ class AccountingRepository:
                 "subtotal_vnd": invoice.amount_vnd,
                 "vat_vnd": 0,
             }
+            if "delivery_trip_id" in live_columns:
+                values["delivery_trip_id"] = invoice.delivery_trip_id
             if "invoice_series" in live_columns:
                 values["invoice_series"] = invoice.invoice_symbol
             if "invoice_no" in live_columns:
@@ -1140,6 +1210,7 @@ class AccountingRepository:
             selectinload(PaymentReceipt.sales_invoice),
             selectinload(PaymentReceipt.company_bank_account),
             selectinload(PaymentReceipt.attachments),
+            selectinload(PaymentReceipt.muc_thu_chi),
         )
 
     # --- receipt attachments ------------------------------------------------
@@ -1219,6 +1290,8 @@ class AccountingRepository:
             selectinload(PaymentVoucher.supplier_bank_account),
             selectinload(PaymentVoucher.receipts),
             selectinload(PaymentVoucher.attachments),
+            selectinload(PaymentVoucher.muc_thu_chi),
+            selectinload(PaymentVoucher.customer),
         )
 
     def _commit(self) -> None:

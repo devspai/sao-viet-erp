@@ -19,7 +19,7 @@ from datetime import date, datetime, timezone
 import pytest
 
 from app.models.department import Department
-from app.models.kho_hang import KhoHang
+from app.models.kho_hang import MA_KHO_THANH_PHAM, KhoHang
 from app.models.ky_thuat_may import TT_SC_CHO_SUA, TT_YC_DA_TAO_PHIEU, SuaChuaMay
 from app.models.lsx import TT_SAN_SANG, Lsx, LsxCongDoan, LsxCongDoanVatTu
 from app.models.may_thiet_bi import MayThietBi
@@ -505,10 +505,11 @@ def _bo_ton_mo_thanh_pham(sess) -> None:
     sess.commit()
 
 
-def _nhap_kho_that(sess, admin, lsx_id: int, *, so_luong: float, kho_ma: str = "KHO-HS-TP") -> KhoHang:
+def _nhap_kho_that(sess, admin, lsx_id: int, *, so_luong: float,
+                   kho_ma: str = MA_KHO_THANH_PHAM) -> KhoHang:
     """KCS kiểm công đoạn cuối ĐẠT → bấm "Tạo yêu cầu nhập kho" → thủ kho lập phiếu nhập (chọn kho)
-    + ghi sổ — cả ba bằng đúng service production. Gọi lại được nhiều lần (mỗi lần một lượt KCS mới,
-    có thể nhập vào kho khác). Trả kho vừa nhập."""
+    + ghi sổ — cả ba bằng đúng service production. Gọi lại được nhiều lần (mỗi lần một lượt KCS mới).
+    Thành phẩm chỉ vào Kho thành phẩm (12/10/2026). Trả kho vừa nhập."""
     _bo_ton_mo_thanh_pham(sess)
     cv = _cvs(sess, lsx_id)[-1]
     cv.la_kcs_cuoi = True
@@ -517,7 +518,7 @@ def _nhap_kho_that(sess, admin, lsx_id: int, *, so_luong: float, kho_ma: str = "
     sess.add(SanXuatBatch(cong_viec_id=cv.id, bat_dau=_T0, ket_thuc=_T1, tong=so_luong,
                           tot=so_luong, hong=0, don_vi="cái"))
     sess.commit()
-    _d, nguoi_kcs = _to_kiem(sess, ten=f"Tổ KCS {kho_ma}", ma=f"KCS-{kho_ma}")
+    _d, nguoi_kcs = _to_kiem(sess, ten=f"Tổ KCS {kho_ma} {so_luong:g}", ma=f"KCS-{kho_ma}-{so_luong:g}")
     kcs_svc.kiem_cong_doan(sess, user=nguoi_kcs, cong_viec_id=cv.id, so_dat=so_luong)
     yc = kho_svc.tao_yeu_cau_nhap_kho_cong_doan(sess, user=nguoi_kcs, cong_viec_id=cv.id)
     _kho_nhan(sess, admin, yc["request_id"], so_luong, kho_ma=kho_ma)
@@ -603,15 +604,21 @@ def test_giao_hang_khoa_nut_khi_chua_co_ton(client, seed_credentials, sess, lenh
     assert g["co_the_giao"] is False
 
 
-def test_giao_hang_mot_mon_hai_kho_la_hai_dong(client, seed_credentials, sess, admin, lenh_that):
-    """Kho là ĐỘNG: cùng một món nhập vào hai kho ⇒ hai dòng, mỗi dòng tồn + trần của kho đó."""
-    kho_a = _nhap_kho_that(sess, admin, lenh_that, so_luong=300, kho_ma="KHO-HS-A")
-    kho_b = _nhap_kho_that(sess, admin, lenh_that, so_luong=400, kho_ma="KHO-HS-B")
+def test_giao_hang_chi_dem_kho_thanh_pham(client, seed_credentials, sess, admin, lenh_that):
+    """12/10/2026: thành phẩm chỉ vào / ra Kho thành phẩm ⇒ hai lượt nhập cộng thành MỘT dòng ở kho
+    đó; lô thành phẩm còn sót ở kho khác (dữ liệu trước ngày luật) không vào khối Giao hàng."""
+    kho_tp = _nhap_kho_that(sess, admin, lenh_that, so_luong=300)
+    _nhap_kho_that(sess, admin, lenh_that, so_luong=400)
+    lo = sess.query(StockLot).filter_by(kho_id=kho_tp.id, hang_loai="vat_tu").first()
+    khac = KhoHang(ma="KHO-HS-B", ten="Kho khác")
+    sess.add(khac)
+    sess.flush()
+    sess.add(StockLot(hang_loai="vat_tu", hang_id=lo.hang_id, kho_id=khac.id, ma_lo="LO-HS-CU",
+                      ngay_nhap=lo.ngay_nhap, sl_ban_dau=999, sl_con_lai=999))
+    sess.commit()
 
     g = _ho_so(client, seed_credentials, lenh_that)["giao_hang"]
-    assert [(d["kho_id"], d["so_luong"]) for d in g["hang"]] == [(kho_a.id, 300.0), (kho_b.id, 400.0)]
-    assert len({d["hang_id"] for d in g["hang"]}) == 1, "một món, hai kho"
-    assert [d["so_toi_da"] for d in g["hang"]] == [300.0, 400.0]
+    assert [(d["kho_id"], d["so_luong"]) for d in g["hang"]] == [(kho_tp.id, 700.0)]
     assert g["da_nhap_kho"] == 700.0
 
 
@@ -864,6 +871,41 @@ def test_kcs_ty_le_dat_tinh_theo_so_khong_phai_trung_binh(
     assert k["tong_khong_dat"] == 107.0
     assert round(k["ty_le_dat"], 2) == 90.91, "theo SỐ, không phải trung bình cộng batch (72.5)"
     assert len(k["batch"]) == 3
+
+
+def test_ngan_kcs_cuoi_doc_theo_nhom(client, seed_credentials, sess, lenh_that):
+    """Ruột + Bìa: bước KCS cuối nằm ở lệnh Ruột. Ngăn của lệnh Bìa phải đọc được KCS cuối đó (cùng
+    mức NHÓM với dòng Nhập kho), không phải "Chưa kiểm" mãi (12/10/2026)."""
+    bia = _nhom_hai_lenh(sess, lenh_that)
+    cuoi = _cvs(sess, lenh_that)[-1]
+    cuoi.la_kcs_cuoi = True
+    _kcs_batch(sess, cuoi.id, nhan=250, dat=240, khong_dat=10, ket_luan="dat_mot_phan")
+
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    for lsx_id in (lenh_that, bia):
+        r = client.get(f"/api/lenh-san-xuat/{lsx_id}/ngan", headers=h)
+        assert r.status_code == 200, r.text
+        assert r.json()["kcs_cuoi"] == {"so_lan": 1, "nhan": 250.0, "dat": 240.0, "khong_dat": 10.0}
+    assert all(not b["la_kcs_cuoi"] for b in client.get(
+        f"/api/lenh-san-xuat/{bia}/ngan", headers=h).json()["kcs"]["batch"]), "khối kcs vẫn là của riêng lệnh"
+
+
+def test_ngan_buoc_co_lam_ra_va_nhat_ky(client, seed_credentials, sess, admin, lenh_that):
+    """Ngăn hai cột (13/10/2026): mỗi bước có `lam_ra` = tổng TỐT đã ghi (so với `so_luong_ra` kế
+    hoạch) và tên đơn vị ra; ngăn trả lại `su_co` + `timeline` cho thẻ vướng và tab Lịch sử. Câu nhật
+    ký không nối hai con số bằng dấu."""
+    cv = _cvs(sess, lenh_that)[0]
+    _ghi_san_luong(sess, admin, cv, tong=300, tot=300)
+    _ghi_san_luong(sess, admin, cv, tong=200, tot=180, hong=20)
+
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    d = client.get(f"/api/lenh-san-xuat/{lenh_that}/ngan", headers=h).json()
+    n = next(x for x in d["routing"]["nodes"] if x["cong_viec_id"] == cv.id)
+    assert n["lam_ra"] == 480.0
+    assert "don_vi_ra_ten" in n
+    assert d["su_co"] == []
+    sl = [e["noi_dung"] for e in d["timeline"] if e["loai"] == "san_luong"]
+    assert sl and all(" tốt và " in c and "·" not in c for c in sl), sl
 
 
 def test_san_luong_chi_con_tung_batch(client, seed_credentials, sess, admin, lenh_that):

@@ -45,14 +45,16 @@ type Xem = "lenh" | "hang";
 /** Tình trạng → nhãn + màu. Mỗi tình trạng một sắc riêng (bộ `--tt-*`). */
 export const TINH_TRANG: Record<TinhTrangO, { nhan: string; mau: MauTT }> = {
   can_mua: { nhan: "Cần mua", mau: "do" },
+  nen_nha: { nhan: "Nên nhả hàng", mau: "cyan" },
   dang_mua: { nhan: "Đang mua", mau: "vang" },
   chua_giu: { nhan: "Chưa giữ", mau: "xanh" },
   cho_ve: { nhan: "Chờ hàng về", mau: "cham" },
   co_kho: { nhan: "Có trong kho", mau: "la" },
-  da_xuat: { nhan: "Đã xuất kho", mau: "xam" },
+  // Kho đã ghi sổ phiếu xuất đủ cho lệnh — hàng đã xuống xưởng, không phải giao cho khách.
+  da_xuat: { nhan: "Đã cấp cho xưởng", mau: "xam" },
   chua_tinh: { nhan: "Chưa tính được", mau: "cam" },
 };
-const THU_TU_LOC: TinhTrangO[] = ["can_mua", "dang_mua", "chua_giu", "cho_ve", "co_kho", "da_xuat", "chua_tinh"];
+const THU_TU_LOC: TinhTrangO[] = ["can_mua", "nen_nha", "dang_mua", "chua_giu", "cho_ve", "co_kho", "da_xuat", "chua_tinh"];
 
 export const NHAN_BUOC: Record<BuocPhieu, string> = {
   moi_de_nghi: "Mới đề nghị",
@@ -103,10 +105,9 @@ export function Buoc({ b }: { b: BuocPhieu }) {
   );
 }
 
+/** Chỉ hàng còn chờ mới có ngày; hàng đã trong kho / đã cấp thì để "—" — cột Tình trạng đã nói. */
 function NgayCoHang({ d }: { d: LuoiDong }) {
   const n = d.ngay_co_hang;
-  if (n.loai === "co_san") return <>Có sẵn</>;
-  if (n.loai === "da_xuat") return <span className="lvt-mu">đã xuất</span>;
   if (n.loai === "ngay_ve") return <>{ngayNgan(n.ngay)}</>;
   if (n.loai === "hen") return <span className="lvt-mu">hẹn {ngayNgan(n.ngay, false)}</span>;
   return <span className="lvt-mu3">—</span>;
@@ -156,6 +157,8 @@ function GhiChu({ ds }: { ds: string[] }) {
   );
 }
 
+const TIEU_DE_DA_CO = "Đã cấp cho xưởng, cộng phần đang giữ trong kho và giữ trên hàng đang về";
+
 type MoPhieu = (p: { ma: string; loai: "pmh" | "ycmh"; yc_ma: string }) => void;
 
 function OPhieu({ d, moPhieu }: { d: LuoiDong; moPhieu: MoPhieu }) {
@@ -178,7 +181,6 @@ function OPhieu({ d, moPhieu }: { d: LuoiDong; moPhieu: MoPhieu }) {
       </span>
     );
   }
-  if (d.tinh_trang === "co_kho" || d.tinh_trang === "da_xuat") return <span className="lvt-mu">Tồn kho</span>;
   return <span className="lvt-mu3">—</span>;
 }
 
@@ -229,7 +231,7 @@ export function LuoiVatTu({
   const [dong, setDong] = useState<Set<string>>(new Set());
   const [chon, setChon] = useState<Map<string, LuoiDong>>(new Map());
   const [ban, setBan] = useState<string | null>(null);
-  const [ngLenh, setNgLenh] = useState<{ lsx_id: number | null; bai_ghep_id: number | null } | null>(null);
+  const [ngLenh, setNgLenh] = useState<{ lsx_id: number | null; bai_ghep_id: number | null; hoiNha?: boolean } | null>(null);
   const [ngHang, setNgHang] = useState<{ hang_loai: "giay" | "vat_tu"; hang_id: number; kho_rong: number; kho_dai: number; don_vi_goc: string } | null>(null);
   const [nap, setNap] = useState(0);
 
@@ -365,7 +367,8 @@ export function LuoiVatTu({
   // tình trạng) — đếm theo DÒNG (ô lệnh × mặt hàng), không phải theo nhóm đang cắt trang.
   const mucTinhTrang: MucLocNhanh[] = [
     { key: "", label: "Tất cả", count: dem.tat_ca },
-    ...THU_TU_LOC.filter((t) => t !== "chua_tinh" || (dem.chua_tinh ?? 0) > 0 || tinh === "chua_tinh").map((t) => ({
+    // Hai tình trạng hiếm chỉ hiện khi có dòng (hoặc đang chọn).
+    ...THU_TU_LOC.filter((t) => (t !== "chua_tinh" && t !== "nen_nha") || (dem[t] ?? 0) > 0 || tinh === t).map((t) => ({
       key: t, label: TINH_TRANG[t].nhan, mau: TINH_TRANG[t].mau, count: dem[t],
     })),
     { key: "co_ghi_chu", label: "Có ghi chú", mau: "tim" as MauTT, count: dem.co_ghi_chu },
@@ -419,27 +422,21 @@ export function LuoiVatTu({
       <div className="lds-sheet">
         <CuonLuoi ghim={2}>
           <table className="lds-g lvt-g">
-            {xem === "lenh" ? (
-              <colgroup>
-                <col style={{ width: 36 }} /><col style={{ width: 212 }} /><col style={{ width: 76 }} />
-                <col style={{ width: 64 }} /><col style={{ width: 64 }} /><col style={{ width: 80 }} />
-                <col style={{ width: 200 }} /><col style={{ width: 182 }} /><col style={{ width: 104 }} />
-                <col style={{ width: 128 }} /><col />
-              </colgroup>
-            ) : (
-              <colgroup>
-                <col style={{ width: 36 }} /><col style={{ width: 240 }} /><col style={{ width: 64 }} />
-                <col style={{ width: 64 }} /><col style={{ width: 80 }} /><col style={{ width: 200 }} />
-                <col style={{ width: 182 }} /><col style={{ width: 104 }} /><col style={{ width: 128 }} /><col />
-              </colgroup>
-            )}
+            {/* Tổng cột cố định ~1070px + Ghi chú co giãn, vừa lưới rộng 1180px không phải cuộn ngang. Không có
+                cột ĐVT riêng: đơn vị đi sau số Cần (dòng mặt hàng ở cách xem theo lệnh, dòng nhóm ở cách xem theo
+                mặt hàng), nói một lần. */}
+            <colgroup>
+              <col style={{ width: 36 }} /><col style={{ width: 248 }} />
+              <col style={{ width: 96 }} /><col style={{ width: 64 }} /><col style={{ width: 80 }} />
+              <col style={{ width: 128 }} /><col style={{ width: 160 }} /><col style={{ width: 104 }} />
+              <col style={{ width: 156 }} /><col />
+            </colgroup>
             <thead>
               <tr>
                 <th aria-label="Chọn" />
                 <th>{xem === "lenh" ? "Mặt hàng" : "Lệnh"}</th>
-                {xem === "lenh" && <th>ĐVT</th>}
                 <th className="n">Cần</th>
-                <th className="n">Đã giữ</th>
+                <th className="n" title={TIEU_DE_DA_CO}>Đã có</th>
                 <th className="n">Còn thiếu</th>
                 <th>Phiếu mua</th>
                 <th>Bước của phiếu</th>
@@ -449,10 +446,10 @@ export function LuoiVatTu({
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 && loading && <EmptyRow colSpan={xem === "lenh" ? 11 : 10} trangThai="dang-tai" />}
+              {items.length === 0 && loading && <EmptyRow colSpan={10} trangThai="dang-tai" />}
               {items.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={xem === "lenh" ? 11 : 10} className="lds-trong">
+                  <td colSpan={10} className="lds-trong">
                     {q || tinh || loc.loai ? "Không dòng nào khớp điều kiện." : "Chưa lệnh nào cần vật tư."}
                   </td>
                 </tr>
@@ -463,6 +460,7 @@ export function LuoiVatTu({
                   <NhomDong key={n.khoa} n={n} xem={xem} mo={mo} onDoi={() => doiNhom(n.khoa)}
                     chon={chon} onChon={bat} canMua={canDeNghiMua} coGiu={coGiu} ban={ban}
                     onGiu={giuHang} moPhieu={moPhieu}
+                    onNha={(d) => setNgLenh({ lsx_id: d.lsx_id, bai_ghep_id: d.bai_ghep_id, hoiNha: true })}
                     onMoLenh={(d) => setNgLenh({ lsx_id: d.lsx_id, bai_ghep_id: d.bai_ghep_id })}
                     onMoHang={(d) => setNgHang({ hang_loai: d.hang_loai, hang_id: d.hang_id, kho_rong: d.kho_rong, kho_dai: d.kho_dai, don_vi_goc: d.don_vi_goc ?? "" })} />
                 );
@@ -492,7 +490,7 @@ export function LuoiVatTu({
       )}
 
       {ngLenh && (
-        <NganLenh chu={ngLenh} eventTick={(eventTick ?? 0) + nap} coGiu={coGiu} coHuy={coHuy}
+        <NganLenh chu={ngLenh} hoiNhaNgay={!!ngLenh.hoiNha} eventTick={(eventTick ?? 0) + nap} coGiu={coGiu} coHuy={coHuy}
           moPhieu={moPhieu} onOpenLsx={onOpenLsx} onDong={() => setNgLenh(null)}
           onDoi={() => setNap((x) => x + 1)} />
       )}
@@ -510,7 +508,7 @@ export function LuoiVatTu({
 
 // ============================================================================
 function NhomDong({
-  n, xem, mo, onDoi, chon, onChon, canMua, coGiu, ban, onGiu, moPhieu, onMoLenh, onMoHang,
+  n, xem, mo, onDoi, chon, onChon, canMua, coGiu, ban, onGiu, onNha, moPhieu, onMoLenh, onMoHang,
 }: {
   n: LuoiOut["items"][number];
   xem: Xem;
@@ -522,20 +520,22 @@ function NhomDong({
   coGiu: boolean;
   ban: string | null;
   onGiu: (l: { lsx_id: number | null; bai_ghep_id: number | null; ma: string }) => void;
+  onNha: (l: { lsx_id: number | null; bai_ghep_id: number | null }) => void;
   moPhieu: MoPhieu;
   onMoLenh: (d: { lsx_id: number | null; bai_ghep_id: number | null }) => void;
   onMoHang: (d: LuoiDong) => void;
 }) {
   const l = n.lenh;
+  const conGiu = n.dong.some((d) => d.giu_kho + d.giu_ve > 0);
   const h = n.hang;
   const chev = mo ? <ChevronDown size={13} aria-hidden="true" /> : <ChevronRight size={13} aria-hidden="true" />;
   return (
     <>
       {l && (
         <tr className="gr lds-nhom">
-          <td colSpan={11} className="lead">
+          <td colSpan={10} className="lead">
             <div className="gl">
-              {/* Nhãn đứng yên bên trái khi cuộn ngang; nút Giữ hàng nằm ngoài, dạt mép phải dòng. */}
+              {/* Nhãn và nút Giữ / Nhả đứng yên bên trái khi cuộn ngang. */}
               <span className="lds-dinh-trai">
                 <button type="button" className="lvt-chev" aria-expanded={mo} aria-label={mo ? "Thu nhóm" : "Mở nhóm"} onClick={onDoi}>{chev}</button>
                 <button type="button" className="lvt-lk" onClick={() => onMoLenh(l)}>{l.ma}</button>
@@ -544,15 +544,22 @@ function NhomDong({
                 {l.han_giao_khach && <span className="lvt-k">Giao {ngayNgan(l.han_giao_khach)}</span>}
                 {l.is_rush && <span className="lvt-gap">Gấp</span>}
                 {l.ngoai_pham_vi && <span className="lvt-k">Không còn trong kế hoạch</span>}
+                {/* Nút nằm trong phần đứng yên, ngay cạnh tên lệnh — dạt mép phải thì lưới hẹp phải cuộn mới
+                    thấy. Nhả mở ngăn lệnh với hộp hỏi lại (nhả không hoàn tác được). */}
+                {coGiu && !l.bat && !l.ngoai_pham_vi && (
+                  <button type="button" className="lvt-btn lvt-btn--xs" disabled={ban === `giu:${l.ma}`}
+                    title="Giữ hàng có sẵn và hàng đặt cho lệnh này; hàng về sau tự giữ tiếp"
+                    onClick={() => onGiu(l)}>
+                    {ban === `giu:${l.ma}` ? "Đang giữ…" : "Giữ hàng"}
+                  </button>
+                )}
+                {coGiu && conGiu && (
+                  <button type="button" className="lvt-btn lvt-btn--xs" onClick={() => onNha(l)}
+                    title="Nhả hàng đang giữ cho lệnh khác dùng">
+                    Nhả hàng
+                  </button>
+                )}
               </span>
-              <span className="lvt-sp" />
-              {coGiu && !l.bat && !l.ngoai_pham_vi && (
-                <button type="button" className="lvt-btn lvt-btn--xs" disabled={ban === `giu:${l.ma}`}
-                  title="Giữ hàng có sẵn và hàng đặt cho lệnh này; hàng về sau tự giữ tiếp"
-                  onClick={() => onGiu(l)}>
-                  {ban === `giu:${l.ma}` ? "Đang giữ…" : "Giữ hàng"}
-                </button>
-              )}
             </div>
           </td>
         </tr>
@@ -565,11 +572,10 @@ function NhomDong({
                 <button type="button" className="lvt-chev" aria-expanded={mo} aria-label={mo ? "Thu nhóm" : "Mở nhóm"} onClick={onDoi}>{chev}</button>
                 <button type="button" className="lvt-lk" onClick={() => onMoHang(n.dong[0])}>{h.hang_ten}</button>
                 {h.kho && <span className="lvt-tag">{h.kho}</span>}
-                <span className="lvt-k">{h.dvt}</span>
               </span>
             </div>
           </td>
-          <td className="n">{so(h.can)}</td>
+          <td className="n">{so(h.can)}<span className="lvt-u">{h.dvt}</span></td>
           <td className={`n${h.da_giu ? "" : " lvt-mu"}`}>{so(h.da_giu)}</td>
           <td className={`n${h.con_thieu > 0 ? " red" : " lvt-mu"}`}>{so(h.con_thieu)}</td>
           {/* Dòng nhóm không có phiếu/bước/tình trạng riêng: Tồn kho, Đang về và ghi chú đặt dư dùng
@@ -577,7 +583,7 @@ function NhomDong({
           <td colSpan={5} title={h.ghi_chu.join("\n") || undefined}>
             <span className="lvt-cap">
               <span className="lvt-mu">Tồn kho {so(h.ton)}</span>
-              <span className="lvt-mu">Đang về {so(h.dang_ve)}</span>
+              {h.dang_ve > 0 && <span className="lvt-mu">Đang về {so(h.dang_ve)}</span>}
               <CungKhoKhac ds={h.cung_kho_khac_don_vi} />
               <GhiChu ds={h.ghi_chu} />
             </span>
@@ -607,13 +613,13 @@ function NhomDong({
                     <TenHang d={d} />
                   </button>
                 ) : (
-                  <>
+                  <span className="lvt-dutu">
                     <button type="button" className="lvt-lk" onClick={() => onMoLenh(d)}>{d.ma}</button>
-                  </>
+                    {d.ngoai_pham_vi && <span className="lvt-k" title="Lệnh không còn trong kế hoạch">Ra khỏi kế hoạch</span>}
+                  </span>
                 )}
               </td>
-              {xem === "lenh" && <td className="lvt-mu">{d.dvt}</td>}
-              <td className="n">{so(d.can)}</td>
+              <td className="n">{so(d.can)}{xem === "lenh" && <span className="lvt-u">{d.dvt}</span>}</td>
               <td className={`n${d.da_giu ? "" : " lvt-mu"}`}>{so(d.da_giu)}</td>
               <td className={`n${d.con_thieu > 0 ? " red" : " lvt-mu"}`}>{so(d.con_thieu)}</td>
               <td>{chuaKhai && !d.phieu ? <ChuaKhaiDonVi d={d} /> : <OPhieu d={d} moPhieu={moPhieu} />}</td>
@@ -690,9 +696,11 @@ function LichSu({ ds }: { ds: { luc: string | null; chu: string }[] }) {
 
 // ============================================================================
 function NganLenh({
-  chu, eventTick, coGiu, coHuy, moPhieu, onOpenLsx, onDong, onDoi,
+  chu, hoiNhaNgay, eventTick, coGiu, coHuy, moPhieu, onOpenLsx, onDong, onDoi,
 }: {
   chu: { lsx_id: number | null; bai_ghep_id: number | null };
+  /** Mở ngăn từ nút "Nhả hàng" của dòng lệnh ⇒ hộp hỏi nhả bật luôn. */
+  hoiNhaNgay?: boolean;
   eventTick: number;
   coGiu: boolean;
   coHuy: boolean;
@@ -705,7 +713,7 @@ function NganLenh({
   const [tab, setTab] = useState("vt");
   const [d, setD] = useState<{ lenh: LuoiLenh; dong: LuoiDong[] } | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
-  const [hoiNha, setHoiNha] = useState(false);
+  const [hoiNha, setHoiNha] = useState(!!hoiNhaNgay);
   const [ban, setBan] = useState(false);
   const [huy, setHuy] = useState<LuoiPhieu | null>(null);
 
@@ -729,6 +737,8 @@ function NganLenh({
       await api.keHoachVatTu.giuCho(token, batGiu, l);
       setHoiNha(false);
       onDoi();
+      // Lệnh ngoài kế hoạch nhả xong là rời lưới — để ngăn mở thì lần nạp lại chỉ ra lỗi 404.
+      if (!batGiu && l.ngoai_pham_vi) onDong();
     } catch (e: unknown) {
       setLoi(e instanceof ApiError ? e.message : String(e));
     } finally {
@@ -758,7 +768,8 @@ function NganLenh({
       onDong={onDong}
       chan={l && coGiu ? (
         <>
-          {l.bat ? (
+          {/* Lệnh đã tắt giữ mà còn hàng giữ sót (vd. rơi khỏi kế hoạch) vẫn phải có nút nhả. */}
+          {l.bat || dangGiu.length > 0 ? (
             <button type="button" className="lvt-btn lvt-btn--danger" onClick={() => setHoiNha(true)}>Nhả hàng đã giữ</button>
           ) : (
             <button type="button" className="lvt-btn" disabled={ban} onClick={() => void doiGiu(true)}>
@@ -779,12 +790,12 @@ function NganLenh({
           <table className="lvt-g lvt-g--ngan">
             <colgroup>
               <col style={{ width: 178 }} /><col style={{ width: 204 }} /><col style={{ width: 88 }} />
-              <col style={{ width: 64 }} /><col style={{ width: 80 }} /><col style={{ width: 190 }} />
-              <col style={{ width: 104 }} /><col style={{ width: 126 }} /><col />
+              <col style={{ width: 64 }} /><col style={{ width: 80 }} /><col style={{ width: 160 }} />
+              <col style={{ width: 104 }} /><col style={{ width: 156 }} /><col />
             </colgroup>
             <thead>
               <tr>
-                <th>Mặt hàng</th><th>Công đoạn</th><th className="n">Cần</th><th className="n">Đã giữ</th>
+                <th>Mặt hàng</th><th>Công đoạn</th><th className="n">Cần</th><th className="n" title={TIEU_DE_DA_CO}>Đã có</th>
                 <th className="n">Còn thiếu</th><th>Phiếu mua</th><th>Ngày có hàng</th><th>Tình trạng</th><th>Ghi chú</th>
               </tr>
             </thead>
@@ -941,7 +952,7 @@ function NganHang({
       phuDe={v && (
         <span className="lvt-kv">
           <span>Cần cho lệnh<b>{so(v.can)}</b></span>
-          <span>Đã giữ<b>{so(v.da_giu)}</b></span>
+          <span title={TIEU_DE_DA_CO}>Đã có<b>{so(v.da_giu)}</b></span>
           <span>Còn thiếu<b className={v.con_thieu > 0 ? "red" : undefined}>{so(v.con_thieu)}</b></span>
           <span>Tồn kho<b>{so(v.ton)}</b></span>
           <span>Đang về<b>{so(v.dang_ve)}</b></span>
@@ -1035,11 +1046,11 @@ function NganHang({
           <table className="lvt-g">
             <colgroup>
               <col style={{ width: 130 }} /><col style={{ width: 210 }} /><col style={{ width: 76 }} />
-              <col style={{ width: 64 }} /><col style={{ width: 80 }} /><col style={{ width: 200 }} />
-              <col style={{ width: 104 }} /><col style={{ width: 128 }} /><col />
+              <col style={{ width: 64 }} /><col style={{ width: 80 }} /><col style={{ width: 170 }} />
+              <col style={{ width: 104 }} /><col style={{ width: 156 }} /><col />
             </colgroup>
             <thead>
-              <tr><th>Lệnh</th><th>Công đoạn</th><th className="n">Cần</th><th className="n">Đã giữ</th><th className="n">Còn thiếu</th><th>Phiếu mua</th><th>Ngày có hàng</th><th>Tình trạng</th><th>Ghi chú</th></tr>
+              <tr><th>Lệnh</th><th>Công đoạn</th><th className="n">Cần</th><th className="n" title={TIEU_DE_DA_CO}>Đã có</th><th className="n">Còn thiếu</th><th>Phiếu mua</th><th>Ngày có hàng</th><th>Tình trạng</th><th>Ghi chú</th></tr>
             </thead>
             <tbody>
               {d.dong.map((x) => (

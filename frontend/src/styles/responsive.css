@@ -2737,6 +2737,9 @@
   .shell__content .thsx-x-in {
     min-height: 44px;
   }
+  .shell__content .thsx-gm-ps__o {
+    height: 44px;
+  }
 }
 
 /* 65.6 ĐỢT 2 (Task 20D) — bảng `.thsx-x-tbl` kéo CẢ ngăn kéo trượt ngang.

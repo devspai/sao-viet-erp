@@ -89,6 +89,20 @@ def test_khong_cho_khai_hai_dong_cho_cung_mot_cap(svc):
         svc.create_cap({"tu_id": kg.id, "den_id": tan.id, "he_so": 0.001})
 
 
+def test_chan_hai_don_vi_cung_ten(svc):
+    """ĐVT của đơn lưu TÊN; tên trùng thì `ma_theo_ten` bỏ hẳn nó và đơn không chốt được."""
+    from app.services.don_vi_do_service import DonViDoDuplicate
+
+    to = svc.create({"ma": "to", "ten": "tờ"})
+    with pytest.raises(DonViDoDuplicate):
+        svc.create({"ma": "to_tp", "ten": " Tờ "})
+    khac = svc.create({"ma": "tay", "ten": "tay sách"})
+    with pytest.raises(DonViDoDuplicate):
+        svc.update(khac.id, {"ma": "tay", "ten": "tờ"})
+    # Sửa chính nó, giữ nguyên tên, không được tự báo trùng.
+    svc.update(to.id, {"ma": "to", "ten": "tờ", "ghi_chu": "sửa ghi chú"})
+
+
 # --- câu hiển thị -------------------------------------------------------------
 
 

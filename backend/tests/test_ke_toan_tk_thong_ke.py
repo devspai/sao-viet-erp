@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from app.services import accounting_service
+from tests.muc_thu_chi_fixtures import muc_id
 from tests.test_payables_api import _token_vai
 
 URL = "/api/accounting/company-bank-accounts/thong-ke"
@@ -62,6 +63,7 @@ def _lap_phieu_chi(client, h, *, so_tien, tai_khoan_id, ngay=None):
             "beneficiary_bank_name": "BIDV",
             "beneficiary_bank_branch": "Hà Nội",
             "bank_fee_bearer": "payer",
+            "muc_thu_chi_id": muc_id(client, h, "chi"),
         },
         headers=h,
     )
@@ -80,6 +82,7 @@ def _lap_phieu_thu(client, h, *, so_tien, tai_khoan_id, ngay=None, ma="GD-0001")
             "content": "Thu khác",
             "company_bank_account_id": tai_khoan_id,
             "bank_reference": ma,
+            "muc_thu_chi_id": muc_id(client, h, "thu"),
         },
         headers=h,
     )

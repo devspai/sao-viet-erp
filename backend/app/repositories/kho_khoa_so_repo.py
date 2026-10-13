@@ -161,6 +161,27 @@ class KhoKhoaSoRepository:
         out.sort(key=lambda t: (t[2], t[1]), reverse=True)  # den (rồi tu) giảm dần
         return out
 
+    def ngay_chua_khoa(self, kho_ids: list[int] | None, tu: date, den: date) -> tuple[int | None, date] | None:
+        """(kho, ngày) ĐẦU TIÊN trong [tu, den] CHƯA khóa của phạm vi — None khi cả khoảng đã khóa cho
+        mọi kho. `kho_ids` None = xét theo khóa TOÀN KHO. Luật "khóa trước rồi mới tính giá" (chủ chốt
+        13/10/2026). Tính in-memory (1 query), giống `is_locked`: bản ghi mới nhất phủ ngày quyết định."""
+        records = list(self.db.execute(
+            select(KhoKhoaSo).where(KhoKhoaSo.tu_ngay <= den, KhoKhoaSo.den_ngay >= tu)
+            .order_by(KhoKhoaSo.id)
+        ).scalars())
+        one = timedelta(days=1)
+        for kid in (kho_ids or [None]):
+            day = tu
+            while day <= den:
+                w = None
+                for r in records:  # id tăng dần → bản ghi ghi sau đè bản trước
+                    if r.tu_ngay <= day <= r.den_ngay and (r.kho_id is None or r.kho_id == kid):
+                        w = r
+                if w is None or w.hanh_dong != "khoa":
+                    return kid, day
+                day += one
+        return None
+
     def exempted_khos(self, tu_ngay: date, den_ngay: date) -> list[int]:
         """Trong kỳ TOÀN KHO [tu_ngay, den_ngay]: các kho được MỞ RIÊNG (miễn trừ) — có lệnh mở riêng
         kho ĐÈ lên khóa toàn kho ở ít nhất 1 ngày. Trả kho_id đang MỞ. Tính in-memory (1 query)."""

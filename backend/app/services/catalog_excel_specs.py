@@ -327,31 +327,6 @@ DON_VI_DO = CatalogExcelSpec(
 # ======================================================================================
 
 
-def _doc_thay_the(gt: Any, ctx: NguCanh) -> int:
-    """Mã NVL thay thế → id, TRONG CÙNG danh mục đang nhập (`svc.kind`)."""
-    ma = str(gt or "").strip()
-    o = ctx.svc.find_by_ma(ma)
-    if o is None:
-        raise ValueError(f'Không tìm thấy mã "{ma}" (NVL thay thế).')
-    return o.id
-
-
-def _ghi_thay_the(gt: Any, ctx: NguCanh) -> str | None:
-    if not gt:
-        return None
-    objs = ctx.nho(f"tt:{ctx.svc.kind}:{int(gt)}",
-                   lambda: ctx.svc.goc.repo.by_ids(ctx.svc.kind, [int(gt)]))
-    return objs[0].ma if objs else None
-
-
-def _sheet_thay_the(ten: str, nhan: str) -> SheetCon:
-    return SheetCon(
-        ten, field="thay_the_ids", rut_gon="thay_the_id",
-        cot=(Cot(nhan, "thay_the_id", doc=_doc_thay_the, ghi=_ghi_thay_the),),
-    )
-
-
-
 GIAY = CatalogExcelSpec(
     loai="giay", tieu_de="Giấy", repo_cls=_GiayRepo,
     cot=(
@@ -365,12 +340,7 @@ GIAY = CatalogExcelSpec(
         Cot("Ghi chú", "ghi_chu", rong=32),
         Cot("Công thức giá", "cong_thuc_gia", rong=36),
         CO_ACTIVE,
-        # Cột đời cũ: một ô "MÃ1, MÃ2". Nay là sheet con — sheet con áp SAU nên nó thắng nếu file
-        # có cả hai.
-        Cot("NVL thay thế", "thay_the_ids", chi_nhap=True,
-            doc=lambda gt, ctx: [_doc_thay_the(m, ctx) for m in _tach_danh_sach(gt, ctx)]),
     ),
-    sheets_con=(_sheet_thay_the("Giấy thay thế", "Mã giấy"),),
     # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
     loai_tru=frozenset({"caliper_micron", "gia_thi_truong", "kho_tinh_gia", "tho"}),
 )
@@ -387,7 +357,7 @@ VAT_TU = CatalogExcelSpec(
         CO_ACTIVE,
     ),
     # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
-    loai_tru=frozenset({"cong_thuc_gia", "cong_thuc_dinh_muc", "don_gia", "thay_the_ids"}),
+    loai_tru=frozenset({"cong_thuc_gia", "cong_thuc_dinh_muc", "don_gia"}),
 )
 
 THANH_PHAM = CatalogExcelSpec(

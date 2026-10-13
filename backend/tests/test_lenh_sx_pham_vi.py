@@ -239,3 +239,44 @@ def test_trong_pham_vi_all_khong_nem_gi(db, sale_a, lenh_cua):
     """`sale_ids is None` (scope `all`) → cho qua thẳng, không cần tra `Order.sale_user_id`."""
     lsx = db.get(Lsx, lenh_cua(sale_a))
     pham_vi.chan_ngoai_pham_vi(db, lsx, None)  # không raise gì cả
+
+
+# --- 12/10/2026: luật Đơn hàng bán — chủ = sale của KHÁCH, "của tôi" gồm nhóm dùng chung -----
+@pytest.fixture
+def lenh_khach_chuyen_sale(db, sale_a, sale_b) -> int:
+    """Đơn ghi sale A nhưng KHÁCH đã chuyển cho sale B — Đơn hàng bán coi B là chủ."""
+    from app.models.customer import Customer
+
+    kh = Customer(code="KH-PV-CHUYEN", name="Khách chuyển sale (test PV)", sale_user_id=sale_b.id)
+    db.add(kh)
+    db.flush()
+    o, line = _don_va_dong(db, "DH-PV-CHUYEN", sale_a.id)
+    o.customer_id = kh.id
+    lsx = Lsx(ma="LSX-PV-CHUYEN", order_id=o.id, order_line_id=line.id, trang_thai=TT_DA_PHAT_HANH)
+    db.add(lsx)
+    db.commit()
+    return lsx.id
+
+
+def test_khach_da_chuyen_sale_thi_sale_moi_thay(db, sale_a, sale_b, lenh_khach_chuyen_sale):
+    thay_b = {r.id for r in db.execute(pham_vi.loc_lsx_da_phat_hanh(select(Lsx), {sale_b.id})).scalars()}
+    thay_a = {r.id for r in db.execute(pham_vi.loc_lsx_da_phat_hanh(select(Lsx), {sale_a.id})).scalars()}
+    assert lenh_khach_chuyen_sale in thay_b
+    assert lenh_khach_chuyen_sale not in thay_a
+    lsx = db.get(Lsx, lenh_khach_chuyen_sale)
+    pham_vi.chan_ngoai_pham_vi(db, lsx, {sale_b.id})
+    with pytest.raises(HTTPException) as e:
+        pham_vi.chan_ngoai_pham_vi(db, lsx, {sale_a.id})
+    assert e.value.status_code == 403
+
+
+def test_own_gom_nguoi_cung_nhom_dung_chung(db, sale_a, sale_b):
+    from app.models.nhom_dung_chung import NhomDungChung, NhomDungChungThanhVien
+
+    nhom = NhomDungChung(ten="Nhóm test PV")
+    db.add(nhom)
+    db.flush()
+    db.add_all([NhomDungChungThanhVien(nhom_id=nhom.id, user_id=sale_a.id),
+                NhomDungChungThanhVien(nhom_id=nhom.id, user_id=sale_b.id)])
+    db.commit()
+    assert pham_vi.sale_ids_theo_pham_vi(db, sale_a, _Authz(SCOPE_OWN), MODULE) == {sale_a.id, sale_b.id}

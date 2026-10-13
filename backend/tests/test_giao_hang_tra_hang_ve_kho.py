@@ -278,3 +278,42 @@ def test_GIAO_THIEU_giu_phan_thua_toi_khi_thu_kho_nhan_lai(client):
     assert con["lines"][0]["con_phai_giao"] == 30
     yc = client.get(f"/api/giao-hang/requests?order_id={oid}", headers=h).json()["items"][0]
     assert yc["trang_thai"] == "giao_thieu"
+
+
+def test_HANG_TRA_VE_thuoc_ho_LO_GOC_va_nhan_gia_lo_goc_luc_ghi_so(client):
+    """mg 0401 (12/10/2026): hàng trả về nhập thành lô mới THUỘC HỌ lô đã xuất ra nó — dòng yêu cầu
+    nhớ lô gốc, ghi sổ chép sang lô và lấy giá HIỆN TẠI của lô gốc. Trước đây lô trả về mang giá chụp
+    lúc trả và đứng ngoài họ: lô gốc là thành phẩm chưa có giá gốc thì hàng trả về kẹt 0 đ mãi."""
+    from app.models.stock_lot import StockLot
+    from app.models.stock_voucher import StockVoucher, StockVoucherLine
+
+    h = _admin(client)
+    trip, lid = _chuyen(client, h, suffix="tv9", qty=100)
+    _ket_qua(client, h, trip, ket_qua="giao_thieu", nguoi_nhan_thuc_te="Chi Lan",
+             so_thuc_nhan=[{"order_line_id": lid, "qty": 60}])
+    db = SessionLocal()
+    try:
+        yc_xuat = db.get(StockRequest, _yc_kho(trip, REQ_XUAT).id)
+        [lo_xuat] = {ln.lot_id for v in db.query(StockVoucher).filter_by(request_id=yc_xuat.id)
+                     for ln in v.lines}
+        goc = db.get(StockLot, lo_xuat)
+        goc_id = goc.lo_goc_id or goc.id
+        [dong] = db.get(StockRequest, _yc_kho(trip, REQ_NHAP).id).lines
+        assert (float(dong.sl_de_nghi), dong.lo_goc_id) == (40.0, goc_id)
+        # Kế toán đổi giá lô gốc SAU lúc lập yêu cầu ⇒ ghi sổ phải lấy giá mới, không phải giá chụp.
+        db.get(StockLot, goc_id).don_gia_nhap = 7_000
+        db.commit()
+    finally:
+        db.close()
+
+    _thu_kho_nhan(client, h, trip)
+    db = SessionLocal()
+    try:
+        yc_nhap = db.get(StockRequest, _yc_kho(trip, REQ_NHAP).id)
+        [ln] = [ln for v in db.query(StockVoucher).filter_by(request_id=yc_nhap.id) for ln in v.lines]
+        lo_moi = db.get(StockLot, ln.lot_id)
+        assert lo_moi.lo_goc_id == goc_id and lo_moi.id != goc_id
+        assert lo_moi.don_gia_nhap == 7_000 and float(lo_moi.sl_con_lai) == 40.0
+        assert isinstance(ln, StockVoucherLine) and ln.don_gia == 7_000
+    finally:
+        db.close()

@@ -269,6 +269,18 @@ export function mayChonDuoc<T extends { id: number; nhom?: string | null; active
   return con.filter((m) => (m.nhom != null && nhom.includes(m.nhom)) || m.id === mayDangGan);
 }
 
+/** MÁY MẶC ĐỊNH của công đoạn = máy còn dùng đứng ĐẦU bảng "Máy chạy được công đoạn này" — cùng luật
+ *  server (`LsxService._may_mac_dinh`), cùng ý tổ đầu = tổ mặc định. Chưa khai máy ⇒ không có. */
+export function mayMacDinh<T extends { id: number; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null } | null | undefined,
+): number | null {
+  for (const id of cd?.mayChoPhep ?? []) {
+    if (mayRefs.some((m) => m.id === id && m.active !== false)) return id;
+  }
+  return null;
+}
+
 export function emptyRow(): EditRow {
   return {
     key: newKey(), id: null, cong_doan_id: null, ten: "", nhom: null, loai_buoc: "may",

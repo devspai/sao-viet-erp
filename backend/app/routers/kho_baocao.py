@@ -41,6 +41,7 @@ from ..repositories.nguon_phieu_kho_repo import NguonPhieu, NguonPhieuKhoReposit
 from ..repositories.tim_khong_dau import bo_dau
 from ..repositories.user_repo import UserRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
+from ..services.kho_gia_goc_service import GiaGocError, chan_chot_khi_chua_gia
 from ..services.kho_giay import chuan_kho, co_don_vi_goc, nhan_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.vat_lieu_kho_service import VatLieuKhoService
@@ -845,10 +846,23 @@ def tinh_gia_ky(payload: TinhGiaKyIn, db: Db, user: CloseBookUser) -> BaoCaoNXTP
     """TÍNH GIÁ KỲ (bình quân) kiểu MISA: chốt tồn cuối kỳ vào snapshot `kho_ky_ton` để kỳ sau đọc
     làm đầu kỳ. Chạy lại được (đè) bao nhiêu lần cũng được. KHÔNG đụng phiếu xuất đích danh. Ghi Lịch sử.
 
-    CHO PHÉP tính cả kỳ ĐÃ KHÓA (luồng chốt 29/08/2026: khóa kỳ trước → vào đây chọn kỳ đã khóa rồi
-    tính). An toàn vì kỳ đã khóa thì phiếu đóng băng, tính lại ra đúng số."""
+    CHỈ tính trên khoảng ĐÃ KHÓA SỔ — mọi ngày của [tu, den] ở mọi kho trong phạm vi (luồng 29/08/2026,
+    chủ chốt lại 13/10/2026: khóa trước rồi mới tính). Kỳ đã khóa thì phiếu đóng băng nên tính lại ra
+    đúng số; `den` sớm hơn cuối kỳ khóa (tính giữa kỳ) vẫn được vì khoảng đó đã khóa."""
     tu, den = payload.tu, payload.den
     kho_ids = _scope_kho_ids(db, payload.kho_id, tu, den)
+    try:
+        chan_chot_khi_chua_gia(db, tu_ngay=tu, den_ngay=den, kho_ids=kho_ids, viec="tính giá kỳ")
+    except GiaGocError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
+    if (mo := KhoKhoaSoRepository(db).ngay_chua_khoa(kho_ids, tu, den)) is not None:
+        kid, ngay = mo
+        noi = (getattr(KhoHangRepository(db).get(kid), "ten", None) or f"Kho #{kid}") if kid else "Toàn kho"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(f"Kỳ chưa khóa sổ: {noi} còn mở ngày {_fmt_date(ngay)}. Khóa sổ kỳ ở Kỳ kế toán "
+                    f"trước rồi mới tính giá."),
+        )
     _chot_ky(db, tu=tu, den=den, ten=payload.ten, kho_ids=kho_ids, khoa_so_id=None)
     db.commit()
     _log_tinh_gia(db, user, kho_id=payload.kho_id, tu=tu, den=den, ten=payload.ten)
@@ -951,6 +965,14 @@ def set_khoa_so(payload: KhoKhoaSoIn, db: Db, user: CloseBookUser) -> KhoKhoaSoR
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Tên kỳ '{payload.ten.strip()}' đã dùng cho một kỳ đang khóa — đặt tên khác.",
             )
+    # KHÓA: còn thành phẩm chưa có giá gốc (giá 0) thì chưa chốt được (chủ chốt 12/10/2026).
+    if payload.hanh_dong == "khoa":
+        try:
+            chan_chot_khi_chua_gia(
+                db, tu_ngay=payload.tu_ngay, den_ngay=payload.den_ngay,
+                kho_ids=[payload.kho_id] if payload.kho_id is not None else None, viec="khoá sổ")
+        except GiaGocError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
     # MỞ: khóa sổ TUẦN TỰ — chỉ mở được phần ĐUÔI vùng khóa, tính từ NGÀY CUỐI đang khóa (cutoff).
     # → mở được cả vùng [đầu..cutoff] hoặc một đuôi [giữa..cutoff]; KHÔNG mở phần giữa/đầu để hở
     #   kỳ mới hơn, cũng không mở vượt quá vùng khóa.

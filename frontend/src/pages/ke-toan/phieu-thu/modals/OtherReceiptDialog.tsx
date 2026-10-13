@@ -1,4 +1,4 @@
-// Form LẬP PHIẾU THU KHÁC — khoản thu phát sinh độc lập, không gắn phiếu chi/đơn bán (đặc tả PT-3).
+// Form LẬP PHIẾU THU — khoản thu phát sinh độc lập, không gắn phiếu chi/đơn bán (đặc tả PT-3).
 // Bố cục chia đôi (phương án B, 06/10/2026 — khuôn Stripe Invoicing / Xero Receive money): form
 // trái, tờ phiếu 01-TT xem trước bên phải hiện dần theo từng phím gõ. Form chia khối như ngăn Thu tiền
 // hoá đơn (docs/mockups/thu-tien-ngan-chong-phuong-an-3-ban-2.html): Tiền thu → Người nộp → Chứng từ;
@@ -16,6 +16,7 @@ import {
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { BanXemPhieu } from "../../shared/BanXemPhieu";
+import { OChonMuc, useMucThuChi } from "../../shared/OChonMuc";
 import {
   KhoiForm,
   KhungFormPhieu,
@@ -29,7 +30,7 @@ import {
 } from "../../shared/KhungFormPhieu";
 import { OChungTu, taiTepSauKhiLap } from "../../shared/tepChungTu";
 import { PhanNhanBang, THU_TU_O_THU_MOI, type DatOThu } from "../components/PhanNhanBang";
-import { isoToday, methodText, optional, sourceLabel } from "../shared/helpers";
+import { isoToday, methodText, optional } from "../shared/helpers";
 import { useTaiKhoanNhan } from "../shared/taiKhoanNhan";
 import "../../ke-toan.css";
 
@@ -56,7 +57,10 @@ export function OtherReceiptDialog({
     company_bank_account_id: null,
     bank_reference: null,
     note: null,
+    muc_thu_chi_id: null,
   }));
+  const muc = useMucThuChi("thu");
+  const mucChon = muc.ds.find((m) => m.id === form.muc_thu_chi_id) ?? null;
   const goc = useRef(JSON.stringify(form));
   const { taiKhoan: companyAccounts, dangTai: loadingAccounts, loiTai: loiTaiKhoan } = useTaiKhoanNhan("VND");
   const [saving, setSaving] = useState(false);
@@ -86,6 +90,7 @@ export function OtherReceiptDialog({
     const l: LoiForm = {};
     if (!form.payer_name.trim()) l.payer_name = "Ghi người hoặc đơn vị nộp tiền.";
     if (!Number.isFinite(form.amount) || form.amount <= 0) l.amount = "Số tiền thu phải lớn hơn 0.";
+    if (!form.muc_thu_chi_id) l.muc_thu_chi_id = "Chọn mục thu.";
     if (!form.content.trim()) l.content = "Ghi lý do nộp.";
     const loiNgay = loiNgayPhieu(form.receipt_date, "Ngày thu");
     if (loiNgay) l.receipt_date = loiNgay;
@@ -173,7 +178,7 @@ export function OtherReceiptDialog({
             ...(isBank
               ? [{ label: "Tài khoản nhận", value: tk ? `${tk.account_number} tại ${tk.bank_name}` : "" }]
               : []),
-            { label: "Nguồn thu", value: sourceLabel({ source_type: "other" }) },
+            ...(mucChon ? [{ label: "Mục thu", value: mucChon.ten }] : []),
             ...(isBank && optional(form.bank_reference) ? [{ label: "Mã giao dịch", value: form.bank_reference ?? "" }] : []),
           ]}
           soTien={form.amount}
@@ -194,6 +199,9 @@ export function OtherReceiptDialog({
             aria-invalid={loi.payer_name ? true : undefined}
             onChange={(e) => set("payer_name", e.target.value)} />
         </OF>
+        <OChonMuc loai="thu" ds={muc.ds} dangTai={muc.dangTai} loiTai={muc.loi}
+          value={form.muc_thu_chi_id} loi={loi.muc_thu_chi_id}
+          onChange={(id) => set("muc_thu_chi_id", id)} />
         <OF khoa="content" nhan="Lý do nộp" batBuoc rong loi={loi.content}>
           <input id={idO("content")} value={form.content} placeholder="VD: Bán giấy vụn và lề xén tháng 9"
             aria-invalid={loi.content ? true : undefined}

@@ -82,6 +82,24 @@ _STATUS_LABELS = {
 }
 # Đơn mới chỉ có MỘT nguồn, nhưng nhãn giữ cả `nhap_tay` để đơn cũ trong DB còn đọc ra chữ đúng.
 _SOURCE_LABELS = {SOURCE_BAO_GIA: "Từ báo giá", "nhap_tay": "Nhập giá tay"}
+_HINH_THUC_THU = {"cash": "tiền mặt", "bank_transfer": "chuyển khoản"}
+_LOI_TAI = {"khach": "khách hàng", "xuong": "xưởng in"}
+
+
+def _tien_vn(v) -> str:
+    return f"{int(v):,}".replace(",", ".")
+
+
+def _chu_nhat_ky(detail: str | None) -> str | None:
+    """Vết cũ ghi mã máy ("(bank_transfer)", "500,000đ", "(lỗi khach)") — dịch lúc trả về cho ngăn đơn."""
+    if not detail:
+        return detail
+    import re
+
+    m = re.fullmatch(r"Thu cọc ([\d,]+)đ \((\w+)\)(?: — đơn \S+)?", detail)
+    if m:
+        return f"Thu cọc {m.group(1).replace(',', '.')} bằng {_HINH_THUC_THU.get(m.group(2), m.group(2))}"
+    return re.sub(r"\(lỗi (khach|xuong)\)", lambda x: f"(lỗi tại {_LOI_TAI[x.group(1)]})", detail)
 
 
 def _i(x) -> int:
@@ -297,7 +315,7 @@ class OrderService:
 
             c = self.db.get(Customer, order.customer_id)
             cust_name = c.name if c else None
-        names = self._user_names([order.sale_user_id])
+        names = self._user_names([order.sale_user_id, order.ordered_by])
         m = self._money(order)
         # V5: danh sách phiếu thu cọc (PaymentReceipt nguồn đơn) — thay bản ghi OrderDeposit cũ.
         deposits = [
@@ -317,6 +335,8 @@ class OrderService:
             for a in atts
         ]
         can_confirm, blockers = self._confirm_gate(order)
+        da_tra_lai = (self.accounting_repo.coc_da_tra_lai(order.id)
+                      if order.status == STATUS_CANCELLED else 0)
         q_code = None
         quote_expired = False
         if order.quotation_id:
@@ -332,7 +352,11 @@ class OrderService:
                 and qq.valid_until and qq.valid_until < date.today()
             )
         return OrderDetailOut(
-            **self._row(order, cust_name, names.get(order.sale_user_id), q_code).model_dump(),
+            # Truyền số tiền ĐÃ TÍNH ở trên: để trống thì `_row` gọi `_money` lần nữa ⇒ bốn câu SUM
+            # chạy hai lần mỗi lần mở ngăn đơn (13/10/2026).
+            **self._row(order, cust_name, names.get(order.sale_user_id), q_code,
+                        agg={k: m[k] for k in ("total", "total_with_vat", "order_cost")},
+                        received=m["deposit_received"]).model_dump(),
             quotation_version=order.quotation_version,
             quotation_effective_from=order.quotation_effective_from,
             parent_order_id=order.parent_order_id,
@@ -342,6 +366,7 @@ class OrderService:
             delivery_note=order.delivery_note,
             production_note=order.production_note,
             vat_pct_estimate=order.vat_pct_estimate,
+            deposit_refunded=da_tra_lai,
             lines=[OrderLineOut.model_validate(ln) for ln in order.lines],
             order_cost=m["order_cost"],
             margin_pct=m["margin_pct"],
@@ -352,6 +377,7 @@ class OrderService:
             can_confirm=can_confirm,
             confirm_blockers=blockers,
             quote_expired=quote_expired,
+            ordered_by_name=names.get(order.ordered_by) if order.ordered_by else None,
         )
 
     # --- reads --------------------------------------------------------------
@@ -466,16 +492,29 @@ class OrderService:
             raise OrderNotFound("Không tìm thấy đơn hàng")  # ngoài vùng = 404
         return tien_do_don(self.db, order)
 
+    def phieu_xuat_in(self, *, order_id: int, yeu_cau_id: int, actor, scope: str) -> dict:
+        """Dữ liệu in phiếu xuất kho bán hàng / 02-VT của một yêu cầu giao — cùng cổng đọc + phạm vi
+        với chi tiết đơn (ai thấy giá bán của đơn thì in được tờ có giá)."""
+        from .phieu_xuat_ban_hang import du_lieu_in_phieu_xuat
+
+        order = self.repo.get_by_id(order_id)
+        if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
+            raise OrderNotFound("Không tìm thấy đơn hàng")
+        return du_lieu_in_phieu_xuat(self.db, order, yeu_cau_id)
+
     def activity(self, *, order_id: int, actor, scope: str) -> OrderActivityOut:
         order = self.repo.get_by_id(order_id)
         if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
             raise OrderNotFound("Không tìm thấy đơn hàng")
-        logs = self.audit.list_by_target(f"order:{order_id}", limit=200)
+        # Vết "push_production" cũ (ghi lúc chốt, kể cả khi còn chờ cọc) trùng với vết chuyển xuống sản
+        # xuất thật ⇒ không bày ra nhật ký của đơn nữa.
+        logs = [lg for lg in self.audit.list_by_target(f"order:{order_id}", limit=200)
+                if lg.action != "push_production"]
         names = self._user_names([lg.actor_user_id for lg in logs])
         items = [
             OrderActivityItem(
                 at=lg.created_at, actor_id=lg.actor_user_id,
-                actor_name=names.get(lg.actor_user_id), action=lg.action, detail=lg.detail,
+                actor_name=names.get(lg.actor_user_id), action=lg.action, detail=_chu_nhat_ky(lg.detail),
             )
             for lg in logs
         ]
@@ -745,7 +784,7 @@ class OrderService:
             raise OrderValidationError(str(exc)) from exc
         self.audit.create(
             actor_user_id=actor.id, action="record_deposit", target=f"order:{order.id}",
-            detail=f"Thu cọc {int(payload.amount):,}đ ({payload.receipt_method}) — đơn {order.order_no}",
+            detail=f"Thu cọc {_tien_vn(payload.amount)} bằng {_HINH_THUC_THU.get(payload.receipt_method, payload.receipt_method)}",
         )
         self._tu_chuyen_sx(order, actor)
         d = self._detail(self.repo.get_with_lines(order_id))
@@ -819,9 +858,8 @@ class OrderService:
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="confirm_order",
             target=f"order:{order.id}", detail=f"Chốt đơn {order.order_no}")
-        # push Sản xuất (SEAM-01) — Sản xuất chưa build → ghi vết idempotent theo order_id
-        self.audit.create(actor_user_id=actor.id, action="push_production",
-            target=f"order:{order.id}", detail=f"Đẩy đơn {order.order_no} xuống Sản xuất (seam)")
+        # Vết "Đẩy đơn xuống Sản xuất (seam)" lúc chốt đã gỡ (12/10/2026): đơn chỉ thật sự xuống sản
+        # xuất ở `_tu_chuyen_sx` (đủ cọc), vết đó đã ghi riêng — ghi thêm ở đây là báo sai khi còn chờ cọc.
         # Đơn không cần cọc (hoặc cọc đã đủ từ trước) → xuống SX ngay lúc chốt.
         # `order` đọc TRƯỚC câu UPDATE compare-and-set (synchronize_session=False) → nạp lại.
         self.db.refresh(order)
@@ -867,7 +905,7 @@ class OrderService:
         order.cancel_at = datetime.now(timezone.utc)
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="cancel_order", target=f"order:{order.id}",
-            detail=f"Hủy đơn {order.order_no}" + (f" (lỗi {fault})" if fault else "") + f" — {reason}")
+            detail=f"Hủy đơn {order.order_no}" + (f" (lỗi tại {_LOI_TAI.get(fault, fault)})" if fault else "") + f" — {reason}")
         return self._detail(self.repo.get_with_lines(order_id))
 
     # --- Tệp đính kèm của đơn (chỉ thêm/xoá khi nháp) ----

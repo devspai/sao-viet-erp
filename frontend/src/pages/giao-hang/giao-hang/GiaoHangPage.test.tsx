@@ -16,23 +16,6 @@ import { AuthContext, type AuthState } from "../../../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../../../auth/permissions";
 import type { ModuleCapability } from "../../../api/client";
 
-/** Ô ngày-giờ tự vẽ (ChonNgayGio): hai ô gõ "<nhãn>, ngày" (dd/mm/yyyy) và "<nhãn>, giờ" (HH:mm), rời ô là chốt. */
-function datNgayGio(goc: HTMLElement, ten: string, iso: string) {
-  const [ngay, gio] = iso.split("T");
-  const oNgay = within(goc).getByRole("textbox", { name: `${ten}, ngày` });
-  fireEvent.change(oNgay, { target: { value: ngay.split("-").reverse().join("/") } });
-  fireEvent.blur(oNgay);
-  const oGio = within(goc).getByRole("textbox", { name: `${ten}, giờ` });
-  fireEvent.change(oGio, { target: { value: gio } });
-  fireEvent.blur(oGio);
-}
-/** Đọc lại giá trị ô ngày-giờ tự vẽ thành "YYYY-MM-DDTHH:mm". */
-function docNgayGio(goc: HTMLElement, ten: string): string {
-  const ngay = (within(goc).getByRole("textbox", { name: `${ten}, ngày` }) as HTMLInputElement).value;
-  const gio = (within(goc).getByRole("textbox", { name: `${ten}, giờ` }) as HTMLInputElement).value;
-  return `${ngay.split("/").reverse().join("-")}T${gio}`;
-}
-
 const AUTH: AuthState = {
   status: "authenticated", user: null, token: "t",
   login: async () => {}, logout: async () => {},
@@ -50,7 +33,6 @@ const CHUYEN = {
   id: 1, request_id: 7, request_code: "YCGH-260819-A1B2", order_id: 3, order_code: "DH-GH-01",
   customer_name: "Công ty Bánh kẹo Minh Long", lan_thu: 1, employee_id: 5,
   employee_name: "Trần Văn Hùng",
-  gio_lay_hang: "2026-08-20T01:00:00Z", gio_du_kien_giao: "2026-08-20T04:00:00Z",
   ghi_chu_phan_cong: null, trang_thai: "dang_giao", km: null, thoi_gian_ket_thuc: null,
   nguoi_nhan_thuc_te: null, ly_do_that_bai: null, huong_xu_ly: null, ngay_hen_lai: null,
   ghi_chu_ket_qua: null, lines: [], yeu_cau_kho_ma: "DNX0007",
@@ -66,12 +48,14 @@ const YEU_CAU = {
 };
 
 function stubApi({ trips = [], khoi = [], requests = [], drivers = [], taiXe, xe = [], luotMo = [],
-                   rieng }: {
+                   deNghi = [], rieng }: {
   /** Chuyến LẺ (ngoài lượt) và khối LƯỢT XE — hai loại khối của `/bang-giao`. */
   trips?: unknown[]; khoi?: { diem: unknown[] }[];
   requests?: unknown[]; drivers?: unknown[]; taiXe?: unknown[];
   /** Danh mục Xe giao hàng (`/api/xe`) và lượt đang mở của xe (`/luot-xe`) — lượt xe 18/09/2026. */
   xe?: unknown[]; luotMo?: unknown[];
+  /** Đề nghị xuất kho của các chuyến — bước hẹn kho sau Lên đơn (mg 0400). */
+  deNghi?: unknown[];
   /** Trả lời RIÊNG cho một URL (vd POST bat-dau-giao kèm cảnh báo). `undefined` = đi nhánh chung. */
   rieng?: (url: string) => unknown;
 }) {
@@ -102,6 +86,7 @@ function stubApi({ trips = [], khoi = [], requests = [], drivers = [], taiXe, xe
       // nhánh này thì stub trả `{}` ⇒ `items` undefined ⇒ hộp thoại vỡ ngay lúc vẽ.
       : p.includes("/api/xe") ? { items: xe, total: xe.length }
       : p.includes("/luot-xe?") ? { items: luotMo }
+      : p.includes("/de-nghi-kho") ? deNghi
       : p.includes("/con-phai-giao")
       ? { order_id: 3, da_giao_du: false,
           lines: [{ order_line_id: 11, mo_ta: "Hộp giấy", don_vi_tinh: "hộp",
@@ -136,6 +121,13 @@ function ve(o: Partial<ModuleCapability>) {
   );
 }
 
+/** Có ô Lên kế hoạch thì màn mở ở tab Yêu cầu giao — test bảng Đơn giao hàng phải bấm sang. */
+function veDon(o: Partial<ModuleCapability>) {
+  const r = ve(o);
+  fireEvent.click(screen.getByRole("tab", { name: /Đơn giao hàng/ }));
+  return r;
+}
+
 beforeEach(() => {
   vi.unstubAllGlobals();
   boNguonLenDon();
@@ -152,12 +144,14 @@ describe("Giao hàng · một ô = một tab", () => {
     expect(screen.queryByRole("tab", { name: /Nhân viên giao hàng/ })).not.toBeInTheDocument();
   });
 
-  it("tên tab đúng như đã chốt: Đơn giao hàng · Yêu cầu giao · Nhân viên giao hàng", async () => {
+  it("tên tab đúng như đã chốt: Yêu cầu giao · Đơn giao hàng · Nhân viên giao hàng", async () => {
     stubApi({});
     ve({ can_plan: true, can_view_drivers: true });
     await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(3));
     const ten = screen.getAllByRole("tab").map((t) => t.textContent?.replace(/\d+$/, "").trim());
-    expect(ten).toEqual(["Đơn giao hàng", "Yêu cầu giao", "Nhân viên giao hàng"]);
+    expect(ten).toEqual(["Yêu cầu giao", "Đơn giao hàng", "Nhân viên giao hàng"]);
+    // Tab đầu cũng là tab mở sẵn.
+    expect(screen.getByRole("tab", { name: /Yêu cầu giao/ })).toHaveAttribute("aria-selected", "true");
   });
 
   it("⭐ bật ô Lên kế hoạch ⇒ tab đó HIỆN RA", async () => {
@@ -172,8 +166,9 @@ describe("Giao hàng · một ô = một tab", () => {
 
   it("⭐ chấm tab Yêu cầu giao theo luật ĐÃ XEM: mở tab là tắt, quay lại không bật lại", async () => {
     // Bản trước bật chấm hễ còn yêu cầu chờ ⇒ đứng ngay trong tab mà chấm vẫn đỏ (07/10/2026).
+    // Màn mở ở tab Yêu cầu giao ⇒ bấm sang Đơn giao hàng TRƯỚC khi yêu cầu tải về thì mới thấy chấm.
     stubApi({ requests: [YEU_CAU] });
-    const { container } = ve({ can_plan: true });
+    const { container } = veDon({ can_plan: true });
     const cham = () => container.querySelector(".gh-seg__cham");
     await waitFor(() => expect(cham()).not.toBeNull());
     fireEvent.click(screen.getByRole("tab", { name: /Yêu cầu giao/ }));
@@ -194,7 +189,8 @@ describe("Giao hàng · một ô = một tab", () => {
     const goi = stubApi({});
     ve({ can_plan: true });
     await waitFor(() => expect(goi.some((g) => g.url.includes("/bang-giao"))).toBe(true));
-    expect(goi.some((g) => g.url.includes("/nhan-vien"))).toBe(false);
+    // Chỉ xét lời gọi của TAB (kèm tháng) — ngăn Lên đơn ở tab Yêu cầu giao tự nạp danh sách tài xế.
+    expect(goi.some((g) => g.url.includes("/nhan-vien?thang="))).toBe(false);
   });
 });
 
@@ -241,9 +237,8 @@ describe("Giao hàng · bảng kế hoạch", () => {
 describe("Giao hàng · không để chuyến nào tắc", () => {
   // Mỗi trạng thái "đang chạy" phải có ĐÚNG một nút đưa nó đi tiếp. Thiếu một nút thì chuyến
   // nằm lại đó vĩnh viễn — API có mà giao diện quên là loại lỗi không ai báo, chỉ thấy "đơn này
-  // sao mãi chưa xong".
+  // sao mãi chưa xong". Trừ "Chờ kho xuất": kho ghi sổ phiếu xuất là chuyến tự đi tiếp (12/10/2026).
   const buoc: [string, RegExp][] = [
-    ["dang_chuan_bi", /Đã lấy hàng/],
     ["da_lay_hang", /Bắt đầu giao/],
     ["dang_giao", /Nhập kết quả/],
     // Chuyến CŨ chưa có yêu cầu nhập trả hàng — còn nút lập phiếu trả kho.
@@ -256,6 +251,14 @@ describe("Giao hàng · không để chuyến nào tắc", () => {
       expect(await screen.findByRole("button", { name: nut })).toBeInTheDocument();
     });
   }
+
+  it("⭐ chờ kho xuất ⇒ KHÔNG có nút Đã lấy hàng: kho ghi sổ phiếu xuất là chuyến tự đi tiếp", async () => {
+    // Lỗi thật 12/10/2026: nút chỉ gác "đã gửi kho" nên tài xế bấm được cả khi kho chưa lập phiếu.
+    stubApi({ trips: [{ ...CHUYEN, trang_thai: "dang_chuan_bi", yeu_cau_kho_ma: "DNX0007" }] });
+    veDon({ can_create: true, can_plan: true });
+    expect(await screen.findByText("Chờ kho xuất")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Đã lấy hàng|Bắt đầu giao|Gửi yêu cầu xuất kho/ })).toBeNull();
+  });
 
   it("đang trả hàng đã có yêu cầu nhập ⇒ chờ THỦ KHO ghi sổ, tài xế không bấm gì", async () => {
     stubApi({ trips: [{ ...CHUYEN, trang_thai: "dang_tra_hang", tra_hang_ma: "YCN-0009", tra_hang_trang_thai: "approved" }] });
@@ -273,54 +276,87 @@ describe("Giao hàng · không để chuyến nào tắc", () => {
 
   it("chuyến chưa cầm hàng có nút Đổi / huỷ chuyến cho người lên đơn", async () => {
     stubApi({ trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach" }] });
-    ve({ can_plan: true, can_create: true });
+    veDon({ can_plan: true, can_create: true });
     const n = await moNganChuyen();
     expect(within(n).getByRole("button", { name: /Đổi \/ huỷ chuyến/ })).toBeInTheDocument();
   });
 
-  it("kho đã lập phiếu ⇒ hộp Đổi / huỷ không cho huỷ, bảo kho huỷ phiếu trước", async () => {
+  it("kho đã lập phiếu ⇒ bấm Huỷ chuyến chỉ báo lý do, không có nút xác nhận huỷ", async () => {
     stubApi({ trips: [{ ...CHUYEN, trang_thai: "dang_chuan_bi", yeu_cau_kho_ma: "YCX-0007",
       kho_da_lap_phieu: true }] });
-    ve({ can_plan: true, can_create: true });
+    veDon({ can_plan: true, can_create: true });
     const n = await moNganChuyen();
     await userEvent.click(within(n).getByRole("button", { name: /Đổi \/ huỷ chuyến/ }));
-    expect(screen.getByText(/báo kho huỷ phiếu trước/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Huỷ chuyến" })).toBeNull();
+    const ngan = await screen.findByRole("dialog", { name: "Đổi chuyến" });
+    await userEvent.click(within(ngan).getByRole("button", { name: "Huỷ chuyến" }));
+    expect(await screen.findByText(/báo kho huỷ phiếu trước/i)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Lý do huỷ" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Huỷ chuyến" })).toHaveLength(1);
+  });
+
+  it("⭐ ngăn Đổi chuyến: đổi phụ xe trên danh sách người, Lưu gửi phụ xe + ghi chú, không đụng tài xế", async () => {
+    // Phương án A 12/10/2026: dùng lại danh sách người của Lên đơn, đổi được cả phụ xe.
+    const goi = stubApi({
+      trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach", xe_bien_so: "51D-853.66" }],
+      taiXe: [
+        { id: 5, code: "NVGH01", full_name: "Trần Văn Hùng", department: "Kho", co_tai_khoan: true, co_thao_tac: true },
+        { id: 6, code: "NVGH02", full_name: "Lê Văn Phụ", department: "Kho", co_tai_khoan: true, co_thao_tac: true },
+      ],
+      rieng: (u) => (u.endsWith("/plans/1") ? { trip: CHUYEN, canh_bao: [] } : undefined),
+    });
+    veDon({ can_plan: true, can_create: true });
+    const n = await moNganChuyen();
+    await userEvent.click(within(n).getByRole("button", { name: /Đổi \/ huỷ chuyến/ }));
+    const ngan = await screen.findByRole("dialog", { name: "Đổi chuyến" });
+    expect(within(ngan).getByText("51D-853.66")).toBeInTheDocument();
+    expect(within(ngan).getByRole("button", { name: "Lưu thay đổi" })).toBeDisabled();
+    expect(await within(ngan).findByRole("button", { name: "Tài xế: Trần Văn Hùng" }))
+      .toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(within(ngan).getByRole("button", { name: "Phụ xe: Lê Văn Phụ" }));
+    await userEvent.type(within(ngan).getByRole("textbox", { name: "Ghi chú cho kíp xe" }), "Gọi bảo vệ");
+    await userEvent.click(within(ngan).getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(goi.some((g) => g.url.endsWith("/plans/1") && g.body)).toBe(true));
+    expect(goi.find((g) => g.url.endsWith("/plans/1") && g.body)!.body)
+      .toEqual({ phu_xe_employee_id: 6, ghi_chu_phan_cong: "Gọi bảo vệ" });
+  });
+
+  it("Huỷ chuyến hỏi lý do ⇒ gửi lý do lên máy chủ", async () => {
+    const goi = stubApi({
+      trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach" }],
+      rieng: (u) => (u.endsWith("/plans/1/huy") ? CHUYEN : undefined),
+    });
+    veDon({ can_plan: true, can_create: true });
+    const n = await moNganChuyen();
+    await userEvent.click(within(n).getByRole("button", { name: /Đổi \/ huỷ chuyến/ }));
+    const ngan = await screen.findByRole("dialog", { name: "Đổi chuyến" });
+    await userEvent.click(within(ngan).getByRole("button", { name: "Huỷ chuyến" }));
+    const oLyDo = await screen.findByRole("textbox", { name: "Lý do huỷ" });
+    const xacNhan = () => screen.getAllByRole("button", { name: "Huỷ chuyến" }).at(-1)!;
+    expect(xacNhan()).toBeDisabled();
+    await userEvent.type(oLyDo, "Khách dời ngày");
+    await userEvent.click(xacNhan());
+    await waitFor(() => expect(goi.some((g) => g.url.endsWith("/plans/1/huy"))).toBe(true));
+    expect(goi.find((g) => g.url.endsWith("/plans/1/huy"))!.body).toEqual({ ly_do: "Khách dời ngày" });
   });
 });
 
 describe("Giao hàng · yêu cầu xuất kho là chứng từ CỦA KHO", () => {
-  it("⭐ chưa gửi ⇒ hiện nút Gửi yêu cầu xuất kho", async () => {
-    // Hàng ra khỏi kho phải có phiếu kho — giao khách không ngoại lệ. Ba bản trước đều lách
-    // (tự sinh · chứng từ song song · bỏ hẳn phiếu), chủ chốt bắt ba lần mới sửa (19/08/2026).
+  it("⭐ lên đơn là gửi kho ⇒ KHÔNG còn nút Gửi yêu cầu xuất kho, kể cả chuyến cũ chưa gửi", async () => {
+    // Hàng ra khỏi kho vẫn phải có phiếu kho — nhưng lên đơn rồi thì kiểu gì cũng gửi, nên máy
+    // chủ gửi luôn lúc lên đơn (12/10/2026) thay vì bắt điều phối bấm thêm một nút.
     stubApi({ trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach", yeu_cau_kho_ma: null }] });
-    ve({ can_plan: true });
-    expect(await screen.findByRole("button", { name: /Gửi yêu cầu xuất kho/ }))
-      .toBeInTheDocument();
-  });
-
-  it("⭐ đã gửi rồi ⇒ KHÔNG bày lại nút", async () => {
-    // Gửi hai lần là hai chứng từ kho cho một chuyến — kho soạn hàng hai lượt.
-    stubApi({ trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach" }] });
-    ve({ can_plan: true });
+    veDon({ can_plan: true, can_create: true });
     await waitFor(() => expect(screen.getByText("YCGH-260819-A1B2")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: /Gửi yêu cầu xuất kho/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Gửi yêu cầu xuất kho/ })).toBeNull();
   });
 
   it("mã DNX KHÔNG bày ở cột Thao tác", async () => {
     // Nó không phải thao tác, không có nhãn, đứng cạnh nút thì trông như một nút hỏng
     // (chủ chốt 20/08/2026). Mã vẫn còn ở chi tiết yêu cầu, chỗ có ngữ cảnh để đọc.
     stubApi({ trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach" }] });
-    ve({ can_plan: true });
+    veDon({ can_plan: true });
     await waitFor(() => expect(screen.getByText("YCGH-260819-A1B2")).toBeInTheDocument());
     expect(screen.queryByText("DNX0007")).toBeNull();
-  });
-
-  it("không có ô Lên kế hoạch ⇒ không gửi được", async () => {
-    stubApi({ trips: [{ ...CHUYEN, trang_thai: "da_len_ke_hoach", yeu_cau_kho_ma: null }] });
-    ve({ can_create: true });
-    await waitFor(() => expect(screen.getByText("YCGH-260819-A1B2")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: /Gửi yêu cầu xuất kho/ })).not.toBeInTheDocument();
   });
 });
 
@@ -353,23 +389,22 @@ describe("Giao hàng · ô kết quả phải hiện SỐ LƯỢNG", () => {
     stubApi({ trips: [CHUYEN] });
     ve({ can_create: true });
     await userEvent.click(await screen.findByRole("button", { name: /Nhập kết quả/ }));
-    if (kq) await userEvent.selectOptions(await screen.findByLabelText(/^Kết quả/), kq);
+    if (kq) await userEvent.click(await screen.findByRole("radio", { name: kq }));
   }
 
-  it("⭐ Giao thành công vẫn hiện số lượng của TỪNG dòng hàng", async () => {
+  it("⭐ Nhận đủ vẫn hiện số lượng của TỪNG dòng hàng", async () => {
     // Trước đây chọn "Giao thành công" là máy tự điền, người bấm không thấy mình xác nhận bao
     // nhiêu — mà đó là con số cộng thẳng vào "đã giao" của đơn.
     await moKetQua();
-    const o1 = await screen.findByLabelText(/Số thực nhận — Hộp thuốc/);
-    const o2 = screen.getByLabelText(/Số thực nhận — Tờ hướng dẫn/);
-    expect(o1).toHaveValue(119);
-    expect(o2).toHaveValue(119);
-    // Thành công = nhận đủ ⇒ khoá ô; muốn sửa số thì đổi kết quả sang Giao thiếu.
-    expect(o1).toBeDisabled();
+    const h = await screen.findByRole("dialog", { name: /^Tới / });
+    await waitFor(() => expect(within(h).getAllByRole("listitem")).toHaveLength(2));
+    for (const li of within(h).getAllByRole("listitem")) expect(li).toHaveTextContent(/119/);
+    // Nhận đủ = số là CHỮ, không có ô; muốn sửa số thì đổi kết quả sang Nhận thiếu.
+    expect(screen.queryByLabelText(/Số thực nhận — Hộp thuốc/)).toBeNull();
   });
 
   it("Giao thiếu ⇒ mở khoá ô để sửa", async () => {
-    await moKetQua("giao_thieu");
+    await moKetQua("Nhận thiếu");
     expect(await screen.findByLabelText(/Số thực nhận — Hộp thuốc/)).toBeEnabled();
   });
 
@@ -378,7 +413,7 @@ describe("Giao hàng · ô kết quả phải hiện SỐ LƯỢNG", () => {
     const goi = stubApi({ trips: [CHUYEN] });
     ve({ can_create: true });
     await userEvent.click(await screen.findByRole("button", { name: /Nhập kết quả/ }));
-    await userEvent.selectOptions(await screen.findByLabelText(/^Kết quả/), "giao_thieu");
+    await userEvent.click(await screen.findByRole("radio", { name: "Nhận thiếu" }));
 
     const o1 = await screen.findByLabelText(/Số thực nhận — Hộp thuốc/);
     await userEvent.clear(o1);
@@ -402,10 +437,10 @@ describe("Giao hàng · KHO LẬP PHIẾU ⇒ \"Kho đã chuẩn bị xong\"", (
   // chữ ở đây đổi theo sổ kho (`kho_da_lap_phieu` suy từ `stock_vouchers`, không phải cột lưu).
   const dangChuanBi = { ...CHUYEN, trang_thai: "dang_chuan_bi" };
 
-  it("chưa lập phiếu ⇒ vẫn là \"Kho đang chuẩn bị\"", async () => {
+  it("chưa lập phiếu ⇒ vẫn là \"Chờ kho xuất\"", async () => {
     stubApi({ trips: [{ ...dangChuanBi, kho_da_lap_phieu: false }] });
     ve({ can_read: true });
-    expect(await screen.findByText("Kho đang chuẩn bị")).toBeInTheDocument();
+    expect(await screen.findByText("Chờ kho xuất")).toBeInTheDocument();
     expect(screen.queryByText("Kho đã chuẩn bị xong")).toBeNull();
   });
 
@@ -480,9 +515,9 @@ describe("Giao hàng · KM ngày và KM tháng là HAI cột", () => {
   });
 });
 
-describe("Giao hàng · cảnh báo tài xế chưa bấm nút được", () => {
-  // Chủ chốt hỏi "là sao chưa hiểu cái này lắm" (20/08/2026) — câu cũ gộp HAI tình huống vào
-  // một, nên không chỉ được đi đâu sửa. Giờ tách: chưa có TÀI KHOẢN vs thiếu ô THAO TÁC.
+describe("Giao hàng · chọn tài xế không cảnh báo quyền", () => {
+  // 12/10/2026 chủ bỏ cảnh báo "chưa cấp quyền / chưa có tài khoản" ở ngăn lên đơn — người lên đơn
+  // phân chuyến cho ai cũng được, chuyện tài xế có bấm được nút hay không không phải việc của ngăn này.
   const YC = {
     id: 7, code: "YCGH-260819-A1B2", order_id: 3, order_code: "DH-GH-03",
     customer_name: "Dược phẩm Sao Mai", ngay_can_giao: "2026-08-26", dia_chi: "Lô C3",
@@ -490,35 +525,15 @@ describe("Giao hàng · cảnh báo tài xế chưa bấm nút được", () => 
     created_at: "2026-08-19T10:00:00Z",
   };
 
-  async function moLenKeHoach(taiXe: unknown[]) {
-    stubApi({ requests: [YC], taiXe });
+  it("tài xế chưa có tài khoản ⇒ không thẻ, không băng cảnh báo", async () => {
+    stubApi({ requests: [YC], taiXe: [{ id: 9, code: "NV9", full_name: "Tài Xế A", department: "Giao hàng",
+                                        co_tai_khoan: false, co_thao_tac: false }] });
     ve({ can_plan: true, can_read: true });
     await userEvent.click(await screen.findByRole("tab", { name: /Yêu cầu giao/ }));
     await userEvent.click(await screen.findByRole("button", { name: /Lên đơn giao/ }));
-    // Ngăn lên đơn (phương án B, 07/10/2026): chọn tài xế bằng nút "Tài xế" trên hàng người.
     await userEvent.click(await screen.findByRole("button", { name: /^Tài xế: Tài Xế/ }));
-  }
-
-  it("⭐ chưa có TÀI KHOẢN ⇒ nói đúng thiếu tài khoản", async () => {
-    await moLenKeHoach([{ id: 9, code: "NV9", full_name: "Tài Xế A", department: "Giao hàng",
-                          co_tai_khoan: false, co_thao_tac: false }]);
-    const canh = await screen.findByRole("status");
-    expect(canh).toHaveTextContent(/chưa có tài khoản/i);
-    expect(canh).toHaveTextContent(/bấm hộ/i);
-  });
-
-  it("⭐ có tài khoản nhưng THIẾU Ô THAO TÁC ⇒ nói đúng thiếu quyền", async () => {
-    await moLenKeHoach([{ id: 9, code: "NV9", full_name: "Tài Xế B", department: "Giao hàng",
-                          co_tai_khoan: true, co_thao_tac: false }]);
-    const canh = await screen.findByRole("status");
-    expect(canh).toHaveTextContent(/chưa được cấp quyền thao tác/i);
-    expect(canh).toHaveTextContent(/bấm hộ/i);
-  });
-
-  it("đủ ô Thao tác ⇒ KHÔNG doạ gì cả", async () => {
-    await moLenKeHoach([{ id: 9, code: "NV9", full_name: "Tài Xế C", department: "Giao hàng",
-                          co_tai_khoan: true, co_thao_tac: true }]);
     expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText(/Chưa có tài khoản|Chưa cấp quyền/i)).toBeNull();
   });
 });
 
@@ -546,6 +561,21 @@ describe("Giao hàng · cột Hàng một dòng: món đầu + thẻ số món c
     expect(await screen.findByText("Hộp thuốc 10 vỉ — in 2 màu, cán bóng")).toBeInTheDocument();
     expect(screen.getByText("+1 món")).toBeInTheDocument();
     expect(screen.queryByText("Tờ hướng dẫn sử dụng — gấp 3")).toBeNull();
+  });
+
+  it("⭐ cụm Ruột + Bìa là MỘT quyển: tên cụm, không \"+1 món\", ô SL có số (12/10/2026)", async () => {
+    const cum = { cum_khoa: "sach a5|300", cum_ten: "Sách A5 64 trang", cum_dvt: "cuốn" };
+    stubApi({ requests: [{ ...YC2, lines: [
+      { id: 1, order_line_id: 11, qty: 300, mo_ta: "Ruột sách A5 64 trang", don_vi_tinh: "cuốn", da_giao: 0, ...cum },
+      { id: 2, order_line_id: 12, qty: 300, mo_ta: "Bìa sách A5", don_vi_tinh: "cuốn", da_giao: 0, ...cum },
+    ] }] });
+    ve({ can_plan: true, can_read: true });
+    await userEvent.click(await screen.findByRole("tab", { name: /Yêu cầu giao/ }));
+    const o = await screen.findByText("Sách A5 64 trang");
+    expect(o.closest("td")?.getAttribute("title")).toBe("Sách A5 64 trang: 300 cuốn (Ruột sách A5 64 trang + Bìa sách A5)");
+    expect(screen.queryByText("+1 món")).toBeNull();
+    expect(screen.queryByText("Ruột sách A5 64 trang")).toBeNull();
+    expect(o.closest("tr")).toHaveTextContent("300cuốn");
   });
 });
 
@@ -608,8 +638,6 @@ describe("Giao hàng · LƯỢT XE — lên đơn vào lượt (PRD khoán km §
     await userEvent.click(await screen.findByRole("button", { name: /Lên đơn giao/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
     await userEvent.click(await screen.findByRole("radio", { name: /51D-853\.66/ }));
-    datNgayGio(document.body, "Lấy hàng", "2026-09-18T08:00");
-    datNgayGio(document.body, "Dự kiến giao", "2026-09-18T10:00");
     return goi;
   }
 
@@ -681,15 +709,24 @@ describe("Giao hàng · ngăn LÊN ĐƠN phương án B (07/10/2026)", () => {
     expect(within(hop).getByText("Không có ai khớp «zzz»")).toBeInTheDocument();
   });
 
-  it("⭐ tìm xe bằng vài số biển số; xe đã chọn GHIM đầu dù ô tìm không khớp nó", async () => {
+  it("⭐ bấm chọn xe thì hàng ĐỨNG YÊN chỗ cũ; xe đã chọn vẫn hiện dù ô tìm không khớp nó", async () => {
     const hop = await mo();
-    await userEvent.click(await within(hop).findByRole("radio", { name: /51K-77404/ }));
-    fireEvent.change(within(hop).getByRole("searchbox", { name: "Tìm xe" }), { target: { value: "40752" } });
-    const xe = within(within(hop).getByRole("radiogroup", { name: "Xe" })).getAllByRole("radio");
-    expect(xe.map((r) => r.textContent)).toEqual([
+    const dsXe = () => within(within(hop).getByRole("radiogroup", { name: "Xe" })).getAllByRole("radio");
+    await userEvent.click(await within(hop).findByRole("radio", { name: /51D-40752/ }));
+    expect(dsXe().map((r) => r.textContent)).toEqual([
       expect.stringContaining("51K-77404"), expect.stringContaining("51D-40752"),
     ]);
-    expect(xe[0]).toHaveAttribute("aria-checked", "true");
+    expect(dsXe()[1]).toHaveAttribute("aria-checked", "true");
+    fireEvent.change(within(hop).getByRole("searchbox", { name: "Tìm xe" }), { target: { value: "77404" } });
+    expect(dsXe().map((r) => r.textContent)).toEqual([
+      expect.stringContaining("51K-77404"), expect.stringContaining("51D-40752"),
+    ]);
+  });
+
+  it("⭐ bấm Tài xế người cuối danh sách thì người đó không nhảy lên đầu", async () => {
+    const hop = await mo();
+    await userEvent.click(await within(hop).findByRole("button", { name: "Tài xế: Trần Hoàng Giang" }));
+    expect(tenNguoi(hop)).toEqual(["Nguyễn Văn Việt", "Trần Phong Vũ", "Trần Hoàng Giang"]);
   });
 
   it("⭐ một người không vừa tài xế vừa phụ xe; bấm Phụ xe người đang là tài xế thì đổi vai", async () => {
@@ -701,13 +738,83 @@ describe("Giao hàng · ngăn LÊN ĐƠN phương án B (07/10/2026)", () => {
     expect(within(hop).getByText("Còn thiếu xe và tài xế.")).toBeInTheDocument();
   });
 
-  it("⭐ giờ lấy hàng mặc định BÂY GIỜ, dự kiến giao mặc định bây giờ + 2 tiếng", async () => {
+  it("⭐ hộp Lên đơn KHÔNG còn ô giờ lấy hàng / dự kiến giao (mg 0400)", async () => {
     const hop = await mo();
-    const lay = docNgayGio(hop, "Lấy hàng");
-    const giao = docNgayGio(hop, "Dự kiến giao");
-    expect(lay).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
-    expect(Math.abs(new Date(lay).getTime() - Date.now())).toBeLessThan(2 * 60_000);
-    expect(new Date(giao).getTime() - new Date(lay).getTime()).toBe(2 * 3_600_000);
+    await within(hop).findByRole("button", { name: "Tài xế: Nguyễn Văn Việt" });
+    expect(within(hop).queryByText("Thời gian")).toBeNull();
+    expect(within(hop).queryByRole("textbox", { name: /Lấy hàng|Dự kiến giao/ })).toBeNull();
+  });
+});
+
+describe("Giao hàng · bước ĐỀ NGHỊ XUẤT KHO sau Lên đơn (mg 0400, 12/10/2026)", () => {
+  // Mockup docs/mockups/giao-hang-buoc-gui-kho: lưu đơn xong ngăn KHÔNG đóng mà sang đề nghị vừa
+  // gửi kho để hẹn Cần lúc + dặn kho. Hàng khoá theo yêu cầu giao.
+  const XE = { id: 3, ma: "51D-853.66", ten: "Xe tải 3.5T", tai_trong: 3.5, active: true };
+  const YC = {
+    id: 7, code: "YCGH-260819-A1B2", order_id: 3, order_code: "DH-GH-03",
+    customer_name: "Dược phẩm Sao Mai", ngay_can_giao: "2026-09-18", dia_chi: "Lô C3",
+    trang_thai: "cho_len_ke_hoach", lines: [], so_lan_giao: 0, trang_thai_lsx: [],
+    created_at: "2026-09-18T01:00:00Z",
+  };
+  const DN = {
+    id: 90, ma: "DNX0094", trip_id: 1, request_code: YC.code, customer_name: "Dược phẩm Sao Mai",
+    order_code: "DH-GH-03", ngay_can_giao: "2099-09-18", ngay_can: "2099-09-18", can_luc: null,
+    ghi_chu: null, kho_ten: "Kho thành phẩm", sua_duoc: true,
+    hang: [{ ten: "Hộp thuốc 10 vỉ", ma: "TP-00002", so_luong: 119, dvt: "hộp" }],
+  };
+
+  async function lenDonXong(deNghi: unknown[]) {
+    const goi = stubApi({
+      requests: [YC], xe: [XE], deNghi,
+      rieng: (u) => (u.endsWith("/plans") ? { trip: CHUYEN, canh_bao: [], phieu: ["DNX0094"] } : undefined),
+    });
+    ve({ can_plan: true, can_read: true });
+    await userEvent.click(await screen.findByRole("tab", { name: /Yêu cầu giao/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Lên đơn giao/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
+    await userEvent.click(await screen.findByRole("radio", { name: /51D-853\.66/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Lên đơn giao hàng" }));
+    return goi;
+  }
+
+  it("⭐ lưu đơn xong ⇒ ngăn sang Đề nghị xuất kho, hàng khoá, kho thành phẩm; Lưu cho kho gửi Cần lúc + ghi chú", async () => {
+    const goi = await lenDonXong([DN]);
+    const hop = await screen.findByRole("dialog");
+    expect(await within(hop).findByRole("heading", { name: "Đề nghị xuất kho" })).toBeInTheDocument();
+    expect(within(hop).getByText(/Đã lên đơn YCGH-260819-A1B2/)).toBeInTheDocument();
+    expect(await within(hop).findByText("Hộp thuốc 10 vỉ")).toBeInTheDocument();
+    expect(within(hop).getByText("Kho thành phẩm")).toBeInTheDocument();
+    // Mở ra là ngày cần giao của yêu cầu, giờ để trống.
+    expect(within(hop).getByRole("textbox", { name: "Ngày cần" })).toHaveValue("18/09/2099");
+    expect(within(hop).getByRole("textbox", { name: "Giờ cần" })).toHaveValue("");
+
+    const oGio = within(hop).getByRole("textbox", { name: "Giờ cần" });
+    fireEvent.change(oGio, { target: { value: "14:00" } });
+    fireEvent.blur(oGio);
+    await userEvent.type(within(hop).getByRole("textbox", { name: /Ghi chú cho kho/ }), "Dán tem khách");
+    await userEvent.click(within(hop).getByRole("button", { name: "Lưu cho kho" }));
+
+    await waitFor(() => expect(goi.some((g) => g.url.endsWith("/de-nghi-kho") && g.body)).toBe(true));
+    const body = goi.find((g) => g.url.endsWith("/de-nghi-kho") && g.body)!.body;
+    expect(body).toEqual({ ngay_can: "2099-09-18", gio_can: "14:00",
+                           dong: [{ trip_id: 1, ghi_chu: "Dán tem khách" }] });
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Đề nghị xuất kho" })).toBeNull());
+  });
+
+  it("Để sau ⇒ đóng, không gửi hẹn kho (đề nghị giữ ngày cần giao)", async () => {
+    const goi = await lenDonXong([DN]);
+    const hop = await screen.findByRole("dialog");
+    await within(hop).findByText("Hộp thuốc 10 vỉ");
+    await userEvent.click(within(hop).getByRole("button", { name: "Để sau" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Đề nghị xuất kho" })).toBeNull());
+    expect(goi.some((g) => g.url.endsWith("/de-nghi-kho") && g.body)).toBe(false);
+  });
+
+  it("kho đã lập phiếu ⇒ bước chỉ xem, không có nút Lưu cho kho", async () => {
+    await lenDonXong([{ ...DN, sua_duoc: false }]);
+    const hop = await screen.findByRole("dialog");
+    expect(await within(hop).findByText("Kho đã lập phiếu nên không hẹn lại được nữa.")).toBeInTheDocument();
+    expect(within(hop).queryByRole("button", { name: "Lưu cho kho" })).toBeNull();
   });
 });
 
@@ -729,12 +836,12 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     vehicle_id: 3, xe_bien_so: "51D-853.66", employee_name: "Trần Văn Hùng",
     phu_xe_name: "Lê Triều", yeu_cau_kho_ma: null, luot: { ...LUOT_DIEM, ...luot },
   });
-  const khoi = (o: Record<string, unknown> = {}, tt = "da_len_ke_hoach",
+  const khoi = (o: Record<string, unknown> = {}, tt = "dang_chuan_bi",
                 luot: Record<string, unknown> = {}) => ({
     id: 4, code: "LX-260918-AB12", ngay: "2026-09-18", vehicle_id: 3, xe_bien_so: "51D-853.66",
     xe_ten: "Xe tải 3.5T", so_dong_ho_xuat_phat: null, so_dong_ho_ve_kho: null, ve_kho_luc: null,
     km_ve_kho: null, goi_y_xuat_phat: 12000, so_dong_ho_gan_nhat: null, cho_ve_kho: false,
-    tong_km: 0, so_cho_gui_kho: 0, so_cho_lay_hang: 0, so_cho_bat_dau: 0, so_dang_giao: 0,
+    tong_km: 0, so_cho_lay_hang: 0, so_cho_bat_dau: 0, so_dang_giao: 0,
     created_at: "2026-09-18T01:00:00Z",
     diem: [diem(31, 21, "YCGH-260918-AAAA", "Young Poong", tt, luot),
            diem(32, 22, "YCGH-260918-BBBB", "AOBO", tt, luot)],
@@ -747,9 +854,9 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     return screen.findByRole("dialog", { name: "LX-260918-AB12" });
   };
 
-  it("⭐ một dòng MỘT hàng (phương án A 07/10/2026): xe, người giao, điểm ĐẦU + thẻ \"+N điểm\", nút bước kế tiếp", async () => {
-    stubApi({ khoi: [khoi({ so_cho_gui_kho: 2 })] });
-    ve({ can_plan: true });
+  it("⭐ một dòng MỘT hàng (phương án A 07/10/2026): xe, người giao, điểm ĐẦU + thẻ \"+N điểm\", tình trạng", async () => {
+    stubApi({ khoi: [khoi({ so_cho_lay_hang: 2 })] });
+    veDon({ can_plan: true });
     const d = await dong();
     expect(within(d).getByText("51D-853.66")).toBeInTheDocument();
     expect(within(d).getByText("Trần Văn Hùng")).toBeInTheDocument();
@@ -764,19 +871,36 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     // Bỏ số nhà đầu và tỉnh cuối — đủ để biết điểm nằm vùng nào.
     expect(within(d).getByText("KCN VSIP 1, Phường Thuận An")).toBeInTheDocument();
     expect(within(d).getByText("19/09")).toBeInTheDocument();
-    expect(within(d).getByRole("button", { name: "Gửi yêu cầu xuất kho (2)" })).toBeInTheDocument();
+    // Chờ kho xuất thì dòng không có nút — kho ghi sổ là lượt tự đi tiếp.
+    expect(within(d).getByText("Chờ kho xuất")).toBeInTheDocument();
+    expect(within(d).queryByRole("button")).toBeNull();
     // Tab không mang số đếm (luật chung 07/10/2026) — số đơn đã nằm ở chân bảng.
     expect(screen.getByRole("tab", { name: /Đơn giao hàng/ })).not.toHaveTextContent(/\d/);
   });
 
-  it("⭐ bấm dòng ⇒ ngăn có lộ trình Rời kho → từng khách → Về kho, thẻ khách đủ nơi giao và người nhận", async () => {
-    stubApi({ khoi: [khoi({ so_cho_gui_kho: 2 })] });
-    ve({ can_plan: true });
+  it("⭐ dòng lượt báo trễ hẹn theo điểm trễ nhất + số điểm trễ (12/10/2026)", async () => {
+    // Hẹn 19/09: điểm 1 khách nhận 22/09 (trễ 3 ngày), điểm 2 nhận đúng 19/09.
+    const k = khoi({ so_dong_ho_xuat_phat: 12000 }, "thanh_cong");
+    const diemTre = [{ ...k.diem[0], thoi_gian_ket_thuc: "2026-09-22T03:00:00Z" },
+                     { ...k.diem[1], thoi_gian_ket_thuc: "2026-09-19T03:00:00Z" }];
+    stubApi({ khoi: [{ ...k, diem: diemTre }] });
+    veDon({ can_plan: true });
+    const d = await dong();
+    expect(within(d).getByText("Trễ 3 ngày")).toBeInTheDocument();
+    expect(within(d).getByText("1/2 điểm trễ")).toBeInTheDocument();
+  });
+
+  it("⭐ bấm dòng ⇒ dải lộ trình Rời kho → từng khách → Về kho, chọn sẵn điểm đầu chưa có kết quả", async () => {
+    // Phương án C (12/10/2026): cả lượt là MỘT dải ô, chỉ thẻ của ô đang chọn hiện ra.
+    stubApi({ khoi: [khoi({ so_cho_lay_hang: 2 })] });
+    veDon({ can_plan: true });
     const n = await moNgan();
     expect(within(n).getByRole("tab", { name: /Lộ trình/ })).toHaveAttribute("aria-selected", "true");
     const lt = within(n).getByRole("list", { name: "Lộ trình" });
-    expect(within(lt).getByText("Chưa rời kho")).toBeInTheDocument();
-    expect(within(lt).getByText("Về kho")).toBeInTheDocument();
+    expect(within(lt).getAllByRole("button").map((b) => b.getAttribute("aria-label")))
+      .toEqual(["Mốc rời kho", "Điểm 1 Young Poong", "Điểm 2 AOBO", "Mốc về kho"]);
+    expect(within(lt).getByRole("button", { name: "Điểm 1 Young Poong" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(n).queryByRole("article", { name: "Điểm 2 AOBO" })).toBeNull();
     const d1 = within(n).getByRole("article", { name: "Điểm 1 Young Poong" });
     expect(within(d1).getByText(/Số 18 Đại lộ Độc Lập/)).toBeInTheDocument();
     expect(within(d1).getByRole("link", { name: "Mở bản đồ" })).toHaveAttribute(
@@ -784,8 +908,16 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     expect(within(d1).getByRole("link", { name: "0797 235 637" })).toHaveAttribute("href", "tel:0797235637");
     // Hàng của điểm đọc từ chi tiết yêu cầu.
     expect(await within(d1).findByText("Hộp thuốc 10 vỉ")).toBeInTheDocument();
-    // Bước cả lượt ở đầu ngăn.
-    expect(within(n).getByRole("button", { name: "Gửi yêu cầu xuất kho (2)" })).toBeInTheDocument();
+    // Chờ kho xuất: đầu ngăn không có nút, chỉ một câu nói lượt đang chờ ai.
+    expect(within(n).getByText(/Kho ghi sổ phiếu xuất xong thì điểm đó tự sang Đã lấy hàng/)).toBeInTheDocument();
+    expect(within(n).queryByRole("button", { name: /Gửi yêu cầu xuất kho|Đã lấy hàng/ })).toBeNull();
+    // Bấm ô khác trên dải ⇒ thẻ đổi theo; ô Rời kho nói xe chưa rời.
+    await userEvent.click(within(lt).getByRole("button", { name: "Điểm 2 AOBO" }));
+    expect(within(n).getByRole("article", { name: "Điểm 2 AOBO" })).toBeInTheDocument();
+    expect(within(n).queryByRole("article", { name: "Điểm 1 Young Poong" })).toBeNull();
+    await userEvent.click(within(lt).getByRole("button", { name: "Mốc rời kho" }));
+    expect(within(within(n).getByRole("article", { name: "Rời kho" })).getByText(/Xe chưa rời kho/))
+      .toBeInTheDocument();
   });
 
   it("⭐ tab Chứng từ: mỗi đơn một bộ giấy tờ — chọn đơn nào chỉ hiện giấy tờ của đơn đó", async () => {
@@ -797,16 +929,23 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     const n = await moNgan();
     await userEvent.click(within(n).getByRole("tab", { name: "Chứng từ" }));
     const ray = within(n).getByRole("navigation", { name: "Đơn trong lượt" });
-    expect(within(ray).getAllByRole("button")).toHaveLength(2);
-    expect(within(n).getByText("YCGH-260918-AAAA")).toBeInTheDocument();
-    expect(within(n).getByText("PXK-0001")).toBeInTheDocument();
-    expect(within(n).getByText("Đã xuất kho")).toBeInTheDocument();
+    expect(within(ray).getAllByRole("button", { pressed: false }).length
+      + within(ray).getAllByRole("button", { pressed: true }).length).toBe(2);
+    // Mã yêu cầu giao nằm ở thẻ đơn cột trái, bấm mở yêu cầu (13/10/2026).
+    expect(within(ray).getByRole("button", { name: "YCGH-260918-AAAA" })).toBeInTheDocument();
+    expect(within(ray).getByRole("button", { name: "YCGH-260918-BBBB" })).toBeInTheDocument();
+    const giay = within(n).getByRole("list", { name: "Giấy tờ của đơn" });
+    expect(within(giay).queryByText(/YCGH-/)).toBeNull();
+    // PXK một số: thẻ phiếu ở dòng đề nghị + số của phiếu xuất kho bán hàng.
+    expect(within(giay).getAllByText("PXK-0001")).toHaveLength(2);
+    expect(within(giay).getByText("Phiếu xuất kho bán hàng")).toBeInTheDocument();
+    expect(within(giay).getByText("Đã xuất kho")).toBeInTheDocument();
 
     await userEvent.click(within(ray).getByRole("button", { name: /AOBO/ }));
-    expect(within(n).getByText("YCGH-260918-BBBB")).toBeInTheDocument();
-    expect(within(n).queryByText("YCGH-260918-AAAA")).toBeNull();
-    expect(within(n).queryByText("PXK-0001")).toBeNull();
-    expect(within(n).getByText("Chưa gửi kho")).toBeInTheDocument();
+    const giay2 = within(n).getByRole("list", { name: "Giấy tờ của đơn" });
+    expect(within(giay2).queryByText("PXK-0001")).toBeNull();
+    expect(within(giay2).getByText("Chưa gửi kho")).toBeInTheDocument();
+    expect(within(giay2).getByText("Chờ kho xuất")).toBeInTheDocument();
     // Tệp đính kèm nạp theo ĐÚNG chuyến của đơn đang chọn.
     await waitFor(() => expect(goi.some((g) => g.url.includes("/trips/32/dinh-kem"))).toBe(true));
   });
@@ -849,56 +988,41 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
   it("⭐ KHÔNG có nút lẻ gửi kho / lấy hàng / bắt đầu giao ở từng điểm của lượt", async () => {
     // Hai chỗ bấm cho cùng một việc là chỗ rối nhất của bản trước (bấm thử 18/09/2026).
     stubApi({ khoi: [khoi({ so_cho_lay_hang: 1, so_cho_bat_dau: 1 }, "dang_chuan_bi")] });
-    ve({ can_plan: true, can_create: true });
+    veDon({ can_plan: true, can_create: true });
     const n = await moNgan();
     for (const a of within(n).getAllByRole("article"))
       for (const ten of [/Gửi yêu cầu xuất kho/, /Đã lấy hàng/, /Bắt đầu giao/])
         expect(within(a).queryByRole("button", { name: ten })).toBeNull();
-    // …mà chỉ còn nút CẢ LƯỢT ở đầu ngăn; lượt lệch nhịp thì có cả bước kế tiếp.
-    expect(within(n).getByRole("button", { name: "Đã lấy hàng cả lượt (1)" })).toBeInTheDocument();
+    // …mà chỉ còn nút CẢ LƯỢT ở đầu ngăn; lượt lệch nhịp (một điểm kho chưa xuất) vẫn bắt đầu giao
+    // được điểm đã xuất.
+    expect(within(n).queryByRole("button", { name: /Đã lấy hàng/ })).toBeNull();
     expect(within(n).getByRole("button", { name: "Bắt đầu giao (1 điểm)" })).toBeInTheDocument();
   });
 
-  it("⭐ chờ gửi kho ⇒ nút trên dòng mở ngăn sẵn ô ghi chú, gửi MỘT lệnh cho cả lượt", async () => {
-    const goi = stubApi({
-      khoi: [khoi({ so_cho_gui_kho: 2 })],
-      rieng: (u) => (u.endsWith("/luot-xe/4/yeu-cau-xuat-kho")
-        ? { so_chuyen: 2, phieu: ["DNX0101", "DNX0102"], canh_bao: [] } : undefined),
-    });
-    ve({ can_plan: true });
-    await userEvent.click(within(await dong()).getByRole("button", { name: "Gửi yêu cầu xuất kho (2)" }));
-    const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
-    await userEvent.type(within(n).getByLabelText(/Ghi chú cho kho/), "Soạn trước 7h");
-    await userEvent.click(within(n).getByRole("button", { name: "Gửi 2 phiếu" }));
-    expect(await within(n).findByText(/Đã gửi 2 phiếu yêu cầu xuất kho: DNX0101, DNX0102/))
-      .toBeInTheDocument();
-    expect(goi.filter((g) => g.url.includes("/yeu-cau-xuat-kho"))).toHaveLength(1);
-    expect(goi.find((g) => g.url.endsWith("/luot-xe/4/yeu-cau-xuat-kho"))!.body)
-      .toEqual({ ghi_chu: "Soạn trước 7h" });
-  });
-
-  it("không có ô Lên kế hoạch ⇒ cả dòng lẫn ngăn KHÔNG bày nút gửi kho", async () => {
-    stubApi({ khoi: [khoi({ so_cho_gui_kho: 2 })] });
-    ve({ can_create: true });
-    expect(within(await dong()).queryByRole("button", { name: /Gửi yêu cầu xuất kho/ })).toBeNull();
+  it("⭐ kho mới xuất MỘT điểm ⇒ lượt nói \"Kho đã xuất 1/2\", không phải Đã lấy hàng", async () => {
+    // Lỗi thật 12/10/2026: lấy 1/3 điểm mà cả lượt ghi "Đã lấy hàng", ngoài bảng lẫn đầu ngăn.
+    const k = khoi({ so_cho_lay_hang: 1, so_cho_bat_dau: 1 });
+    k.diem = [{ ...k.diem[0], trang_thai: "da_lay_hang" }, k.diem[1]] as never;
+    stubApi({ khoi: [k] });
+    veDon({ can_plan: true, can_create: true });
+    const d = await dong();
+    expect(within(d).getByText("Kho đã xuất 1/2")).toBeInTheDocument();
+    expect(within(d).queryByText("Đã lấy hàng")).toBeNull();
     const n = await moNgan();
-    expect(within(n).queryByRole("button", { name: /Gửi yêu cầu xuất kho/ })).toBeNull();
+    expect(within(n).getAllByText("Kho đã xuất 1/2").length).toBeGreaterThan(0);
   });
 
-  it("Đã lấy hàng cả lượt ⇒ MỘT lệnh, bấm thẳng trên dòng không cần mở ngăn", async () => {
-    const goi = stubApi({
-      khoi: [khoi({ so_cho_lay_hang: 2 }, "dang_chuan_bi")],
-      rieng: (u) => (u.endsWith("/luot-xe/4/da-lay-hang")
-        ? { so_chuyen: 2, phieu: [], canh_bao: [] } : undefined),
-    });
-    ve({ can_create: true });
-    await userEvent.click(within(await dong()).getByRole("button", { name: "Đã lấy hàng cả lượt (2)" }));
-    expect(await screen.findByText("Đã lấy hàng 2 điểm.")).toBeInTheDocument();
-    expect(goi.filter((g) => g.url.includes("da-lay-hang"))).toHaveLength(1);
-    expect(screen.queryByRole("dialog")).toBeNull();
+  it("⭐ kho lập phiếu đủ mọi điểm ⇒ lượt nói \"Kho đã chuẩn bị xong\", vẫn không có nút lấy hàng", async () => {
+    const k = khoi({ so_cho_lay_hang: 2 });
+    k.diem = k.diem.map((t) => ({ ...t, kho_da_lap_phieu: true })) as never;
+    stubApi({ khoi: [k] });
+    veDon({ can_plan: true, can_create: true });
+    const d = await dong();
+    expect(within(d).getByText("Kho đã chuẩn bị xong")).toBeInTheDocument();
+    expect(within(d).queryByRole("button")).toBeNull();
   });
 
-  it("⭐ Bắt đầu giao lần đầu hỏi số đồng hồ xuất phát; số cuối của xe chỉ là GỢI Ý, không điền sẵn", async () => {
+  it("⭐ Bắt đầu giao: có số cuối của xe ⇒ số đứng SẴN, một cú bấm là xong", async () => {
     const goi = stubApi({
       khoi: [khoi({ so_cho_bat_dau: 2 }, "da_lay_hang")],
       rieng: (u) => (u.endsWith("/luot-xe/4/bat-dau-giao")
@@ -906,27 +1030,63 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     });
     ve({ can_create: true });
     await userEvent.click(within(await dong()).getByRole("button", { name: "Bắt đầu giao (2 điểm)" }));
-    // Bấm ở dòng chỉ MỞ ô số — chưa gửi gì.
+    // Bấm ở dòng chỉ MỞ hộp — chưa gửi gì.
     expect(goi.some((g) => g.url.includes("/bat-dau-giao"))).toBe(false);
-    const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
-    const o = within(n).getByLabelText(/Số đồng hồ lúc xuất phát/);
-    // Điền sẵn thì tài xế gõ NỐI vào số cũ (lỗi E2E 27/09/2026) — ô trống, số cuối ở placeholder.
-    expect(o).toHaveValue(null);
-    expect(o).toHaveAttribute("placeholder", "Số cuối: 12000");
-    await userEvent.click(within(n).getByRole("button", { name: /Dùng số cuối/ }));
-    expect(o).toHaveValue(12000);
-    await userEvent.clear(o);
-    await userEvent.type(o, "12030");
-    await userEvent.click(within(n).getByRole("button", { name: "Bắt đầu giao 2 điểm" }));
+    const h = await screen.findByRole("dialog", { name: "Bắt đầu giao lượt LX-260918-AB12" });
+    expect(within(h).getByText("12.000")).toBeInTheDocument();
+    // Số đứng sẵn là CHỮ — không có ô điền sẵn để tài xế gõ nối vào (lỗi E2E 27/09/2026).
+    expect(within(h).queryByRole("textbox")).toBeNull();
+    await userEvent.click(within(h).getByRole("button", { name: "Bắt đầu giao" }));
     await waitFor(() =>
       expect(goi.some((g) => g.url.endsWith("/luot-xe/4/bat-dau-giao"))).toBe(true));
     expect(goi.filter((g) => g.url.includes("/bat-dau-giao"))).toHaveLength(1);   // MỘT lệnh
     expect(goi.find((g) => g.url.endsWith("/luot-xe/4/bat-dau-giao"))!.body)
+      .toEqual({ so_dong_ho_xuat_phat: 12000, xac_nhan_km_lon: false });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /Bắt đầu giao lượt/ })).toBeNull());
+  });
+
+  it("⭐ đồng hồ chỉ số khác ⇒ mở ô TRỐNG gõ lại cả số; số lùi phải tích xác nhận", async () => {
+    const goi = stubApi({
+      khoi: [khoi({ so_cho_bat_dau: 2 }, "da_lay_hang")],
+      rieng: (u) => (u.endsWith("/luot-xe/4/bat-dau-giao")
+        ? { so_chuyen: 2, phieu: [], canh_bao: [] } : undefined),
+    });
+    ve({ can_create: true });
+    await userEvent.click(within(await dong()).getByRole("button", { name: "Bắt đầu giao (2 điểm)" }));
+    const h = await screen.findByRole("dialog", { name: "Bắt đầu giao lượt LX-260918-AB12" });
+    await userEvent.click(within(h).getByRole("button", { name: "Đồng hồ chỉ số khác" }));
+    const o = within(h).getByLabelText(/Số trên đồng hồ xe lúc rời kho/);
+    expect(o).toHaveValue("");
+    await userEvent.type(o, "11990");
+    const nut = within(h).getByRole("button", { name: "Bắt đầu giao" });
+    expect(nut).toBeDisabled();
+    await userEvent.click(within(h).getByRole("checkbox", { name: /số 11.990 là đúng/ }));
+    expect(nut).toBeEnabled();
+    await userEvent.clear(o);
+    await userEvent.type(o, "12030");
+    expect(o).toHaveValue("12.030");
+    expect(within(h).getByText(/chạy thêm 30 km/)).toBeInTheDocument();
+    expect(within(h).queryByRole("checkbox")).toBeNull();
+    await userEvent.click(nut);
+    await waitFor(() =>
+      expect(goi.some((g) => g.url.endsWith("/luot-xe/4/bat-dau-giao"))).toBe(true));
+    expect(goi.find((g) => g.url.endsWith("/luot-xe/4/bat-dau-giao"))!.body)
       .toEqual({ so_dong_ho_xuat_phat: 12030, xac_nhan_km_lon: false });
   });
 
-  it("⭐ xe chạy ngoài sổ ⇒ cảnh báo ở lại cho người bấm đọc, không vụt tắt", async () => {
-    const canh = "Xe chạy ngoài sổ 30 km kể từ lượt trước (số cuối đã ghi 12000).";
+  it("lượt đầu tiên của xe (sổ chưa có số) ⇒ phải gõ", async () => {
+    stubApi({ khoi: [khoi({ so_cho_bat_dau: 2, goi_y_xuat_phat: null }, "da_lay_hang",
+      { goi_y_xuat_phat: null })] });
+    ve({ can_create: true });
+    await userEvent.click(within(await dong()).getByRole("button", { name: "Bắt đầu giao (2 điểm)" }));
+    const h = await screen.findByRole("dialog", { name: "Bắt đầu giao lượt LX-260918-AB12" });
+    expect(within(h).getByLabelText(/Số trên đồng hồ xe lúc rời kho/)).toHaveValue("");
+    expect(within(h).getByRole("button", { name: "Bắt đầu giao" })).toBeDisabled();
+    expect(within(h).queryByRole("button", { name: /Dùng số cuối/ })).toBeNull();
+  });
+
+  it("cảnh báo của máy chủ sau khi rời kho ⇒ nằm lại trên ngăn cho người bấm đọc", async () => {
+    const canh = "Còn 1 chuyến của lượt kho chưa xuất hàng — chưa bắt đầu giao.";
     stubApi({
       khoi: [khoi({ so_cho_bat_dau: 2 }, "da_lay_hang")],
       rieng: (u) => (u.endsWith("/luot-xe/4/bat-dau-giao")
@@ -934,12 +1094,10 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     });
     ve({ can_create: true });
     await userEvent.click(within(await dong()).getByRole("button", { name: "Bắt đầu giao (2 điểm)" }));
+    const h = await screen.findByRole("dialog", { name: "Bắt đầu giao lượt LX-260918-AB12" });
+    await userEvent.click(within(h).getByRole("button", { name: "Bắt đầu giao" }));
     const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
-    await userEvent.type(within(n).getByLabelText(/Số đồng hồ lúc xuất phát/), "12030");
-    await userEvent.click(within(n).getByRole("button", { name: "Bắt đầu giao 2 điểm" }));
     expect(await within(n).findByText(canh)).toBeInTheDocument();
-    await userEvent.click(within(n).getByRole("button", { name: "Đã hiểu" }));
-    await waitFor(() => expect(within(n).queryByText(canh)).toBeNull());
   });
 
   it("đã có số xuất phát (xe đi dở, bốc thêm điểm) ⇒ bấm thẳng, không hỏi lại số", async () => {
@@ -974,46 +1132,57 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     await userEvent.click(within(await dong()).getByRole("button", { name: "Nhập kết quả (2 điểm)" }));
     const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
     expect(within(n).getByText(/Tới khách nào thì bấm/)).toBeInTheDocument();
-    const nut = within(n).getAllByRole("button", { name: "Nhập kết quả" });
-    expect(nut).toHaveLength(2);
-    await userEvent.click(nut[0]);
+    // Chỉ thẻ của ô đang chọn có nút — chọn ô nào nhập cho điểm đó.
+    const lt = within(n).getByRole("list", { name: "Lộ trình" });
+    expect(within(n).getAllByRole("button", { name: "Nhập kết quả" })).toHaveLength(1);
+    await userEvent.click(within(lt).getByRole("button", { name: "Điểm 2 AOBO" }));
+    expect(within(within(n).getByRole("article", { name: "Điểm 2 AOBO" }))
+      .getByRole("button", { name: "Nhập kết quả" })).toBeInTheDocument();
+    await userEvent.click(within(lt).getByRole("button", { name: "Điểm 1 Young Poong" }));
+    await userEvent.click(within(n).getByRole("button", { name: "Nhập kết quả" }));
     const o = await screen.findByLabelText(/Số đồng hồ lúc tới khách/);
     expect(screen.queryByLabelText(/Số km thực tế/)).toBeNull();
     // Xe là xe CỦA LƯỢT — không bày ô đổi xe riêng một chuyến.
     expect(screen.queryByLabelText(/Xe đã chạy chuyến/)).toBeNull();
+    // Điểm 1 ⇒ số trước là số rời kho, đứng sẵn cạnh nhãn.
+    expect(screen.getByText("12.000 km")).toBeInTheDocument();
     await userEvent.type(o, "12021");
-    expect(screen.getByText(/chặng này 21 km/)).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText(/Người nhận hàng/), "Chị Hạnh");
+    expect(screen.getByText("21 km")).toBeInTheDocument();
+    // Người nhận lấy sẵn từ yêu cầu giao — không phải gõ.
+    expect(within(screen.getByRole("dialog", { name: /^Tới / })).getByText("Nguyễn Thanh Vy"))
+      .toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Lưu kết quả/ }));
     await waitFor(() => expect(goi.some((g) => g.url.includes("/trips/31/ket-qua"))).toBe(true));
     const body = goi.find((g) => g.url.includes("/ket-qua"))!.body as Record<string, unknown>;
     expect(body.so_dong_ho).toBe(12021);
+    expect(body.nguoi_nhan_thuc_te).toBe("Nguyễn Thanh Vy");
     expect("km" in body).toBe(false);
     expect("vehicle_id" in body).toBe(false);
   });
 
-  it("chặng > 500 km ⇒ phải tích xác nhận (lỗi hay gặp là gõ thừa một chữ số)", async () => {
+  it("chặng > 500 km KHÔNG còn hỏi xác nhận (gỡ ngưỡng 13/10/2026)", async () => {
     stubApi({ khoi: [dangGiao()] });
     ve({ can_create: true });
     await moKetQuaDiemDau();
     await userEvent.type(await screen.findByLabelText(/Số đồng hồ lúc tới khách/), "12600");
-    expect(screen.getByRole("checkbox", { name: /Xác nhận chặng 600 km là đúng/ }))
-      .toBeInTheDocument();
+    expect(screen.getByText("600 km")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /Xác nhận/ })).toBeNull();
   });
 
-  it("gõ dở số đồng hồ KHÔNG báo \"nhỏ hơn số xuất phát\"", async () => {
+  it("gõ dở số đồng hồ KHÔNG báo thấp; đủ chữ số mà thấp hơn số trước ⇒ chặn", async () => {
     // Bấm thử 18/09/2026: gõ "9757" (đang tới 97570) đã hiện cảnh báo đỏ, doạ người gõ đúng.
     stubApi({ khoi: [dangGiao()] });
     ve({ can_create: true });
     await moKetQuaDiemDau();
     const o = await screen.findByLabelText(/Số đồng hồ lúc tới khách/);
     await userEvent.type(o, "1200");
-    expect(screen.queryByText(/Nhỏ hơn số lúc xuất phát/)).toBeNull();
+    expect(screen.queryByText(/Thấp nhất là/)).toBeNull();
     await userEvent.type(o, "0");            // 12000 → bằng, vẫn không báo
-    expect(screen.queryByText(/Nhỏ hơn số lúc xuất phát/)).toBeNull();
+    expect(screen.queryByText(/Thấp nhất là/)).toBeNull();
     await userEvent.clear(o);
     await userEvent.type(o, "11990");        // đủ chữ số và nhỏ hơn thật ⇒ báo
-    expect(screen.getByText(/Nhỏ hơn số lúc xuất phát/)).toBeInTheDocument();
+    expect(screen.getByText(/Thấp nhất là 12.000 km/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Lưu kết quả/ })).toBeDisabled();
   });
 
   it("hộp Nhập kết quả KHÔNG báo \"hết hàng\" trong lúc còn đang tải", async () => {
@@ -1022,7 +1191,8 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     ve({ can_create: true });
     await moKetQuaDiemDau();
     expect(screen.queryByText("Không còn hàng nào để giao.")).toBeNull();
-    expect(await screen.findByLabelText(/Số thực nhận — Hộp thuốc/)).toBeInTheDocument();
+    const h = await screen.findByRole("dialog", { name: /^Tới / });
+    expect(await within(h).findByText(/Hộp thuốc/)).toBeInTheDocument();
   });
 
   it("⭐ mọi điểm xong ⇒ nút Về kho ngay trên dòng, gửi số đồng hồ vào ĐÚNG lượt", async () => {
@@ -1036,13 +1206,23 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     });
     ve({ can_create: true });
     await userEvent.click(within(await dong()).getByRole("button", { name: "Về kho" }));
-    const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
-    await userEvent.type(within(n).getByLabelText(/Số đồng hồ lúc về kho/), "12045");
-    expect(within(n).getByText(/chặng về kho 17 km/)).toBeInTheDocument();
-    await userEvent.click(within(n).getByRole("button", { name: "Lưu về kho" }));
+    const h = await screen.findByRole("dialog", { name: "Về kho lượt LX-260918-AB12" });
+    const o = within(h).getByLabelText(/Số trên đồng hồ xe lúc về tới kho/);
+    const nut = within(h).getByRole("button", { name: "Lưu về kho" });
+    // Nhỏ hơn số ở điểm giao cuối ⇒ báo ngay, khoá nút (máy chủ chặn cứng, đồng hồ không chạy lùi).
+    await userEvent.type(o, "12020");
+    expect(within(h).getByRole("alert")).toHaveTextContent(/Nhỏ hơn số ở điểm giao cuối \(12.028 km\)/);
+    expect(nut).toBeDisabled();
+    await userEvent.clear(o);
+    await userEvent.type(o, "12045");
+    expect(o).toHaveValue("12.045");
+    expect(within(h).getByText(/Chặng về kho 17 km/)).toBeInTheDocument();
+    await userEvent.click(nut);
     await waitFor(() => expect(goi.some((g) => g.url.endsWith("/luot-xe/4/ve-kho"))).toBe(true));
     expect(goi.find((g) => g.url.endsWith("/ve-kho"))!.body)
-      .toEqual({ so_dong_ho: 12045, xac_nhan_km_lon: false });
+      .toEqual({ so_dong_ho: 12045 });
+    const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
+    expect(await within(n).findByText(/chặng về kho 17 km/)).toBeInTheDocument();
   });
 
   it("còn điểm đang giao ⇒ KHÔNG có nút Về kho", async () => {
@@ -1065,7 +1245,13 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     // Không còn việc gì cho cả lượt ⇒ dòng không có nút nào.
     expect(within(d).queryAllByRole("button")).toHaveLength(0);
     const n = await moNgan();
-    expect(within(n).getByText("chặng về 17 km")).toBeInTheDocument();
+    // Dải ghi km chặng về giữa điểm cuối và ô Về kho; thẻ Về kho nói đủ lúc về, đồng hồ, chặng.
+    const lt = within(n).getByRole("list", { name: "Lộ trình" });
+    expect(within(lt).getByText("17 km")).toBeInTheDocument();
+    await userEvent.click(within(lt).getByRole("button", { name: "Mốc về kho" }));
+    const theVe = within(n).getByRole("article", { name: "Về kho" });
+    expect(within(theVe).getByText("12.045")).toBeInTheDocument();
+    expect(within(theVe).getByText("17 km")).toBeInTheDocument();
     expect(within(n).queryByRole("button", { name: /Về kho|Bắt đầu|lấy hàng/ })).toBeNull();
   });
 });
@@ -1085,12 +1271,12 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     id: 4, code: "LX-260918-AB12", ngay: "2026-09-19", vehicle_id: 3, xe_bien_so: "51D-853.66",
     xe_ten: "Xe tải 3.5T", so_dong_ho_xuat_phat: null, so_dong_ho_ve_kho: null, ve_kho_luc: null,
     km_ve_kho: null, goi_y_xuat_phat: null, so_dong_ho_gan_nhat: null, cho_ve_kho: false,
-    tong_km: 0, so_cho_gui_kho: 2, so_cho_lay_hang: 0, so_cho_bat_dau: 0, so_dang_giao: 0,
+    tong_km: 0, so_cho_lay_hang: 2, so_cho_bat_dau: 0, so_dang_giao: 0,
     diem: [
       { ...CHUYEN, id: 31, request_id: 21, request_code: A.code, customer_name: "Young Poong",
-        trang_thai: "da_len_ke_hoach", yeu_cau_kho_ma: null },
+        trang_thai: "dang_chuan_bi", yeu_cau_kho_ma: "DNX0101" },
       { ...CHUYEN, id: 32, request_id: 22, request_code: B.code, customer_name: "AOBO",
-        trang_thai: "da_len_ke_hoach", yeu_cau_kho_ma: null },
+        trang_thai: "dang_chuan_bi", yeu_cau_kho_ma: "DNX0102" },
     ],
   };
 
@@ -1098,7 +1284,15 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     const goi = stubApi({
       requests: [A, B], xe: [XE], khoi: [KHOI_MOI],
       rieng: (u) => (u.endsWith("/giao-hang/luot-xe")
-        ? { luot_id: 4, code: "LX-260918-AB12", trips: [], canh_bao: [] } : undefined),
+        ? { luot_id: 4, code: "LX-260918-AB12", trips: [{ ...CHUYEN, id: 31 }, { ...CHUYEN, id: 32 }],
+            canh_bao: [], phieu: ["DNX0101", "DNX0102"] }
+        : undefined),
+      deNghi: [31, 32].map((t, i) => ({
+        id: 100 + i, ma: `DNX010${i + 1}`, trip_id: t, request_code: [A.code, B.code][i],
+        customer_name: ["Young Poong", "AOBO"][i], order_code: `DH-${21 + i}`, ngay_can_giao: "2099-09-19",
+        ngay_can: "2099-09-19", can_luc: null, ghi_chu: null, kho_ten: "Kho thành phẩm", sua_duoc: true,
+        hang: [{ ten: "Tờ rơi", ma: null, so_luong: 100, dvt: "tờ" }],
+      })),
     });
     ve({ can_plan: true, can_read: true, can_create: true });
     await userEvent.click(await screen.findByRole("tab", { name: /Yêu cầu giao/ }));
@@ -1115,8 +1309,6 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     expect(within(hop).getByText("2 yêu cầu")).toBeInTheDocument();
     await userEvent.click(within(hop).getByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
     await userEvent.click(await within(hop).findByRole("radio", { name: /51D-853\.66/ }));
-    datNgayGio(hop, "Lấy hàng", "2026-09-19T08:00");
-    datNgayGio(hop, "Dự kiến giao", "2026-09-19T11:00");
     await userEvent.click(within(hop).getByRole("button", { name: "Lên lượt xe cho 2 đơn" }));
 
     await waitFor(() => expect(goi.some((g) => g.url.endsWith("/giao-hang/luot-xe"))).toBe(true));
@@ -1125,10 +1317,22 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     expect(body).toMatchObject({ employee_id: 5, vehicle_id: 3, luot_xe_id: "moi" });
     // Không gọi `/plans` lẻ từng yêu cầu.
     expect(goi.some((g) => g.url.endsWith("/plans"))).toBe(false);
-    // Về tab Đơn giao hàng, dòng lượt vừa lập NỔI lên — bước kế tiếp nằm ngay trên dòng.
+    // Sang bước hẹn kho: HAI đề nghị, một ô Cần lúc chung, ghi chú riêng từng dòng.
+    const buoc = await screen.findByRole("dialog");
+    expect(await within(buoc).findByText("2 đề nghị", { selector: ".gh-the" })).toBeInTheDocument();
+    expect(within(buoc).getByText("chung cho cả lượt")).toBeInTheDocument();
+    await userEvent.type(within(buoc).getByRole("textbox", { name: "Ghi chú cho kho DNX0102" }), "Cổng sau");
+    await userEvent.click(within(buoc).getByRole("button", { name: "Mai" }));
+    await userEvent.click(within(buoc).getByRole("button", { name: "Lưu cho kho" }));
+    await waitFor(() => expect(goi.some((g) => g.url.endsWith("/de-nghi-kho") && g.body)).toBe(true));
+    const hen = goi.find((g) => g.url.endsWith("/de-nghi-kho") && g.body)!.body as Record<string, unknown>;
+    expect(hen.gio_can).toBeNull();
+    expect(hen.dong).toEqual([{ trip_id: 31, ghi_chu: null }, { trip_id: 32, ghi_chu: "Cổng sau" }]);
+    // Về tab Đơn giao hàng, dòng lượt vừa lập NỔI lên — lên lượt là đã gửi kho, khỏi bấm gì thêm.
     const k = await screen.findByRole("row", { name: "Lượt LX-260918-AB12" });
     expect(k).toHaveClass("is-moi");
-    expect(within(k).getByRole("button", { name: "Gửi yêu cầu xuất kho (2)" })).toBeInTheDocument();
+    expect(within(k).getByText("Chờ kho xuất")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Đã lên đơn và gửi kho 2 đề nghị xuất DNX0101, DNX0102");
     expect(screen.getByRole("tab", { name: /Đơn giao hàng/ })).toHaveAttribute("aria-selected", "true");
   });
 
@@ -1141,8 +1345,6 @@ describe("Giao hàng · GOM NHIỀU YÊU CẦU chạy MỘT lượt (chủ chố
     await userEvent.click(screen.getByRole("button", { name: "Lên lượt xe (2)" }));
     const hop = await screen.findByRole("dialog");
     await userEvent.click(await within(hop).findByRole("button", { name: "Tài xế: Trần Văn Hùng" }));
-    datNgayGio(hop, "Lấy hàng", "2026-09-19T08:00");
-    datNgayGio(hop, "Dự kiến giao", "2026-09-19T11:00");
     expect(within(hop).getByRole("button", { name: "Lên lượt xe cho 2 đơn" })).toBeDisabled();
     expect(within(hop).getByText(/lượt là vòng chạy của một chiếc xe/)).toBeInTheDocument();
   });

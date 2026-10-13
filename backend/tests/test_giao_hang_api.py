@@ -5,7 +5,7 @@ cho phần thiết kế khỏi bị "sửa cho gọn" rồi vỡ — bốn luậ
 
 * "đã giao bao nhiêu" là `SUM`, không cột cộng dồn;
 * một yêu cầu chỉ MỘT chuyến đang chạy (điều kiện giữ cho trạng thái tầng 1 tính được);
-* trùng lịch tài xế thì CHẶN, sát giờ thì CẢNH BÁO — hai vế khác nhau;
+* tài xế đang ôm chuyến ở lượt khác thì chỉ NHẮC, không chặn (giờ lấy/giao gỡ ở mg 0400);
 * `km >= 0` chứ không `> 0`.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ def _admin(client) -> dict[str, str]:
 
 
 def _nap_ton(order_id: int, *, so: float | None = None) -> None:
-    """Khai thành phẩm của mọi cụm bán + nạp TỒN ở kho KTP (mặc định = SL cụm).
+    """Khai thành phẩm của mọi cụm bán + nạp TỒN ở Kho thành phẩm (mặc định = SL cụm).
 
     Từ 19/09/2026 chỉ lập yêu cầu giao được phần ĐÃ NHẬP KHO (chủ chốt "không được với phần chưa
     nhập kho"). Đơn test không qua xưởng (không lệnh) ⇒ nguồn là tồn thật của mã — nạp sẵn ở đây
@@ -52,6 +52,7 @@ def _nap_ton(order_id: int, *, so: float | None = None) -> None:
             db.flush()
             db.add(StockLot(hang_loai="vat_tu", hang_id=tp.id, kho_id=kho_id,
                             ma_lo=f"LO-GH-{order_id}-{tp.id}-{c.dong_dau.id}", ngay_nhap=date.today(),
+                            don_vi_goc=tp.don_vi_gia or "",
                             sl_ban_dau=so if so is not None else c.so_luong,
                             sl_con_lai=so if so is not None else c.so_luong))
         db.commit()
@@ -124,22 +125,20 @@ def _gio(gio: int, phut: int = 0, *, cong_ngay: int = 1) -> str:
 
 
 def _kho_va_mat_hang() -> tuple[int, int]:
-    """Một kho + một mặt hàng trong danh mục Vật tư khác. Trả (kho_id, hang_id).
+    """Kho thành phẩm (`KHO-TP`, migration tạo sẵn) + một mặt hàng trong danh mục Vật tư khác.
+    Trả (kho_id, hang_id). Thành phẩm chỉ vào / ra Kho thành phẩm (12/10/2026) — tồn nạp ở kho khác
+    thì Giao hàng không đếm.
 
     Giao hàng lập yêu cầu xuất kho THẬT nên phải chọn mặt hàng CÓ TRONG DANH MỤC — luật siết
     08/08/2026 của kho, áp cho giao hàng y hệt mọi bộ phận. Đây chính là "khai sản phẩm ở Giấy /
     Vật tư khác rồi mới vào kho nhập số lượng" mà xưởng đang làm.
     """
-    from app.models.kho_hang import KhoHang
+    from app.models.kho_hang import MA_KHO_THANH_PHAM, KhoHang
     from app.models.vat_lieu_kho import VatTuInAn
 
     db = SessionLocal()
     try:
-        kho = db.query(KhoHang).filter(KhoHang.ma == "KTP").one_or_none()
-        if kho is None:
-            kho = KhoHang(ma="KTP", ten="Kho thanh pham")
-            db.add(kho)
-            db.flush()
+        kho = db.query(KhoHang).filter(KhoHang.ma == MA_KHO_THANH_PHAM).one()
         h = db.query(VatTuInAn).filter(VatTuInAn.ma == "TP001").one_or_none()
         if h is None:
             h = VatTuInAn(ma="TP001", ten="Hop giay thanh pham", don_vi_gia="cai")
@@ -162,33 +161,65 @@ def _tao_yc(client, h, order_id, line_id, qty=40, ngay=None) -> dict:
     return r.json()
 
 
-def _len_kh(client, h, request_id, employee_id, *, lay=8, giao=11, ngay=1):
+def _len_kh(client, h, request_id, employee_id):
     return client.post("/api/giao-hang/plans", json={
         "request_id": request_id, "employee_id": employee_id,
-        "gio_lay_hang": _gio(lay, cong_ngay=ngay),
-        "gio_du_kien_giao": _gio(giao, cong_ngay=ngay),
     }, headers=h)
 
 
-def _gui_yeu_cau_xuat_kho(client, h, trip_id) -> dict:
-    """Bấm gửi YÊU CẦU XUẤT KHO. Chỉ chọn kho — dòng hàng máy suy ra từ yêu cầu giao."""
-    kho_id, _ = _kho_va_mat_hang()
-    r = client.post(f"/api/giao-hang/plans/{trip_id}/yeu-cau-xuat-kho",
-                    json={"kho_id": kho_id}, headers=h)
+def _de_nghi_xuat(trip_id: int):
+    """Đề nghị xuất kho mà lên đơn đã tự gửi cho chuyến."""
+    from app.models.stock_request import StockRequest
+
+    db = SessionLocal()
+    try:
+        return (db.query(StockRequest)
+                .filter(StockRequest.delivery_trip_id == trip_id, StockRequest.loai == "XUAT")
+                .one())
+    finally:
+        db.close()
+
+
+def _kho_lap_phieu(client, h, trip_id) -> int:
+    """Thủ kho lập phiếu xuất đủ số cho đề nghị của chuyến (lô cũ nhất, chưa ghi sổ). Trả id phiếu."""
+    from app.models.stock_lot import StockLot
+    from app.models.stock_request import StockRequest
+
+    yc_id = _de_nghi_xuat(trip_id).id
+    db = SessionLocal()
+    try:
+        yc = db.get(StockRequest, yc_id)
+        dong, kho_id = [], yc.kho_id
+        for ln in yc.lines:
+            lo = (db.query(StockLot)
+                  .filter(StockLot.hang_loai == ln.hang_loai, StockLot.hang_id == ln.hang_id,
+                          StockLot.sl_con_lai > 0)
+                  .order_by(StockLot.id).first())
+            kho_id = kho_id or lo.kho_id
+            dong.append({"request_line_id": ln.id, "so_luong": float(ln.sl_de_nghi), "lot_id": lo.id})
+    finally:
+        db.close()
+    r = client.post("/api/kho/phieu", headers=h, json={
+        "request_id": yc_id, "kho_id": kho_id, "lines": dong})
     assert r.status_code == 201, r.text
-    return r.json()
+    return r.json()["id"]
+
+
+def _kho_xuat(client, h, trip_id) -> None:
+    """Thủ kho lập phiếu xuất + GHI SỔ ⇒ chuyến tự sang "Đã lấy hàng" (12/10/2026)."""
+    r = client.post(f"/api/kho/phieu/{_kho_lap_phieu(client, h, trip_id)}/ghi-so", headers=h)
+    assert r.status_code == 200, r.text
 
 
 def _di_toi_dang_giao(client, h, trip_id) -> None:
-    """Gửi yêu cầu xuất kho → tài xế bấm Đã lấy hàng → Bắt đầu giao.
+    """Kho xuất (lên đơn đã tự gửi đề nghị) → Bắt đầu giao.
 
-    Không có bước "duyệt": `StockRequestService.create()` duyệt luôn (bỏ bước duyệt 06/08/2026),
-    kho lập phiếu ngay. Giao hàng không cần chờ gì thêm ở tầng dữ liệu.
+    Không có bước "duyệt": `StockRequestService.create()` duyệt luôn (bỏ bước duyệt 06/08/2026).
+    Kho ghi sổ phiếu xuất là chuyến tự sang "Đã lấy hàng" — tài xế không bấm gì.
     """
-    _gui_yeu_cau_xuat_kho(client, h, trip_id)
-    for buoc in ("da-lay-hang", "bat-dau-giao"):
-        r = client.post(f"/api/giao-hang/trips/{trip_id}/{buoc}", headers=h)
-        assert r.status_code == 200, (buoc, r.text)
+    _kho_xuat(client, h, trip_id)
+    r = client.post(f"/api/giao-hang/trips/{trip_id}/bat-dau-giao", headers=h)
+    assert r.status_code == 200, r.text
 
 
 # =============================================================================================
@@ -240,53 +271,45 @@ def test_03_mot_yeu_cau_chi_MOT_chuyen(client):
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe 03")
     assert _len_kh(client, h, yc["id"], nv).status_code == 201
-    lan_hai = _len_kh(client, h, yc["id"], nv, lay=14, giao=16)
+    lan_hai = _len_kh(client, h, yc["id"], nv)
     assert lan_hai.status_code == 400, lan_hai.text
     assert "lập yêu cầu giao mới" in lan_hai.json()["detail"]
 
 
 # =============================================================================================
-# #4 — trùng lịch thì CHẶN, sát giờ thì CẢNH BÁO
+# #4 — tài xế đang ôm chuyến ở lượt khác thì NHẮC, không chặn (mg 0400 gỡ giờ lấy / giờ giao)
 # =============================================================================================
-def test_04_trung_lich_tai_xe_bi_chan(client):
+def test_04_tai_xe_dang_co_chuyen_o_luot_khac_thi_NHAC_chu_khong_chan(client):
+    """⭐ Trước mg 0400 trùng khoảng [giờ lấy, giờ giao] là CHẶN. Hai giờ đó gỡ rồi; một người có
+    chuyến chiều nay và chuyến sáng mai là chuyện thường ⇒ chỉ nhắc, người lên đơn tự xem."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="04")
     yc1 = _tao_yc(client, h, oid, lid, qty=30)
     yc2 = _tao_yc(client, h, oid, lid, qty=30)
     nv = _tai_xe("Tai xe 04")
-    assert _len_kh(client, h, yc1["id"], nv, lay=8, giao=11).status_code == 201
-    # 10–12 giao nhau với 8–11 ⇒ CHẶN.
-    r = _len_kh(client, h, yc2["id"], nv, lay=10, giao=12)
-    assert r.status_code == 400, r.text
-    assert "trùng giờ" in r.json()["detail"]
+    dau = _len_kh(client, h, yc1["id"], nv)
+    assert dau.status_code == 201 and dau.json()["canh_bao"] == [], dau.text
+    r = _len_kh(client, h, yc2["id"], nv)
+    assert r.status_code == 201, r.text
+    assert any("Tài xế đang có 1 chuyến chưa xong" in c for c in r.json()["canh_bao"]), r.json()
 
 
-def test_04b_sat_gio_thi_CANH_BAO_chu_khong_chan(client):
-    """⭐ Bản gốc viết "cảnh báo và không cho lưu" — hai vế đá nhau. Sát giờ phải CHO LƯU."""
+def test_04b_phu_xe_dang_ban_cung_duoc_NHAC(client):
+    """Soi cả hai vai: người đang làm phụ xe ở chuyến khác cũng đang bận."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="04b")
     yc1 = _tao_yc(client, h, oid, lid, qty=30)
     yc2 = _tao_yc(client, h, oid, lid, qty=30)
-    nv = _tai_xe("Tai xe 04b")
-    assert _len_kh(client, h, yc1["id"], nv, lay=8, giao=11).status_code == 201
-    # 11:10 cách chuyến trước 10 phút — không trùng, nhưng dưới 30 phút.
-    r = client.post("/api/giao-hang/plans", json={
-        "request_id": yc2["id"], "employee_id": nv,
-        "gio_lay_hang": _gio(11, 10), "gio_du_kien_giao": _gio(13),
-    }, headers=h)
-    assert r.status_code == 201, r.text
-    assert r.json()["canh_bao"], "sát giờ mà không cảnh báo gì thì cảnh báo để làm gì"
-
-
-def test_04c_cham_mep_khong_tinh_la_trung(client):
-    """Giao xong 11:00, chuyến sau lấy hàng 11:00 — chạm mép, KHÔNG phải trùng."""
-    h = _admin(client)
-    oid, lid = _don_da_chot(suffix="04c")
-    yc1 = _tao_yc(client, h, oid, lid, qty=30)
-    yc2 = _tao_yc(client, h, oid, lid, qty=30)
-    nv = _tai_xe("Tai xe 04c")
-    assert _len_kh(client, h, yc1["id"], nv, lay=8, giao=11).status_code == 201
-    assert _len_kh(client, h, yc2["id"], nv, lay=11, giao=13).status_code == 201
+    tx, px, tx2 = _tai_xe("Tai xe 04b"), _tai_xe("Phu xe 04b"), _tai_xe("Tai xe 04b2")
+    assert client.post("/api/giao-hang/plans", json={
+        "request_id": yc1["id"], "employee_id": tx, "phu_xe_employee_id": px,
+    }, headers=h).status_code == 201
+    r = _len_kh(client, h, yc2["id"], tx2)
+    assert r.json()["canh_bao"] == [], r.json()
+    r2 = client.put(f"/api/giao-hang/plans/{r.json()['trip']['id']}",
+                    json={"phu_xe_employee_id": px}, headers=h)
+    assert r2.status_code == 200, r2.text
+    assert any(c.startswith("Phụ xe đang có") for c in r2.json()["canh_bao"]), r2.json()
 
 
 # =============================================================================================
@@ -423,7 +446,7 @@ def test_09_giao_lai_bang_YEU_CAU_MOI_khong_nhan_doi_so_luong(client):
     yc = _tao_yc(client, h, oid, lid, qty=40)
     nv = _tai_xe("Tai xe 09")
 
-    t1 = _len_kh(client, h, yc["id"], nv, lay=8, giao=10).json()["trip"]["id"]
+    t1 = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
     _di_toi_dang_giao(client, h, t1)
     client.post(f"/api/giao-hang/trips/{t1}/ket-qua", json={
         "ket_qua": "that_bai", "km": 18, "ly_do_that_bai": "Khach di vang",
@@ -431,10 +454,10 @@ def test_09_giao_lai_bang_YEU_CAU_MOI_khong_nhan_doi_so_luong(client):
     client.post(f"/api/giao-hang/trips/{t1}/da-tra-hang", headers=h)
 
     # Yêu cầu CŨ không xếp thêm chuyến được nữa.
-    assert _len_kh(client, h, yc["id"], nv, lay=8, giao=10, ngay=2).status_code == 400
+    assert _len_kh(client, h, yc["id"], nv).status_code == 400
 
     yc2 = _tao_yc(client, h, oid, lid, qty=40)
-    t2r = _len_kh(client, h, yc2["id"], nv, lay=8, giao=10, ngay=2)
+    t2r = _len_kh(client, h, yc2["id"], nv)
     assert t2r.status_code == 201, t2r.text
     t2 = t2r.json()["trip"]["id"]
     assert t2 != t1
@@ -482,12 +505,10 @@ def test_09b_du_lieu_cu_nhieu_lan_thu_gop_ve_MOT_dong_lay_ban_moi_nhat(client):
         db.execute(text("DROP INDEX IF EXISTS uq_delivery_trips_request"))
         db.add(DeliveryTrip(
             request_id=yc["id"], lan_thu=1, employee_id=nv,
-            gio_lay_hang=datetime.now(timezone.utc), gio_du_kien_giao=datetime.now(timezone.utc),
             trang_thai="giao_thieu", km=10,
         ))
         db.add(DeliveryTrip(
             request_id=yc["id"], lan_thu=2, employee_id=nv,
-            gio_lay_hang=datetime.now(timezone.utc), gio_du_kien_giao=datetime.now(timezone.utc),
             trang_thai="thanh_cong", km=200,
         ))
         db.commit()
@@ -549,21 +570,117 @@ def test_12_huy_don_ban_khi_con_yeu_cau_mo_thi_bi_chan(client):
         db.close()
 
 
-def test_13_len_ke_hoach_KHONG_tu_gui_kho_bam_tay_moi_gui(client):
+def test_13_len_don_TU_GUI_de_nghi_xuat_kho(client):
+    """⭐ 12/10/2026: lên đơn rồi thì kiểu gì cũng phải gửi kho — bỏ nút bấm tay, lên đơn là gửi."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="13")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe 13")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
-    # ⭐ Lên kế hoạch xong CHƯA gửi kho gì cả — hệ KHÔNG tự sinh.
-    ds = client.get("/api/giao-hang/trips", headers=h).json()["items"]
-    assert next(t for t in ds if t["id"] == trip)["yeu_cau_kho_ma"] is None
-
-    ra = _gui_yeu_cau_xuat_kho(client, h, trip)
+    r = _len_kh(client, h, yc["id"], nv)
+    assert r.status_code == 201, r.text
+    trip, phieu = r.json()["trip"]["id"], r.json()["phieu"]
     # Mã do KHO cấp (DNX…), không phải mã riêng của Giao hàng — vì đây là chứng từ của họ.
-    assert ra["ma"].startswith("DNX"), ra
+    assert len(phieu) == 1 and phieu[0].startswith("DNX"), phieu
     ds = client.get("/api/giao-hang/trips", headers=h).json()["items"]
-    assert next(t for t in ds if t["id"] == trip)["yeu_cau_kho_ma"] == ra["ma"]
+    t = next(t for t in ds if t["id"] == trip)
+    assert t["yeu_cau_kho_ma"] == phieu[0] and t["trang_thai"] == "dang_chuan_bi", t
+    # Đường bấm tay đã gỡ.
+    assert client.post(f"/api/giao-hang/plans/{trip}/yeu-cau-xuat-kho", json={},
+                       headers=h).status_code in (404, 405)
+    # Ô "Nguồn" bên kho: biết phiếu là của Giao hàng — lượt nào, yêu cầu nào, đơn nào. Trước
+    # 12/10/2026 ô này để "—" và kho phải mò ghi chú.
+    dn = next(x for x in client.get("/api/kho/de-nghi", headers=h).json()["items"]
+              if x["ma"] == phieu[0])
+    assert dn["delivery_trip_id"] == trip
+    assert dn["giao_yeu_cau_ma"] == yc["code"] and dn["giao_don_ma"] == "DH-GH-13", dn
+    assert dn["giao_luot_ma"] is None, dn          # chuyến lẻ — không thuộc lượt xe nào
+
+
+def test_13b_de_nghi_xuat_giao_hang_vao_SAP_XUAT_cua_ton_kho(client):
+    """⭐ 12/10/2026: kho thành phẩm thấy hàng đã lên đơn giao ở cột Sắp xuất — trước đây cột này chỉ
+    đọc lệnh SX nên 40 hộp sắp lên xe vẫn bày như tồn tự do. Ghi sổ xong thì rụng ngay."""
+    h = _admin(client)
+    oid, lid = _don_da_chot(suffix="13b")
+    yc = _tao_yc(client, h, oid, lid)
+    trip = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 13b")).json()["trip"]["id"]
+    dn = _de_nghi_xuat(trip)
+    db = SessionLocal()
+    try:
+        from app.models.stock_request import StockRequest
+        hang_id = db.get(StockRequest, dn.id).lines[0].hang_id
+    finally:
+        db.close()
+    kho_id, _ = _kho_va_mat_hang()
+
+    def muc():
+        r = client.get(f"/api/kho/phieu/lo/ton-nhom?kho_id={kho_id}&size=200", headers=h)
+        assert r.status_code == 200, r.text
+        return next(m for m in r.json()["nhom"] if m["hang_id"] == hang_id)
+
+    m = muc()
+    assert (m["can_lenh"], m["du_kien"]) == (40, 60), m
+    assert m["la_thanh_pham"] is True, m       # màn ghi "Cần sản xuất" thay "Cần mua"
+    viec = m["du_bao"]["lenh"]
+    assert [(v["ma"], v["de_nghi_id"], v["ten_viec"]) for v in viec] == [(dn.ma, dn.id, "Giao đơn DH-GH-13b")]
+    du = client.get(f"/api/kho/phieu/lo/du-bao?kho_id={kho_id}", headers=h)
+    assert du.status_code == 200, du.text
+    assert next(r for r in du.json() if r["hang_id"] == hang_id)["can_lenh"] == 40
+
+    _kho_xuat(client, h, trip)
+    m = muc()
+    assert (m["can_lenh"], m["du_kien"]) == (0, 60), m
+
+
+def test_13c_giao_hang_chi_dem_va_xuat_o_KHO_THANH_PHAM(client):
+    """⭐ 12/10/2026: thành phẩm chỉ vào / ra Kho thành phẩm. Tồn nằm ở kho khác thì Giao hàng không
+    đếm; đề nghị xuất lên đơn gắn sẵn Kho thành phẩm, phiếu xuất từ kho khác bị chặn."""
+    from app.models.kho_hang import KhoHang
+    from app.models.stock_lot import StockLot
+    from app.models.stock_request import StockRequest
+
+    h = _admin(client)
+    oid, lid = _don_da_chot(suffix="13c")
+    kho_tp, _ = _kho_va_mat_hang()
+    db = SessionLocal()
+    try:
+        khac = KhoHang(ma="KHO-13C", ten="Kho khac 13c")
+        db.add(khac)
+        db.flush()
+        khac_id = khac.id
+        lo = db.query(StockLot).filter(StockLot.ma_lo.like(f"LO-GH-{oid}-%")).all()
+        for l in lo:
+            l.kho_id = khac_id                        # hàng nằm kho khác ⇒ không tính
+        db.commit()
+    finally:
+        db.close()
+    r = client.post("/api/giao-hang/requests", json={
+        "order_id": oid, "ngay_can_giao": (date.today() + timedelta(days=3)).isoformat(),
+        "lines": [{"order_line_id": lid, "qty": 40}]}, headers=h)
+    assert r.status_code == 400 and "Kho thành phẩm" in r.text, r.text
+
+    db = SessionLocal()
+    try:
+        for l in db.query(StockLot).filter(StockLot.ma_lo.like(f"LO-GH-{oid}-%")).all():
+            l.kho_id = kho_tp
+        db.commit()
+    finally:
+        db.close()
+    yc = _tao_yc(client, h, oid, lid)
+    trip = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 13c")).json()["trip"]["id"]
+    dn = _de_nghi_xuat(trip)
+    assert dn.kho_id == kho_tp
+    out = client.get(f"/api/kho/de-nghi/{dn.id}", headers=h).json()
+    assert out["kho_bat_buoc_id"] == kho_tp, out
+
+    db = SessionLocal()
+    try:
+        ln = db.get(StockRequest, dn.id).lines[0]
+        lo = db.query(StockLot).filter(StockLot.ma_lo.like(f"LO-GH-{oid}-%")).first()
+        dong = [{"request_line_id": ln.id, "so_luong": float(ln.sl_de_nghi), "lot_id": lo.id}]
+    finally:
+        db.close()
+    r = client.post("/api/kho/phieu", headers=h, json={"request_id": dn.id, "kho_id": khac_id, "lines": dong})
+    assert r.status_code == 400 and "chỉ xuất từ Kho thành phẩm" in r.text, r.text
 
 
 def test_14_YEU_CAU_MOI_cung_phai_gui_yeu_cau_xuat_kho(client):
@@ -576,7 +693,7 @@ def test_14_YEU_CAU_MOI_cung_phai_gui_yeu_cau_xuat_kho(client):
     oid, lid = _don_da_chot(suffix="14")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe 14")
-    t1 = _len_kh(client, h, yc["id"], nv, lay=8, giao=10).json()["trip"]["id"]
+    t1 = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
     _di_toi_dang_giao(client, h, t1)
     client.post(f"/api/giao-hang/trips/{t1}/ket-qua", json={
         "ket_qua": "that_bai", "km": 12, "ly_do_that_bai": "Khach hen hom khac",
@@ -584,9 +701,8 @@ def test_14_YEU_CAU_MOI_cung_phai_gui_yeu_cau_xuat_kho(client):
     client.post(f"/api/giao-hang/trips/{t1}/da-tra-hang", headers=h)
 
     yc2 = _tao_yc(client, h, oid, lid)
-    t2 = _len_kh(client, h, yc2["id"], nv, lay=8, giao=10, ngay=2).json()["trip"]["id"]
-    ra = _gui_yeu_cau_xuat_kho(client, h, t2)
-    assert ra["ma"].startswith("DNX"), "yêu cầu mới không gửi được yêu cầu xuất kho"
+    t2 = _len_kh(client, h, yc2["id"], nv).json()["trip"]["id"]
+    assert _de_nghi_xuat(t2).ma.startswith("DNX"), "yêu cầu mới không gửi được yêu cầu xuất kho"
 
 
 def test_KHONG_CON_ket_qua_hen_lai(client):
@@ -616,27 +732,77 @@ def test_KHONG_CON_huong_xu_ly_cho_giao_lai(client):
     assert r.status_code == 400, r.text
 
 
-def test_15_doi_gio_sau_khi_da_gui_kho_thi_CANH_BAO_chu_khong_huy_ho(client):
-    """⭐ Yêu cầu kho là chứng từ CỦA HỌ — huỷ hộ là đụng vào sổ sách bên đó.
-
-    Bản trước tôi tự huỷ đề nghị rồi bắt gửi lại. Làm thế với chứng từ của kho là vượt ranh giới:
-    quản lý tự vào màn Kho huỷ nếu cần, hệ chỉ CẢNH BÁO.
-    """
+def test_15_hen_kho_ghi_CAN_LUC_va_GHI_CHU_len_de_nghi_xuat(client):
+    """⭐ mg 0400: giờ hết nằm trên chuyến — người lên đơn hẹn kho ngay trên đề nghị xuất (bước
+    "Đề nghị xuất kho" sau Lên đơn). Kho đọc đúng cột Cần lúc + ghi chú như mọi đề nghị khác."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="15")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe 15")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8, giao=10).json()["trip"]["id"]
-    ma_cu = _gui_yeu_cau_xuat_kho(client, h, trip)["ma"]
+    trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
+    ma = _de_nghi_xuat(trip).ma
 
-    r = client.put(f"/api/giao-hang/plans/{trip}",
-                   json={"gio_lay_hang": _gio(15), "gio_du_kien_giao": _gio(17)}, headers=h)
+    ds = client.get(f"/api/giao-hang/de-nghi-kho?trip_ids={trip}", headers=h)
+    assert ds.status_code == 200, ds.text
+    dn = ds.json()[0]
+    assert dn["ma"] == ma and dn["sua_duoc"] is True and dn["can_luc"] is None, dn
+    assert dn["ngay_can"] == dn["ngay_can_giao"], "chưa hẹn thì kho cần hàng đúng ngày cần giao"
+    assert dn["hang"] and dn["hang"][0]["so_luong"] == 40, dn
+
+    mai = (date.today() + timedelta(days=1)).isoformat()
+    r = client.put("/api/giao-hang/de-nghi-kho", json={
+        "ngay_can": mai, "gio_can": "07:30",
+        "dong": [{"trip_id": trip, "ghi_chu": "Xe tới cổng sau"}]}, headers=h)
     assert r.status_code == 200, r.text
-    assert any("yêu cầu xuất kho" in c for c in r.json()["canh_bao"]), r.json()
+    assert r.json()[0]["can_luc"].startswith(f"{mai}T07:30"), r.json()
 
-    # Yêu cầu kho KHÔNG bị đụng tới.
-    ds = client.get("/api/giao-hang/trips", headers=h).json()["items"]
-    assert next(t for t in ds if t["id"] == trip)["yeu_cau_kho_ma"] == ma_cu
+    kho = next(x for x in client.get("/api/kho/de-nghi", headers=h).json()["items"] if x["ma"] == ma)
+    assert kho["ngay_can"] == mai and kho["ghi_chu"] == "Xe tới cổng sau", kho
+    t = next(t for t in client.get("/api/giao-hang/trips", headers=h).json()["items"]
+             if t["id"] == trip)
+    assert t["yeu_cau_kho_ngay_can"] == mai and t["yeu_cau_kho_can_luc"].startswith(f"{mai}T07:30")
+
+
+def test_15b_hen_kho_KHONG_gio_thi_chi_con_ngay(client):
+    h = _admin(client)
+    oid, lid = _don_da_chot(suffix="15b")
+    yc = _tao_yc(client, h, oid, lid)
+    trip = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 15b")).json()["trip"]["id"]
+    ngay = (date.today() + timedelta(days=2)).isoformat()
+    r = client.put("/api/giao-hang/de-nghi-kho", json={
+        "ngay_can": ngay, "gio_can": None, "dong": [{"trip_id": trip}]}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()[0]["ngay_can"] == ngay and r.json()[0]["can_luc"] is None, r.json()
+
+
+def test_15c_kho_LAP_PHIEU_roi_thi_khong_hen_lai_duoc_va_nguoi_nhan_la_TAI_XE(client):
+    """⭐ Hẹn kho sửa được tới lúc kho lập phiếu — sau đó kho đã soạn hàng theo hẹn cũ. Phiếu xuất
+    ghi Người nhận hàng = tài xế của chuyến (người cầm hàng ở cửa kho), không phải người lên đơn.
+    Màn kho đọc được khách / xe / tài xế từ đề nghị — khỏi mò ghi chú."""
+    from app.models.stock_voucher import StockVoucher
+
+    h = _admin(client)
+    oid, lid = _don_da_chot(suffix="15c")
+    yc = _tao_yc(client, h, oid, lid)
+    trip = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 15c")).json()["trip"]["id"]
+    ma = _de_nghi_xuat(trip).ma
+    kho = next(x for x in client.get("/api/kho/de-nghi", headers=h).json()["items"] if x["ma"] == ma)
+    assert kho["giao_khach_ten"] == "Khach giao hang 15c" and kho["giao_tai_xe_ten"] == "Tai xe 15c", kho
+
+    phieu = _kho_lap_phieu(client, h, trip)
+    db = SessionLocal()
+    try:
+        assert db.get(StockVoucher, phieu).nguoi_giao_nhan == "Tai xe 15c"
+    finally:
+        db.close()
+
+    dn = client.get(f"/api/giao-hang/de-nghi-kho?trip_ids={trip}", headers=h).json()[0]
+    assert dn["sua_duoc"] is False, dn
+    r = client.put("/api/giao-hang/de-nghi-kho", json={
+        "ngay_can": date.today().isoformat(), "gio_can": "09:00",
+        "dong": [{"trip_id": trip}]}, headers=h)
+    assert r.status_code == 400, r.text
+    assert "Kho đã lập phiếu" in r.json()["detail"]
 
 
 def test_16_kho_KHONG_can_o_giao_hang_de_lam_viec(client):
@@ -665,19 +831,28 @@ def test_16_kho_KHONG_can_o_giao_hang_de_lam_viec(client):
     assert client.get("/api/kho/de-nghi", headers=kho).status_code in (200, 404)
 
 
-def test_17_tai_xe_khong_lay_duoc_hang_khi_CHUA_GUI_KHO(client):
-    """Chưa có giấy thì hàng chưa ra được cửa kho — bấm ở đây là ghi chuyện chưa xảy ra."""
+def test_17_chuyen_chi_DA_LAY_HANG_khi_KHO_GHI_SO_phieu_xuat(client):
+    """⭐ 12/10/2026, lỗi thật: tài xế bấm "Đã lấy hàng" được cả khi kho CHƯA LẬP PHIẾU (nút chỉ gác
+    "đã gửi kho") ⇒ chuyến giao xong mà hàng chưa ra khỏi sổ kho. Nay không còn nút: kho ghi sổ
+    phiếu xuất là mốc duy nhất đưa chuyến sang "Đã lấy hàng"."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="17")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe 17")
     trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
 
-    assert client.post(f"/api/giao-hang/trips/{trip}/da-lay-hang", headers=h).status_code == 400
-    assert client.post(f"/api/giao-hang/trips/{trip}/bat-dau-giao", headers=h).status_code == 400
+    def tt() -> str:
+        return client.get(f"/api/giao-hang/requests/{yc['id']}", headers=h).json()["trips"][0]["trang_thai"]
 
-    _gui_yeu_cau_xuat_kho(client, h, trip)
-    assert client.post(f"/api/giao-hang/trips/{trip}/da-lay-hang", headers=h).status_code == 200
+    assert client.post(f"/api/giao-hang/trips/{trip}/da-lay-hang", headers=h).status_code in (404, 405)
+    assert client.post(f"/api/giao-hang/trips/{trip}/bat-dau-giao", headers=h).status_code == 400
+    assert tt() == "dang_chuan_bi"
+
+    pid = _kho_lap_phieu(client, h, trip)
+    assert tt() == "dang_chuan_bi", "kho mới lập phiếu, chưa ghi sổ — hàng chưa ra khỏi kho"
+    assert client.post(f"/api/kho/phieu/{pid}/ghi-so", headers=h).status_code == 200
+    assert tt() == "da_lay_hang"
+    assert client.post(f"/api/giao-hang/trips/{trip}/bat-dau-giao", headers=h).status_code == 200
 
 
 def test_ngay_can_giao_QUA_KHU_bi_chan_luc_lap(client):
@@ -724,68 +899,6 @@ def test_SUA_yeu_cau_cung_khong_lui_duoc_ve_qua_khu(client):
     assert "quá khứ" in r.text
 
 
-def test_gio_lay_hang_QUA_KHU_bi_chan(client):
-    """⭐ Cùng lý do với ngày cần giao: kế hoạch chuyến là việc SẮP LÀM.
-
-    Xếp chuyến lấy hàng lúc 8h sáng hôm qua thì tài xế không có cách nào làm, mà nó kéo lệch cả
-    bảng chuyến trong ngày lẫn thống kê trễ hạn.
-    """
-    h = _admin(client)
-    oid, lid = _don_da_chot(suffix="gqk")
-    yc = _tao_yc(client, h, oid, lid)
-    nv = _tai_xe("Tai xe gqk")
-    hom_qua = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-    r = client.post("/api/giao-hang/plans", json={
-        "request_id": yc["id"], "employee_id": nv,
-        "gio_lay_hang": hom_qua,
-        "gio_du_kien_giao": (datetime.now(timezone.utc) - timedelta(hours=20)).isoformat(),
-    }, headers=h)
-    assert r.status_code == 400, r.text
-    assert "quá khứ" in r.text
-
-
-def test_DOI_ke_hoach_ve_gio_qua_khu_bi_chan(client):
-    """Cửa vào thứ hai của giờ — chặn lúc lên mà hở lúc đổi thì coi như không chặn."""
-    h = _admin(client)
-    oid, lid = _don_da_chot(suffix="gqk2")
-    yc = _tao_yc(client, h, oid, lid)
-    nv = _tai_xe("Tai xe gqk2")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
-    r = client.put(f"/api/giao-hang/plans/{trip}", json={
-        "gio_lay_hang": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat(),
-    }, headers=h)
-    assert r.status_code == 400, r.text
-    assert "quá khứ" in r.text
-
-
-def test_doi_MOI_TAI_XE_tren_chuyen_cu_KHONG_bi_chan_oan(client):
-    """⭐ Chỉ kiểm giờ NGƯỜI DÙNG VỪA GỬI, không kiểm giờ cũ của chuyến.
-
-    Chuyến xếp từ hôm qua mà nay chỉ đổi tài xế: giờ cũ đã thành quá khứ, kiểm cả cụm là chặn
-    oan đúng thao tác vô hại nhất — và lúc đó không ai sửa nổi chuyến trễ.
-    """
-    h = _admin(client)
-    oid, lid = _don_da_chot(suffix="gqk3")
-    yc = _tao_yc(client, h, oid, lid)
-    nv = _tai_xe("Tai xe gqk3")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
-
-    # Đẩy giờ của chuyến về quá khứ bằng DB (giống chuyến xếp từ hôm qua).
-    db = SessionLocal()
-    try:
-        from app.models.delivery import DeliveryTrip
-        t = db.get(DeliveryTrip, trip)
-        t.gio_lay_hang = datetime.now(timezone.utc) - timedelta(days=1)
-        t.gio_du_kien_giao = datetime.now(timezone.utc) - timedelta(hours=22)
-        db.commit()
-    finally:
-        db.close()
-
-    nv2 = _tai_xe("Tai xe gqk3b")
-    r = client.put(f"/api/giao-hang/plans/{trip}", json={"employee_id": nv2}, headers=h)
-    assert r.status_code == 200, r.text
-
-
 def test_kho_LAP_PHIEU_thi_chuyen_hien_da_chuan_bi_xong(client):
     """⭐ Chủ chốt 20/08/2026: kho lập phiếu ⇒ Giao hàng hiện "Kho đã chuẩn bị xong".
 
@@ -796,8 +909,7 @@ def test_kho_LAP_PHIEU_thi_chuyen_hien_da_chuan_bi_xong(client):
     oid, lid = _don_da_chot(suffix="lp")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe lp")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
-    _gui_yeu_cau_xuat_kho(client, h, trip)
+    trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
 
     def co_phieu() -> bool:
         ds = client.get("/api/giao-hang/trips", headers=h).json()["items"]
@@ -813,7 +925,7 @@ def test_kho_LAP_PHIEU_thi_chuyen_hien_da_chuan_bi_xong(client):
         req = (db.query(StockRequest)
                  .filter(StockRequest.delivery_trip_id == trip).one())
         db.add(StockVoucher(ma="PX-TEST-LP", loai=VOUCHER_XUAT, request_id=req.id,
-                            kho_id=req.kho_id, trang_thai=VOUCHER_DRAFT,
+                            kho_id=_kho_va_mat_hang()[0], trang_thai=VOUCHER_DRAFT,
                             ngay=date.today(), nguoi_lap_id=1))
         db.commit()
     finally:
@@ -835,8 +947,7 @@ def test_huy_chuyen_da_gui_kho_thi_huy_luon_de_nghi_xuat(client):
     oid, lid = _don_da_chot(suffix="hck")
     nv = _tai_xe("Tai xe hck")
 
-    t1 = _len_kh(client, h, _tao_yc(client, h, oid, lid, qty=20)["id"], nv, lay=8).json()["trip"]["id"]
-    _gui_yeu_cau_xuat_kho(client, h, t1)
+    t1 = _len_kh(client, h, _tao_yc(client, h, oid, lid, qty=20)["id"], nv).json()["trip"]["id"]
     r = client.post(f"/api/giao-hang/plans/{t1}/huy", json={"ly_do": "Khách hoãn"}, headers=h)
     assert r.status_code == 200, r.text
     db = SessionLocal()
@@ -846,15 +957,14 @@ def test_huy_chuyen_da_gui_kho_thi_huy_luon_de_nghi_xuat(client):
     finally:
         db.close()
 
-    r = _len_kh(client, h, _tao_yc(client, h, oid, lid, qty=20)["id"], _tai_xe("Tai xe hck2"), lay=8)
+    r = _len_kh(client, h, _tao_yc(client, h, oid, lid, qty=20)["id"], _tai_xe("Tai xe hck2"))
     assert r.status_code == 201, r.text
     t2 = r.json()["trip"]["id"]
-    _gui_yeu_cau_xuat_kho(client, h, t2)
     db = SessionLocal()
     try:
         req = db.query(StockRequest).filter(StockRequest.delivery_trip_id == t2).one()
         db.add(StockVoucher(ma="PX-TEST-HCK", loai=VOUCHER_XUAT, request_id=req.id,
-                            kho_id=req.kho_id, trang_thai=VOUCHER_DRAFT,
+                            kho_id=_kho_va_mat_hang()[0], trang_thai=VOUCHER_DRAFT,
                             ngay=date.today(), nguoi_lap_id=1))
         db.commit()
     finally:
@@ -876,7 +986,7 @@ def test_lich_su_trang_thai_MOI_NHAT_LEN_DAU(client):
     yc = _tao_yc(client, h, oid, lid, qty=40)
     nv = _tai_xe("Tai xe ls")
 
-    t1 = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
+    t1 = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
     _di_toi_dang_giao(client, h, t1)       # qua 3 mốc: chuẩn bị → đã lấy hàng → đang giao
     r = client.post(f"/api/giao-hang/trips/{t1}/ket-qua", json={
         "ket_qua": "giao_thieu", "km": 10, "nguoi_nhan_thuc_te": "Chi Lan",
@@ -940,29 +1050,40 @@ def test_dong_xuat_kho_SUY_RA_tu_yeu_cau_giao(client):
     oid, lid = _don_da_chot(suffix="17e", qty=100)
     yc = _tao_yc(client, h, oid, lid, qty=40)
     trip = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 17e")).json()["trip"]["id"]
-    r = client.get(f"/api/giao-hang/plans/{trip}/hang-can-xuat", headers=h)
-    assert r.status_code == 200, r.text
-    ds = r.json()
-    assert len(ds) == 1
-    assert ds[0]["sl_de_nghi"] == 40, ds      # đúng số của yêu cầu, không phải số của đơn
-    assert ds[0]["dvt"] == "hop"   # đơn vị của dòng đơn, không phải đơn vị ai đó gõ
-    assert ds[0]["hang_ten"], "thiếu tên mặt hàng thì giao diện hiện mã trần"
+    db = SessionLocal()
+    try:
+        from app.models.stock_request import StockRequest
+        ds = db.get(StockRequest, _de_nghi_xuat(trip).id).lines
+        assert len(ds) == 1
+        assert float(ds[0].sl_de_nghi) == 40      # đúng số của yêu cầu, không phải số của đơn
+        assert ds[0].dvt == "hop"   # đơn vị của dòng đơn, không phải đơn vị ai đó gõ
+    finally:
+        db.close()
 
 
-def test_gui_yeu_cau_xuat_kho_hai_lan_bi_chan(client):
+def test_len_don_HONG_thi_khong_de_lai_de_nghi_xuat_nao(client):
+    """Kho không đủ hàng ⇒ lên đơn bị chặn cả gói: không chuyến, không đề nghị xuất mồ côi."""
+    from app.models.stock_lot import StockLot
+    from app.models.stock_request import StockRequest
+
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="17c")
     yc = _tao_yc(client, h, oid, lid)
-    trip = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 17c")).json()["trip"]["id"]
-    _gui_yeu_cau_xuat_kho(client, h, trip)
-    kho_id, hang_id = _kho_va_mat_hang()
-    r = client.post(f"/api/giao-hang/plans/{trip}/yeu-cau-xuat-kho", json={
-        "kho_id": kho_id,
-        "lines": [{"hang_loai": "vat_tu", "hang_id": hang_id, "dvt": "cai", "sl_de_nghi": 5}],
-    }, headers=h)
-    # Chặn ở đâu cũng được, miễn là CHẶN: gửi xong chuyến sang "kho đang chuẩn bị" nên lần hai
-    # đã vướng luật trạng thái trước khi tới luật trùng. Test khoá HÀNH VI, không khoá câu chữ.
-    assert r.status_code == 400, r.text
+    db = SessionLocal()
+    try:
+        for lo in db.query(StockLot).filter(StockLot.ma_lo.like(f"LO-GH-{oid}-%")):
+            lo.sl_con_lai = 0
+        db.commit()
+    finally:
+        db.close()
+    r = _len_kh(client, h, yc["id"], _tai_xe("Tai xe 17c"))
+    assert r.status_code == 400 and "Kho thành phẩm chỉ còn" in r.json()["detail"], r.text
+    assert client.get(f"/api/giao-hang/requests/{yc['id']}", headers=h).json()["trips"] == []
+    db = SessionLocal()
+    try:
+        assert db.query(StockRequest).filter(StockRequest.ghi_chu.like(f"%{yc['code']}%")).count() == 0
+    finally:
+        db.close()
 
 
 # =============================================================================================
@@ -1178,7 +1299,7 @@ def test_PHAN_CHUYEN_day_realtime_toi_tai_xe(client, monkeypatch):
     nv = _nv_co_tai_khoan("Tai xe rt1", "taixert1", can_read=True)
 
     day = _bat_day(monkeypatch)
-    _len_kh(client, h, yc["id"], nv, lay=8)
+    _len_kh(client, h, yc["id"], nv)
 
     cua_toi = [e for uid, e in day if uid == _uid_cua(nv) and e["type"] == "giao_hang_chuyen"]
     assert cua_toi, f"không đẩy gì tới tài xế: {day}"
@@ -1186,19 +1307,19 @@ def test_PHAN_CHUYEN_day_realtime_toi_tai_xe(client, monkeypatch):
     assert cua_toi[0]["request_code"] == yc["code"]
 
 
-def test_GUI_KHO_day_realtime_toi_tai_xe(client, monkeypatch):
-    """Chủ chốt 20/08/2026: "mỗi lần gửi đơn xuống kho cũng phải thông báo đến tài xế"."""
+def test_KHO_GHI_SO_day_realtime_toi_tai_xe(client, monkeypatch):
+    """Kho ghi sổ phiếu xuất ⇒ chuyến tự "Đã lấy hàng" và tài xế biết NGAY là bắt đầu giao được."""
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="rt2")
     yc = _tao_yc(client, h, oid, lid)
     nv = _nv_co_tai_khoan("Tai xe rt2", "taixert2", can_read=True)
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
+    trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
 
     day = _bat_day(monkeypatch)
-    _gui_yeu_cau_xuat_kho(client, h, trip)
+    _kho_xuat(client, h, trip)
 
     viec = [e["viec"] for uid, e in day if uid == _uid_cua(nv)]
-    assert "gui_kho" in viec, f"không báo tài xế lúc gửi kho: {day}"
+    assert "da_xuat_kho" in viec, f"không báo tài xế lúc kho ghi sổ: {day}"
 
 
 def test_KHO_LAP_PHIEU_day_realtime_toi_tai_xe(client, monkeypatch):
@@ -1214,8 +1335,7 @@ def test_KHO_LAP_PHIEU_day_realtime_toi_tai_xe(client, monkeypatch):
     oid, lid = _don_da_chot(suffix="rt3")
     yc = _tao_yc(client, h, oid, lid)
     nv = _nv_co_tai_khoan("Tai xe rt3", "taixert3", can_read=True)
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
-    _gui_yeu_cau_xuat_kho(client, h, trip)
+    trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
 
     db = SessionLocal()
     try:
@@ -1273,6 +1393,32 @@ def test_nhan_vien_liet_ke_theo_BO_PHAN_ke_ca_nguoi_CHUA_co_chuyen(client):
     assert any(x["employee_id"] == nv for x in ds),         f"nhân viên thuộc bộ phận giao hàng nhưng không hiện: {[x['ho_ten'] for x in ds]}"
 
 
+def test_PHU_XE_dang_o_chuyen_thi_KHONG_hien_ranh(client):
+    """⭐ 12/10/2026: phụ xe đang ngồi trên xe hiện "Rảnh" — nhãn chỉ dò cột tài xế. Từ mg 0400
+    (gỡ giờ lấy hàng) cứ có chuyến chưa chạy là "Có lịch", cả hai vai."""
+    h = _admin(client)
+    _bat_co_giao_hang()
+    oid, lid = _don_da_chot(suffix="pxr")
+    yc = _tao_yc(client, h, oid, lid)
+    tx, px = _tai_xe("Tai xe pxr"), _tai_xe("Phu xe pxr")
+    def tt():
+        ds = client.get("/api/giao-hang/nhan-vien", headers=h).json()["items"]
+        return {x["employee_id"]: x for x in ds if x["employee_id"] in (tx, px)}
+
+    assert {k: v["trang_thai"] for k, v in tt().items()} == {tx: "ranh", px: "ranh"}
+    r = client.post("/api/giao-hang/plans", json={
+        "request_id": yc["id"], "employee_id": tx, "phu_xe_employee_id": px,
+    }, headers=h)
+    assert r.status_code == 201, r.text
+    trip = r.json()["trip"]["id"]
+    assert {k: v["trang_thai"] for k, v in tt().items()} == {tx: "co_lich", px: "co_lich"}
+
+    _di_toi_dang_giao(client, h, trip)
+    dong = tt()
+    assert dong[px]["trang_thai"] == "dang_giao", dong[px]
+    assert dong[px]["chuyen_dang_thuc_hien"] == yc["code"], dong[px]
+
+
 def test_KM_THANG_cong_ca_chuyen_NGAY_KHAC_trong_thang(client):
     """⭐ Chuyến xong HÔM KHÁC trong tháng phải vào cột THÁNG, và KHÔNG vào cột NGÀY.
 
@@ -1286,7 +1432,7 @@ def test_KM_THANG_cong_ca_chuyen_NGAY_KHAC_trong_thang(client):
     oid, lid = _don_da_chot(suffix="kmt")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe km thang")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
+    trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
 
     # NGÀY KHÁC nhưng CÙNG THÁNG với hôm nay. Mọi tháng đều có ít nhất 28 ngày nên cặp (1, 2)
     # luôn cho một ngày khác hôm nay — không phụ thuộc hôm nay là ngày mấy.
@@ -1323,7 +1469,7 @@ def test_LOC_THEO_THANG_doi_cot_thang_nhung_KHONG_doi_cot_ngay(client):
     oid, lid = _don_da_chot(suffix="loc")
     yc = _tao_yc(client, h, oid, lid)
     nv = _tai_xe("Tai xe loc thang")
-    trip = _len_kh(client, h, yc["id"], nv, lay=8).json()["trip"]["id"]
+    trip = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
 
     hom = date.today()
     # Chuyến xong THÁNG TRƯỚC — tháng này không được thấy, xem tháng trước thì phải thấy.
@@ -1376,7 +1522,7 @@ def test_O_CHON_TAI_XE_va_TAB_NHAN_VIEN_cung_MOT_danh_sach(client):
 
 
 def test_o_chon_van_MOI_nguoi_CHUA_co_tai_khoan(client):
-    """Tài xế chưa được cấp login vẫn phân chuyến được — `da-lay-hang`/`ket-qua` gác bằng ô
+    """Tài xế chưa được cấp login vẫn phân chuyến được — `bat-dau-giao`/`ket-qua` gác bằng ô
     Thao tác nên quản lý bấm hộ được, chuyến KHÔNG tắc.
 
     Chỉ đánh dấu `co_thao_tac=False` để người phân công biết ai tự bấm được.

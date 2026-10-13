@@ -9,6 +9,8 @@ export interface MonCoBan {
   don_vi: string | null;
   dat: number;
   co_hang: number;
+  /** Phần của `co_hang` lấy từ tồn có sẵn của mã (không từ lệnh của đơn). */
+  co_tu_ton?: number;
   o: MonO;
   co_lenh: boolean;
   tu_ton: boolean;
@@ -64,7 +66,11 @@ export function chiTietO(m: MonCoBan): string {
   switch (m.o) {
     case "du_hang":
       if (m.giao_thang > 0) return `nhà gia công giao thẳng ${so(m.giao_thang)}`;
-      return m.tu_ton ? "lấy từ tồn kho" : "kho đã nhận đủ";
+      if (m.tu_ton) return "lấy từ tồn kho";
+      // Có lệnh nhưng hàng đủ nhờ tồn có sẵn của mã (hàng làm dư đơn trước) — đừng nói kho đã nhận.
+      if ((m.co_tu_ton ?? 0) >= m.co_hang) return "đủ từ tồn có sẵn";
+      if ((m.co_tu_ton ?? 0) > 0) return `có ${so(m.co_tu_ton ?? 0)} từ tồn có sẵn`;
+      return "kho đã nhận đủ";
     case "ngoai": {
       const g = l?.gia_cong;
       if (!g) return "";

@@ -6,7 +6,7 @@
  *  xoá màn tải tệp về giữ trong bộ nhớ; "Hoàn tác" = tải lại đúng tệp đó lên. Không tải về được
  *  (mất mạng, tệp quá lớn…) thì thông báo chỉ ghi "Đã xoá", không hứa hoàn tác.
  */
-import { Eye, FileText, Trash2, Upload } from "lucide-react";
+import { Camera, Eye, FileText, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { ApiError, anhNho, assetUrl } from "../../../api/client";
@@ -42,6 +42,7 @@ export function TabChungTu({
   xoaMot,
   chuKeo,
   chuChuaCo,
+  chupAnh = false,
   onDoi,
 }: {
   tep: TepChungTu[];
@@ -55,6 +56,8 @@ export function TabChungTu({
   chuKeo: string;
   /** Chữ ô kéo-thả khi chưa có tệp, vd "Chưa có chứng từ. Kéo ảnh biên nhận vào đây". */
   chuChuaCo: string;
+  /** Điện thoại: thêm nút to "Chụp ảnh" mở thẳng camera sau (chụp biên bản khách ký tại chỗ). */
+  chupAnh?: boolean;
   /** Danh sách tệp vừa đổi — nạp lại ngăn và bảng (cờ "Thiếu chứng từ"). */
   onDoi: () => void;
 }) {
@@ -111,6 +114,19 @@ export function TabChungTu({
 
   return (
     <>
+      {sua && chupAnh && (
+        <label className="kt-chup">
+          <Camera size={18} aria-hidden="true" />
+          {ban ? "Đang xử lý…" : "Chụp ảnh"}
+          <input type="file" hidden accept="image/*" capture="environment" disabled={ban}
+            aria-label="Chụp ảnh chứng từ"
+            onChange={(e) => {
+              const ds = Array.from(e.target.files ?? []);
+              e.target.value = "";
+              void taiLen(ds);
+            }} />
+        </label>
+      )}
       {sua ? (
         <label className={`kt-tha${keo ? " kt-tha--keo" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setKeo(true); }}

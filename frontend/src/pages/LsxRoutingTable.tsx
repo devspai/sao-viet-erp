@@ -312,8 +312,8 @@ export function LsxRoutingTable({
         const loaiCu = rowCu?.tooling_type ?? null;
         // Máy GỢI Ý: chỉ điền khi dòng đang TRỐNG máy và không phải bước tổ. Cách đo giờ chạy và
         // tốc độ đều treo ở cặp (công đoạn × máy), nên bước trống máy thì bảng bóc tách thời gian
-        // ra "—" mãi. Công đoạn khai đúng một máy còn dùng thì không có gì để đoán sai — server
-        // quyết (`may_id_goi_y`), client không tự dò danh mục. KHÔNG đè máy người ta đã chọn.
+        // ra "—" mãi. Máy gợi ý là máy mặc định của công đoạn (máy còn dùng đứng đầu danh sách) —
+        // server quyết (`may_id_goi_y`), client không tự dò danh mục. KHÔNG đè máy người ta đã chọn.
         const mayGoiY =
           m.may_id_goi_y != null && rowCu?.loai_buoc !== "to" && !rowCu?.may_id
             ? { may_id: m.may_id_goi_y }

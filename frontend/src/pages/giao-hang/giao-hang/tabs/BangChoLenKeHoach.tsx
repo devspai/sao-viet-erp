@@ -13,7 +13,7 @@ import { Button } from "../../../../components/Button";
 import { EmptyRow } from "../../../../components/EmptyState";
 import { fmtDateTime } from "../../../../utils/format";
 import { ChipGh, KhoangTrong } from "../components/giaoHangCells";
-import { hanGiao, ngayThuan } from "../shared/helpers";
+import { hanGiao, monGiao, ngayThuan } from "../shared/helpers";
 import { CuonLuoi, soCotGhim, rongLuoi, tenKhachGon, xepCot, apLuoi, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
 
 // Lưới phương án A (07/10/2026). Thứ tự: chọn, Mã yêu cầu, Ngày tạo, Đơn, Khách, Hàng, Số lượng,
@@ -143,11 +143,13 @@ export function BangChoLenKeHoach({
             {/* Xương chỉ khi CHƯA có hàng nào — tải lại thì giữ hàng cũ, đừng chồng 5 hàng xương lên trên. */}
             {loading && rows.length === 0 && <EmptyRow colSpan={cot.length} trangThai="dang-tai" />}
             {rows.map((r) => {
-              const dau = r.lines[0];
-              const them = r.lines.length - 1;
+              // Theo MÓN khách mua — cụm Ruột + Bìa là một quyển, không phải "+1 món".
+              const mon = monGiao(r.lines);
+              const dau = mon[0];
+              const them = mon.length - 1;
               const han = hanGiao(r.ngay_can_giao);
-              const tatCaHang = r.lines
-                .map((l) => `${l.mo_ta ?? l.hang_ten ?? ""}: ${l.qty.toLocaleString("vi-VN")}${l.don_vi_tinh ? ` ${l.don_vi_tinh}` : ""}`)
+              const tatCaHang = mon
+                .map((m) => `${m.ten}: ${m.qty.toLocaleString("vi-VN")}${m.dvt ? ` ${m.dvt}` : ""}${m.thanhPhan.length ? ` (${m.thanhPhan.join(" + ")})` : ""}`)
                 .join("\n");
               const dangSo = soRa.has(r.id);
               const o = (k: string) => {
@@ -174,7 +176,7 @@ export function BangChoLenKeHoach({
                   case "hang":
                     return (
                       <td key={k} title={tatCaHang}>
-                        <span>{dau ? dau.mo_ta ?? dau.hang_ten : "—"}</span>
+                        <span>{dau ? dau.ten : "—"}</span>
                         {them > 0 && (
                           <button type="button" className="lds-tag lds-tag--bam" aria-expanded={dangSo}
                             onClick={() => setSoRa((cu) => {
@@ -196,7 +198,7 @@ export function BangChoLenKeHoach({
                         {dau && them === 0 ? (
                           <>
                             {dau.qty.toLocaleString("vi-VN")}
-                            {dau.don_vi_tinh && <span className="lds-u">{dau.don_vi_tinh}</span>}
+                            {dau.dvt && <span className="lds-u">{dau.dvt}</span>}
                           </>
                         ) : <span className="lds-mu3">—</span>}
                       </td>
@@ -228,12 +230,12 @@ export function BangChoLenKeHoach({
                     <tr className="lds-so">
                       <td colSpan={cot.length}>
                         <ul>
-                          {r.lines.map((l) => (
-                            <li key={l.id}>
-                              <span>{l.mo_ta ?? l.hang_ten}</span>
+                          {mon.map((m) => (
+                            <li key={m.id}>
+                              <span>{m.ten}</span>
                               <span>
-                                {l.qty.toLocaleString("vi-VN")}
-                                {l.don_vi_tinh && <span className="lds-u">{l.don_vi_tinh}</span>}
+                                {m.qty.toLocaleString("vi-VN")}
+                                {m.dvt && <span className="lds-u">{m.dvt}</span>}
                               </span>
                             </li>
                           ))}

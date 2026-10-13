@@ -31,6 +31,9 @@ class LenhSxChang(BaseModel):
     nhom: str | None = None
     trang_thai: str
     hien_tai: bool = False
+    # 12/10/2026: bước thuê ngoài (viền cam) và bước có lô KCS không đạt (viền đỏ mảnh).
+    ngoai: bool = False
+    kcs_loi: bool = False
 
 
 class LenhSxItem(BaseModel):
@@ -53,6 +56,12 @@ class LenhSxItem(BaseModel):
     da_dong: bool = False
     # Ngày tạo lệnh — cột "Ngày tạo" + mốc kỳ `tao` (06/10/2026).
     created_at: datetime | None = None
+    # 12/10/2026 (phương án A): hạn giao khách thay hạn SX trên dòng; tuyến bước trong dòng; lệnh
+    # gia công trọn gói gộp một bước (`chang` rỗng, `nha_gia_cong` mang tên nhà gia công).
+    han_giao_khach: date | None = None
+    tron_goi: bool = False
+    nha_gia_cong: str | None = None
+    chang: list[LenhSxChang] = []
 
 
 class LenhSxListOut(BaseModel):
@@ -206,6 +215,12 @@ class RoutingNodeOut(BaseModel):
     khuon_be_ten: str | None = None
     khuon_be_so_ke: str | None = None
     khuon_be_tinh_trang: str | None = None
+    # Số không đạt KCS ghi trên chính bước này (12/10/2026).
+    kcs_khong_dat: float = 0.0
+    # Số tốt tổ đã ghi ở bước (13/10/2026) — so với `so_luong_ra` kế hoạch. Bước ghép: số cả ca.
+    lam_ra: float = 0.0
+    # Tên đơn vị của `don_vi_ra` ("tờ", không phải mã "to").
+    don_vi_ra_ten: str | None = None
 
 
 class RoutingOut(BaseModel):
@@ -489,3 +504,38 @@ class LenhSxHoSoOut(BaseModel):
     giao_hang: GiaoHangOut
     timeline: list[TimelineOut] = []
     phien_ban: int | None = None
+
+
+class TronGoiOut(BaseModel):
+    """Lệnh gia công trọn gói: routing mẫu không ai ghi, ngăn bày MỘT bước mang tên nhà gia công."""
+
+    nha_cung_cap: str | None = None
+    xong: bool = False
+
+
+class KcsCuoiNhomOut(BaseModel):
+    """KCS cuối của thành phẩm mà lệnh góp vào — cấp NHÓM như khối `kho` (Ruột + Bìa: bước KCS cuối
+    nằm ở lệnh Ruột, lệnh Bìa vẫn đọc được). `so_lan = 0` ⇒ chưa kiểm lần nào."""
+
+    so_lan: int = 0
+    nhan: float = 0.0
+    dat: float = 0.0
+    khong_dat: float = 0.0
+
+
+class LenhSxNganOut(BaseModel):
+    """Ngăn hồ sơ MỘT lệnh — gọn hơn `LenhSxHoSoOut`: bỏ vật tư, nhân lực, sản lượng từng lần, giao
+    hàng. 13/10/2026 (ngăn hai cột) lấy lại `su_co` cho thẻ Đang vướng và `timeline` cho tab Lịch sử;
+    số làm ra từng bước nằm ở `routing.nodes[].lam_ra`."""
+
+    thong_tin: ThongTinOut
+    tien_do: TienDoOut
+    thong_so: ThongSoOut
+    routing: RoutingOut
+    kcs: KcsOut
+    kho: KhoOut
+    phien_ban: int | None = None
+    tron_goi: TronGoiOut | None = None
+    kcs_cuoi: KcsCuoiNhomOut = KcsCuoiNhomOut()
+    su_co: list[SuCoOut] = []
+    timeline: list[TimelineOut] = []

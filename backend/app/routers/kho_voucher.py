@@ -91,7 +91,7 @@ from ..services.stock_voucher_service import (
 )
 from ..tai_len import doc_gioi_han
 
-from ..services.delivery_notify import bao_tai_xe_kho_lap_phieu, kho_nhan_lai_hang_giao
+from ..services.delivery_notify import bao_tai_xe_kho_lap_phieu, kho_ghi_so_hang_giao
 from ..services.san_xuat.kho import phat_su_kien_kho
 
 router = APIRouter(prefix="/api/kho/phieu", tags=["kho-phieu"])
@@ -510,7 +510,7 @@ def post_voucher(
     except StockVoucherError as e:
         raise _err(e) from None
     _bao_san_xuat(db, v)
-    kho_nhan_lai_hang_giao(db, getattr(v, "request_id", None), actor=user)
+    kho_ghi_so_hang_giao(db, getattr(v, "request_id", None), actor=user)
     return _serialize(v, svc=svc, db=db, can_view_cost=authz.can(user, MODULE, "view_cost"))
 
 
@@ -676,6 +676,7 @@ def suggest_allocation(
                 don_vi_goc=r["don_vi_goc"], kho_rong=r["kho_rong"] or 0, kho_dai=r["kho_dai"] or 0,
                 don_gia_nhap=r["don_gia_nhap"] if can_view_cost else None,
                 order_ma=r["order_ma"], khach_hang=r["khach_hang"], canh_bao=r["canh_bao"],
+                chua_gia_goc=can_view_cost and r["chua_gia_goc"],
             )
             for r in rows
         ],
@@ -1015,8 +1016,9 @@ def ton_nhom_trang(
     gia_kho = gia_lo_theo_man(authz, user, "ton")
     xem_gia = gia_kho(kho_id)
     giu = _giu_cho_service(db)
+    du_bao_svc = DuBaoTonService(giu.kh, giu)
     ket_qua = TonKhoNhomService(
-        svc.lots, StockThresholdRepository(db), svc.hang, DuBaoTonService(giu.kh, giu).du_bao,
+        svc.lots, StockThresholdRepository(db), svc.hang, du_bao_svc.du_bao, du_bao_svc.cho_xuat,
     ).trang(
         kho_id,
         LocTon(
@@ -1031,6 +1033,7 @@ def ton_nhom_trang(
         items=_dong_lo_danh_sach(svc, ket_qua["lots"], gia_kho),
         total=ket_qua["total"], dem=TonNhomDem(**ket_qua["dem"]), co_hsd=ket_qua["co_hsd"],
         nhom=[TonNhomMuc(**m) for m in ket_qua["nhom"]], du_bao_ok=ket_qua["du_bao_ok"],
+        chi_thanh_pham=ket_qua["chi_thanh_pham"],
     )
 
 
@@ -1069,8 +1072,16 @@ def du_bao_ton(
     _chan_neu_khong_xem_ton(db, authz, user, kho_id)
     hangs = [khoa_ton_cua(k) for k in svc.lots.khoa_trong_kho(kho_id)]
     giu = _giu_cho_service(db)
+    du_bao_svc = DuBaoTonService(giu.kh, giu)
     try:
-        return [DuBaoTonRow(**r) for r in DuBaoTonService(giu.kh, giu).du_bao(hangs)]
+        rows = du_bao_svc.du_bao(hangs)
+        # Đề nghị xuất còn treo của kho này (giao hàng, gia công ngoài…) — cùng phép với `/lo/ton-nhom`.
+        theo = {(r["hang_loai"], r["hang_id"], r["kho_rong"], r["kho_dai"], r.get("don_vi_goc") or ""): r
+                for r in rows}
+        for k, viec in du_bao_svc.cho_xuat(kho_id).items():
+            if k in theo:
+                theo[k] = du_bao_svc.gop_cho_xuat(theo[k], k, viec)
+        return [DuBaoTonRow(**r) for r in theo.values()]
     except KeHoachVatTuError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
 

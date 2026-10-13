@@ -75,6 +75,8 @@ SCOPELESS_CU = frozenset({
     "phieu_chi", "phieu_thu", "tk_ngan_hang", "tai_san",
     # KCS (09/10/2026, mg 0383): kiểm cả chuỗi mọi tổ — không có "lần kiểm của tôi".
     "kcs",
+    # Mục thu chi + Báo cáo thu chi (11/10/2026, mg 0395): danh mục và sổ của cả công ty.
+    "dm_muc_thu_chi", "bao_cao_thu_chi",
 })
 
 #: `nhat_ky_danh_muc.LOAI_MODULE` — tên chính của từng màn, 2 tên đời cũ (`machine`/`operation`),
@@ -105,6 +107,8 @@ LOAI_MODULE_CU = {
     "ky_thuat_yeu_cau": "ky_thuat_may",
     # Tiêu chí KCS (31/08/2026, Task 3 KCS kiêm nhiệm) — màn thứ 13, module riêng.
     "san_xuat_kcs_tieu_chi": "dm_kcs_tieu_chi",
+    # Mục thu chi (11/10/2026).
+    "muc_thu_chi": "dm_muc_thu_chi",
 }
 
 #: `danh_muc_tham_chieu.model_cua` bản cũ — đúng 6 loại có model (`bu_hao` gỡ 22/09/2026,
@@ -161,10 +165,10 @@ def test_khuon_be_giu_nguyen_chuoi_quyen():
 def test_khong_trung_loai_khong_trung_module():
     loai = [d.loai for d in DANH_MUC] + [a for d in DANH_MUC for a in d.alias_loai]
     assert len(loai) == len(set(loai)), "trùng `loai` giữa tên chính và tên đời cũ"
-    # 10 sau khi gỡ Loại sản phẩm + Chủng loại giấy (27/09/2026); 12 sau khi Bù hao được hợp nhất
+    # 11 từ 11/10/2026 (thêm Mục thu chi); 10 sau khi gỡ Loại sản phẩm + Chủng loại giấy (27/09/2026); 12 sau khi Bù hao được hợp nhất
     # vào Công đoạn (22/09/2026; trước đó 13, từ đợt hợp nhất Công việc khoán 21/09). Con số phải
     # ĐỔI chứ không được bỏ — nó bắt cả trường hợp lỡ tay khai trùng một màn thành hai dòng.
-    assert len(MODULE_KEYS) == len(set(MODULE_KEYS)) == 10
+    assert len(MODULE_KEYS) == len(set(MODULE_KEYS)) == 11
 
 
 def test_dem_theo_loai_phu_dung_cac_man_co_model():
@@ -184,7 +188,7 @@ def test_dang_ky_tra_du_cac_man(client):
     r = client.get("/api/danh-muc/dang-ky", headers=_admin(client))
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    assert len(items) == 10
+    assert len(items) == 11
 # `test_dang_ky_tra_du_11_man` GỠ 21/08/2026 — trùng việc với `test_dang_ky_tra_du_cac_man`
 # ngay trên (cả hai đếm số màn của endpoint đăng ký). Con số 14 (31/08/2026) rút còn 13
 # (10/09/2026) khi màn "Lý do & lỗi SX" gỡ hẳn, rồi còn 12 (22/09/2026) khi màn Bù hao gỡ, rồi còn 10 (27/09/2026) khi Loại sản phẩm +

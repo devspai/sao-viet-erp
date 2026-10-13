@@ -181,7 +181,7 @@ function VatTuCongDoanO({ ds }: { ds: unknown }) {
     icon={<Package size={13} strokeWidth={1.8} aria-hidden="true" />} />;
 }
 
-/** Hàng chip tên cho một mảng id (tổ phụ trách, giấy thay thế). Rỗng ⇒ ô trống. Chỉ bày `toiDa`
+/** Hàng chip tên cho một mảng id (tổ phụ trách). Rỗng ⇒ ô trống. Chỉ bày `toiDa`
  *  chip đầu, phần còn lại gom thành "+n" (rê chuột đọc đủ) — một công đoạn 6 tổ mà bày hết thì
  *  dòng cao gấp năm lần dòng bên cạnh. */
 function ChipTen({ prefix, ids, nhanDau, toiDa = 2 }: { prefix: string; ids: unknown; nhanDau?: string; toiDa?: number }) {
@@ -622,8 +622,7 @@ export const CFG_GIAY: CatalogConfig = {
     { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
     { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
     { key: "don_gia", label: "Đơn giá (đ/kg)", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
-    // Cột "Cách tính tiền" + "Giấy thay thế" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem trong
-    // thẻ giấy (ô Công thức tính giá, ô Giấy thay thế bên dưới).
+    // Cột "Cách tính tiền" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem ở ô Công thức tính giá.
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
@@ -644,10 +643,7 @@ export const CFG_GIAY: CatalogConfig = {
       // `thanh_phan_engine.py`: sửa một bên thì sửa cả hai.
       macDinhTheo: (f) => congThucGiaGiay(f.don_vi_gia) },
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
-    // NVL thay thế (mục 5 "Bảng định mức", mg 0239) — tra cứu/gợi ý khi thiếu giấy, MỘT CHIỀU.
-    { key: "thay_the_ids", label: "Giấy thay thế", type: "self-ref-multi",
-      refPrefix: "/api/vat-lieu-kho/giay", group: "Ghi chú",
-      hint: "Giấy khác dùng thay được món này khi thiếu hàng. Chỉ để tra cứu, không tự suy chiều ngược lại." },
+    // Ô "Giấy thay thế" (`thay_the_ids`, mg 0239) ĐÃ GỠ 13/10/2026 cùng cột DB (mg 0405).
   ],
 };
 
@@ -702,20 +698,17 @@ export const CFG_VAT_TU: CatalogConfig = {
     // một dòng tồn.
     F_DON_VI_THEM,
     // ẨN KHỎI UI 09/09/2026 — cùng lối đã làm với `cong_thuc_gia`: giấu ô, GIỮ NGUYÊN cột DB,
-    // dữ liệu cũ và mọi đường engine. Hai thứ bị giấu ở màn này:
+    // dữ liệu cũ và mọi đường engine. Thứ bị giấu ở màn này:
     //
     //   · `don_gia` — cả ô trong drawer LẪN cột trong bảng. Cột `vat_tu_in_an.don_gia` còn
     //     nguyên, engine vẫn phơi biến `don_gia` cho công thức vật tư (`thanh_phan_engine` /
     //     `tinh_gia_service`), Excel nhập/xuất vẫn mang cột này — chỉ là không khai/không xem
     //     bằng tay ở đây nữa.
-    //   · `thay_the_ids` ("Vật tư thay thế", mục 5 "Bảng định mức", mg 0239) — quan hệ MỘT CHIỀU
-    //     để tra cứu khi thiếu hàng. API `/api/vat-lieu-kho/vat-tu-in-an` vẫn nhận và trả nó.
+    //   · `thay_the_ids` ("Vật tư thay thế") ĐÃ GỠ hẳn cùng cột DB, mg 0405 (13/10/2026).
     //
     // Cần mở lại thì thêm về đúng chỗ này:
     //   { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá",
     //     hint: "Đơn giá theo ĐVT đã chọn — dùng làm biến don_gia trong công thức" },
-    //   { key: "thay_the_ids", label: "Vật tư thay thế", type: "self-ref-multi",
-    //     refPrefix: "/api/vat-lieu-kho/vat-tu-in-an", group: "Ghi chú", hint: "..." },
     // và trả cột `don_gia` vào `columns`. Ô của GIẤY (CFG_GIAY) GIỮ NGUYÊN — giấy chốt đơn giá/kg
     // ở danh mục là luật riêng của nó, đừng gỡ theo.
     //
@@ -974,6 +967,11 @@ export const CFG_KHO_HANG: CatalogConfig = {
   moLaiSauKhiTao: true,
   renderExtra: (_form, existing) => <KhoViTriPanel kho={existing} />,
   renderDeleteDialog: (row, ctx) => <KhoDeleteDialog row={row} {...ctx} />,
+  // Kho thành phẩm của hệ thống (`KHO-TP`, 12/10/2026): ổ khoá, không nút xoá — như mục cố định của
+  // Mục thu chi. Khác ở chỗ VẪN mở được để khai vị trí / ghi chú / vị trí cất; máy chủ chặn đổi tên,
+  // ngừng dùng, xoá.
+  dongKhoa: (r) => (r.co_dinh ? "Kho cố định của hệ thống: không xoá, không ngừng dùng, không đổi tên được." : null),
+  dongKhoaMoDuoc: true,
 };
 
 // Tình trạng khuôn — record-only (con người phán, máy chỉ ghi nhận).
@@ -1182,6 +1180,56 @@ export const CFG_XE: CatalogConfig = {
 };
 
 
+const LOAI_MUC = [{ value: "thu", label: "Thu" }, { value: "chi", label: "Chi" }];
+
+/** Cột "Đã dùng" của Mục thu chi: số phiếu mang mục, bấm mở Báo cáo thu chi lọc đúng mục đó
+ *  (mockup danh mục phương án A). Chữ thường khi 0, không quyền xem báo cáo, hoặc màn dựng trong test. */
+function DaDungMuc({ r }: { r: Row }) {
+  const navigate = useDieuHuongDanhMuc();
+  const can = useCan();
+  const so = Number(r.da_dung ?? 0);
+  if (so === 0) return <span className="lds-mu">0</span>;
+  if (!navigate || !can("bao_cao_thu_chi", "read")) return <>{so.toLocaleString("vi-VN")}</>;
+  return (
+    <button type="button" className="lds-lk" title={`Mở Báo cáo thu chi lọc mục ${String(r.ten)}`}
+      onClick={(e) => { e.stopPropagation(); navigate("bao-cao-thu-chi", { locMucThuChi: Number(r.id) }); }}>
+      {so.toLocaleString("vi-VN")}
+    </button>
+  );
+}
+
+/** Mục thu chi (11/10/2026; 12/10/2026 theo mockup `bao-cao-thu-chi-3-phuong-an.html` danh mục A).
+ *  Sáu mục CỐ ĐỊNH theo nguồn phiếu (Trả nhà cung cấp, Thuê gia công ngoài…) do máy chủ ghép vào
+ *  danh sách (id âm, `co_dinh`) — hiện để thấy đủ, khoá: không sửa, không ngừng. */
+export const CFG_MUC_THU_CHI: CatalogConfig = {
+  title: "Mục thu chi",
+  moduleQuyen: "dm_muc_thu_chi",
+  prefix: "/api/muc-thu-chi",
+  nhatKyLoai: "muc_thu_chi",
+  // Xoá như mọi danh mục (12/10/2026, khuôn màn Giấy): chưa phiếu nào mang thì xoá hẳn, đã có phiếu
+  // thì chỉ ngừng dùng — báo cáo thu chi của các kỳ cũ vẫn cần tên mục mà phiếu đã mang.
+  softDelete: true,
+  man: "muc-thu-chi",
+  // Hàng Tất cả / Đang dùng / Đã ngừng mặc định; Thu / Chi là điều kiện trong nút Lọc.
+  dieuKien: [{ key: "loai", nhan: "Bên", icon: "nhom", giaTri: LOAI_MUC }],
+  dongKhoa: (r) => (r.co_dinh
+    ? `Mục cố định: ${String(r.ghi_chu ?? "").toLowerCase()} tự vào mục này. Không sửa, không ngừng được.`
+    : null),
+  anNgayTao: true,
+  widthTen: 260,
+  columns: [
+    { key: "loai", label: "Bên", w: 90, render: (r) => (r.loai === "thu"
+      ? <ChipTT mau="xanh">Thu</ChipTT> : <ChipTT mau="cam">Chi</ChipTT>) },
+    { key: "da_dung", label: "Đã dùng", w: 90, n: true, render: (r) => <DaDungMuc r={r} /> },
+    { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
+  ],
+  fields: [
+    { key: "loai", label: "Loại", type: "select", required: true, default: "chi", options: LOAI_MUC },
+    { key: "ghi_chu", label: "Ghi chú", type: "text" },
+  ],
+};
+
+
 export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
   "khai-bao-kho": CFG_KHO_HANG,
   "may-thiet-bi": CFG_MAY,
@@ -1192,4 +1240,5 @@ export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
   "thanh-pham": CFG_THANH_PHAM,
   "khuon-be": CFG_KHUON_BE,
   "xe": CFG_XE,
+  "muc-thu-chi": CFG_MUC_THU_CHI,
 };

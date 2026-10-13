@@ -59,11 +59,12 @@ const AGING: AgingBucket[] = [
 function soCai(p: Partial<SoChiTietCongNo> = {}): SoChiTietCongNo {
   return {
     tk: "331", tieu_de: "Sổ chi tiết", doi_tuong_id: 7, ma: "NCC007", ten: "Giấy Bình Minh",
-    tu_ngay: "2026-10-01", den_ngay: "2026-10-31", dau_no: 0, dau_co: 50_000_000,
+    tu_ngay: "2026-10-01", den_ngay: "2026-10-31", dau_no: 0, dau_co: 50_000_000, hoan: 0,
     dong: [
       { ngay: "2026-10-02", luc: null, loai: "phieu_chi", so_ct: "PC-0090", dien_giai: "Chi trả nhà cung cấp",
         no: 30_000_000, co: 0, luy_ke_no: 0, luy_ke_co: 20_000_000 },
       { ngay: "2026-10-04", luc: null, loai: "dot_giao", so_ct: "PMH-0015 đợt 1", dien_giai: "Hàng đã nhận",
+        so_hoa_don: "0000811", ky_hieu: "1C26TAA", ngay_hoa_don: "2026-10-05", don_ma: "PMH-0015",
         no: 0, co: 68_400_000, luy_ke_no: 0, luy_ke_co: 88_400_000 },
     ],
     ps_no: 30_000_000, ps_co: 68_400_000, cuoi_no: 0, cuoi_co: 88_400_000, so_dong: 2,
@@ -79,8 +80,8 @@ function chiTiet(p: Partial<PayablesDetail> = {}): PayablesDetail {
       { ...dot, purchase_request_id: 12, code: "PMH-0012", delivery_id: 101, seq_no: 1, delivery_date: "2026-07-01",
         due_date: "2026-07-31", amount: 20_000_000, coc_bu: 20_000_000, con_no: 0, da_tat_toan: true },
       { ...dot, purchase_request_id: 12, code: "PMH-0012", delivery_id: 102, seq_no: 2, delivery_date: "2026-07-19",
-        due_date: "2026-08-18", overdue_days: 48, aging_bucket: "d31_60", invoice_number: "0001234",
-        invoice_date: "2026-07-19", amount: 36_500_000, coc_bu: 10_000_000, con_no: 26_500_000,
+        due_date: "2026-08-18", overdue_days: 48, aging_bucket: "d31_60", invoice_symbol: "1C26TBM", invoice_number: "0001234",
+        invoice_date: "2026-07-21", amount: 36_500_000, coc_bu: 10_000_000, con_no: 26_500_000,
         lines: [{ item_name: "Giấy Couche 150", unit: "to", quantity: 5000, unit_price: 5300, thanh_tien: 26_500_000, du: 200 }] },
       { ...dot, purchase_request_id: 15, code: "PMH-0015", delivery_id: 103, seq_no: 1, delivery_date: "2026-09-20",
         due_date: "2026-10-20", amount: 68_400_000, con_no: 68_400_000 },
@@ -176,7 +177,11 @@ describe("PayablesDrawer — NPT-2", () => {
     const bang = screen.getByRole("table", { name: "Các đợt còn nợ" });
     expect(document.querySelectorAll(".kt-ngan__chinh table.lds-g")).toHaveLength(1);
     expect(within(bang).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(
-      ["", "Đợt", "Hoá đơn", "Hạn trả", "Giá trị", "Trừ cọc", "Đã trả", "Còn nợ"]);
+      ["", "Đợt", "Ngày nhận hàng", "Số hoá đơn", "Ký hiệu", "Ngày hoá đơn", "Hạn trả", "Giá trị", "Trừ cọc", "Đã trả", "Còn nợ"]);
+    // Ngày nhận hàng và ngày hoá đơn là hai cột riêng; ký hiệu đứng cạnh số hoá đơn.
+    const dot2 = within(bang).getByText("0001234").closest("tr")!;
+    expect([...dot2.querySelectorAll("td")].slice(1, 6).map((c) => c.textContent)).toEqual(
+      ["Đợt 2", "19/07/2026", "0001234", "1C26TBM", "21/07/2026"]);
     const nhom = within(bang).getByRole("button", { name: "PMH-0012" }).closest("tr")!;
     expect(nhom).toHaveClass("lds-nhom");
     const o = nhom.querySelectorAll("td");
@@ -329,14 +334,21 @@ describe("PayablesDrawer — NPT-2", () => {
     const bang = await screen.findByRole("table");
     expect(saoKeDoiTac).toHaveBeenCalledWith("token-test", "payables", 7, { tuNgay: KY.tu, denNgay: KY.den });
     expect(within(bang).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(
-      ["Ngày", "Chứng từ", "Diễn giải", "Nhận hàng", "Đã trả", "Số dư"]);
+      ["Ngày", "Chứng từ", "Số hoá đơn", "Ký hiệu", "Ngày hoá đơn", "Diễn giải", "Nhận hàng", "Đã trả", "Số dư"]);
     const dong = within(bang).getAllByRole("row").slice(1).map((r) => [...r.querySelectorAll("td")].map((c) => c.textContent));
     expect(dong).toEqual([
       ["01/10/2026", "", "Số dư đầu kỳ", "", "", "50.000.000"],
-      ["02/10/2026", "PC-0090", "Chi trả nhà cung cấp", "", "30.000.000", "20.000.000"],
-      ["04/10/2026", "PMH-0015 đợt 1", "Hàng đã nhận", "68.400.000", "", "88.400.000"],
+      ["02/10/2026", "PC-0090", "", "", "", "Chi trả nhà cung cấp", "", "30.000.000", "20.000.000"],
+      ["04/10/2026", "PMH-0015 đợt 1", "0000811", "1C26TAA", "05/10/2026", "Hàng đã nhận", "68.400.000", "", "88.400.000"],
       ["31/10/2026", "", "Số dư cuối kỳ", "68.400.000", "30.000.000", "88.400.000"],
     ]);
+    // Dòng đầu/cuối kỳ: ô trống gộp đủ 4 cột (Chứng từ tới Ngày hoá đơn) ⇒ tổng cột khớp tiêu đề.
+    for (const r of within(bang).getAllByRole("row").slice(1)) {
+      const tong = [...r.querySelectorAll("td")].reduce((s, c) => s + (Number(c.getAttribute("colspan")) || 1), 0);
+      expect(tong).toBe(9);
+    }
+    await userEvent.click(screen.getByRole("button", { name: "PMH-0015 đợt 1" }));
+    expect(navigate).toHaveBeenCalledWith("ke-toan-don-mua-hang", { focusRequestCode: "PMH-0015" });
     expect(screen.getByText("Số dư = mình còn nợ nhà cung cấp")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "PC-0090" }));
     expect(navigate).toHaveBeenCalledWith("ke-toan-phieu-chi", { focusVoucherQuery: "PC-0090" });

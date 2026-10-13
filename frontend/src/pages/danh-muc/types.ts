@@ -13,11 +13,9 @@ export interface FieldDef {
   label: string;
   // `ref-search-ma` = như `ref-search` nhưng lưu MÃ (chuỗi) thay vì id — cho cột trỏ danh mục bằng
   // mã như `don_vi_gia` (quy đổi làm việc trên mã `kg`/`to`, không trên id).
-  // `self-ref-multi` = như `ref-multi` nhưng nguồn chọn là CHÍNH danh mục đang mở (NVL thay thế) —
-  // CatalogDrawer tự loại dòng đang sửa khỏi danh sách, người khai không tự chọn được chính mình.
   // `don-vi-them` = mảng MÃ đơn vị khai thêm cạnh ĐVT chính (Giấy · Vật tư khác, `ODonViNhieu`):
   // `refPrefix` trỏ danh mục Đơn vị, `donViChinh` là ô ĐVT chính cùng form.
-  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "self-ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them";
+  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them";
   /** Ô `select`: danh sách chọn. Nhận cả HÀM (như `hint`/`an`) cho menu mà nhãn đến MUỘN hơn
    *  lúc khai config — 5 chặng dòng giấy nạp từ `/api/don-vi/tram`, mảng dựng sẵn ở tầm module sẽ
    *  đóng băng lúc bảng còn rỗng. Hàm được gọi MỖI lần vẽ, nên vẽ lại là menu tự đầy. */
@@ -165,6 +163,14 @@ export interface CatalogConfig {
    *  (vd Thành phẩm: đơn/khách đặt lần đầu, ngày khai). Không đi vào `form` nên không lọt vào body
    *  gửi lên và không làm bật hộp "bỏ thay đổi?". */
   renderChiDoc?: (existing: Row) => ReactNode;
+  /** Dòng CHỈ ĐỌC (vd 6 mục cố định của Mục thu chi): trả câu giải thích ⇒ tên kèm ổ khoá (rê chuột
+   *  đọc câu đó), không nút, bấm dòng không mở form. `null` = dòng thường. */
+  dongKhoa?: (r: Row) => string | null;
+  /** Dòng khoá VẪN mở form được (vd Kho thành phẩm: khai vị trí cất) — chỉ ổ khoá + mất nút Xoá;
+   *  phần nào không sửa được do máy chủ chặn. */
+  dongKhoaMoDuoc?: boolean;
+  /** Bỏ cột Ngày tạo (màn có dòng không ngày tạo, vd mục cố định). */
+  anNgayTao?: boolean;
   softDelete?: boolean;         // "Xóa" = ẩn mềm (active=false), giữ dữ liệu; list chỉ hiện active
   /** Danh mục do HỆ SINH, không ai gõ tay ⇒ giấu nút "Thêm". Máy chủ chặn song song
    *  (`VatLieuKhoService._chan_go_tay`) — giấu nút mà không chặn thì một lời gọi API thẳng vẫn

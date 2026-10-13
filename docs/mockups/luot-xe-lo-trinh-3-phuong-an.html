@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lộ trình lượt xe — 3 phương án</title>
+<style>
+  :root{
+    --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --soft:#f8fafc; --paper:#fff; --hover:#f1f5f9;
+    --chon:#eef2ff; --accent:#1f2937;
+    --la-bg:#dcfce7; --la-fg:#15803d; --la-dot:#22c55e;
+    --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8; --xanh-dot:#3b82f6;
+    --vang-bg:#fef3c7; --vang-fg:#b45309; --vang-dot:#f59e0b;
+    --do-bg:#fee2e2; --do-fg:#b91c1c; --do-dot:#ef4444;
+    --xam-bg:#f1f5f9; --xam-fg:#475569; --xam-dot:#94a3b8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef1f5;color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+  b,strong,h1,h2,h3,th{font-weight:500}
+  .trang{max-width:1240px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:22px;margin:0 0 6px}
+  h2{font-size:18px;margin:40px 0 4px}
+  p.mo{color:var(--mute);margin:0 0 12px;max-width:900px}
+  .ghi{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}
+  .ghi ul{margin:6px 0 0;padding-left:18px}
+  .tk{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:12px 0}
+  .tk figure{margin:0;background:var(--paper);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .tk img{width:100%;display:block;border-bottom:1px solid var(--line)}
+  .tk figcaption{padding:8px 12px;font-size:13px}
+  .tk figcaption span{color:var(--mute)}
+
+  /* Vỏ ngăn (giống NganPhai) */
+  .ngan{background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 30px rgba(15,23,42,.08);width:1100px;max-width:100%;overflow:hidden}
+  .ngan__dau{padding:16px 22px 0}
+  .ngan__duong{color:var(--mute);font-size:13px}
+  .ngan__tieu{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+  .ngan__tieu .ma{font-size:20px}
+  .ngan__tieu .nut{margin-left:auto;display:flex;gap:8px}
+  .kv{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:0 0 12px}
+  .kv dt{color:var(--mute);font-size:12px}
+  .kv dd{margin:0}
+  .kv small{display:block;color:var(--mute);font-size:12px}
+  .tabs{display:flex;gap:20px;border-bottom:1px solid var(--line)}
+  .tabs span{padding:8px 0;color:var(--mute)}
+  .tabs span.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+  .ngan__than{padding:14px 22px 20px}
+
+  .btn{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+  .btn--chinh{background:var(--accent);border-color:var(--accent);color:#fff}
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+  .c-la{background:var(--la-bg);color:var(--la-fg)} .c-xanh{background:var(--xanh-bg);color:var(--xanh-fg)}
+  .c-vang{background:var(--vang-bg);color:var(--vang-fg)} .c-do{background:var(--do-bg);color:var(--do-fg)}
+  .c-xam{background:var(--xam-bg);color:var(--xam-fg)}
+  .the{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:12px;color:var(--mute);margin-right:4px}
+  .mute{color:var(--mute)} .nho{font-size:12px} .so{font-variant-numeric:tabular-nums}
+  .tr{text-align:right}
+  a.lk{color:var(--xanh-fg);text-decoration:none}
+
+  .so-tron{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;font-size:12px;background:var(--xam-bg);color:var(--xam-fg)}
+  .so-tron.xong{background:var(--la-fg);color:#fff}
+  .so-tron.dang{background:var(--xanh-fg);color:#fff}
+  .so-tron.loi{background:var(--do-fg);color:#fff}
+  .so-tron.kho{background:var(--paper);border:1px solid var(--line);color:var(--mute)}
+
+  /* ===== A: lưới dòng ===== */
+  table.lt{width:100%;border-collapse:collapse}
+  .lt th{font-size:12px;color:var(--mute);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .lt td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle;height:38px}
+  .lt tr.diem{cursor:pointer}
+  .lt tr.diem:hover td{background:var(--hover)}
+  .lt tr.diem.mo td{background:var(--soft)}
+  .lt tr.kho td{color:var(--mute);background:var(--paper)}
+  .lt .ten{max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lt .dc{max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mute)}
+  .lt .mui{color:var(--mute);width:18px}
+  .lt tr.ct td{background:var(--soft);padding:0 8px 12px 48px}
+  .ct__luoi{display:grid;grid-template-columns:1.3fr 1fr 1.4fr;gap:16px;padding-top:4px}
+  .ct__luoi dt{font-size:12px;color:var(--mute)} .ct__luoi dd{margin:0 0 8px}
+  table.hang{width:100%;border-collapse:collapse;font-size:13px}
+  .hang th{font-size:12px;color:var(--mute);text-align:left;padding:2px 0;font-weight:400}
+  .hang td{padding:2px 0}
+  .ct__nut{display:flex;gap:8px;margin-top:6px}
+
+  /* ===== B: danh sách trái + chi tiết phải ===== */
+  .md{display:grid;grid-template-columns:330px 1fr;border:1px solid var(--line);border-radius:8px;min-height:420px}
+  .md__ds{border-right:1px solid var(--line);overflow:auto;max-height:520px}
+  .md__moc{display:flex;gap:10px;align-items:center;padding:8px 12px;color:var(--mute);font-size:13px;border-bottom:1px solid var(--line)}
+  .md__muc{display:grid;grid-template-columns:22px 1fr auto;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+  .md__muc:hover{background:var(--hover)}
+  .md__muc.chon{background:var(--chon)}
+  .md__muc .t1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .md__muc .t2{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .md__muc .phai{text-align:right;font-size:12px;color:var(--mute)}
+  .md__ct{padding:14px 18px}
+  .md__ct .dau{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .md__ct .dau .ten{font-size:16px}
+  .md__ct .dau .nut{margin-left:auto;display:flex;gap:8px}
+  .tt{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;margin:12px 0}
+  .tt dt{color:var(--mute);font-size:13px} .tt dd{margin:0}
+  .khoi{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+  .khoi__ten{font-size:12px;color:var(--mute);margin-bottom:4px}
+
+  /* ===== C: dải điểm đánh số + một thẻ ===== */
+  .dai{display:flex;align-items:flex-start;overflow-x:auto;padding:6px 2px 14px;border-bottom:1px solid var(--line)}
+  .dai__nut{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:96px;cursor:pointer;border-radius:8px;padding:6px 4px}
+  .dai__nut:hover{background:var(--hover)}
+  .dai__nut.chon{background:var(--chon)}
+  .dai__nut .ten{font-size:12px;max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dai__nut .phu{font-size:11px;color:var(--mute)}
+  .dai__noi{flex:1;min-width:40px;display:flex;flex-direction:column;align-items:center;padding-top:14px}
+  .dai__noi i{display:block;width:100%;height:2px;background:var(--line)}
+  .dai__noi i.xong{background:var(--la-dot)}
+  .dai__noi span{font-size:11px;color:var(--mute);margin-top:3px;white-space:nowrap}
+  .c-the{padding-top:14px}
+  .c-the .dau{display:flex;align-items:center;gap:10px}
+  .c-the .dau .ten{font-size:16px}
+  .c-the .dau .nut{margin-left:auto;display:flex;gap:8px}
+  .c-luoi{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:16px;margin:12px 0}
+  .c-luoi dt{font-size:12px;color:var(--mute)} .c-luoi dd{margin:0}
+
+  /* ===== C điện thoại ===== */
+  .dt-hang{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .dt-nhan{font-size:13px;color:var(--mute);margin-bottom:6px}
+  .dt{width:375px;height:760px;border:10px solid #1f2937;border-radius:34px;background:var(--paper);position:relative;overflow:hidden;display:flex;flex-direction:column}
+  .dt__cuon{flex:1;overflow-y:auto;padding:12px 16px 16px}
+  .dt__dau{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .dt__dau .ma{font-size:17px;flex:1 1 auto}
+  .dt .kv{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:10px 0}
+  .dt .tabs{gap:18px;margin:0 -16px;padding:0 16px}
+  .dt-dai{display:flex;align-items:center;overflow-x:auto;padding:14px 0 6px;scrollbar-width:none}
+  .dt-dai button{all:unset;cursor:pointer;flex:none;border-radius:50%;padding:3px}
+  .dt-dai button.chon{box-shadow:0 0 0 2px var(--ink)}
+  .dt-dai .so-tron{width:30px;height:30px;font-size:13px}
+  .dt-dai i{flex:1 1 10px;min-width:10px;height:2px;background:var(--line)}
+  .dt-dai i.xong{background:var(--la-dot)}
+  .dt-lat{display:flex;align-items:center;gap:8px;margin:2px 0 10px}
+  .dt-lat span{flex:1;text-align:center;color:var(--mute);font-size:13px}
+  .dt-lat button{width:44px;height:36px;border:1px solid var(--line);border-radius:8px;background:var(--paper);font-size:18px;cursor:pointer;color:var(--ink)}
+  .dt-lat button:disabled{opacity:.35}
+  .dt-ten{font-size:16px;margin:0 0 4px}
+  .dt-muc{border-top:1px solid var(--line);padding:10px 0;display:flex;gap:10px;align-items:flex-start}
+  .dt-muc .noi{flex:1;min-width:0}
+  .dt-muc .nhan{font-size:12px;color:var(--mute)}
+  .dt-nut2{flex:none;border:1px solid var(--line);border-radius:8px;background:var(--paper);padding:8px 12px;font:inherit;font-size:13px;color:var(--xanh-fg)}
+  .dt-hang-ds .dong{padding:6px 0}
+  .dt-hang-ds .ba{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));font-size:13px;margin-top:2px}
+  .dt-hang-ds .ba small{display:block;font-size:11px;color:var(--mute)}
+  .dt__day{border-top:1px solid var(--line);padding:10px 16px 14px;display:flex;gap:8px;background:var(--paper)}
+  .dt__day .btn{height:48px;font-size:15px;border-radius:10px;flex:1}
+  .dt__day .btn--chinh{flex:2}
+
+  .chot{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px}
+  .chot b{font-weight:500}
+</style>
+</head>
+<body>
+<div class="trang">
+<h1>Tab Lộ trình của ngăn Lượt xe — 3 phương án</h1>
+<p class="mo">Vấn đề: hiện mỗi điểm giao là một thẻ cao khoảng 300px (khách, 3 thẻ mã, 3 ô nơi giao/người nhận/hẹn, bảng hàng, dải kết quả). Lượt 5 điểm dài khoảng 1.700px, phải cuộn gần 2 màn mới thấy Về kho. Cả 3 phương án dưới đây giữ lượt 5 điểm trong khoảng 400–450px.</p>
+
+<div class="ghi">
+  Đã đọc: <code>frontend/src/pages/giao-hang/giao-hang/components/NganLuot.tsx</code> (MocKho, TheDiem, BangHang, các nút Nhập kết quả, Trả hàng, Đổi / huỷ chuyến, form số đồng hồ xuất phát/về kho) và ảnh màn hiện tại (LX-261012-R2CQ).
+  <ul>
+    <li>Dữ liệu điểm 1 và 2 lấy đúng từ ảnh. Điểm 3, 4, 5 là GIẢ ĐỊNH để thấy đủ trạng thái (đang giao, đã lấy hàng, giao thất bại); vì vậy lượt trong mockup đang chạy chứ không phải Đã về kho.</li>
+    <li>Không đổi: đầu ngăn (mã lượt, chip, 4 ô Xe, Kíp, Xuất phát, Đã chạy), tab Chứng từ và Lịch sử, logic nút. Chỉ đổi cách bày thân tab Lộ trình.</li>
+  </ul>
+</div>
+
+<h2>Tham khảo đã mở</h2>
+<div class="tk">
+  <figure><img src="tham-khao-luot-xe/onfleet-route-mo-diem.png" alt="Onfleet Command Center mở một tuyến">
+    <figcaption>Onfleet Command Center (support.onfleet.com, bài Command Center). <span>Mở một tuyến thì mỗi điểm là MỘT DÒNG bảng: người nhận, trạng thái, trễ, khung giờ, bắt đầu, ETA. Khuôn của phương án A.</span></figcaption></figure>
+  <figure><img src="tham-khao-luot-xe/spoke-danh-sach-diem-the-chi-tiet.jpg" alt="Spoke Dispatch stop details card">
+    <figcaption>Spoke Dispatch, trước là Circuit for Teams (thẻ chi tiết điểm, bản 02/2025). <span>Cột trái danh sách điểm hai dòng (tên, địa chỉ), bấm một điểm thì thẻ chi tiết mở cạnh bên. Khuôn của phương án B.</span></figcaption></figure>
+  <figure><img src="tham-khao-luot-xe/routific-timeline-diem-danh-so.png" alt="Routific routes timeline">
+    <figcaption>Routific, timeline tuyến (help.routific.com bài 26). <span>Cả tuyến gói trong một dải ngang các ô số tròn theo thứ tự, bấm tuyến mới mở chi tiết. Khuôn của phương án C (dải điểm ở trên, một thẻ ở dưới).</span></figcaption></figure>
+  <figure><img src="tham-khao-luot-xe/onfleet-command-center.png" alt="Onfleet Command Center danh sách tuyến">
+    <figcaption>Onfleet Command Center, mức tuyến. <span>Đã mở và bỏ: màn tổng các tuyến trong ngày, không phải chi tiết một tuyến; chỉ giữ ý dòng tuyến có mũi tên mở ra.</span></figcaption></figure>
+</div>
+<p class="mo">Cũng đã mở và bỏ: trang marketing Onfleet Route Optimization (chỉ ảnh bản đồ và nút bật tắt, không có danh sách điểm).</p>
+
+<!-- ================= A ================= -->
+<h2>A. Mỗi điểm một dòng, bấm mở chi tiết ngay dưới dòng (khuôn Onfleet)</h2>
+<p class="mo">Rời kho và Về kho là dòng đầu và dòng cuối của cùng bảng. Một điểm một dòng 38px: số thứ tự, khách, nơi giao rút gọn, hàng, hẹn, tới lúc, chặng, trạng thái. Bấm dòng thì xổ ra người nhận, số điện thoại, bảng hàng Yêu cầu/Đã giao/Còn, ký nhận và nút của điểm. Điểm đang giao tự mở sẵn.</p>
+<div class="ngan" id="nganA"></div>
+<div class="chot">Hợp khi: lượt nhiều điểm, người điều phối cần quét nhanh cả lượt và so cột (giờ tới, chặng). Đổi lại: tên khách và địa chỉ dài bị cắt, phải mở dòng mới đọc đủ.</div>
+
+<!-- ================= B ================= -->
+<h2>B. Danh sách điểm bên trái, chi tiết một điểm bên phải (khuôn Spoke)</h2>
+<p class="mo">Cột trái 330px: mỗi điểm hai dòng (khách, địa chỉ) kèm chip trạng thái và giờ tới. Bên phải luôn chỉ một điểm đang chọn, đủ thông tin và nút. Chiều cao cố định, 5 hay 15 điểm thì cột trái tự cuộn.</p>
+<div class="ngan" id="nganB"></div>
+<div class="chot">Hợp khi: hay làm việc trên TỪNG điểm (nhập kết quả, gọi người nhận). Đổi lại: không nhìn được giờ tới và chặng của mọi điểm cùng lúc để so.</div>
+
+<!-- ================= C ================= -->
+<h2>C. Dải điểm đánh số ở trên, thẻ một điểm ở dưới (khuôn Routific)</h2>
+<p class="mo">Cả lộ trình gói trong một dải ngang: Kho, 1, 2, 3, 4, 5, Kho, giữa hai điểm ghi số km chặng; đoạn đã chạy tô xanh lá. Bấm một số thì thẻ chi tiết điểm đó hiện bên dưới. Điểm đang giao tự được chọn.</p>
+<div class="ngan" id="nganC"></div>
+<div class="chot">Hợp khi: muốn thấy ngay "xe đang ở đâu trong lượt". Đổi lại: quá 7–8 điểm dải phải cuộn ngang; tên khách trên dải chỉ đủ chỗ cho tên rút gọn.</div>
+
+<!-- ================= C trên điện thoại ================= -->
+<h2>C trên điện thoại (375px) — người dùng chính là tài xế, phụ xe</h2>
+<p class="mo">Khác bản máy tính ở 6 chỗ:
+(1) dải điểm chỉ còn ô số tròn 32px, không tên, không km — 7 ô (Kho, 5 điểm, Kho) vừa 343px; hơn 8 điểm thì dải cuộn ngang và tự cuộn tới điểm đang chọn;
+(2) ngay dưới dải có dòng "Điểm 3 trên 5" và hai nút ‹ › to để lật điểm bằng ngón cái, khỏi với lên dải;
+(3) tên khách, địa chỉ, mã xuống dòng chứ không cắt chữ;
+(4) nơi giao và người nhận mỗi thứ có một nút to <i>Chỉ đường</i>, <i>Gọi</i> — trên điện thoại đây là hai việc làm nhiều nhất;
+(5) bảng hàng thành danh sách: tên hàng một dòng, ba số Yêu cầu / Đã giao / Còn ở dòng dưới;
+(6) nút chính (Nhập kết quả, hay Bắt đầu giao / Về kho khi chọn ô Kho) dính đáy màn, cao 48px.
+Bốn ô Xe, Kíp, Xuất phát, Đã chạy xếp 2×2. Chặng km nằm trong thẻ điểm.</p>
+<div class="dt-hang">
+  <div><div class="dt-nhan">Đang giao — mở ngăn tự chọn điểm 3</div><div class="dt" id="dt1"></div></div>
+  <div><div class="dt-nhan">Lật về điểm 1 đã giao</div><div class="dt" id="dt2"></div></div>
+  <div><div class="dt-nhan">Bấm ô Kho cuối</div><div class="dt" id="dt3"></div></div>
+</div>
+<div class="chot">Mấy ô trong khung điện thoại bấm được thật: ô số trên dải, nút ‹ ›.</div>
+</div>
+
+<script>
+const DIEM = [
+  {kh:"CÔNG TY CỔ PHẦN CAFÉ KATINAT", dh:"DH008", po:"po999", yc:"YCGH-261012-PQKC",
+   dc:"Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh", nn:"Nguyễn Ngọc Vy", sdt:"0934 426 699",
+   hen:"12/10/2026", hang:[["Tờ rơi A4 4/4","1 tờ","1 tờ","0"]], tt:["Giao thành công","la"], toi:"09:29 12/10", dh_:"6.000", km:"269", ky:"hh"},
+  {kh:"CÔNG TY CỔ PHẦN CAFÉ KATINAT", dh:"DH004", po:"www", yc:"YCGH-261006-UHN8",
+   dc:"Lô 16, Đường số 3, KCN Tân Tạo, Phường Tân Tạo, TP Hồ Chí Minh", nn:"Lý Đức Trung", sdt:"0368 650 894",
+   hen:"07/10/2026", hang:[["Tờ rơi A4 4/4","4.000 tờ","4.000 tờ","0"]], tt:["Giao thành công","la"], toi:"09:30 12/10", dh_:"7.000", km:"1.000", ky:"hh"},
+  {kh:"CÔNG TY TNHH HOA LỢI HƯNG VIỆT", dh:"DH011", po:"HV-0921", yc:"YCGH-261012-K7TA",
+   dc:"12 Nguyễn Văn Linh, Phường Tân Phong, Quận 7, TP Hồ Chí Minh", nn:"Trần Thị Hoa", sdt:"0909 112 233",
+   hen:"12/10/2026", hang:[["Hộp giấy Ivory 350 in 4 màu","2.500 cái","",""],["Tờ hướng dẫn A5","2.500 tờ","",""]], tt:["Đang giao","xanh"], dang:true},
+  {kh:"CÔNG TY TNHH BAO BÌ MINH PHÁT", dh:"DH013", po:"", yc:"YCGH-261012-M2QD",
+   dc:"88 Lê Văn Việt, Phường Hiệp Phú, TP Thủ Đức", nn:"Phạm Minh Khoa", sdt:"0912 345 678",
+   hen:"13/10/2026", hang:[["Catalogue A4 32 trang","800 cuốn","",""]], tt:["Đã lấy hàng","xam"]},
+  {kh:"CÔNG TY CỔ PHẦN DƯỢC PHẨM AN KHANG", dh:"DH009", po:"AK-77", yc:"YCGH-261011-Z8PN",
+   dc:"25 Đường số 7, KCN Vĩnh Lộc, Bình Tân, TP Hồ Chí Minh", nn:"Võ Thanh Tâm", sdt:"0987 001 122",
+   hen:"12/10/2026", hang:[["Nhãn decal 50×30","20.000 cái","0 cái","20.000"]], tt:["Giao thất bại","do"], toi:"08:55 12/10", dh_:"5.900", km:"169", ly:"Kho khách đóng cửa"},
+];
+const DAU = `
+  <div class="ngan__dau">
+    <div class="ngan__duong">Lượt xe</div>
+    <div class="ngan__tieu"><span class="ma">LX-261012-R2CQ</span><span class="chip c-xanh">Đang giao</span>
+      <span class="nut"><button class="btn">⌃</button><button class="btn">⌄</button><button class="btn">✕</button></span></div>
+    <dl class="kv">
+      <div><dt>Xe</dt><dd>51D-40752<small>Xe a Sang</small></dd></div>
+      <div><dt>Kíp</dt><dd>Trần Hùng Tín<small>phụ xe Trần Văn Thạch Sang</small></dd></div>
+      <div><dt>Xuất phát</dt><dd>08:15 12/10<small>đồng hồ 5.731</small></dd></div>
+      <div><dt>Đã chạy</dt><dd>1.438 km<small>3 trên 5 điểm</small></dd></div>
+    </dl>
+    <div class="tabs"><span class="on">Lộ trình</span><span>Chứng từ</span><span>Lịch sử</span></div>
+  </div>`;
+const soTron = (d,i) => `<span class="so-tron ${d.tt[1]==="la"?"xong":d.dang?"dang":d.tt[1]==="do"?"loi":""}">${i+1}</span>`;
+const chip = d => `<span class="chip c-${d.tt[1]}">${d.tt[0]}</span>`;
+const the = d => `<span class="the">${d.dh}</span>${d.po?`<span class="the">PO ${d.po}</span>`:""}<span class="the">${d.yc}</span>`;
+const bangHang = d => `<table class="hang"><tr><th>Hàng giao</th><th class="tr">Yêu cầu</th><th class="tr">Đã giao</th><th class="tr">Còn</th></tr>
+  ${d.hang.map(h=>`<tr><td>${h[0]}</td><td class="tr so">${h[1]}</td><td class="tr so">${h[2]||"—"}</td><td class="tr so">${h[3]||"—"}</td></tr>`).join("")}</table>`;
+const nut = d => d.dang ? `<button class="btn btn--chinh">Nhập kết quả</button><button class="btn">Trả hàng</button>`
+  : d.tt[1]==="xam" ? `<button class="btn">Đổi / huỷ chuyến</button>` : d.tt[1]==="do" ? `<button class="btn">Trả hàng</button>` : "";
+const ketQua = d => d.toi ? `Tới ${d.toi}, đồng hồ ${d.dh_}, chặng ${d.km} km${d.ky?`, ký nhận ${d.ky}`:""}${d.ly?`, lý do: ${d.ly}`:""}` : "Chưa tới";
+
+/* A */
+function veA(mo){
+  const hangNgan = d => d.hang.length>1 ? `${d.hang[0][0]} <span class="mute">+${d.hang.length-1}</span>` : d.hang[0][0];
+  const sl = d => d.hang.length>1 ? "" : d.hang[0][1];
+  let r = `<table class="lt"><tr><th></th><th>#</th><th>Khách</th><th>Nơi giao</th><th>Hàng</th><th class="tr">SL</th><th>Hẹn</th><th>Tới</th><th class="tr">Chặng</th><th>Trạng thái</th></tr>
+   <tr class="kho"><td></td><td><span class="so-tron kho">✓</span></td><td>Rời kho</td><td></td><td></td><td></td><td></td><td class="so">08:15 12/10</td><td class="tr so">đh 5.731</td><td></td></tr>`;
+  DIEM.forEach((d,i)=>{
+    const m = mo.has(i);
+    r += `<tr class="diem${m?" mo":""}" data-i="${i}"><td class="mui">${m?"▾":"▸"}</td><td>${soTron(d,i)}</td><td class="ten">${d.kh}</td><td class="dc">${d.dc}</td>
+      <td>${hangNgan(d)}</td><td class="tr so">${sl(d)}</td><td class="so">${d.hen.slice(0,5)}</td><td class="so">${d.toi?d.toi.slice(0,5):"—"}</td>
+      <td class="tr so">${d.km?d.km+" km":"—"}</td><td>${chip(d)}</td></tr>`;
+    if(m) r += `<tr class="ct"><td colspan="10"><div class="ct__luoi">
+      <dl><dt>Khách</dt><dd>${d.kh}<div>${the(d)}</div></dd><dt>Nơi giao</dt><dd>${d.dc} <a class="lk nho" href="#">Mở bản đồ</a></dd></dl>
+      <dl><dt>Người nhận</dt><dd>${d.nn}<br><a class="lk" href="#">${d.sdt}</a></dd><dt>Kết quả</dt><dd>${ketQua(d)}</dd></dl>
+      <div>${bangHang(d)}<div class="ct__nut">${nut(d)}</div></div></div></td></tr>`;
+  });
+  r += `<tr class="kho"><td></td><td><span class="so-tron kho"></span></td><td>Về kho</td><td colspan="7" class="nho">Mọi điểm có kết quả thì nút Về kho hiện ở đầu ngăn</td></tr></table>`;
+  document.getElementById("nganA").innerHTML = DAU + `<div class="ngan__than">${r}</div>`;
+  document.querySelectorAll("#nganA tr.diem").forEach(tr=>tr.onclick=()=>{const i=+tr.dataset.i; mo.has(i)?mo.delete(i):mo.add(i); veA(mo);});
+}
+veA(new Set([2]));
+
+/* B */
+function veB(chon){
+  let ds = `<div class="md__moc"><span class="so-tron kho">✓</span>Rời kho 08:15 12/10</div>`;
+  DIEM.forEach((d,i)=>{ ds += `<div class="md__muc${i===chon?" chon":""}" data-i="${i}">${soTron(d,i)}
+     <div><div class="t1">${d.kh}</div><div class="t2">${d.dc}</div></div>
+     <div class="phai">${chip(d)}<div>${d.toi?d.toi.slice(0,5):"hẹn "+d.hen.slice(0,5)}</div></div></div>`; });
+  ds += `<div class="md__moc"><span class="so-tron kho"></span>Về kho</div>`;
+  const d = DIEM[chon];
+  const ct = `<div class="dau">${soTron(d,chon)}<span class="ten">${d.kh}</span>${chip(d)}<span class="nut">${nut(d)}</span></div>
+    <div>${the(d)}</div>
+    <dl class="tt"><dt>Nơi giao</dt><dd>${d.dc} <a class="lk nho" href="#">Mở bản đồ</a></dd>
+      <dt>Người nhận</dt><dd>${d.nn} <a class="lk" href="#">${d.sdt}</a></dd>
+      <dt>Hẹn giao</dt><dd>${d.hen}</dd>
+      <dt>Kết quả</dt><dd>${ketQua(d)}</dd></dl>
+    <div class="khoi">${bangHang(d)}</div>`;
+  document.getElementById("nganB").innerHTML = DAU + `<div class="ngan__than"><div class="md"><div class="md__ds">${ds}</div><div class="md__ct">${ct}</div></div></div>`;
+  document.querySelectorAll("#nganB .md__muc").forEach(e=>e.onclick=()=>veB(+e.dataset.i));
+}
+veB(2);
+
+/* C */
+function veC(chon){
+  const kmChang = ["269","1.000","","",""];
+  let dai = `<div class="dai__nut"><span class="so-tron kho">✓</span><span class="ten">Kho</span><span class="phu">08:15</span></div>`;
+  DIEM.forEach((d,i)=>{
+    const xong = !!d.toi && d.tt[1]==="la";
+    dai += `<div class="dai__noi"><i class="${xong?"xong":""}"></i><span>${d.km?d.km+" km":""}</span></div>
+      <div class="dai__nut${i===chon?" chon":""}" data-i="${i}">${soTron(d,i)}<span class="ten">${d.kh.replace(/^CÔNG TY (CỔ PHẦN|TNHH) /,"")}</span><span class="phu">${d.toi?d.toi.slice(0,5):"hẹn "+d.hen.slice(0,5)}</span></div>`;
+  });
+  dai += `<div class="dai__noi"><i></i><span></span></div><div class="dai__nut"><span class="so-tron kho"></span><span class="ten">Về kho</span><span class="phu">chưa về</span></div>`;
+  const d = DIEM[chon];
+  const the_ = `<div class="c-the"><div class="dau">${soTron(d,chon)}<span class="ten">${d.kh}</span>${chip(d)}<span class="nut">${nut(d)}</span></div>
+    <div style="margin-top:4px">${the(d)}</div>
+    <dl class="c-luoi"><div><dt>Nơi giao</dt><dd>${d.dc}<br><a class="lk nho" href="#">Mở bản đồ</a></dd></div>
+      <div><dt>Người nhận</dt><dd>${d.nn}<br><a class="lk" href="#">${d.sdt}</a></dd></div>
+      <div><dt>Hẹn giao</dt><dd>${d.hen}</dd></div>
+      <div><dt>Kết quả</dt><dd>${ketQua(d)}</dd></div></dl>
+    ${bangHang(d)}</div>`;
+  document.getElementById("nganC").innerHTML = DAU + `<div class="ngan__than"><div class="dai">${dai}</div>${the_}</div>`;
+  document.querySelectorAll("#nganC .dai__nut[data-i]").forEach(e=>e.onclick=()=>veC(+e.dataset.i));
+}
+veC(2);
+
+/* C điện thoại. Chỉ số: -1 = Kho đầu, 0..4 = điểm, 5 = Kho cuối. */
+function veP(id, chon){
+  const n = DIEM.length;
+  let dai = `<button data-i="-1" class="${chon===-1?"chon":""}"><span class="so-tron kho">✓</span></button>`;
+  DIEM.forEach((d,i)=>{ dai += `<i class="${d.tt[1]==="la"?"xong":""}"></i><button data-i="${i}" class="${chon===i?"chon":""}">${soTron(d,i)}</button>`; });
+  dai += `<i></i><button data-i="${n}" class="${chon===n?"chon":""}"><span class="so-tron kho">K</span></button>`;
+  const nhanLat = chon===-1 ? "Rời kho" : chon===n ? "Về kho" : `Điểm ${chon+1} trên ${n}`;
+  let than, day;
+  if (chon===-1 || chon===n){
+    const roi = chon===-1;
+    than = `<div class="dt-ten">${roi?"Rời kho":"Về kho"}</div>
+      <div class="dt-muc"><div class="noi"><div class="nhan">${roi?"Lúc rời":"Trạng thái"}</div>${roi?"08:15 12/10":"Chưa về — còn 2 điểm chưa có kết quả (3, 4)"}</div></div>
+      ${roi?`<div class="dt-muc"><div class="noi"><div class="nhan">Đồng hồ xuất phát</div>5.731</div></div>`:""}`;
+    day = roi ? "" : `<button class="btn btn--chinh" disabled style="opacity:.4">Về kho</button>`;
+  } else {
+    const d = DIEM[chon];
+    than = `<div class="dt-ten">${d.kh}</div><div style="margin-bottom:8px">${chip(d)}</div><div style="margin-bottom:6px">${the(d)}</div>
+      <div class="dt-muc"><div class="noi"><div class="nhan">Nơi giao</div>${d.dc}</div><button class="dt-nut2">Chỉ đường</button></div>
+      <div class="dt-muc"><div class="noi"><div class="nhan">Người nhận</div>${d.nn}<div class="mute nho">${d.sdt}</div></div><button class="dt-nut2">Gọi</button></div>
+      <div class="dt-muc"><div class="noi"><div class="nhan">Hẹn giao</div>${d.hen}</div></div>
+      ${d.toi?`<div class="dt-muc"><div class="noi"><div class="nhan">Kết quả</div>Tới ${d.toi}<div class="mute nho">đồng hồ ${d.dh_}, chặng ${d.km} km${d.ky?`, ký nhận ${d.ky}`:""}</div>${d.ly?`<div>Lý do: ${d.ly}</div>`:""}</div></div>`:""}
+      <div class="dt-muc dt-hang-ds" style="display:block"><div class="nhan">Hàng giao</div>
+        ${d.hang.map(h=>`<div class="dong">${h[0]}<div class="ba"><div><small>Yêu cầu</small>${h[1]}</div><div><small>Đã giao</small>${h[2]||"—"}</div><div><small>Còn</small>${h[3]||"—"}</div></div></div>`).join("")}</div>`;
+    day = d.dang ? `<button class="btn">Trả hàng</button><button class="btn btn--chinh">Nhập kết quả</button>`
+      : d.tt[1]==="do" ? `<button class="btn">Trả hàng</button>` : d.tt[1]==="xam" ? `<button class="btn">Đổi / huỷ chuyến</button>` : "";
+  }
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="dt__cuon">
+      <div class="ngan__duong">Lượt xe</div>
+      <div class="dt__dau"><span class="ma">LX-261012-R2CQ</span><span class="chip c-xanh">Đang giao</span><button class="btn">✕</button></div>
+      <dl class="kv">
+        <div><dt>Xe</dt><dd>51D-40752<small>Xe a Sang</small></dd></div>
+        <div><dt>Kíp</dt><dd>Trần Hùng Tín<small>phụ xe Trần Văn Thạch Sang</small></dd></div>
+        <div><dt>Xuất phát</dt><dd>08:15 12/10<small>đồng hồ 5.731</small></dd></div>
+        <div><dt>Đã chạy</dt><dd>1.438 km<small>3 trên 5 điểm</small></dd></div>
+      </dl>
+      <div class="tabs"><span class="on">Lộ trình</span><span>Chứng từ</span><span>Lịch sử</span></div>
+      <div class="dt-dai">${dai}</div>
+      <div class="dt-lat"><button data-lat="-1" ${chon===-1?"disabled":""}>‹</button><span>${nhanLat}</span><button data-lat="1" ${chon===n?"disabled":""}>›</button></div>
+      ${than}
+    </div>${day?`<div class="dt__day">${day}</div>`:""}`;
+  el.querySelectorAll(".dt-dai button").forEach(b=>b.onclick=()=>veP(id,+b.dataset.i));
+  el.querySelectorAll(".dt-lat button").forEach(b=>b.onclick=()=>veP(id,chon+ +b.dataset.lat));
+  const c = el.querySelector(".dt-dai button.chon"); if(c) c.scrollIntoView({inline:"center",block:"nearest"});
+}
+veP("dt1",2); veP("dt2",0); veP("dt3",5);
+window.scrollTo(0,0);
+</script>
+</body>
+</html>

@@ -286,6 +286,7 @@ export function ReceiptsDrawer({
       cot={
         <RayThuocTinh o={[
           { nhan: "Người nộp tiền", giaTri: phieu.payer_name || "—" },
+          { nhan: "Mục thu", giaTri: phieu.muc_thu_chi_ten || <span className="kt-mo">Chưa phân loại</span> },
           // Ô Địa chỉ của mẫu 01-TT — trước nằm ở biên lai, giờ đứng ngay dưới người nộp.
           { nhan: "Địa chỉ người nộp", giaTri: phieu.payer_address },
           { nhan: "Hình thức", giaTri: methodText(phieu) },

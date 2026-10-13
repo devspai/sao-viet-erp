@@ -28,7 +28,8 @@ from ...models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 from ...models.customer import Customer
 from ...models.lsx import TT_DA_DONG, Lsx, LsxCongDoan
 from ...models.order import Order
-from ...models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
+from ...models.san_xuat import BUOC_THUE_NGOAI, CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
+from ...models.san_xuat_kcs import KCS_KHONG_DAT
 from ...repositories.lenh_sx_doc_repo import LenhNhe, LenhSxDocRepository
 from ...repositories.loc_danh_sach import dk_khoang_ngay
 from ..can_doi_cache import lay_hoac_tinh
@@ -118,6 +119,7 @@ def _loc_sql(
     sale_ids: set[int] | None, *,
     q: str | None, khach_hang_id: int | None, tu_ngay: date | None, den_ngay: date | None,
     moc: str = "tao", order_id: int | None = None, gia_cong: str | None = None,
+    phu_trach_id: int | None = None,
 ):
     """`select(Lsx.id)` đã gắn hết phần lọc SQL diễn đạt được.
 
@@ -142,6 +144,8 @@ def _loc_sql(
         )
     if order_id is not None:
         stmt = stmt.where(Lsx.order_id == order_id)
+    if phu_trach_id is not None:
+        stmt = stmt.where(Lsx.order_id.in_(select(Order.id).where(pham_vi.chu_don() == phu_trach_id)))
     if gia_cong:
         from ...repositories.gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
 
@@ -319,12 +323,19 @@ def chang(bc: BoiCanh, lsx_id: int, cv_nay: SanXuatCongViec | None) -> list[dict
             "nhom": ds[0].nhom_cong_doan,
             "trang_thai": tt,
             "hien_tai": khoa == khoa_nay,
+            # Bước thuê ngoài (viền cam trên tuyến bước) và bước có lô KCS không đạt (viền đỏ mảnh).
+            "ngoai": any(cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None for cv in ds),
+            "kcs_loi": any(k.ket_luan == KCS_KHONG_DAT for cv in ds for k in bc.kcs.get(cv.id, ())),
         })
     return ra
 
 
-def _dong(bc: BoiCanh, lsx_id: int, khau_ct: tuple[str, str | None]) -> dict:
-    """MỘT dòng bảng tra cứu — chỉ cột tĩnh."""
+def _dong(bc: BoiCanh, lsx_id: int, khau_ct: tuple[str, str | None],
+          tron_goi: dict[int, str | None] | None = None) -> dict:
+    """MỘT dòng bảng tra cứu: cột tĩnh + tuyến bước (12/10/2026, chỉ đọc bảng bước và trạng thái
+    việc đã nạp — không chạy dự kiến xong). Lệnh gia công trọn gói gộp về MỘT bước: routing mẫu
+    của nó không ai ghi nên không bày ra."""
+    tron_goi = tron_goi or {}
     lsx = bc.lenh[lsx_id]
     don = bc.don.get(lsx.order_id)
     khach = bc.khach.get(don.customer_id) if don is not None and don.customer_id else None
@@ -343,6 +354,10 @@ def _dong(bc: BoiCanh, lsx_id: int, khau_ct: tuple[str, str | None]) -> dict:
         "khau_chi_tiet": khau_ct[1],
         "da_dong": lsx.trang_thai == TT_DA_DONG,
         "created_at": lsx.created_at,
+        "han_giao_khach": lsx.han_giao_khach,
+        "tron_goi": lsx_id in tron_goi,
+        "nha_gia_cong": tron_goi.get(lsx_id),
+        "chang": [] if lsx_id in tron_goi else chang(bc, lsx_id, buoc_hien_tai(bc, lsx_id)),
     }
 
 
@@ -391,7 +406,7 @@ def danh_sach(
     db: Session, *, sale_ids: set[int] | None,
     tab: str | None = None, q: str | None = None, khach_hang_id: int | None = None,
     tu_ngay: date | None = None, den_ngay: date | None = None, moc: str = "tao",
-    order_id: int | None = None, gia_cong: str | None = None,
+    order_id: int | None = None, gia_cong: str | None = None, phu_trach_id: int | None = None,
     page: int = 1, page_size: int = PAGE_SIZE_MAC_DINH,
 ) -> dict:
     """`{items, total, page, page_size, dem_theo_tab}` — bảng đã lọc, đếm và CẮT TRANG ở máy chủ.
@@ -403,7 +418,7 @@ def danh_sach(
 
     ids = list(db.execute(_loc_sql(
         sale_ids, q=q, khach_hang_id=khach_hang_id, tu_ngay=tu_ngay, den_ngay=den_ngay,
-        moc=moc, order_id=order_id, gia_cong=gia_cong,
+        moc=moc, order_id=order_id, gia_cong=gia_cong, phu_trach_id=phu_trach_id,
     )).scalars())
     nhe, da_giao_het = _tach_da_giao_het(db, ids)
     song = [i for i in ids if i not in da_giao_het]
@@ -428,8 +443,12 @@ def danh_sach(
     trang = ids[dau:dau + page_size]
     tap_song = set(song)
     bc_trang = boi_canh.nap(db, [i for i in trang if i not in tap_song])
+    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+    tron_goi = {i: g.nha_cung_cap_ten for i, g, _bg in GiaCongNgoaiRepository(db).cua_nhieu_lenh(trang)
+                if g.kieu == "tron_goi"}
     return {
-        "items": [_dong(bc if i in tap_song else bc_trang, i, kh[i]) for i in trang],
+        "items": [_dong(bc if i in tap_song else bc_trang, i, kh[i], tron_goi) for i in trang],
         "total": len(ids),
         "page": page,
         "page_size": page_size,
@@ -489,3 +508,17 @@ def don_loc(db: Session, *, sale_ids: set[int] | None) -> list[dict]:
 def bo_loc(db: Session, *, sale_ids: set[int] | None) -> dict:
     """Nguồn ô Khách của Hồ sơ lệnh, gác `lenh_san_xuat:read` (không mượn đường của Theo dõi)."""
     return {"khach_hang": khach_trong_pham_vi(db, sale_ids)}
+
+
+def phu_trach_loc(db: Session, *, sale_ids: set[int] | None) -> list[dict]:
+    """Ô "Phụ trách" của thanh lọc: chủ đơn (luật Đơn hàng bán) của các lệnh trong phạm vi, kèm số lệnh."""
+    from ...models.user import User
+
+    trong = pham_vi.loc_lsx_da_phat_hanh(select(Lsx.id), sale_ids)
+    chu = pham_vi.chu_don().label("chu")
+    sub = select(chu).select_from(Lsx).join(Order, Order.id == Lsx.order_id).where(Lsx.id.in_(trong)).subquery()
+    rows = db.execute(
+        select(User.id, User.name, func.count()).join(sub, sub.c.chu == User.id)
+        .group_by(User.id, User.name).order_by(User.name)
+    ).all()
+    return [{"id": i, "ten": t or f"Người dùng #{i}", "so": n} for i, t, n in rows]

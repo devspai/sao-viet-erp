@@ -88,7 +88,7 @@ class LenhSxDocRepository:
         """Lệnh (trong `lsx_ids`) mà lần giao CÓ HÀNG ĐẾN TAY cuối cùng kết thúc trước `moc`. MỘT câu.
 
         Mốc của một chuyến = `thoi_gian_ket_thuc` (đặt lúc tài xế chốt chuyến); chuyến cũ thiếu cột
-        đó thì lùi về `gio_lay_hang`. Cùng bảng + cùng điều kiện chuyến với `lenh_nhe` (câu 11b của
+        đó thì lùi về lúc lên đơn (`created_at`; giờ lấy hàng gỡ ở mg 0400). Cùng bảng + cùng điều kiện chuyến với `lenh_nhe` (câu 11b của
         `boi_canh`). Lệnh chưa có chuyến nào không bao giờ lọt — HAVING trên nhóm rỗng không ra dòng.
         """
         if not lsx_ids:
@@ -96,7 +96,7 @@ class LenhSxDocRepository:
         # Trạng thái chuyến lọc ở Python — lý do ở `lenh_nhe` (đưa vào WHERE là chuyến × dòng).
         # Gom theo (lệnh, trạng thái), so mốc ở DB như cũ; max của nhóm NULL ⇒ cờ NULL, bỏ qua —
         # y hệt MAX() của SQL bỏ NULL.
-        moc_chuyen = func.coalesce(DeliveryTrip.thoi_gian_ket_thuc, DeliveryTrip.gio_lay_hang)
+        moc_chuyen = func.coalesce(DeliveryTrip.thoi_gian_ket_thuc, DeliveryTrip.created_at)
         co: dict[int, list[bool]] = {}
         for lsx_id, tt, truoc in self.db.execute(
             select(Lsx.id, DeliveryTrip.trang_thai, func.max(moc_chuyen) < moc)

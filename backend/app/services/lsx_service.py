@@ -625,11 +625,13 @@ class LsxService:
         thì bước sinh ra đã sai từ lúc chào đời: `cong_thuc_gio` treo ở cặp (công đoạn × máy), cặp
         không tồn tại ⇒ thời lượng ra "—" và băng "Danh mục đã đổi" kêu ngay ở lệnh vừa tạo.
 
-        Ba nhánh, theo đúng lối `_khoan_mac_dinh` — rõ thì điền, mơ hồ thì để trống chứ không đoán:
+        Ba nhánh:
           · Công đoạn CHƯA khai máy nào ⇒ không có gì để đối chiếu, tin phiếu.
           · Phiếu chọn máy nằm trong danh sách ⇒ dùng máy đó.
-          · Còn lại (phiếu bỏ trống, hoặc chọn máy công đoạn không nhận) ⇒ chỉ điền khi công đoạn
-            khai ĐÚNG MỘT máy còn dùng — lúc ấy không có lựa chọn thứ hai để mà đoán sai.
+          · Còn lại (phiếu bỏ trống, hoặc chọn máy công đoạn không nhận) ⇒ MÁY MẶC ĐỊNH của công
+            đoạn = máy còn dùng đứng ĐẦU bảng "Máy chạy được công đoạn này" (theo `thu_tu`), cùng
+            luật với tổ mặc định (`CongDoan.to_mac_dinh_id`). Trước 12/10/2026 chỉ điền khi công đoạn
+            khai đúng MỘT máy — Cắt tờ khai hai máy là bước nào cũng trống máy, phải chọn tay.
         """
         cho_phep = [int(m.may_id) for m in (getattr(cd_obj, "may_lam_duoc", None) or [])
                     if m.may_id is not None]
@@ -637,9 +639,12 @@ class LsxService:
             return int(may_phieu) if may_phieu else None
         if may_phieu and int(may_phieu) in cho_phep:
             return int(may_phieu)
-        con_dung = [mid for mid in cho_phep
-                    if getattr(self.db.get(MayThietBi, mid), "active", False)]
-        return con_dung[0] if len(con_dung) == 1 else None
+        return self.may_dau_con_dung(cho_phep)
+
+    def may_dau_con_dung(self, may_ids: list[int]) -> int | None:
+        """Máy CÒN DÙNG đầu tiên theo đúng thứ tự truyền vào — máy mặc định của công đoạn."""
+        return next((mid for mid in may_ids
+                     if getattr(self.db.get(MayThietBi, mid), "active", False)), None)
 
     # ⚠️ `_khoan_mac_dinh()` + `_dau_viec_cua_cong_doan()` GỠ 18/09/2026 (mg `0320`): bước lệnh
     #    thôi chọn đầu việc, nên không còn gì để điền sẵn hay để lọc theo (công đoạn ∩ tổ). Việc
@@ -1857,11 +1862,11 @@ class LsxService:
             "requires_tooling": can_chot_khuon(cd.requires_tooling, cd.tooling_type),
             "tooling_type": cd.tooling_type,
             "setup_phut": _f(cd.setup_time),
-            # GỢI Ý máy, không phải lệnh gán (09/09/2026): chỉ có số khi công đoạn mới khai ĐÚNG
-            # MỘT máy còn dùng, và client chỉ áp khi dòng đang TRỐNG máy. Máy người ta đã chọn vẫn
-            # bất khả xâm phạm — đó là ranh giới mà docstring trên vẫn giữ. Có nó vì cách đo giờ và
-            # tốc độ đều treo ở cặp (công đoạn × máy): đổi sang công đoạn một-máy mà để trống thì
-            # bảng thời gian của bước ra "—" cho tới khi có người vào chọn đúng cái máy duy nhất.
+            # GỢI Ý máy, không phải lệnh gán (09/09/2026): máy mặc định của công đoạn (máy còn dùng
+            # đứng đầu danh sách, 12/10/2026), và client chỉ áp khi dòng đang TRỐNG máy. Máy người
+            # ta đã chọn vẫn bất khả xâm phạm — đó là ranh giới mà docstring trên vẫn giữ. Có nó vì
+            # cách đo giờ và tốc độ đều treo ở cặp (công đoạn × máy): để trống thì bảng thời gian
+            # của bước ra "—" cho tới khi có người vào chọn máy.
             "may_id_goi_y": self._may_mac_dinh(cd, None),
         }
 

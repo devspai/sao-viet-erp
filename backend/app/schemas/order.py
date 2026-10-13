@@ -141,6 +141,8 @@ class MonSanXuatOut(BaseModel):
     don_vi: str | None = None
     dat: float
     co_hang: float
+    #: Phần của `co_hang` lấy từ tồn có sẵn của mã, không phải từ lệnh của chính đơn.
+    co_tu_ton: float = 0
     du_hang: bool
     o: str
     co_lenh: bool
@@ -235,6 +237,8 @@ class OrderDetailOut(OrderRow):
     # V5: danh sách PHIẾU THU CỌC (PaymentReceipt nguồn đơn). Giữ tên field `deposits` để giảm thay
     # đổi FE; mỗi phần tử là OrderDepositReceiptOut.
     deposits: list[OrderDepositReceiptOut] = []
+    # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.
+    deposit_refunded: int = 0
     consent_attachments: list[AttachmentOut] = []
     # Cổng chốt (P4): checklist đọc-được cho FE.
     can_confirm: bool = False
@@ -245,6 +249,8 @@ class OrderDetailOut(OrderRow):
     # Chỉ có trong response của POST deposit-receipts: phiếu thu cọc vừa lập — FE tải chứng từ gốc
     # lên phiếu này ngay sau khi lập.
     phieu_vua_lap_id: int | None = None
+    # Người bấm Chốt (khung Chốt của ngăn đơn, 12/10/2026).
+    ordered_by_name: str | None = None
 
 
 class OrderActivityItem(BaseModel):

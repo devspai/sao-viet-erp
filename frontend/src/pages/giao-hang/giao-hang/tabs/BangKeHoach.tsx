@@ -14,12 +14,14 @@ import {
   coKetQua,
   diaChiGon,
   gioNgay,
+  henKho,
   ngay,
   ngayIso,
   ngayNgan,
   nhanChuyen,
   so,
   soVoiHen,
+  soVoiHenLuot,
   toneChuyen,
   trangThaiLuot,
   type BuocLuot,
@@ -32,21 +34,15 @@ export const khoaKhoi = (it: BangGiaoItem) =>
   it.luot ? `l${it.luot.id}` : it.trip ? `t${it.trip.id}` : "";
 
 export type ThaoTacChuyen = {
-  onGuiDeNghi?: (t: DeliveryTrip) => void;
-  onDaLay?: (t: DeliveryTrip) => Promise<unknown>;
   onBatDau?: (t: DeliveryTrip) => Promise<unknown>;
   onKetQua?: (t: DeliveryTrip) => void;
   onDaTra?: (t: DeliveryTrip) => Promise<unknown>;
 };
 
-/** Nút đưa MỘT chuyến ngoài lượt đi tiếp — mỗi trạng thái "đang chạy" đúng một nút. Dòng bảng và
- *  thẻ điểm trong ngăn dùng chung, để hai chỗ không nói hai kiểu. */
+/** Nút đưa MỘT chuyến ngoài lượt đi tiếp. Dòng bảng và thẻ điểm trong ngăn dùng chung, để hai chỗ
+ *  không nói hai kiểu. Chờ kho xuất thì KHÔNG có nút (12/10/2026): kho ghi sổ là chuyến tự đi tiếp. */
 export function NutBuocChuyen({ t, tt }: { t: DeliveryTrip; tt: ThaoTacChuyen }): ReactNode {
   if (t.giao_thang) return null;
-  if (t.trang_thai === "da_len_ke_hoach" && !t.yeu_cau_kho_ma && tt.onGuiDeNghi)
-    return <Button variant="accent" onClick={() => tt.onGuiDeNghi!(t)}>Gửi yêu cầu xuất kho</Button>;
-  if (t.trang_thai === "dang_chuan_bi" && tt.onDaLay)
-    return <NutCho bam={() => tt.onDaLay!(t)}>Đã lấy hàng</NutCho>;
   if (t.trang_thai === "da_lay_hang" && tt.onBatDau)
     return <NutCho bam={() => tt.onBatDau!(t)}>Bắt đầu giao</NutCho>;
   if (t.trang_thai === "dang_giao" && tt.onKetQua)
@@ -58,7 +54,6 @@ export function BangKeHoach({
   items,
   loading,
   coLoc = false,
-  canPlan,
   canWrite,
   luotMoi,
   dangMo,
@@ -74,7 +69,6 @@ export function BangKeHoach({
   loading: boolean;
   /** Đang áp ô tìm / kỳ / điều kiện — rỗng thì nói "không khớp" chứ không "chưa có". */
   coLoc?: boolean;
-  canPlan: boolean;
   canWrite: boolean;
   /** Lượt vừa lập — dòng đó được làm nổi + cuộn tới. */
   luotMoi?: number | null;
@@ -137,7 +131,7 @@ export function BangKeHoach({
             {items.map((it) => {
               const khoa = khoaKhoi(it);
               return (
-                <Dong key={khoa} it={it} khoa={khoa} cot={cot.map((c) => c.key)} canPlan={canPlan} canWrite={canWrite}
+                <Dong key={khoa} it={it} khoa={khoa} cot={cot.map((c) => c.key)} canWrite={canWrite}
                   moi={!!it.luot && it.luot.id === luotMoi} chon={khoa === dangMo}
                   onMoNgan={onMoNgan} onLamLuot={onLamLuot} tt={tt} />
               );
@@ -171,7 +165,6 @@ function Dong({
   it,
   khoa,
   cot,
-  canPlan,
   canWrite,
   moi,
   chon,
@@ -182,7 +175,6 @@ function Dong({
   it: BangGiaoItem;
   khoa: string;
   cot: string[];
-  canPlan: boolean;
   canWrite: boolean;
   moi: boolean;
   chon: boolean;
@@ -203,7 +195,9 @@ function Dong({
   const daChay = l ? l.so_dong_ho_xuat_phat != null || xong > 0 : false;
   const km = l ? l.tong_km : gt ? 0 : dau.tong_km;
   const taoLuc = l ? l.created_at : dau.created_at;
-  const hen = !l && coKetQua(dau) ? soVoiHen(dau.ngay_can_giao, dau.thoi_gian_ket_thuc) : null;
+  const hen: { text: string; tre: boolean; phu?: string } | null = l
+    ? soVoiHenLuot(l.diem)
+    : coKetQua(dau) ? soVoiHen(dau.ngay_can_giao, dau.thoi_gian_ket_thuc) : null;
   const them = ds.length - 1;
   const moiDiem = ds
     .map((t, i) => `${i + 1}. ${t.customer_name ?? ""}${t.order_code ? ` (${t.order_code})` : ""}${t.dia_chi ? `: ${t.dia_chi}` : ""}, hẹn ${ngay(t.ngay_can_giao)}`)
@@ -211,7 +205,7 @@ function Dong({
 
   let nut: ReactNode = null;
   if (l) {
-    const b = buocLuot(l, canPlan, canWrite)[0];
+    const b = buocLuot(l, canWrite)[0];
     if (b && "form" in b)
       nut = <Button variant="accent" onClick={() => onMoNgan(it, b.form)}>{b.nhan}</Button>;
     else if (b)
@@ -233,7 +227,9 @@ function Dong({
           <td key={k}>
             <span>{l ? l.code : gt ? "Giao thẳng" : dau.request_code}</span>
             <span className="lds-u">
-              {gt ? `Khách nhận ${ngayNgan(ngayIso(dau.thoi_gian_ket_thuc))}` : `Lấy hàng ${gioNgay(dau.gio_lay_hang)}`}
+              {gt ? `Khách nhận ${ngayNgan(ngayIso(dau.thoi_gian_ket_thuc))}`
+                : henKho(dau) ? `Kho hẹn ${henKho(dau)}`
+                  : dau.ngay_can_giao ? `Cần giao ${ngayNgan(dau.ngay_can_giao)}` : ""}
             </span>
           </td>
         );
@@ -275,6 +271,7 @@ function Dong({
         return (
           <td key={k} className={hen?.tre ? "lds-do" : undefined}>
             {hen ? hen.text : <span className="lds-mu3">—</span>}
+            {hen?.phu ? <span className="lds-u">{hen.phu}</span> : null}
           </td>
         );
       case "km":

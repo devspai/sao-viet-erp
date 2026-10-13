@@ -200,6 +200,10 @@ def test_tinh_gia_ky_snapshot_tach_kho_va_don_vi_goc(client):
     _nhap(client, kho_id, _dong(g, dvt="kg", sl=70, kr=780, kd=905, gia=20_000))
     hom_nay = date.today()
     ad = _admin(client)
+    # Khóa sổ trước rồi mới tính giá (13/10/2026).
+    r = client.post("/api/kho/khoa-so", headers=ad, json={
+        "kho_id": kho_id, "tu_ngay": "2026-01-01", "den_ngay": hom_nay.isoformat(), "hanh_dong": "khoa"})
+    assert r.status_code == 201, r.text
     r = client.post("/api/kho/bao-cao/tinh-gia-ky", headers=ad, json={
         "tu": "2026-01-01", "den": hom_nay.isoformat(), "kho_id": kho_id})
     assert r.status_code == 200, r.text
@@ -210,3 +214,38 @@ def test_tinh_gia_ky_snapshot_tach_kho_va_don_vi_goc(client):
     dau = {(x["kho_rong"], x["kho_dai"], x["don_vi_goc"]): x["dau_sl"]
            for x in r.json()["items"] if x["hang_id"] == g}
     assert dau == {(780, 905, "to"): 1000, (800, 1090, "to"): 500, (780, 905, "kg"): 70}
+
+
+def test_tinh_gia_ky_chi_tren_khoang_da_khoa(client):
+    """Chủ chốt 13/10/2026: khóa sổ trước rồi mới tính giá — mọi ngày của khoảng tính phải đang khóa."""
+    from datetime import timedelta
+
+    kho_id, _ = _setup(client)
+    ad = _admin(client)
+    hom_nay = date.today()
+    hom_qua = hom_nay - timedelta(days=1)
+
+    def tinh(tu, den):
+        return client.post("/api/kho/bao-cao/tinh-gia-ky", headers=ad, json={
+            "tu": tu, "den": den.isoformat(), "kho_id": kho_id})
+
+    def khoa(hanh_dong, tu, den):
+        r = client.post("/api/kho/khoa-so", headers=ad, json={
+            "kho_id": kho_id, "tu_ngay": tu, "den_ngay": den.isoformat(), "hanh_dong": hanh_dong})
+        assert r.status_code == 201, r.text
+
+    r = tinh("2026-01-01", hom_qua)
+    assert r.status_code == 400 and "chưa khóa sổ" in r.json()["detail"], r.text
+
+    khoa("khoa", "2026-01-01", hom_qua)
+    # Vượt sang ngày chưa khóa (hôm nay) ⇒ chặn, báo đúng ngày còn mở.
+    r = tinh("2026-01-01", hom_nay)
+    assert r.status_code == 400 and hom_nay.strftime("%d/%m/%Y") in r.json()["detail"], r.text
+    assert tinh("2026-01-01", hom_qua).status_code == 200
+    # Tính giữa kỳ (đến ngày sớm hơn cuối kỳ khóa) vẫn được — khoảng đó đã khóa.
+    assert tinh("2026-01-01", date(2026, 1, 31)).status_code == 200
+
+    # Mở đuôi kỳ ⇒ khoảng tính có ngày mở lại bị chặn.
+    khoa("mo", (hom_qua - timedelta(days=2)).isoformat(), hom_qua)
+    r = tinh("2026-01-01", hom_qua)
+    assert r.status_code == 400 and "chưa khóa sổ" in r.json()["detail"], r.text

@@ -130,7 +130,8 @@ export function lenhCua(r: StockRequest): string[] {
 
 export const tuKcs = (r: StockRequest) => r.lines.some((l) => l.tu_kcs);
 
-/** Ô "Nguồn" ở danh sách: đơn mua + đợt, KCS + lệnh, điều chuyển từ kho nào, hoặc lệnh SX. */
+/** Ô "Nguồn" ở danh sách: đơn mua + đợt, KCS + lệnh, điều chuyển từ kho nào, giao hàng (lượt xe +
+ *  đơn), hoặc lệnh SX. */
 export function NguonA({ r }: { r: StockRequest }) {
   if (r.don_mua_ma) {
     return (
@@ -143,11 +144,25 @@ export function NguonA({ r }: { r: StockRequest }) {
   if (r.dieu_chuyen) {
     return <span className="kna-nguon">Từ {r.kho_nguon_ten ?? "kho khác"}</span>;
   }
+  if (r.giao_yeu_cau_ma) {
+    // Giao hàng lập (12/10/2026): mã lượt cho kho biết các phiếu lên CÙNG một xe; chuyến cũ ngoài
+    // lượt thì lùi về mã yêu cầu giao. Rê chuột thấy đủ cả hai mã.
+    return (
+      <span className="kna-nguon" title={[r.giao_luot_ma, r.giao_yeu_cau_ma, r.giao_don_ma].filter(Boolean).join("\n")}>
+        <span className="kna-tag">Giao hàng</span>
+        <span>{r.giao_luot_ma ?? r.giao_yeu_cau_ma}</span>
+        {r.giao_don_ma && <span className="kna-tag kna-tag--ma">{r.giao_don_ma}</span>}
+      </span>
+    );
+  }
   const lenh = lenhCua(r);
-  if (!lenh.length && !tuKcs(r)) return <span className="kna-mo">—</span>;
+  // Gia công ngoài (giấy cấp cho nhà gia công / thành phẩm nhận về) — cùng nhãn điều kiện lọc Nguồn.
+  const giaCong = r.gia_cong_ngoai_id != null && !tuKcs(r);
+  if (!lenh.length && !tuKcs(r) && !giaCong) return <span className="kna-mo">—</span>;
   return (
     <span className="kna-nguon">
       {tuKcs(r) && <span className="kna-tag">KCS</span>}
+      {giaCong && <span className="kna-tag">Gia công</span>}
       {lenh.slice(0, 2).map((m) => <span key={m}>{m}</span>)}
       {lenh.length > 2 && <span className="kna-tag">+{lenh.length - 2} lệnh</span>}
     </span>
@@ -155,6 +170,27 @@ export function NguonA({ r }: { r: StockRequest }) {
 }
 
 /** Thẻ "Nguồn hàng" ở cột bên — chỉ yêu cầu NHẬP sinh từ đơn mua hoặc từ KCS mới có. */
+/** Khối "Giao hàng" của đề nghị xuất do Giao hàng lập (12/10/2026, docs/mockups/kho-xuat-giao-khach):
+ *  thủ kho biết hàng của khách nào, lên xe nào, ai tới lấy — đọc thẳng từ chuyến giao nên đổi tài xế /
+ *  xe bên Giao hàng là khối này đổi theo. Đề nghị khác (sản xuất, điều chuyển) không hiện. */
+export function TheGiaoHang({ r }: { r: StockRequest }) {
+  if (r.loai !== "XUAT" || !r.giao_yeu_cau_ma) return null;
+  return (
+    <TheA tieuDe="Giao hàng">
+      <div className="kna-the__than">
+        <KvA dong={[
+          ["Khách hàng", r.giao_khach_ten ?? "—"],
+          r.giao_don_ma ? ["Đơn bán", <span className="kna-tag kna-tag--ma">{r.giao_don_ma}</span>] : null,
+          ["Yêu cầu giao", r.giao_yeu_cau_ma],
+          r.giao_luot_ma ? ["Lượt xe", r.giao_luot_ma] : null,
+          ["Xe", r.giao_xe_bien_so ?? <span className="kna-mo">Chưa gán xe</span>],
+          ["Tài xế tới lấy", r.giao_tai_xe_ten ?? "—"],
+        ]} />
+      </div>
+    </TheA>
+  );
+}
+
 export function TheNguonHang({ r, khach }: { r: StockRequest; khach?: string | null }) {
   if (r.loai !== "NHAP") return null;
   if (r.don_mua_ma) {

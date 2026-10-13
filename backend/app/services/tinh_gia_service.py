@@ -155,6 +155,8 @@ _TP_SCALAR_FIELDS = (
     "muc_a", "muc_b", "so_mau_a", "so_mau_b", "so_mau_pha",
     # ⑤ Phí giao hàng của CẢ sản phẩm — engine cộng thẳng vào giá vốn (nhóm "Giao hàng").
     "phi_giao_hang",
+    # Nhãn gộp báo giá — engine đếm SẢN PHẨM theo cụm (ruột + bìa cùng nhãn = 1), không ăn vào tiền.
+    "nhom_bao_gia",
 )
 _ROW_SCALAR_FIELDS = (
     "thu_tu", "cong_doan_id", "ten", "don_gia", "so_luong", "bu_hao",

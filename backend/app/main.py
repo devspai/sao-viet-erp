@@ -72,6 +72,8 @@ from .routers import (
     lenh_san_xuat,
     theo_doi_san_xuat,
     tai_san,
+    muc_thu_chi,
+    bao_cao_thu_chi,
     gia_cong_ngoai,
 )
 
@@ -227,6 +229,8 @@ app.include_router(lenh_san_xuat.router)    # màn Lệnh sản xuất (danh sá
 app.include_router(theo_doi_san_xuat.router)  # màn Theo dõi sản xuất (Kanban) — module quyền `theo_doi_san_xuat`, cột lấy động từ danh mục cong_doan (Ruling C113)
 app.include_router(gia_cong_ngoai.router)    # Gia công ngoài — cùng module quyền `san_xuat`
 app.include_router(tai_san.router)            # sổ tài sản cố định + CCDC (module quyền `tai_san`; không còn kỳ chốt từ 08/09/2026)
+app.include_router(muc_thu_chi.router)        # danh mục Mục thu chi (module quyền `dm_muc_thu_chi`)
+app.include_router(bao_cao_thu_chi.router)    # Báo cáo thu chi theo mục × tháng (module quyền `bao_cao_thu_chi`)
 
 
 

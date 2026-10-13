@@ -1074,6 +1074,7 @@ def assign_purchase_invoice(
         row = svc.gan_hoa_don(
             request_id,
             delivery_ids=payload.delivery_ids,
+            invoice_symbol=payload.invoice_symbol,
             invoice_number=payload.invoice_number,
             invoice_date=payload.invoice_date,
             actor=user,
