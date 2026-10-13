@@ -6163,6 +6163,16 @@ export interface PayrollLine {
   paid_leave_cong?: number;
   /** Công ngày LỄ + NGHỈ TUẦN có đi làm (⊂ `actual_cong`) — gốc của hệ số Đ98.1.b/c. */
   special_cong?: number;
+  /** Công thường thực tế */
+  cong_thuong?: number;
+  /** Công ngày CN & Lễ (gồm công đi làm CN/lễ + công nghỉ lễ hưởng lương trả riêng) */
+  cong_cn_le?: number;
+  /** Thành tiền lương công thường */
+  tien_cong_thuong?: number;
+  /** Tổng thành tiền ngày CN & Lễ (gốc 1x + phụ trội + lương ngày lễ) */
+  tien_cn_le?: number;
+  /** TRONG ĐÓ của `ot_pay`: tiền GIỜ tăng ca (tách khỏi phụ trội CN / lễ). */
+  tien_gio_tang_ca?: number | null;
   /** TRONG ĐÓ của `ot_pay`: tiền ngày `off1x` (trả 1× phẳng). Đừng cộng lại vào tổng. */
   off1x_pay?: number;
   /** CHẾ ĐỘ KHOÁN (14/09/2026, chụp lúc Tính lại): tổ bật Lương khoán / sản lượng hoặc tổ Giao hàng

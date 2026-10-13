@@ -541,7 +541,7 @@
   max-width: 100%;
 }
 .ns__tablewrap.lg-table .ns__table {
-  min-width: 1350px; /* Ensure columns have enough breathing space and scroll cleanly */
+  min-width: 1650px; /* Ensure 22 columns have enough breathing space and scroll cleanly */
 }
 
 
