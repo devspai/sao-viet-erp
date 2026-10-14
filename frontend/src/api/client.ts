@@ -5557,6 +5557,9 @@ export interface TimesheetDay {
   le_nghi_tuan?: boolean;
   plain?: boolean;       // ngày `off1x` có đi làm → 1× phẳng, KHÔNG hệ số
   planned_off?: boolean; // ngày nghỉ theo lịch phân ca (dấu kế hoạch, không sinh hệ số)
+  /** Ngày LÀM VIỆC đã qua, có ca, mà KHÔNG có lượt bấm nào (quên chấm vào & ra / vắng) — 14/10/2026.
+   *  Chỉ là dấu: không công. */
+  khong_cham?: boolean;
 }
 
 export interface TimesheetRow {

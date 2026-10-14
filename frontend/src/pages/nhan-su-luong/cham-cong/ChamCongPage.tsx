@@ -41,7 +41,7 @@ export function ChamCongPage({
   navigate?: NavigateFn;
   focusEmployeeId?: number;
   /** Mở thẳng tab Khai ca (nút "Đặt ca nền" ở hồ sơ NV) — xem `NavParams.chamCongTab`. */
-  openTab?: "khai-ca";
+  openTab?: "khai-ca" | "my-timesheet";
   /** Gọi sau mỗi lần tải/thao tác → AppShell refetch badge sidebar + chuông ngay. */
   onChanged?: () => void;
   /** Tăng theo mỗi sự kiện real-time (SSE) → tab phiếu đang mở tự tải lại, khỏi bắt F5. */
@@ -92,8 +92,13 @@ export function ChamCongPage({
       setTab("khai-ca");
       return;
     }
+    // Ô "Công của tôi" ở thanh dưới điện thoại.
+    if (openTab === "my-timesheet" && tuPhucVu) {
+      setTab("my-timesheet");
+      return;
+    }
     if (focusEmployeeId && canViewLog) setTab("logs");
-  }, [focusEmployeeId, canViewLog, openTab, canKhaiCa]);
+  }, [focusEmployeeId, canViewLog, openTab, canKhaiCa, tuPhucVu]);
 
   return (
     <main className="ns">

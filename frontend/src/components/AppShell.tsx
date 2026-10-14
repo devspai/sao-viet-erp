@@ -116,6 +116,9 @@ import {
   type NavItem,
 } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { ChuongViec, MobileTabBar, bangMuc } from "./MobileTabBar";
+import { useLaDienThoai } from "../utils/dienThoai";
+import { useTheHoaBang } from "./luoiThe";
 import { GoiYBang } from "./LuoiDs";
 import { coQuyenBanTo, khoaBanTo } from "./appShellRealtime";
 import { khoaTonKho, xemKhoNao } from "../auth/quyenKho";
@@ -141,7 +144,7 @@ export interface NavParams {
   /** Liên thông từ Hồ sơ NV, nút "Đặt ca nền" (bản rà E6, 07/09/2026): mở Chấm công ở tab
    *  Khai ca, lưới Phân ca tháng lọc sẵn + mở form ca nền cho đúng `focusEmployeeId`. Không có
    *  nó thì `focusEmployeeId` mở tab Nhật ký như cũ. */
-  chamCongTab?: "khai-ca";
+  chamCongTab?: "khai-ca" | "my-timesheet";
   /** Liên thông: mở màn Yêu cầu mua hàng (YCMH) lọc + tô sáng đúng mã phiếu này. */
   focusRequestCode?: string;
   /** Kèm `focusRequestCode` mã YCMH (07/10/2026): màn Mua hàng mở luôn form lập đơn cho yêu cầu đó
@@ -199,7 +202,7 @@ export interface NavParams {
    *  chi tiết một bài ghép. */
   openBaiGhepId?: number;
   /** Liên thông Phòng ban → Lương: mở thẳng tab "Cấu hình lương" (bảng lương của tổ). */
-  luongTab?: "cauhinh";
+  luongTab?: "cauhinh" | "phieu";
   /** Deep-link QR tem kho: mở thẳng drawer lô + vị trí của đúng vật tư này trên màn Tồn kho. */
   /** Deep-link tem QR: khoá mặt hàng gốc dạng `"giay:12"`. */
   openMatHangKey?: string;
@@ -238,6 +241,9 @@ export function AppShell() {
   const [navParams, setNavParams] = useState<NavParams | null>(null);
   // Ngăn kéo điều hướng ở màn hẹp (≤1024px). Màn rộng: sidebar cố định, cờ này vô hại.
   const [navOpen, setNavOpen] = useState(false);
+  const laDT = useLaDienThoai();
+  // Điện thoại: bảng danh sách ở mọi màn (kể cả trong hộp thoại / ngăn) thành thẻ — luoiThe.ts.
+  useTheHoaBang(laDT);
   const [readable, setReadable] = useState<Set<string> | null>(null);
   const [caps, setCaps] = useState<Capabilities>(new Map());
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
@@ -1143,6 +1149,8 @@ export function AppShell() {
   if (sanXuatDong.length) dynamicItems["to-san-xuat"] = sanXuatDong;
   // Mục "Kho" chỉ cần `kho:read`; tab "Phiếu từ đề nghị" (cần create/view_stock) tự ẩn trong KhoPage.
   const hiddenIds = new Set<string>();
+  // Điện thoại: bảng tra mục menu cho thanh dưới + chuông việc chờ + tên màn trên thanh trên.
+  const mucDT = laDT && readable ? bangMuc(dynamicItems, itemChildren, readable, hiddenIds) : null;
 
 
   function renderContent() {
@@ -1490,11 +1498,18 @@ export function AppShell() {
         />
         <div className="shell__main">
           {/* Bong bóng rê chuột cho ô bảng bị cắt "…" / có title — một bản cho cả app. */}
-          <GoiYBang />
+          {/* Điện thoại không có chuột — chạm ô là mở dòng, bong bóng chỉ che thẻ. */}
+          {!laDT && <GoiYBang />}
           <Topbar
             onOpenProfile={() => navigate("ho-so-cua-toi")}
             onToggleNav={() => setNavOpen((v) => !v)}
             navOpen={navOpen}
+            tieuDe={mucDT?.get(activeId)?.label}
+            chuong={
+              mucDT && (
+                <ChuongViec activeId={activeId} badges={badges} muc={mucDT} onSelect={(id) => navigate(id)} />
+              )
+            }
           />
           <div className="shell__content">
             {/* Mỗi màn là một chunk nạp khi mở lần đầu — chờ tải thì báo nhẹ, không trắng màn. */}
@@ -1509,6 +1524,17 @@ export function AppShell() {
             </Suspense>
           </div>
         </div>
+        {/* Điện thoại (≤639px): thanh điều hướng dưới — máy lớn không vẽ phần tử này. */}
+        {mucDT && (
+          <MobileTabBar
+            activeId={activeId}
+            badges={badges}
+            muc={mucDT ?? new Map()}
+            menuOpen={navOpen}
+            onSelect={(id, params) => navigate(id, params)}
+            onMenu={() => setNavOpen((v) => !v)}
+          />
+        )}
         {/* Toast real-time luồng gửi duyệt — nổi góc trên-phải, tự tắt sau 6s. */}
         {toasts.length > 0 && (
           <div

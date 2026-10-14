@@ -427,7 +427,10 @@
   /* Khung màn danh sách `.lds` là CỘT flex có `header.lds-dau > h1` bên trong nên cũng dính luật trên.
      Cột flex mà xuống hàng thì mỗi con giãn theo con rộng nhất (bảng 1676px ở KCS, 09/10/2026):
      đầu trang, thanh lọc, hàng số đều bị kéo ra, cả trang cuộn ngang. Cột thì không cần xuống hàng. */
-  .shell__content .lds {
+  .shell__content .lds,
+  /* Xếp lịch `.xa` cũng là cột flex có h1 bên trong — dính luật trên thì lưới Gantt 1164px kéo đầu màn,
+     dòng tóm tắt, chân màn giãn theo ⇒ cả trang tràn ngang ở iPad dọc (14/10/2026). */
+  .shell__content .xa {
     flex-wrap: nowrap;
   }
 }
