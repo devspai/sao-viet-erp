@@ -53,11 +53,14 @@ export function LocationMapPicker({
   latitude,
   longitude,
   radiusM,
+  tamMacDinh,
   onChange,
 }: {
   latitude: number;
   longitude: number;
   radiusM: number;
+  /** Chưa có toạ độ thì mở bản đồ quanh đây (chỉ dời khung nhìn, không đặt ghim). */
+  tamMacDinh?: [number, number] | null;
   onChange: (latitude: number, longitude: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,14 +84,16 @@ export function LocationMapPicker({
 
     const initialCenter: [number, number] = hasCoordinates
       ? [longitude, latitude]
-      : [106.7009, 10.7769];
+      : tamMacDinh
+        ? [tamMacDinh[1], tamMacDinh[0]]
+        : [106.7009, 10.7769];
 
     try {
       const map = new Map({
         container,
         style: "https://tiles.openfreemap.org/styles/liberty",
         center: initialCenter,
-        zoom: hasCoordinates ? 17 : 12,
+        zoom: hasCoordinates ? 17 : tamMacDinh ? 15 : 12,
       });
       mapRef.current = map;
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");

@@ -107,6 +107,16 @@ describe("lấy vị trí chấm công", () => {
     await ket;
   });
 
+  it("cho chờ ngắn hơn khi người gọi yêu cầu (đặt điểm ở máy bàn)", async () => {
+    const gps = stubGeolocation();
+    const p = getPosition(8_000);
+    const ket = expect(p).rejects.toMatchObject({ code: 3 });
+
+    expect(gps.watchPosition.mock.calls[0][2]).toMatchObject({ timeout: 8_000 });
+    await vi.advanceTimersByTimeAsync(8_000);
+    await ket;
+  });
+
   it("trả nguyên lỗi của trình duyệt khi chưa có mẫu nào", async () => {
     const gps = stubGeolocation();
     const p = getPosition();

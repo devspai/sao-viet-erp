@@ -262,8 +262,9 @@ const GPS_HET_GIO_MS = 20_000;
  * mẫu tốt; `enableHighAccuracy` chỉ là gợi ý. Không dùng lại mẫu cũ (`maximumAge: 0`). Không từ chối
  * theo sai số ở đây — máy bàn chỉ có Wi-Fi, sai số vài trăm mét vẫn phải chấm được; máy chủ nhận
  * `coords.accuracy` và tự chặn mức "vị trí gần đúng".
+ * `hetGioMs`: chờ bao lâu mà chưa có mẫu nào thì báo quá lâu.
  */
-export function getPosition(): Promise<GeolocationPosition> {
+export function getPosition(hetGioMs = GPS_HET_GIO_MS): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     const geo = navigator.geolocation;
     if (!geo) {
@@ -289,7 +290,7 @@ export function getPosition(): Promise<GeolocationPosition> {
     const henHet = setTimeout(() => {
       const t = tot;
       ket(() => (t ? resolve(t) : reject(Object.assign(new Error("Lấy vị trí quá lâu."), { code: 3 }))));
-    }, GPS_HET_GIO_MS);
+    }, hetGioMs);
     watchId = geo.watchPosition(
       (pos) => {
         if (!tot || pos.coords.accuracy < tot.coords.accuracy) tot = pos;
@@ -302,7 +303,7 @@ export function getPosition(): Promise<GeolocationPosition> {
         const t = tot;
         ket(() => (t ? resolve(t) : reject(err)));
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_HET_GIO_MS },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: hetGioMs },
     );
     // Trình duyệt gọi lại ĐỒNG BỘ (có mẫu sẵn) thì `ket` chạy trước khi có `watchId`.
     if (xong) geo.clearWatch(watchId);

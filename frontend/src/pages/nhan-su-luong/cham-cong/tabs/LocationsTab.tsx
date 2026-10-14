@@ -17,6 +17,13 @@ import { LocationForm } from "../modals/LocationForm";
 
 // --- Tab: Điểm chấm công (HR) -----------------------------------------------
 
+/** Tâm khung nhìn cho điểm MỚI: ưu tiên điểm đang hoạt động, rồi điểm bất kỳ có toạ độ. */
+export function tamDiemDaCo(items: WorkLocation[] | null): [number, number] | null {
+  const coToaDo = (items ?? []).filter((l) => l.latitude !== 0 || l.longitude !== 0);
+  const d = coToaDo.find((l) => l.is_active) ?? coToaDo[0];
+  return d ? [d.latitude, d.longitude] : null;
+}
+
 export function LocationsTab({ token }: { token: string }) {
   const [items, setItems] = useState<WorkLocation[] | null>(null);
   const [editing, setEditing] = useState<WorkLocation | "new" | null>(null);
@@ -227,6 +234,7 @@ export function LocationsTab({ token }: { token: string }) {
         <LocationForm
           token={token}
           location={editing === "new" ? null : editing}
+          tamMacDinh={tamDiemDaCo(items)}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
