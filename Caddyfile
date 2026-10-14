@@ -72,3 +72,43 @@ vinhphat.superbai.io {
 		reverse_proxy host.docker.internal:8100
 	}
 }
+
+# --- ERP In Hà Phương (D:\jobs\HAPHUONG, stack `erp-hp` / `erp-hp-stg`) ---
+# Project Compose khác, mạng Docker khác ⇒ đi qua host.docker.internal tới cổng `web` của nó
+# publish: production 8280, staging 8281. Cổng đó phải bind 172.17.0.1 (WEB_BIND), bind
+# 127.0.0.1 thì container Caddy này không với tới ⇒ 502 (xem ghi chú WEB_BIND ở docker-compose).
+hp.superbai.io {
+	@sse path /api/quotations/events*
+	handle @sse {
+		reverse_proxy host.docker.internal:8280 {
+			flush_interval -1
+			lb_try_duration 20s
+			lb_try_interval 500ms
+		}
+	}
+	handle {
+		encode gzip
+		reverse_proxy host.docker.internal:8280 {
+			lb_try_duration 20s
+			lb_try_interval 500ms
+		}
+	}
+}
+
+hp-dev.superbai.io {
+	@sse path /api/quotations/events*
+	handle @sse {
+		reverse_proxy host.docker.internal:8281 {
+			flush_interval -1
+			lb_try_duration 20s
+			lb_try_interval 500ms
+		}
+	}
+	handle {
+		encode gzip
+		reverse_proxy host.docker.internal:8281 {
+			lb_try_duration 20s
+			lb_try_interval 500ms
+		}
+	}
+}
