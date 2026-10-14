@@ -58,6 +58,7 @@ import {
 } from "./thsxShared";
 import "./xep-lich-a.css";
 import "./thuc-hien-sx.css";
+import { laDienThoai } from "../utils/dienThoai";
 
 // ============================ helper thuần ==================================
 function ymd(d: Date): string {
@@ -206,10 +207,16 @@ export function ThucHienSxPage({
   const homNayStr = ymd(new Date());
   const coHomNay = homNayStr >= winTu && homNayStr <= winDen;
   // Khay Hàng chờ bên phải (như khay Chờ xếp lịch) — mặc định mở, nhớ theo máy.
+  // Điện thoại: khay Hàng chờ là trang phủ kín màn (không phải cột bên) — luôn mở ra ĐÓNG, bấm nút mới
+  // hiện; đóng/mở trên điện thoại cũng không ghi đè lựa chọn đã nhớ của máy lớn.
   const [khayMo, setKhayMo] = useState<boolean>(() => {
+    if (laDienThoai()) return false;
     try { return localStorage.getItem(KHAY_KEY) !== "0" && localStorage.getItem("thsx.hangChoThu") !== "1"; } catch { return true; }
   });
-  useEffect(() => { try { localStorage.setItem(KHAY_KEY, khayMo ? "1" : "0"); } catch { /* bỏ qua */ } }, [khayMo]);
+  useEffect(() => {
+    if (laDienThoai()) return;
+    try { localStorage.setItem(KHAY_KEY, khayMo ? "1" : "0"); } catch { /* bỏ qua */ }
+  }, [khayMo]);
   // Lọc nhanh theo trạng thái trên dòng tóm tắt (chỉ view Lịch, lọc trên máy như ô tìm).
   const [ttLich, setTtLich] = useState<TtLich | null>(null);
   const [lichLv, setLichLv] = useState<LichLamViec>(LICH_TRONG);

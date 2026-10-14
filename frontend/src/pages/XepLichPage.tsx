@@ -21,6 +21,8 @@ import { XlKhay } from "./XlKhay";
 import { XlKhoangNgay } from "./XlKhoangNgay";
 import { XlLuoi, type HienThi } from "./XlLuoi";
 import { XlNgan } from "./XlNgan";
+import { XlDanhSachDT } from "./XlDanhSachDT";
+import { useLaDienThoai } from "../utils/dienThoai";
 import {
   LOC_HANG_CHO_TRONG,
   MAN_XEP_LICH,
@@ -93,6 +95,8 @@ export function XepLichPage({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
+  // Điện thoại: lưới Gantt → danh sách lệnh theo ngày (XlDanhSachDT); khay chờ xếp đóng sẵn.
+  const laDT = useLaDienThoai();
   const can = useCan();
   const suaDuoc = can("xep_lich", "update");
   const duyetDuoc = can("xep_lich", "approve");
@@ -631,6 +635,16 @@ export function XepLichPage({
       </div>
 
       <div className="xa-than">
+        {laDT ? (
+          <XlDanhSachDT
+            dong={dong}
+            vatTu={vatTu}
+            hienXong={hien.hienXong}
+            chonId={chonId}
+            trong={coLoc ? "Không có lệnh nào khớp bộ lọc." : undefined}
+            onChon={setChonId}
+          />
+        ) : (
         <main className="xa-luoi">
           <XlLuoi
             tu={tu}
@@ -652,6 +666,7 @@ export function XepLichPage({
             onThu={(id, gio, signal) => api.xepLich.thuMoc(token ?? "", id, gio, signal)}
           />
         </main>
+        )}
         {khayMo && (
           <XlKhay
             the={the}
