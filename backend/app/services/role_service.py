@@ -65,6 +65,9 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     "xep_lich",
     # Phiếu bảo trì tách khỏi `ky_thuat_may` cùng ngày, thừa hưởng đúng lý do của khoá mẹ.
     "phieu_bao_tri",
+    # Mua hàng (14/10/2026, chủ chốt *"để tất cả và không chuyển đổi được"*): bỏ chốt 04/08/2026
+    # "nhân viên chỉ thấy đơn của tôi" — ai có màn Mua hàng thấy mọi phiếu mua. mg 0411 đổ dòng cũ.
+    "thu_mua",
     # Quy trình kinh doanh (24/09/2026): bản đồ luồng tĩnh, không đọc dữ liệu của ai nên không có
     # "quy trình của tôi".
     "quy_trinh_kinh_doanh",
@@ -97,6 +100,10 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # Báo cáo thu chi (11/10/2026): sổ thu chi của CẢ CÔNG TY, router không đọc phạm vi.
     "bao_cao_thu_chi",
 }
+
+#: Dòng có ô Xem luôn bật, không tắt được — xem `save_matrix` và mg 0410.
+KHOA_LUON_XEM = "self_service"
+
 
 def _la_scopeless(module_key: str) -> bool:
     """Khoá tĩnh trong `SCOPELESS_MODULES`, cộng mọi dòng quyền theo kho (`ton_kho_<id>`): người
@@ -442,6 +449,10 @@ class RoleService:
                     if normalized.get(key, False):
                         can_read = True
                         break
+            # "Hồ sơ của tôi" LUÔN BẬT (14/10/2026, mg 0410) — hồ sơ, chấm công, phiếu lương của chính
+            # mình là quyền của mọi người lao động; client gửi tắt cũng không tắt được.
+            if normalized["module_key"] == KHOA_LUON_XEM:
+                can_read = True
             normalized["can_read"] = can_read
             if _la_scopeless(normalized["module_key"]):
                 normalized["scope"] = "all"

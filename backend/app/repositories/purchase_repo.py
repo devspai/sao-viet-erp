@@ -607,15 +607,33 @@ class SupplierRepository:
         ).all()
         return {(str(loai), int(hang_id)) for loai, hang_id in rows}
 
-    def supplier_sells(self, supplier_id: int, item_name: str) -> bool:
+    def supplier_sells(
+        self,
+        supplier_id: int,
+        item_name: str,
+        *,
+        hang_loai: str | None = None,
+        hang_id: int | None = None,
+    ) -> bool:
         """NCC CỤ THỂ này có bán mặt hàng đó không — dùng lúc lập PHIẾU MUA, khi đã chọn NCC.
 
         Khác `has_active_item` ở hai chỗ: bó theo đúng một NCC, và có xét `SupplierItem.is_active`
-        (mặt hàng đã ngưng bán thì không đặt mới được nữa). Khớp tên theo chuỗi viết thường đã cắt
-        khoảng trắng — đúng cách `list_item_catalog` gom danh mục, để hai nơi không hiểu khác nhau.
+        (mặt hàng đã ngưng bán thì không đặt mới được nữa).
+
+        Dòng có MẶT HÀNG GỐC (`hang_loai`, `hang_id`) thì khớp theo cặp đó — y như ô chọn NCC ở form
+        (`chaoGiaChoMatHang`). Trước 14/10/2026 chỉ khớp TÊN: danh mục đổi tên "IVORY 210-230" thành
+        "IVORY 210--230" còn bảng giá NCC giữ tên cũ ⇒ form cho chọn mà Lưu lại báo "không bán".
+        Tên (viết thường, cắt khoảng trắng) vẫn khớp song song cho dòng giá chưa gắn mặt hàng gốc.
         """
+        if not supplier_id:
+            return False
         clean_name = (item_name or "").strip().lower()
-        if not clean_name or not supplier_id:
+        khop = func.lower(SupplierItem.item_name) == clean_name if clean_name else None
+        if hang_loai and hang_id:
+            theo_ma = (SupplierItem.hang_loai == hang_loai) & (SupplierItem.hang_id == int(hang_id))
+            # HOẶC tên: dòng bảng giá cũ chưa gắn mặt hàng gốc vẫn khớp được như trước.
+            khop = theo_ma if khop is None else (theo_ma | khop)
+        if khop is None:
             return False
         return (
             self.db.execute(
@@ -623,7 +641,7 @@ class SupplierRepository:
                 .where(
                     SupplierItem.supplier_id == int(supplier_id),
                     SupplierItem.is_active.is_(True),
-                    func.lower(SupplierItem.item_name) == clean_name,
+                    khop,
                 )
                 .limit(1)
             ).scalar_one_or_none()

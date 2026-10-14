@@ -2539,7 +2539,10 @@ class PurchaseService:
             item_name = (get("item_name") or "").strip()
             if not item_name:
                 raise PurchaseValidationError("Tên hàng không được trống.")
-            if supplier_id is not None and not self.suppliers.supplier_sells(supplier_id, item_name):
+            hang_loai, hang_id = _doc_mat_hang(get)
+            if supplier_id is not None and not self.suppliers.supplier_sells(
+                supplier_id, item_name, hang_loai=hang_loai, hang_id=hang_id
+            ):
                 raise PurchaseValidationError(
                     f'Nhà cung cấp này không bán "{item_name}". '
                     "Chọn nhà cung cấp khác cho dòng này, hoặc khai mặt hàng đó cho họ trước."
@@ -2561,7 +2564,6 @@ class PurchaseService:
                 raise PurchaseValidationError("Thuế GTGT (%) phải trong khoảng 0 đến 100.")
             raw_src = get("department_request_line_id")
             src_line_id = int(raw_src) if raw_src not in (None, "") else None
-            hang_loai, hang_id = _doc_mat_hang(get)
             kho_rong, kho_dai = _doc_kho(get, hang_loai, de_trong=True)
             lines.append(
                 PurchaseRequestLineInput(

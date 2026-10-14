@@ -18282,3 +18282,52 @@ def _migrate_sai_so_luot_cham(db: Session) -> None:
 
 
 MIGRATIONS.append(("0409_sai_so_luot_cham", _migrate_sai_so_luot_cham))
+
+
+def _migrate_ho_so_cua_toi_luon_xem(db: Session) -> None:
+    """mg 0410 — ô Xem "Hồ sơ của tôi" (`self_service`) LUÔN BẬT cho mọi vai (14/10/2026).
+
+    Chủ chốt: *"cái quyền này phải luôn bật và không thể tắt"* — hồ sơ, chấm công, phiếu lương CỦA
+    CHÍNH MÌNH là quyền của mọi người lao động. Trước đây ô gỡ được nên có vai bị tắt. Mg này cấp
+    lại cho vai đang tắt / chưa có dòng; từ nay `role_service.save_matrix` ép bật lúc lưu.
+    Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"roles", "role_permissions", "modules"} <= bang:
+        return
+    cols = sorted(_existing_columns(insp, "role_permissions"))
+    if not db.execute(text("SELECT 1 FROM modules WHERE key = 'self_service'")).first():
+        return
+    khac = [c for c in cols if c not in ("id", "role_id", "module_key", "scope")]
+    gia_tri = ", ".join("true" if c in ("can_read", "can_create") else "false" for c in khac)
+    db.execute(text(
+        f"INSERT INTO role_permissions (role_id, module_key, scope, {', '.join(khac)}) "
+        f"SELECT r.id, 'self_service', 'own', {gia_tri} FROM roles r "
+        "WHERE NOT EXISTS (SELECT 1 FROM role_permissions x "
+        "  WHERE x.role_id = r.id AND x.module_key = 'self_service')"
+    ))
+    db.execute(text(
+        "UPDATE role_permissions SET can_read = true "
+        "WHERE module_key = 'self_service' AND NOT can_read"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0410_ho_so_cua_toi_luon_xem", _migrate_ho_so_cua_toi_luon_xem))
+
+
+def _migrate_mua_hang_pham_vi_tat_ca(db: Session) -> None:
+    """mg 0411 — phạm vi dòng quyền Mua hàng (`thu_mua`) khoá "Tất cả" (14/10/2026).
+
+    Chủ chốt *"để tất cả và không chuyển đổi được"*: ai có màn Mua hàng thấy mọi phiếu mua. Dòng
+    cũ đang `own` / `department` đổ về `all`; từ nay `role_service.save_matrix` ép lúc lưu.
+    Idempotent."""
+    if "role_permissions" not in set(inspect(db.get_bind()).get_table_names()):
+        return
+    db.execute(text(
+        "UPDATE role_permissions SET scope = 'all' WHERE module_key = 'thu_mua' AND scope <> 'all'"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0411_mua_hang_pham_vi_tat_ca", _migrate_mua_hang_pham_vi_tat_ca))
