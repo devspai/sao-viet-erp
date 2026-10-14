@@ -167,24 +167,26 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
     expect(CFG_VAT_TU.fields.some((f) => f.key === "cong_thuc_luong")).toBe(false);
   });
 
-  it("Vật tư khác: ẩn Đơn giá (cả ô lẫn CỘT) và Vật tư thay thế", () => {
+  it("Vật tư khác: ẩn Đơn giá (cả ô lẫn CỘT)", () => {
     // 09/09/2026 — giấu khỏi UI, KHÔNG gỡ cột DB/engine. Kiểm cả `columns`: lần trước ẩn
     // `cong_thuc_gia` chỉ nhớ `fields`, cột vẫn nằm lại trong bảng.
     expect(CFG_VAT_TU.fields.some((f) => f.key === "don_gia")).toBe(false);
-    expect(CFG_VAT_TU.fields.some((f) => f.key === "thay_the_ids")).toBe(false);
     expect(CFG_VAT_TU.columns.some((c) => c.key === "don_gia")).toBe(false);
   });
 
-  it("GIẤY giữ nguyên Đơn giá/kg + Giấy thay thế — đừng gỡ theo Vật tư khác", () => {
+  it("GIẤY giữ nguyên Đơn giá/kg — đừng gỡ theo Vật tư khác", () => {
     expect(CFG_GIAY.fields.some((f) => f.key === "don_gia")).toBe(true);
-    expect(CFG_GIAY.fields.some((f) => f.key === "thay_the_ids")).toBe(true);
     expect(CFG_GIAY.columns.some((c) => c.key === "don_gia")).toBe(true);
   });
 
-  it("GIẤY: bảng bỏ cột Cách tính tiền + Giấy thay thế, thẻ vẫn khai được (05/10/2026)", () => {
+  it("GIẤY: bảng bỏ cột Cách tính tiền, thẻ vẫn khai được (05/10/2026)", () => {
     expect(CFG_GIAY.columns.some((c) => c.key === "cong_thuc_gia")).toBe(false);
-    expect(CFG_GIAY.columns.some((c) => c.key === "thay_the_ids")).toBe(false);
     expect(CFG_GIAY.fields.some((f) => f.key === "cong_thuc_gia")).toBe(true);
+  });
+
+  it("Giấy thay thế ĐÃ GỠ (mg 0405, 13/10/2026) — cả Giấy lẫn Vật tư khác", () => {
+    expect(CFG_GIAY.fields.some((f) => f.key === "thay_the_ids")).toBe(false);
+    expect(CFG_VAT_TU.fields.some((f) => f.key === "thay_the_ids")).toBe(false);
   });
 });
 

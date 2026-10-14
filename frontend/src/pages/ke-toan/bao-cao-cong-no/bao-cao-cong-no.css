@@ -124,3 +124,22 @@
   font-weight: var(--fw-regular);
   color: var(--ash-2);
 }
+
+/* Dạng Biểu đồ (phương án A, 12/10/2026) — mảnh vẽ chung ở components/bieu-do.css, xem BieuDoCongNo.tsx. */
+.bccn-dang-tai { opacity: .6; transition: opacity .15s; }
+.bccn-bd__rong { margin: 0; padding: 28px 16px; text-align: center; }
+.bccn-bd__hang--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr); }
+
+@container (max-width: 1100px) {
+  .bccn-bd__hang--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .bccn-bd__hang--2 > .bd-khoi:first-child { grid-column: 1 / -1; }
+  .bccn-bd .bd-the-hang { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
+@container (max-width: 720px) {
+  .bccn-bd__hang--2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+@container (max-width: 560px) {
+  .bccn-bd .bd-the-hang { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}

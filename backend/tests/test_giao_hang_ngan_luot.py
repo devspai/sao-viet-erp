@@ -25,7 +25,7 @@ from app.services.gia_cong_ngoai.giao_thang import _ngay_vn
 from tests.gia_cong_fixtures import nhan_vien_cua
 from tests.lenh_sx_fixtures import admin, customer, orders, lsx_svc, sess  # noqa: F401
 from tests.test_gia_cong_chot_cuoi import dai_cuoi  # noqa: F401
-from tests.test_giao_hang_api import _gui_yeu_cau_xuat_kho
+from tests.test_giao_hang_api import _kho_lap_phieu
 from tests.test_luot_xe import GOC, _canh, _len_don, _len_luot, _yc
 
 
@@ -51,12 +51,12 @@ def test_phieu_xuat_cua_rieng_diem_khop_co_kho_da_lap_phieu(client):
     h, tx, _px, xe = _canh(client, "51C-111.02")
     _len_luot(client, h, [_yc(client, h, "nl2a"), _yc(client, h, "nl2b")], tx=tx, xe=xe)
     a, b = _diem(client, h)
-    _gui_yeu_cau_xuat_kho(client, h, a["id"])
+    _kho_lap_phieu(client, h, a["id"])
     theo_id = {t["id"]: t for t in _diem(client, h)}
     # Cờ "kho đã chuẩn bị xong" và phiếu đọc từ CÙNG một chỗ — không bao giờ nói hai kiểu.
     for t in theo_id.values():
         assert (t["phieu_xuat"] is not None) == t["kho_da_lap_phieu"]
-    # Điểm chưa gửi kho không mượn phiếu của điểm kia.
+    # Điểm kho chưa lập phiếu không mượn phiếu của điểm kia.
     assert theo_id[b["id"]]["phieu_xuat"] is None
 
 
@@ -254,16 +254,39 @@ def test_bang_giao_so_truy_van_khong_tang_theo_so_chuyen(client):
         h, tx, px, xe = _canh(client, ma_xe)
         _len_luot(client, h, [_yc(client, h, f"{sfx}l{i}") for i in range(so_diem)], tx=tx, xe=xe, px=px)
         for i in range(so_le):
-            _len_don(client, h, suffix=f"{sfx}c{i}", tx=tx, xe=xe, luot=None, px=px, lay=12 + i, giao=13 + i)
+            _len_don(client, h, suffix=f"{sfx}c{i}", tx=tx, xe=xe, luot=None, px=px)
         return h
 
     h = dung("51C-111.06", 2, 1, "nl6a")
-    _gui_yeu_cau_xuat_kho(client, h, _diem(client, h)[0]["id"])
+    _kho_lap_phieu(client, h, _diem(client, h)[0]["id"])
     it = _dem_truy_van(lambda: client.get(url, headers=h))
     assert len(_diem(client, h)) == 3
 
     h = dung("51C-111.07", 3, 2, "nl6b")
-    _gui_yeu_cau_xuat_kho(client, h, _diem(client, h)[0]["id"])
+    _kho_lap_phieu(client, h, _diem(client, h)[0]["id"])
     nhieu = _dem_truy_van(lambda: client.get(url, headers=h))
     assert len(_diem(client, h)) == 8
     assert nhieu == it, (it, nhieu)
+
+
+def test_dang_giu_hang_theo_lo_so_truy_van_khong_tang_theo_so_yeu_cau(client):
+    """Ngăn đơn bán (tiến độ) duyệt MỌI yêu cầu chưa huỷ của mã thành phẩm qua `yeu_cau_dang_giu`.
+    Trước 13/10/2026 mỗi yêu cầu tốn 2–3 câu (chuyến + dòng chuyến + phiếu nhập trả về) ⇒ mã tái bản
+    nhiều lần mở ngăn chậm dần. Bản lô: số câu cố định, kết quả y bản một-cái."""
+    from app.db import SessionLocal
+    from app.routers.delivery import get_service
+
+    h, tx, _px, xe = _canh(client, "51C-111.08")
+    ids = [_yc(client, h, f"nl8{c}") for c in "abc"]
+    _len_luot(client, h, ids[:2], tx=tx, xe=xe)
+    db = SessionLocal()
+    try:
+        svc = get_service(db)
+        reqs = [db.get(DeliveryRequest, i) for i in ids]
+        mot = _dem_truy_van(lambda: svc.yeu_cau_dang_giu(reqs[:1]))
+        ba = _dem_truy_van(lambda: svc.yeu_cau_dang_giu(reqs))
+        # Hai yêu cầu đang trên lượt chạy và một yêu cầu chưa lên lượt: cả ba đều đang giữ hàng.
+        assert svc.yeu_cau_dang_giu(reqs) == set(ids)
+    finally:
+        db.close()
+    assert ba == mot, (mot, ba)

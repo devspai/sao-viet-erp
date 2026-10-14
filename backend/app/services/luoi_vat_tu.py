@@ -22,12 +22,14 @@ from .mach_mua import BUOC_DAT, BUOC_MOI, BUOC_NHAP, BUOC_TRA, tom_tat
 #: Tình trạng của dòng — hợp đồng với FE (`client.ts` `TinhTrangO`). Thứ tự = nặng → nhẹ.
 TT_CHUA_TINH = "chua_tinh"
 TT_CAN_MUA = "can_mua"
+#: Lệnh đã ra khỏi kế hoạch mà ô còn giữ hàng — việc phải làm là nhả cho lệnh khác.
+TT_NEN_NHA = "nen_nha"
 TT_DANG_MUA = "dang_mua"
 TT_CHUA_GIU = "chua_giu"
 TT_CHO_VE = "cho_ve"
 TT_CO_KHO = "co_kho"
 TT_DA_XUAT = "da_xuat"
-TINH_TRANG = (TT_CHUA_TINH, TT_CAN_MUA, TT_DANG_MUA, TT_CHUA_GIU, TT_CHO_VE, TT_CO_KHO,
+TINH_TRANG = (TT_CHUA_TINH, TT_CAN_MUA, TT_NEN_NHA, TT_DANG_MUA, TT_CHUA_GIU, TT_CHO_VE, TT_CO_KHO,
               TT_DA_XUAT)
 _NANG = {t: i for i, t in enumerate(TINH_TRANG)}
 
@@ -187,7 +189,7 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don, *, nhom: dict | Non
 
     # ---- tình trạng ----
     if ngoai:
-        tinh = TT_CHO_VE if giu_ve > EPS_GIU else TT_CO_KHO
+        tinh = TT_NEN_NHA if giu_kho + giu_ve > EPS_GIU else TT_CO_KHO
     elif khong_ro:
         tinh = TT_CHUA_TINH
     elif can - da_xuat <= EPS_GIU:
@@ -216,9 +218,9 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don, *, nhom: dict | Non
         ngay = {"loai": None, "ngay": None}
 
     # ---- ghi chú ----
+    # "Lệnh không còn trong kế hoạch" KHÔNG vào ghi chú: dòng nhóm lệnh (hoặc nhãn cạnh mã lệnh ở
+    # cách xem theo mặt hàng) đã nói, chip "Nên nhả hàng" nói việc phải làm — mỗi thông tin một lần.
     ghi_chu: list[str] = []
-    if ngoai:
-        ghi_chu.append("Lệnh không còn trong kế hoạch, nên nhả hàng đã giữ")
     if khong_ro:
         ly = next((d.get("ly_do_canh_bao") for d in buoc if d.get("ly_do_canh_bao")), None)
         ghi_chu.append(ly or "Chưa quy đổi được đơn vị")
@@ -250,6 +252,7 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don, *, nhom: dict | Non
     return {
         "khoa": f"{khoa_chu(*chu)}|{khoa_hang(hang)}",
         "chu": khoa_chu(*chu), "lsx_id": chu[0], "bai_ghep_id": chu[1], "ma": o["ma"],
+        "ngoai_pham_vi": ngoai,
         "hang": khoa_hang(hang), "hang_loai": hang[0], "hang_id": hang[1],
         "kho_rong": hang[2], "kho_dai": hang[3], "don_vi_goc": _goc(hang),
         "hang_ma": h.get("hang_ma"), "hang_ten": h.get("hang_ten") or h.get("hang_ma") or "",
@@ -348,7 +351,7 @@ def _hang(hang, h0, nhom, ds, ve, mach, theo_o, giu_rows, lenh) -> dict:
         ly = None
         if all(c not in tinh_o for c in cac_o):
             ly = "lệnh không còn cần"
-        elif all(c not in tinh_o or tinh_o[c]["tinh_trang"] in (TT_CO_KHO, TT_DA_XUAT, TT_CHO_VE)
+        elif all(c not in tinh_o or tinh_o[c]["tinh_trang"] in (TT_CO_KHO, TT_DA_XUAT, TT_CHO_VE, TT_NEN_NHA)
                  for c in cac_o) and not any(
                      _f(mach["peg"].get(d["line_id"], {}).get(o["okey"]))
                      for d in m["don"] for o in m["o"]):
@@ -572,7 +575,7 @@ def mot_hang(luoi: dict, hang: str, *, mo_goc: bool = False) -> dict | None:
 _NHAN_TT = {
     TT_CHUA_TINH: "Chưa tính được", TT_CAN_MUA: "Cần mua", TT_DANG_MUA: "Đang mua",
     TT_CHUA_GIU: "Chưa giữ", TT_CHO_VE: "Chờ hàng về", TT_CO_KHO: "Có trong kho",
-    TT_DA_XUAT: "Đã xuất kho",
+    TT_DA_XUAT: "Đã cấp cho xưởng", TT_NEN_NHA: "Nên nhả hàng",
 }
 
 
@@ -585,10 +588,7 @@ def _ngay_vn(s) -> str:
 
 def _ngay_co_hang_chu(n: dict) -> str:
     loai = (n or {}).get("loai")
-    if loai == "da_xuat":
-        return "Đã xuất"
-    if loai == "co_san":
-        return "Có sẵn"
+    # Hàng đã cấp / đang có trong kho: ô để trống, cột Tình trạng đã nói — như trên lưới.
     if loai == "ngay_ve":
         return _ngay_vn(n.get("ngay"))
     if loai == "hen":
@@ -616,7 +616,7 @@ def xuat_xlsx(luoi: dict, *, xem: str = "lenh", q: str | None = None,
     wb = Workbook()
     ws = wb.active
     ws.title = "Kế hoạch vật tư"
-    dau = ["Lệnh", "Sản phẩm", "Khách", "Ngày giao", "Mặt hàng", "Khổ", "ĐVT", "Cần", "Đã giữ",
+    dau = ["Lệnh", "Sản phẩm", "Khách", "Ngày giao", "Mặt hàng", "Khổ", "ĐVT", "Cần", "Đã có",
            "Còn thiếu", "Phiếu mua", "Bước của phiếu", "Ngày có hàng", "Tình trạng", "Ghi chú"]
     ws.append(dau)
     for c in ws[1]:

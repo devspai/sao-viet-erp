@@ -110,6 +110,36 @@ describe("LocationForm", () => {
     expect(document.querySelector(".banner--error")).toBeNull();
   });
 
+  // 14/10/2026: chặn ≤ 100 m làm máy bàn (115 m) không đặt được điểm ⇒ bỏ chặn, chỉ nhắc soát ghim.
+  it("sai số lớn vẫn điền toạ độ, nhắc soát ghim thay vì báo lỗi", async () => {
+    gpsFakes.getPosition.mockResolvedValue({
+      coords: { latitude: 10.9369369, longitude: 106.7130461, accuracy: 115 },
+    });
+    render(
+      <LocationForm token="token" location={null} onClose={vi.fn()} onSaved={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /lấy vị trí gps/i }));
+
+    expect(await screen.findByDisplayValue("10.9369369")).toBeInTheDocument();
+    expect(screen.getByText(/sai số khoảng 115 m.*kéo lại/i)).toBeInTheDocument();
+    expect(document.querySelector(".banner--error")).toBeNull();
+  });
+
+  // 14/10/2026: máy bàn không có nguồn định vị ⇒ chờ 20 s rồi bảo "kiểm tra Windows".
+  it("máy không lấy được vị trí thì chỉ sang bản đồ, chờ ngắn", async () => {
+    gpsFakes.getPosition.mockRejectedValue({ code: 3, message: "Lấy vị trí quá lâu." });
+    render(
+      <LocationForm token="token" location={null} onClose={vi.fn()} onSaved={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /lấy vị trí gps/i }));
+
+    expect(await screen.findByText(/máy này không lấy được vị trí/i)).toBeInTheDocument();
+    expect(screen.queryByText(/windows/i)).toBeNull();
+    expect(gpsFakes.getPosition).toHaveBeenCalledWith(8_000);
+  });
+
   // 23/09/2026: dán cặp "vĩ độ, kinh độ" copy từ Google Maps vào ô số thì Chrome dính hai số làm một
   // và ô còn lại GIỮ số cũ ⇒ điểm lưu lệch vài chục – cả trăm mét.
   it("dán CẢ CẶP toạ độ Google Maps vào một ô ⇒ điền cả hai ô", () => {

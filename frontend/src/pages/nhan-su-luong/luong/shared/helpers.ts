@@ -227,3 +227,86 @@ export function advPrintData(a: SalaryAdvance) {
     kind: a.kind,
   };
 }
+
+/** Số ngày công CN và Lễ (gồm công đi làm CN/lễ + công nghỉ lễ hưởng lương theo thời gian trả riêng ngoài khoán) */
+export function getCongCnLeVal(l: PayrollLine): number {
+  if (l.cong_cn_le != null) return l.cong_cn_le;
+  const sp = Number(l.special_cong || 0);
+  const leNghi = (l.luong_ngay_le && l.le_nghi_cong) ? Number(l.le_nghi_cong) : 0;
+  return Math.round((sp + leNghi) * 100) / 100;
+}
+
+/** Số ngày công thường thực tế = actual_cong − cong_cn_le */
+export function getCongThuongVal(l: PayrollLine): number {
+  if (l.cong_thuong != null) return l.cong_thuong;
+  const cnLe = getCongCnLeVal(l);
+  return Math.round(Math.max(0, (l.actual_cong || 0) - cnLe) * 100) / 100;
+}
+
+/** Thành tiền lương công thường (sau khi trừ 1x gốc của ngày CN/lễ) */
+export function getTienCongThuongVal(l: PayrollLine): number {
+  if (l.tien_cong_thuong != null) return l.tien_cong_thuong;
+  if (l.lay_bu_lo) {
+    return (l.khoan || 0) + (l.khoan_km || 0) + (l.luong_cong || 0);
+  }
+  const sp = l.special_cong || 0;
+  const luongCong = l.luong_cong || 0;
+  if (sp > 0 && luongCong > 0) {
+    const donGia =
+      ((l.monthly_salary || 0) * (l.is_probation ? 0.85 : 1)) /
+      (l.standard_cong || 26);
+    const tienGoc = Math.min(Math.round(donGia * sp), Math.round(luongCong));
+    return Math.max(0, Math.round(luongCong - tienGoc));
+  }
+  return Math.round(luongCong);
+}
+
+/** Tổng thành tiền ngày CN & Lễ (gốc 1x + phụ trội Đ98 + lương ngày lễ nếu có) */
+export function getTienCnLeVal(l: PayrollLine): number {
+  if (l.tien_cn_le != null) return l.tien_cn_le;
+  const sp = l.special_cong || 0;
+  const luongCong = l.luong_cong || 0;
+  let tienGoc = 0;
+  if (!l.lay_bu_lo && sp > 0 && luongCong > 0) {
+    const donGia =
+      ((l.monthly_salary || 0) * (l.is_probation ? 0.85 : 1)) /
+      (l.standard_cong || 26);
+    tienGoc = Math.min(Math.round(donGia * sp), Math.round(luongCong));
+  }
+  const tienGioTc =
+    l.tien_gio_tang_ca != null
+      ? Number(l.tien_gio_tang_ca)
+      : l.che_do_khoan && !l.la_giao_hang
+        ? 0
+        : Math.max(0, (l.ot_pay || 0) - (l.off1x_pay || 0));
+  const phanPhuTroi = Math.max(
+    0,
+    (l.ot_pay || 0) - tienGioTc - (l.off1x_pay || 0),
+  );
+  return Math.round(tienGoc + phanPhuTroi + (l.luong_ngay_le || 0));
+}
+
+/** Tiền tăng ca (chỉ tiền giờ tăng ca thực tế + ngày nghỉ off1x nếu có) */
+export function getTienTangCaVal(l: PayrollLine): number {
+  const off1x = l.off1x_pay || 0;
+  if (l.tien_gio_tang_ca != null) {
+    return Math.round(Number(l.tien_gio_tang_ca) + off1x);
+  }
+  if (l.che_do_khoan && !l.la_giao_hang) {
+    return Math.round(off1x);
+  }
+  // Fallback: ot_pay trừ đi phần phụ trội CN/Lễ đã đưa vào tien_cn_le
+  const tienCnLe = getTienCnLeVal(l);
+  const sp = l.special_cong || 0;
+  const donGia =
+    ((l.monthly_salary || 0) * (l.is_probation ? 0.85 : 1)) /
+    (l.standard_cong || 26);
+  const luongCong = l.luong_cong || 0;
+  const tienGoc =
+    !l.lay_bu_lo && sp > 0 && luongCong > 0
+      ? Math.min(Math.round(donGia * sp), Math.round(luongCong))
+      : 0;
+  const phanPhuTroi = Math.max(0, tienCnLe - tienGoc - (l.luong_ngay_le || 0));
+  return Math.max(0, Math.round((l.ot_pay || 0) - phanPhuTroi));
+}
+

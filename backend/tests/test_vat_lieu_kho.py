@@ -88,25 +88,6 @@ def test_clone_giay_va_vat_tu_hau_to_COPY_khong_lan_sang_loai_khac():
     assert ban_sao_v.ma == "MUC-CMYK-COPY" and ban_sao_v.ten == "Mực process CMYK (bản sao)"
 
 
-def test_thay_the_ids_luu_va_sua_duoc_giay_va_vat_tu():
-    """`thay_the_ids` (mg 0239) từng bị nuốt im lặng nếu quên khai ở repo `fields` — bẫy
-    `pydantic-nuot-field-im-lang` đã dính 4 lần trong dự án này, test roundtrip trực tiếp."""
-    db, svc = _svc()
-    g1 = svc.create("giay", dict(ma="C300", ten="Couché 300",
-                                 kho_dai=860, kho_rong=650, gsm=300))
-    g2 = svc.create("giay", dict(ma="C250", ten="Couché 250",
-                                 kho_dai=860, kho_rong=650, gsm=250, thay_the_ids=[g1.id]))
-    assert g2.thay_the_ids == [g1.id]
-    g2b = svc.update("giay", g2.id, dict(ma="C250", ten="Couché 250",
-                                         gsm=250, thay_the_ids=[]))
-    assert g2b.thay_the_ids == []
-
-    v1 = svc.create("vat_tu", dict(ma="MUC-CMYK", ten="Mực process CMYK", don_vi_gia="kg"))
-    v2 = svc.create("vat_tu", dict(ma="MUC-PANTONE", ten="Mực Pantone", don_vi_gia="kg",
-                                   thay_the_ids=[v1.id]))
-    assert v2.thay_the_ids == [v1.id]
-
-
 # --- đơn vị lấy từ danh mục Đơn vị & quy đổi ----------------------------------
 
 

@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phiếu công nghệ in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&family=Noto+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+.doc{max-width:1500px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1160px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;height:300px;object-fit:contain;background:#f8fafc;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink)}
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin:0 4px 0 14px}
+.sw .lb:first-child{margin-left:0}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 14px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+.desc ul{margin:4px 0 2px}
+.stage{display:flex;gap:28px;align-items:flex-start;overflow-x:auto;padding-bottom:12px}
+.stage .cap{font-size:12.5px;color:var(--ash-2);margin:0 0 6px}
+
+/* ───────── Trang A4 (khớp khổ thật: 210 × 297 mm) ───────── */
+.a4{width:210mm;height:297mm;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.12),0 8px 24px rgba(15,23,42,.08);
+  position:relative;padding:12mm 14mm 14mm;font-family:"Noto Sans","DejaVu Sans",sans-serif;font-size:9.5pt;line-height:1.35;color:#111;flex:none;overflow:hidden}
+.a4 .xam{color:#666}
+.a4 .nho{font-size:8pt}
+.a4 .chan{position:absolute;left:14mm;right:14mm;bottom:7mm;display:flex;justify-content:space-between;font-size:7.5pt;color:#666;border-top:.3mm solid #ddd;padding-top:1.6mm}
+.qr{display:block}
+.mucs{display:inline-flex;gap:1mm;vertical-align:middle}
+.mucs i{font-style:normal;width:4.6mm;height:4.6mm;border:.3mm solid #333;border-radius:.6mm;display:inline-grid;place-items:center;font-size:7pt;line-height:1}
+.ngoai{display:inline-block;border:.35mm solid #333;border-radius:1mm;padding:0 1.4mm;font-size:7.5pt;line-height:1.5}
+
+/* ── A: Đọc nhanh ── */
+.pa .dau{display:grid;grid-template-columns:1fr 24mm;gap:6mm;align-items:start}
+.pa .loai{font-size:8pt;letter-spacing:.12em;color:#666}
+.pa .ma{font-size:22pt;line-height:1.1;margin:1mm 0 .5mm}
+.pa .ten{font-size:12pt}
+.pa .pv{font-size:7.5pt;color:#666;text-align:center;margin-top:1mm}
+.pa .so4{display:grid;grid-template-columns:1.5fr .9fr 1fr .7fr 1.1fr;gap:5mm;margin:6mm 0 0;padding:3mm 0;border-top:.3mm solid #222;border-bottom:.3mm solid #ddd}
+.pa .so4 .l{font-size:7.5pt;color:#666}
+.pa .so4 .v{font-size:10.5pt;margin-top:.5mm}
+.pa .so4 .v.to{font-size:13pt}
+.pa h4{font-size:8pt;font-weight:400;letter-spacing:.12em;color:#666;margin:6mm 0 2.5mm;text-transform:uppercase}
+.pa .kho{display:flex;align-items:flex-end;gap:3mm}
+.pa .kho .o{display:grid;gap:1mm;justify-items:start}
+.pa .kho .hinh{border:.35mm solid #333;background:#fafafa}
+.pa .kho .mui{align-self:center;font-size:8pt;color:#666;text-align:center;line-height:1.25;padding-bottom:5mm}
+.pa .kho .mui span{display:block;font-size:12pt;color:#333}
+.pa .kho .v{font-size:9.5pt}
+.pa .hai{display:grid;grid-template-columns:1.25fr 1fr;gap:9mm}
+.pa dl{display:grid;grid-template-columns:27mm 1fr;gap:1.6mm 3mm;margin:0}
+.pa dt{color:#666;font-size:8.5pt}
+.pa dd{margin:0}
+.pa .xuat{margin-top:3mm;font-size:9pt}
+.pa .buoc{border-top:.3mm solid #222}
+.pa .b{display:grid;grid-template-columns:8mm 1fr 52mm 46mm;gap:3mm;padding:2.6mm 0;border-bottom:.25mm solid #ddd;align-items:start}
+.pa .b .n{width:6mm;height:6mm;border:.35mm solid #333;border-radius:50%;display:grid;place-items:center;font-size:8.5pt}
+.pa .b .ct{font-size:10.5pt}
+.pa .b .ct small{display:block;font-size:8pt;color:#666}
+.pa .b .lam{font-size:9pt}
+.pa .b .lam small{display:block;font-size:8pt;color:#666}
+.pa .b .vr{text-align:right;font-variant-numeric:tabular-nums;font-size:9.5pt;white-space:nowrap}
+.pa .b .vr small{display:block;font-size:8pt;color:#666}
+
+/* ── B: Phiếu đi theo hàng ── */
+.pb .dau{display:grid;grid-template-columns:1fr 22mm;gap:5mm;align-items:start;padding-bottom:3mm;border-bottom:.35mm solid #222}
+.pb .loai{font-size:8pt;letter-spacing:.12em;color:#666}
+.pb .ma{font-size:17pt;line-height:1.15;margin-top:.5mm}
+.pb .ten{font-size:11pt}
+.pb .phu{display:flex;flex-wrap:wrap;gap:1mm 7mm;margin-top:1.6mm;font-size:8.5pt}
+.pb .phu span{color:#666}
+.pb .pv{font-size:7.5pt;color:#666;text-align:center;margin-top:.8mm}
+.pb .ks{display:grid;grid-template-columns:repeat(4,1fr);gap:2.4mm 5mm;margin:3.2mm 0 4mm}
+.pb .ks .l{font-size:7.5pt;color:#666}
+.pb .ks .v{font-size:9.5pt}
+.pb table{width:100%;border-collapse:collapse;table-layout:fixed}
+.pb th{font-weight:400;font-size:7.5pt;color:#444;text-align:left;padding:1.3mm 1.4mm;border:.3mm solid #444;background:#f2f2f2;vertical-align:bottom;line-height:1.2}
+.pb td{border:.3mm solid #444;padding:1.4mm;vertical-align:top;height:17mm}
+.pb td.ct{font-size:9.5pt}
+.pb td.ct small{display:block;font-size:7.5pt;color:#555;margin-top:.6mm;line-height:1.3}
+.pb td.kh{font-size:8.5pt;font-variant-numeric:tabular-nums;line-height:1.35}
+.pb td.kh small{color:#666;font-size:7.5pt}
+.pb td.o{position:relative}
+.pb td.o em{position:absolute;left:1.2mm;top:.8mm;font-style:normal;font-size:6.5pt;color:#999}
+.pb td.stt{text-align:center;font-size:10pt}
+.pb .cuoi{display:grid;grid-template-columns:1fr 62mm;gap:4mm;margin-top:4mm}
+.pb .hop{border:.3mm solid #444;height:28mm;padding:1.4mm 2mm;font-size:7.5pt;color:#666;position:relative}
+.pb .hop .ke{position:absolute;left:2mm;right:2mm;border-bottom:.2mm dotted #bbb}
+
+/* ── C: Mỗi bước một thẻ ── */
+.pc .dau{display:grid;grid-template-columns:1fr 20mm;gap:5mm;align-items:start}
+.pc .loai{font-size:8pt;letter-spacing:.12em;color:#666}
+.pc .ma{font-size:17pt;line-height:1.15;margin-top:.5mm}
+.pc .ten{font-size:11pt}
+.pc .pv{font-size:7.5pt;color:#666;text-align:center;margin-top:.8mm}
+.pc .tom{display:grid;grid-template-columns:repeat(4,1fr);gap:2mm 5mm;margin:3mm 0 0;padding:2.6mm 0;border-top:.3mm solid #222;border-bottom:.3mm solid #ddd}
+.pc .tom .l{font-size:7.5pt;color:#666}
+.pc .tom .v{font-size:9.5pt}
+.pc .luoi{display:grid;grid-template-columns:1fr 1fr;margin-top:4mm;border-top:.35mm dashed #999;border-left:.35mm dashed #999}
+.pc .the{border-right:.35mm dashed #999;border-bottom:.35mm dashed #999;padding:3mm 3.4mm;display:grid;grid-template-columns:1fr 15mm;gap:1.6mm 3mm;min-height:53mm;align-content:start;position:relative}
+.pc .the .so{font-size:7.5pt;color:#666;letter-spacing:.06em}
+.pc .the .ct{font-size:11.5pt;line-height:1.2;grid-column:1}
+.pc .the .qr{grid-column:2;grid-row:1 / span 3}
+.pc .the .lam{grid-column:1;font-size:8.5pt}
+.pc .the .lam span{color:#666}
+.pc .the .vr{grid-column:1 / -1;display:flex;gap:6mm;font-variant-numeric:tabular-nums;margin-top:1mm}
+.pc .the .vr div{font-size:10pt}
+.pc .the .vr small{display:block;font-size:7.5pt;color:#666}
+.pc .the .viet{grid-column:1 / -1;display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:3mm;margin-top:2mm;font-size:7.5pt;color:#666}
+.pc .the .viet div{border-bottom:.3mm solid #888;padding-bottom:4.5mm}
+.pc .keo{position:absolute;left:-2.4mm;top:-2.1mm;font-size:8pt;color:#999;background:#fff;line-height:1}
+.pc .gon{margin-top:3mm;display:grid;grid-template-columns:repeat(4,1fr);gap:1.6mm 5mm}
+.pc .gon .l{font-size:7.5pt;color:#666}
+.pc .gon .v{font-size:9pt}
+.pc .gon .v .mucs i{width:4mm;height:4mm;font-size:6.5pt}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Phiếu công nghệ in ra giấy — 3 phương án</h1>
+  <p>Phiếu A4 in từ nút "In phiếu công nghệ" ở ngăn lệnh, đi theo hàng xuống xưởng. Mỗi phương án dựng bằng số thật của LSX26-0003 (ruột sách 64 trang, 5 bước, có bước thuê ngoài) và LSX26-0004 (bìa A5, 4 bước). Trang vẽ đúng khổ 210 × 297 mm.</p>
+
+  <h2>Bản đang in</h2>
+  <div class="refs">
+    <div class="ref"><img src="tham-khao-phieu-cong-nghe/hien-tai-LSX26-0003-trang-1.png" alt="Phiếu hiện tại LSX26-0003 trang 1"><p class="t">LSX26-0003 hiện tại, trang 1/2</p></div>
+    <div class="ref"><img src="tham-khao-phieu-cong-nghe/hien-tai-LSX26-0003-trang-2.png" alt="Phiếu hiện tại LSX26-0003 trang 2"><p class="t">Trang 2 chỉ còn 1 bước "Xén 3 mặt"</p></div>
+    <div class="ref"><img src="tham-khao-phieu-cong-nghe/hien-tai-LSX26-0004.png" alt="Phiếu hiện tại LSX26-0004"><p class="t">LSX26-0004 hiện tại</p></div>
+  </div>
+  <p>Chỗ dở: hai bảng lưới chữ đậm 20 dòng chiếm 2/3 trang trước khi tới các bước, nên 5 bước đã tràn sang trang 2. Mã LSX nói hai lần. Các dòng trống vẫn in ("Định lượng —", "Hạn hoàn thành SX —", "Ưu tiên gấp Không"). Mực nối bằng dấu phẩy, chân trang nối bằng dấu chấm giữa. Cột "Lớp" 0 1 2 3 thợ không hiểu. Không ghi máy nào chạy, không ghi số tờ nguyên phải xuất kho, không có chỗ để thợ ghi số hay ký giao nhận. Chưa có đơn hàng, hạn giao khách, người kinh doanh để hỏi.</p>
+
+  <h2>Tham khảo</h2>
+  <div class="refs">
+    <div class="ref"><img src="tham-khao-phieu-cong-nghe/r1-presswise-job-ticket.jpg" alt="PressWise job ticket"><p class="t">PressWise (Print MIS)</p><p>Khối sản phẩm có máy, giấy, bình bài, số tờ. Mỗi công đoạn một khối riêng có mã vạch. Lấy ý cho phương án A và C.</p></div>
+    <div class="ref"><img src="tham-khao-phieu-cong-nghe/r2-production-traveler-ky-tung-buoc.jpg" alt="Shop traveler"><p class="t">Shop traveler (Codeware)</p><p>Một dòng một công việc, các cột trống để người làm ghi ngày và ký. Lấy ý cho phương án B.</p></div>
+    <div class="ref"><img src="tham-khao-phieu-cong-nghe/r5-screen-printing-job-production.jpg" alt="Print job order form"><p class="t">Print job order form</p><p>Dùng hình để nói quy cách thay vì chữ. Lấy ý vẽ khổ giấy theo tỉ lệ ở phương án A.</p></div>
+  </div>
+
+  <h2>Áp cho cả ba</h2>
+  <ul>
+    <li>Mã LSX, phiên bản và QR có trên MỌI trang như bây giờ. Không có số tiền nào.</li>
+    <li>Không chữ đậm. Chữ to nhỏ và màu xám tạo thứ bậc. In máy laser đen trắng vẫn đọc được, không có gì dựa vào màu.</li>
+    <li>Ngày viết 06/11/2026. Thiếu thì im: ô trống, "Không gấp", định lượng chưa khai, ghi chú rỗng đều không in. Lệnh gấp thì có ô viền chữ "GẤP" cạnh mã.</li>
+    <li>Thêm thông tin xưởng cần: đơn hàng, hạn giao khách, người kinh doanh, số tờ nguyên phải xuất, số con trên tờ in, máy của từng bước (lấy từ Xếp lịch).</li>
+    <li>Mỗi số đi kèm đơn vị của nó: "2.075 tờ nguyên rồi ra 4.150 tờ". Cột ĐVT riêng bỏ.</li>
+    <li>Cột "Lớp" bỏ. Lệnh có bước chạy song song thì bước đó ghi "Làm sau bước 2 và 3". Lệnh đi thẳng một mạch (như cả hai lệnh ở đây) thì không ghi gì.</li>
+    <li>Bước cần khuôn bế ghi thêm "Khuôn K-001 ở kệ B2", khuôn chưa về thì ghi "Khuôn chưa về" trong ô viền.</li>
+    <li>Chân trang: "In lúc 13/10/2026 12:51 bởi Admin" bên trái, "Trang 1/1" bên phải.</li>
+  </ul>
+
+  <div class="sw" id="sw">
+    <span class="lb">Phương án</span>
+    <button class="pill on" data-pa="a">A. Đọc nhanh</button>
+    <button class="pill" data-pa="b">B. Phiếu đi theo hàng</button>
+    <button class="pill" data-pa="c">C. Mỗi bước một thẻ</button>
+    <span class="lb">Lệnh</span>
+    <button class="pill on" data-l="3">LSX26-0003 ruột</button>
+    <button class="pill" data-l="4">LSX26-0004 bìa</button>
+  </div>
+
+  <div class="desc" id="desc"></div>
+  <div class="stage" id="stage"></div>
+</div>
+
+<script>
+const L = {
+  3: {
+    ma: "LSX26-0003", pv: 1, ten: "Ruột sách A5 64 trang", don: "DH002", khach: "CÔNG TY CỔ PHẦN BIBICA",
+    sale: "Nguyễn Thị Huyên", sl: 1000, dvt: "cuốn", hanGiao: "06/11/2026",
+    giay: "COUCHE 80GSM", kn: [1090, 790], ki: [790, 540], ktp: [148, 210], xa: 2, con: 8,
+    qc: "2 mặt (AB)", mauA: 4, mauB: 4, mucA: ["C", "M", "Y", "K"], mucB: ["C", "M", "Y", "K"],
+    trang: 64, tay: 16, kem: 32, toNg: 2075, toIn: 4150,
+    buoc: [
+      { ten: "Cắt tờ", nhom: "Trước in", may: "Máy cắt tờ Kyodo 132", to: "Cắt 2", vao: 2075, dvV: "tờ nguyên", ra: 4150, dvR: "tờ" },
+      { ten: "Bài in 3 màu 4 màu (CMYK)", nhom: "In", may: "Máy in 5 màu Mitsubishi 54×79", to: "Nhóm thợ in máy 4 màu", vao: 4150, dvV: "tờ", ra: 4000, dvR: "tờ" },
+      { ten: "Gấp", nhom: "Gia công sau in", ncc: "Cơ sở Gia công Cán màng Thành Công", vao: 4000, dvV: "tờ", ra: 4000, dvR: "tay sách" },
+      { ten: "Bắt tay + vào keo", nhom: "Gia công sau in", to: "Thành phầm / KCS", vao: 4000, dvV: "tay sách", ra: 4000, dvR: "tay sách" },
+      { ten: "Xén 3 mặt", nhom: "Gia công sau in", may: "Máy cắt tờ Kyodo 132", to: "Cắt 1", vao: 4000, dvV: "tay sách", ra: 1000, dvR: "cái" },
+    ],
+  },
+  4: {
+    ma: "LSX26-0004", pv: 1, ten: "Bìa sách A5", don: "DH002", khach: "CÔNG TY CỔ PHẦN BIBICA",
+    sale: "Nguyễn Thị Huyên", sl: 1000, dvt: "cuốn", hanGiao: "06/11/2026",
+    giay: "GIẤY IVORY 210--230-250GSM", kn: [1090, 790], ki: [790, 540], ktp: [300, 210], xa: 2, con: 4,
+    qc: "1 mặt", mauA: 4, mauB: 0, mucA: ["C", "M", "Y", "K"], mucB: [],
+    trang: 1, tay: 1, kem: 4, toNg: 175, toIn: 350,
+    buoc: [
+      { ten: "Cắt tờ", nhom: "Trước in", may: "Máy cắt tờ ITO 100", to: "Cắt 2", vao: 175, dvV: "tờ nguyên", ra: 350, dvR: "tờ" },
+      { ten: "Bài in 3 màu 4 màu (CMYK)", nhom: "In", may: "Máy in 5 màu Mitsubishi 54×79", to: "Nhóm thợ in máy 4 màu", vao: 350, dvV: "tờ", ra: 250, dvR: "tờ" },
+      { ten: "Cán màng", nhom: "Gia công sau in", may: "Máy cán màng 1080 - số 1", to: "Tổ Cán màng", vao: 250, dvV: "tờ", ra: 250, dvR: "tờ" },
+      { ten: "Cắt thành phẩm", nhom: "Gia công sau in", ncc: "Cơ sở Gia công Cán màng Thành Công", vao: 250, dvV: "tờ", ra: 1000, dvR: "con" },
+    ],
+  },
+};
+
+const so = (n) => n.toLocaleString("vi-VN");
+const kho = (k) => `${k[0]} × ${k[1]} mm`;
+const mucs = (ds) => ds.length ? `<span class="mucs">${ds.map((m) => `<i>${m}</i>`).join("")}</span>` : "";
+
+/* QR giả để minh hoạ chỗ đặt (mã thật vẫn là QrCodeWidget của ReportLab). */
+function qr(seed, mm) {
+  const n = 25; let s = 0;
+  for (const c of seed) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+  const r = () => ((s = (s * 1103515245 + 12345) >>> 0) >>> 16) & 1;
+  let p = "";
+  const finder = (x, y) => { p += `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`; };
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const inF = (x < 8 && y < 8) || (x > n - 9 && y < 8) || (x < 8 && y > n - 9);
+    if (!inF && r()) p += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+  }
+  finder(0, 0); finder(n - 7, 0); finder(0, n - 7);
+  return `<svg class="qr" viewBox="-1 -1 ${n + 2} ${n + 2}" style="width:${mm}mm;height:${mm}mm" shape-rendering="crispEdges"><rect x="-1" y="-1" width="${n + 2}" height="${n + 2}" fill="#fff"/>${p}</svg>`;
+}
+
+const lam = (b) => b.ncc ? `<span class="ngoai">Thuê ngoài</span> ${b.ncc}` : [b.may, b.to].filter(Boolean).join("<br>");
+const chan = `<div class="chan"><span>In lúc 13/10/2026 12:51 bởi Admin</span><span>Trang 1/1</span></div>`;
+
+/* ── A ── */
+function phuongAnA(d) {
+  const sc = 38 / 1090;
+  const hinh = (k) => `<div class="hinh" style="width:${(k[0] * sc).toFixed(1)}mm;height:${(k[1] * sc).toFixed(1)}mm"></div>`;
+  const sach = d.trang > 1
+    ? `<dt>Số trang</dt><dd>${d.trang}</dd><dt>Trang một tay</dt><dd>${d.tay}</dd><dt>Số tay</dt><dd>${d.trang / d.tay}</dd>` : "";
+  const matB = d.mauB > 0 ? `<dt>Mặt B</dt><dd>${d.mauB} màu ${mucs(d.mucB)}</dd>` : "";
+  return `<div class="a4 pa">
+    <div class="dau">
+      <div><div class="loai">PHIẾU CÔNG NGHỆ</div><div class="ma">${d.ma}</div><div class="ten">${d.ten}</div></div>
+      <div>${qr(d.ma, 24)}<div class="pv">Phiên bản ${d.pv}</div></div>
+    </div>
+    <div class="so4">
+      <div><div class="l">Khách hàng</div><div class="v">${d.khach}</div></div>
+      <div><div class="l">Số lượng đặt</div><div class="v to">${so(d.sl)} ${d.dvt}</div></div>
+      <div><div class="l">Hạn giao khách</div><div class="v to">${d.hanGiao}</div></div>
+      <div><div class="l">Đơn hàng</div><div class="v">${d.don}</div></div>
+      <div><div class="l">Kinh doanh</div><div class="v">${d.sale}</div></div>
+    </div>
+
+    <h4>Giấy và khổ</h4>
+    <div class="kho">
+      <div class="o">${hinh(d.kn)}<span class="v">Khổ nguyên ${kho(d.kn)}</span><span class="xam nho">${d.giay}</span></div>
+      <div class="mui"><span>→</span>xả ${d.xa}</div>
+      <div class="o">${hinh(d.ki)}<span class="v">Khổ in ${kho(d.ki)}</span><span class="xam nho">${d.con} con một tờ</span></div>
+      <div class="mui"><span>→</span>cắt</div>
+      <div class="o">${hinh(d.ktp)}<span class="v">Thành phẩm ${kho(d.ktp)}</span><span class="xam nho">&nbsp;</span></div>
+    </div>
+    <div class="xuat">Xuất kho ${so(d.toNg)} tờ nguyên, ra ${so(d.toIn)} tờ in</div>
+
+    <div class="hai">
+      <div><h4>In</h4><dl>
+        <dt>Quy cách</dt><dd>${d.qc}</dd>
+        <dt>Mặt A</dt><dd>${d.mauA} màu ${mucs(d.mucA)}</dd>
+        ${matB}
+        <dt>Số kẽm</dt><dd>${d.kem}</dd>
+      </dl></div>
+      <div>${sach ? `<h4>Sách</h4><dl>${sach}</dl>` : ""}</div>
+    </div>
+
+    <h4>Các bước (${d.buoc.length})</h4>
+    <div class="buoc">
+      ${d.buoc.map((b, i) => `<div class="b">
+        <div class="n">${i + 1}</div>
+        <div class="ct">${b.ten}<small>${b.nhom}</small></div>
+        <div class="lam">${lam(b)}</div>
+        <div class="vr">${so(b.vao)} ${b.dvV}<small>ra ${so(b.ra)} ${b.dvR}</small></div>
+      </div>`).join("")}
+    </div>
+    ${chan}
+  </div>`;
+}
+
+/* ── B ── */
+function phuongAnB(d) {
+  const ks = [
+    ["Giấy", d.giay], ["Khổ nguyên", kho(d.kn)], ["Khổ in", kho(d.ki)], ["Thành phẩm", kho(d.ktp)],
+    ["Xả", `${d.xa} tờ in một tờ nguyên`], ["Con", `${d.con} con một tờ in`], ["Xuất kho", `${so(d.toNg)} tờ nguyên`], ["Tờ in", `${so(d.toIn)} tờ`],
+    ["Quy cách in", d.qc], ["Mặt A", `${d.mauA} màu ${mucs(d.mucA)}`], d.mauB > 0 ? ["Mặt B", `${d.mauB} màu ${mucs(d.mucB)}`] : null, ["Số kẽm", d.kem],
+    d.trang > 1 ? ["Số trang", `${d.trang} trang`] : null, d.trang > 1 ? ["Trang một tay", `${d.tay} trang`] : null,
+  ].filter(Boolean);
+  return `<div class="a4 pb">
+    <div class="dau">
+      <div>
+        <div class="loai">PHIẾU CÔNG NGHỆ</div>
+        <div class="ma">${d.ma}</div>
+        <div class="ten">${d.ten}</div>
+        <div class="phu"><div><span>Khách</span> ${d.khach}</div><div><span>Đặt</span> ${so(d.sl)} ${d.dvt}</div><div><span>Hạn giao</span> ${d.hanGiao}</div><div><span>Đơn</span> ${d.don}</div><div><span>Kinh doanh</span> ${d.sale}</div></div>
+      </div>
+      <div>${qr(d.ma, 22)}<div class="pv">Phiên bản ${d.pv}</div></div>
+    </div>
+    <div class="ks">${ks.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}</div>
+    <table>
+      <colgroup><col style="width:7mm"><col style="width:46mm"><col style="width:28mm"><col><col><col><col><col style="width:21mm"><col style="width:21mm"></colgroup>
+      <thead><tr><th>#</th><th>Công đoạn<br>Máy và tổ</th><th>Kế hoạch</th><th>Bắt đầu<br>ngày giờ</th><th>Xong<br>ngày giờ</th><th>Số đạt</th><th>Số hỏng</th><th>Người làm ký</th><th>Bước sau nhận ký</th></tr></thead>
+      <tbody>${d.buoc.map((b, i) => `<tr>
+        <td class="stt">${i + 1}</td>
+        <td class="ct">${b.ten}<small>${lam(b)}</small></td>
+        <td class="kh">${so(b.vao)} <small>${b.dvV}</small><br>ra ${so(b.ra)} <small>${b.dvR}</small></td>
+        <td class="o">${b.ncc ? "<em>Giao đi</em>" : ""}</td><td class="o">${b.ncc ? "<em>Nhận về</em>" : ""}</td>
+        <td class="o"><em>${b.dvR}</em></td><td class="o"><em>${b.dvR}</em></td><td class="o"></td><td class="o"></td>
+      </tr>`).join("")}</tbody>
+    </table>
+    <div class="cuoi">
+      <div class="hop">Xưởng ghi chú
+        ${[9, 15, 21].map((t) => `<div class="ke" style="top:${t}mm"></div>`).join("")}
+      </div>
+      <div class="hop">KCS cuối ký, ghi ngày</div>
+    </div>
+    ${chan}
+  </div>`;
+}
+
+/* ── C ── */
+function phuongAnC(d) {
+  const gon = [
+    ["Giấy", d.giay], ["Khổ nguyên", kho(d.kn)], ["Khổ in", kho(d.ki)], ["Thành phẩm", kho(d.ktp)],
+    ["Xả", `${d.xa} tờ in một tờ nguyên`], ["Con", `${d.con} con một tờ in`], ["Xuất kho", `${so(d.toNg)} tờ nguyên`], ["Quy cách in", d.qc],
+    ["Mặt A", `${d.mauA} màu ${mucs(d.mucA)}`], d.mauB > 0 ? ["Mặt B", `${d.mauB} màu ${mucs(d.mucB)}`] : null, ["Số kẽm", d.kem],
+    d.trang > 1 ? ["Số trang", `${d.trang} trang`] : null, d.trang > 1 ? ["Trang một tay", `${d.tay} trang`] : null,
+  ].filter(Boolean);
+  return `<div class="a4 pc">
+    <div class="dau">
+      <div><div class="loai">PHIẾU CÔNG NGHỆ</div><div class="ma">${d.ma}</div><div class="ten">${d.ten}</div></div>
+      <div>${qr(d.ma, 20)}<div class="pv">Phiên bản ${d.pv}</div></div>
+    </div>
+    <div class="tom">
+      <div><div class="l">Khách hàng</div><div class="v">${d.khach}</div></div>
+      <div><div class="l">Số lượng đặt</div><div class="v">${so(d.sl)} ${d.dvt}</div></div>
+      <div><div class="l">Hạn giao khách</div><div class="v">${d.hanGiao}</div></div>
+      <div><div class="l">Đơn hàng</div><div class="v">${d.don}</div></div>
+    </div>
+    <div class="gon">${gon.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join("")}</div>
+    <div class="luoi">
+      ${d.buoc.map((b, i) => `<div class="the">
+        ${i === 0 ? '<span class="keo">✂</span>' : ""}
+        <div class="so">BƯỚC ${i + 1} / ${d.buoc.length}  ${d.ma}</div>
+        ${qr(d.ma + "-" + i, 15)}
+        <div class="ct">${b.ten}</div>
+        <div class="lam">${lam(b)}</div>
+        <div class="vr"><div><small>Nhận vào</small>${so(b.vao)} ${b.dvV}</div><div><small>Làm ra</small>${so(b.ra)} ${b.dvR}</div></div>
+        <div class="viet"><div>Số đạt</div><div>Số hỏng</div><div>Ký và ngày</div></div>
+      </div>`).join("")}
+    </div>
+    ${chan}
+  </div>`;
+}
+
+const MO = {
+  a: {
+    ten: "A. Đọc nhanh",
+    ham: phuongAnA,
+    desc: `<p>Học PressWise: đầu trang là mã lệnh to và QR, ngay dưới là bốn thứ thợ hỏi đầu tiên (khách, số lượng, hạn giao, đơn hàng). Khổ giấy vẽ hình chữ nhật đúng tỉ lệ từ khổ nguyên xuống khổ in rồi thành phẩm, kèm số tờ nguyên phải xuất kho. Mực vẽ thành ô C M Y K thay chuỗi dấu phẩy. Các bước là danh sách thoáng, mỗi bước ghi máy và tổ làm, số vào và số ra kèm đơn vị.</p>
+      <p>Được: cả 5 bước của LSX26-0003 vừa một trang, thợ liếc là thấy. Mất: không có chỗ ghi tay, giấy chỉ để ĐỌC, số thực làm vẫn ghi trên máy tính bảng qua QR.</p>`,
+  },
+  b: {
+    ten: "B. Phiếu đi theo hàng",
+    ham: phuongAnB,
+    desc: `<p>Học tờ traveler: thông số dồn gọn vào lưới 4 cột không khung, phần lớn trang dành cho bảng các bước có ô trống cao 17 mm để thợ ghi giờ bắt đầu, giờ xong, số đạt, số hỏng, ký người làm và ký người bước sau nhận. Bước thuê ngoài đổi ô giờ thành "Giao đi" và "Nhận về". Cuối trang có ô ghi chú xưởng và ô KCS cuối ký.</p>
+      <p>Được: phiếu thành chứng từ giao nhận giữa các tổ, mất máy tính bảng hay mất điện xưởng vẫn chạy được. Mất: số ghi tay trùng với số ghi trên phần mềm, phải có người nhập lại hoặc chấp nhận giấy chỉ là bản lưu.</p>`,
+  },
+  c: {
+    ten: "C. Mỗi bước một thẻ",
+    ham: phuongAnC,
+    desc: `<p>Học khối công đoạn của PressWise: phần đầu trang tóm tắt lệnh và thông số, phía dưới mỗi bước là một thẻ có viền cắt nét đứt. Mỗi thẻ có QR riêng mở THẲNG bước đó để ghi sản lượng, ghi máy và tổ, số nhận vào và làm ra, cùng ba dòng ghi tay ngắn. Cắt rời phát cho từng tổ, tổ nào cầm đúng thẻ của mình.</p>
+      <p>Được: tổ không phải dò cả bảng, quét là vào đúng bước. Mất: phải làm thêm đường dẫn mở thẳng một bước (QR hiện chỉ mở lệnh), lệnh nhiều bước thì sang trang 2. Thẻ cắt rời dễ thất lạc, nên mỗi thẻ đều in mã lệnh.</p>`,
+  },
+};
+
+let pa = MO[location.hash.slice(1, 2)] ? location.hash.slice(1, 2) : "a";
+let lenh = location.hash.slice(2) === "4" ? 4 : 3;
+function ve() {
+  document.querySelectorAll("[data-pa]").forEach((b) => b.classList.toggle("on", b.dataset.pa === pa));
+  document.querySelectorAll("[data-l]").forEach((b) => b.classList.toggle("on", +b.dataset.l === lenh));
+  document.getElementById("desc").innerHTML = `<h3>${MO[pa].ten}</h3>${MO[pa].desc}`;
+  document.getElementById("stage").innerHTML = `<div><p class="cap">${L[lenh].ma}, trang 1/1</p>${MO[pa].ham(L[lenh])}</div>`;
+}
+document.getElementById("sw").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.pa) pa = b.dataset.pa;
+  if (b.dataset.l) lenh = +b.dataset.l;
+  ve();
+});
+ve();
+</script>
+</body>
+</html>

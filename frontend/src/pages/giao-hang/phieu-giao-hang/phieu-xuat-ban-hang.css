@@ -1,0 +1,52 @@
+/* Phiếu xuất kho bán hàng / 02-VT — bố cục bám hai mẫu MISA công ty đang dùng (BH03479-26, XK03479-26).
+   Nằm trong khung .psheet (A4, Times New Roman, đen trắng) nên @media print của khung tự lo việc in. */
+.psheet .mx { font-size: 11.5pt; line-height: 1.35; }
+.psheet .mx-tai { font-style: italic; }
+
+.psheet .mx-cty { line-height: 1.3; }
+
+.psheet .mx-tieu-de { text-align: center; margin: 6px 0 14px; }
+.psheet .mx-tieu-de h1 { font-size: 17pt; font-weight: 700; margin: 0; }
+.psheet .mx-ngay { font-style: italic; font-weight: 700; margin-top: 2px; }
+.psheet .mx-so { font-weight: 700; margin-top: 2px; }
+
+/* Khối thông tin khách bên trái, Nợ / Có / Loại tiền bên phải. */
+.psheet .mx-dau { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; }
+.psheet .mx-dong-tt > div,
+.psheet .mx-dong-02 > div { display: grid; grid-template-columns: max-content 1fr; gap: 6px; margin-bottom: 4px; }
+.psheet .mx-no-co { min-width: 110px; }
+.psheet .mx-no-co > div { margin-bottom: 4px; }
+
+/* Ô để trống cho người điền tay: một dòng chấm. */
+.psheet .mx-cham { border-bottom: 1px dotted #000; min-height: 1.1em; align-self: end; margin-bottom: 3px; }
+
+.psheet table.mx-bang { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; border: 1.2px solid #000; }
+.psheet table.mx-bang th,
+.psheet table.mx-bang td { border: 0.75px solid #000; padding: 3px 5px; vertical-align: top; overflow-wrap: anywhere; }
+.psheet table.mx-bang th { font-weight: 700; text-align: center; vertical-align: middle; }
+.psheet table.mx-bang td.c { text-align: center; }
+.psheet table.mx-bang td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.psheet table.mx-bang .mx-dam,
+.psheet table.mx-bang .mx-dam td { font-weight: 700; }
+/* Ô trắng bên trái các dòng tổng — mẫu MISA không kẻ dọc ở đó. */
+.psheet table.mx-bang td.mx-trang { border-right-color: transparent; }
+
+.psheet .mx-dong { margin-top: 6px; }
+.psheet .mx-dong--cham { display: grid; grid-template-columns: max-content 1fr; gap: 6px; }
+.psheet .mx-ngay-ky { text-align: right; font-style: italic; margin: 18px 0 4px; }
+
+.psheet .mx-ky { display: grid; text-align: center; margin-top: 10px; padding-bottom: 28mm; }
+.psheet .mx-ky--3 { grid-template-columns: repeat(3, 1fr); }
+.psheet .mx-ky--5 { grid-template-columns: repeat(5, 1fr); margin-top: 22px; }
+.psheet .mx-ky__ten { font-weight: 700; }
+.psheet .mx-ky__goi-y { font-style: italic; }
+
+/* 02-VT: tên công ty trái, "Mẫu số" phải. */
+.psheet .mx-dau-02 { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; }
+.psheet .mx-mau-so { text-align: center; }
+.psheet .mx-mau-so i { font-size: 9.5pt; }
+.psheet .mx-tieu-de--02 { margin-bottom: 10px; }
+/* Số phiếu giữa trang, Nợ / Có bám bên phải cùng hàng. */
+.psheet .mx-so-02 { position: relative; margin-top: 2px; }
+.psheet .mx-no-co-02 { position: absolute; left: 68%; top: 0; text-align: left; }
+.psheet .mx-dong-02 { margin-top: 26px; }

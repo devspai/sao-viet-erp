@@ -27,6 +27,7 @@ import {
   giayChoLuu,
   heSoChu,
   mayChonDuoc,
+  mayMacDinh,
   nhanChang,
   nhanDonVi,
   nhanGiayTheoDauVao,
@@ -265,6 +266,12 @@ export function LsxBuocDrawer({
     const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
     return nhomMayTheoLoai(mayChonDuoc(mayRefs, cd, row.may_id));
   }, [mayRefs, congDoanRefs, row.cong_doan_id, row.may_id]);
+  // Máy đầu danh sách của công đoạn — ô chọn máy ghi "(mặc định)" như ô tổ.
+  const mayMd = useMemo(() => {
+    if (!mayRefs) return null;
+    const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
+    return (cd?.mayChoPhep?.length ?? 0) > 1 ? mayMacDinh(mayRefs, cd) : null;
+  }, [mayRefs, congDoanRefs, row.cong_doan_id]);
   // Ô TỔ: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026), đúng thứ tự khai
   // (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn.
   // CHỈ nút lá (07/10/2026): `toRefs` là danh sách tổ = nút lá khối Sản xuất, id nào không nằm trong
@@ -842,7 +849,8 @@ export function LsxBuocDrawer({
                                 <optgroup key={g.ten} label={g.ten}>
                                   {g.items.map((m) => (
                                     <option key={m.id} value={m.id}>
-                                      {m.active === false ? `${m.ten} (ngừng dùng)` : m.ten}
+                                      {m.active === false ? `${m.ten} (ngừng dùng)`
+                                        : m.id === mayMd ? `${m.ten} (mặc định)` : m.ten}
                                     </option>
                                   ))}
                                 </optgroup>

@@ -20,6 +20,7 @@ import { EmptyState } from "../../../components/EmptyState";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
+import { ChipTT, type MauTT } from "../../../components/LuoiDs";
 
 // Lời gọi tiến độ bắn SẴN lúc bấm mở đơn, chạy SONG SONG với lời gọi chi tiết đơn. Trước 06/10/2026
 // ngăn đơn chỉ hỏi tiến độ sau khi chi tiết đơn về (ngăn mới mount) ⇒ ô Sản xuất / Giao hiện trễ
@@ -81,12 +82,20 @@ export const NHAN_LY_DO_TRE: Record<string, string> = {
   chua_xuong_xuong: "có lệnh chưa xuống xưởng",
 };
 
-/** Phần hàng của sản phẩm ĐÃ CÓ cho đơn. Có lệnh: kho đã nhận từ KCS + phần nhà gia công giao
- *  thẳng cho khách (không qua kho). Không lệnh (giao từ tồn): đã giao + đang giữ cho yêu cầu + còn
- *  giao được từ tồn — tức phần tồn kho gánh được. */
+/** Phần hàng của sản phẩm ĐÃ CÓ cho đơn = đã giao (kể cả giao thẳng) + đang giữ cho yêu cầu + còn
+ *  giao được từ tồn của mã — ĐÚNG luật `don_hang_san_xuat` ở máy chủ. Từ mg 0394 tồn của mã là hàng
+ *  của khách, nên món có lệnh cũng đủ hàng nhờ hàng làm dư của đơn trước. Trước 12/10/2026 món có
+ *  lệnh chỉ đếm hàng KCS nhập từ lệnh của chính đơn ⇒ tab Sản xuất báo "0/1.000, chờ KCS" trong khi
+ *  danh sách và tab Giao báo đủ hàng, giao được ngay. */
 export function coHangCum(c: DonTienDoCum): number {
-  const co = c.co_lenh ? c.kho_da_nhan + c.giao_thang : c.da_giao + c.dang_giu + c.giao_duoc;
-  return Math.max(0, Math.min(c.dat, co));
+  return Math.max(0, Math.min(c.dat, c.da_giao + c.dang_giu + c.giao_duoc));
+}
+
+/** Trong phần đã có, phần KHÔNG đến từ lệnh của chính đơn (tồn có sẵn của mã). Lệnh của đơn được
+ *  tính trước: kho đã nhận từ KCS + nhà gia công giao thẳng. */
+export function coTuTonCum(c: DonTienDoCum): number {
+  const co = coHangCum(c);
+  return Math.max(0, co - Math.min(co, c.kho_da_nhan + c.giao_thang));
 }
 
 /** Sản phẩm KHÔNG có lệnh sản xuất mà tồn kho không đủ ⇒ không có đường nào về đủ hàng. */
@@ -219,7 +228,13 @@ export function viecTiepTheo(o: {
       td.tre_ngay ? { nhan: `trễ ${td.tre_ngay} ngày`, tone: "bad" } : { nhan: "kịp hạn giao", tone: "ok" }]
     : td.chua_du_du_lieu ? [{ nhan: "chưa ước được ngày xong" }] : [];
 
-  const choKho = cum.filter((c) => c.cho_kho > 0);
+  // Đủ hàng (kể cả nhờ tồn có sẵn của mã) thì việc kế tiếp là GIAO — không còn chờ xưởng hay KCS.
+  // Lệnh của đơn mà vẫn chạy thì chạy xong sẽ ra hàng dư: nhắc một thẻ, không tự huỷ (12/10/2026).
+  const thua = tt.khoXong ? lenh.filter((l) => !l.xong) : [];
+  const theThua: TheViec[] = thua.length === 0 ? []
+    : [{ nhan: thua.length === 1 ? `${thua[0].ma} vẫn chạy dù đã đủ hàng` : `${thua.length} lệnh vẫn chạy dù đã đủ hàng`, tone: "warn" }];
+
+  const choKho = tt.khoXong ? [] : cum.filter((c) => c.cho_kho > 0);
   if (choKho.length > 0) {
     const c = choKho[0];
     const cau = choKho.length === 1
@@ -227,7 +242,7 @@ export function viecTiepTheo(o: {
       : `Kho chưa nhận hàng KCS đã gửi ở ${choKho.length} món`;
     return { cau, the: [...theSx, ...the] };
   }
-  const chuaXuong = lenh.filter((l) => !l.xong && !l.da_xuong_xuong);
+  const chuaXuong = tt.khoXong ? [] : lenh.filter((l) => !l.xong && !l.da_xuong_xuong);
   if (chuaXuong.length > 0) {
     return {
       cau: chuaXuong.length === 1 ? `${chuaXuong[0].ma} chưa xuống xưởng` : `${chuaXuong.length} lệnh chưa xuống xưởng`,
@@ -235,7 +250,7 @@ export function viecTiepTheo(o: {
       nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
     };
   }
-  const dangChay = lenh.filter((l) => !l.xong);
+  const dangChay = tt.khoXong ? [] : lenh.filter((l) => !l.xong);
   if (dangChay.length > 0) {
     const l = dangChay[0];
     const cau = dangChay.length === 1
@@ -264,7 +279,7 @@ export function viecTiepTheo(o: {
     const giaoDuoc = cum.reduce((a, c) => a + c.giao_duoc, 0);
     const cau = tt.soYeuCauMo > 0 ? `Giao hàng đang xử lý ${tt.soYeuCauMo} yêu cầu`
       : giaoDuoc > 0 ? "Lập yêu cầu giao hàng" : "Chờ giao hàng";
-    return { cau, the, nut: { nhan: "Xem giao hàng", toi: "giao" } };
+    return { cau, the: [...theThua, ...the], nut: { nhan: "Xem giao hàng", toi: "giao" } };
   }
   if (o.hoaDon !== "full") {
     return { cau: "Kế toán ghi hóa đơn", the: [], nut: { nhan: "Xem hóa đơn", toi: "hoadon" } };
@@ -301,6 +316,34 @@ export function DaiSo({ o }: { o: OSo[] }) {
           {x.phu && <em>{x.phu}</em>}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Dòng tóm tắt của khung chặng kiểu "Order summary" của Shopify (12/10/2026): nhãn | diễn giải xám |
+ *  số canh phải. `tong` = dòng cộng, có vạch trên. `tone`: "chu" = số cần để mắt, "ok" = đã xong. */
+export type DongTT = { nhan: ReactNode; so: ReactNode; dien?: ReactNode; tone?: "chu" | "ok" | "mo"; tong?: boolean; khoa?: string };
+
+export function TomTat({ d }: { d: DongTT[] }) {
+  return (
+    <div className="dhb__tt">
+      {d.map((x, i) => (
+        <div key={x.khoa ?? i} className={`dhb__tt-r${x.tong ? " is-tong" : ""}`}>
+          <span className="dhb__tt-nhan">{x.nhan}</span>
+          <span className="dhb__tt-dien">{x.dien}</span>
+          <span className={`dhb__tt-so${x.tone ? ` is-${x.tone}` : ""}`}>{x.so}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Dải chân xám của khung chặng: câu nhắc bên trái, nút bên phải. */
+export function ChanKhung({ chu, children }: { chu?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="dhb__the-chan">
+      <span className="dhb__the-chan-chu">{chu}</span>
+      {children && <span className="dhb__the-chan-nut">{children}</span>}
     </div>
   );
 }
@@ -391,7 +434,9 @@ function homNay(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/** Bước "Giao hàng": danh sách yêu cầu + chuyến, và form lập yêu cầu trần theo `giao_duoc`. */
+/** Bước "Giao hàng" (khuôn Shopify 12/10/2026, mockup docs/mockups/ngan-don-hang-ban-3-phuong-an.html):
+ *  dòng tóm tắt số giao của đơn, bảng yêu cầu giao + chuyến, dải chân có nút lập yêu cầu (trần theo
+ *  `giao_duoc`). Chỉ nói chuyện giao — hàng đang làm ở xưởng thuộc khung Sản xuất. */
 export function BuocGiaoHang({
   order, td, taiLai, onIn, navigate,
 }: {
@@ -411,15 +456,16 @@ export function BuocGiaoHang({
   const [lyDoHuy, setLyDoHuy] = useState("");
   const [loi, setLoi] = useState<string | null>(null);
 
-  if (!canRead) return <p className="dhb__td-note">Vai của bạn chưa được xem màn Giao hàng.</p>;
-  if (!td) return <EmptyState trangThai="dang-tai" gon />;
+  if (!canRead) return <ChanKhung chu="Vai của bạn chưa được xem màn Giao hàng." />;
+  if (!td) return <div className="dhb__the-than"><EmptyState trangThai="dang-tai" gon /></div>;
   if (order.status !== "ordered" && td.yeu_cau.length === 0) {
-    return <p className="dhb__td-note">Đơn phải chốt trước mới lập yêu cầu giao được.</p>;
+    return <ChanKhung chu="Đơn phải chốt trước mới lập yêu cầu giao được." />;
   }
   const tongGiaoDuoc = td.cum.reduce((a, c) => a + c.giao_duoc, 0);
   const conPhai = td.cum.some((c) => c.con_phai_giao > 0);
   const lenhCho = td.cum.filter((c) => c.con_phai_giao > 0).flatMap((c) => c.lenh.map((l) => l.ma))
     .filter((m, i, a) => a.indexOf(m) === i);
+  const motDv = td.cum.length === 1 && td.cum[0].don_vi ? ` ${td.cum[0].don_vi}` : "";
 
   const huyYc = () => {
     if (!token || !huy) return;
@@ -429,88 +475,155 @@ export function BuocGiaoHang({
       .catch((e: unknown) => setLoi(e instanceof Error ? e.message : "Không huỷ được yêu cầu"));
   };
 
+  // Vì sao "giao được ngay" ít hơn tồn: phần tồn đơn khác của khách đang giữ (11/10/2026).
+  const lyDoGiaoDuoc = (c: DonTienDoCum) => {
+    const ton = (c.ton_kho ?? []).reduce((a, r) => a + r.so_luong, 0);
+    const giu = c.giu_don_khac ?? 0;
+    // Chỉ nói chuyện hàng giữ cho đơn khác khi chính nó làm giao được thấp hơn phần còn phải giao —
+    // tồn dư đủ cho phần còn lại thì câu đó là nhiễu (13/10/2026).
+    if (giu > 0 && c.giao_duoc < c.con_phai_giao) return `${so(giu)} trong ${so(ton)}${c.don_vi ? ` ${c.don_vi}` : ""} ở kho đang giữ cho đơn khác`;
+    if (c.giao_duoc > 0) return (c.ton_kho ?? []).map((r) => r.kho_ten).join(" và ");
+    if (c.con_phai_giao <= 0) return undefined;
+    return c.co_lenh ? "kho chưa nhận hàng" : "kho không còn hàng";
+  };
+  const dv = (c: DonTienDoCum) => (c.don_vi ? ` ${c.don_vi}` : "");
+  const soYcMo = (c: DonTienDoCum) => td.yeu_cau.filter((y) => y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "dang_thuc_hien")
+    .filter((y) => y.dong.some((d) => c.order_line_ids.includes(d.order_line_id))).length;
+
   return (
-    <div className="dhb__td-giao">
-      <BangCum td={td} />
-
-      {loi && <div className="banner banner--error" role="alert">{loi}</div>}
-
-      <div className="dhb__td-yc-list">
-        {/* Danh sách trống mà nút "Tạo yêu cầu" đang hiện thì nút đã nói đủ — khỏi thêm một dòng. */}
-        {td.yeu_cau.length === 0 && !(order.status === "ordered" && canWrite && conPhai)
-          && <p className="dhb__td-note">Chưa có yêu cầu giao hàng nào.</p>}
-        {td.yeu_cau.map((y) => {
-          const ch = y.chuyen;
-          const suaDuoc = canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
-          const huyDuoc = canWrite && (y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "chuyen_da_huy");
-          return (
-            <div key={y.id} className="dhb__td-yc">
-              <div className="dhb__td-yc-head">
-                <b className="dhb__mono">{y.code}</b>
-                <span className={`dhb__lifecycle-badge dhb__lifecycle-badge--${TONE_YC[y.trang_thai] ?? "slate"}`}>
-                  {NHAN_TRANG_THAI_YC[y.trang_thai] ?? y.trang_thai}
-                </span>
-                <span className="dhb__td-yc-ngay">cần giao {fmtDate(y.ngay_can_giao)}</span>
-                <span style={{ flex: 1 }} />
-                <button type="button" className="dhb__td-link" onClick={() => onIn(y)}>In phiếu giao</button>
-                {suaDuoc && <button type="button" className="dhb__td-link" onClick={() => { setSua(y); setMo(false); }}>Sửa</button>}
-                {huyDuoc && <button type="button" className="dhb__td-link dhb__td-link--do" onClick={() => { setHuy(y); setLyDoHuy(""); }}>Huỷ</button>}
-              </div>
-              <div className="dhb__td-yc-body">
-                {y.dong.map((d) => (
-                  <span key={d.order_line_id}>
-                    {d.ten || "Hàng"}: <b>{so(d.qty)}</b>{d.da_giao > 0 && d.da_giao !== d.qty ? ` (đã giao ${so(d.da_giao)})` : ""}
-                  </span>
-                ))}
-                <span className="dhb__td-yc-dc">{y.dia_chi}{y.nguoi_nhan ? ` · ${y.nguoi_nhan}` : ""}{y.sdt_nguoi_nhan ? ` · ${y.sdt_nguoi_nhan}` : ""}</span>
-                {y.trang_thai === "da_huy" && y.ly_do_huy && <span className="dhb__td-warn">Lý do huỷ: {y.ly_do_huy}</span>}
-              </div>
-              {ch ? (
-                <div className="dhb__td-yc-chuyen">
-                  Chuyến: <b>{nhanChuyen(ch)}</b>
-                  {ch.tai_xe && <> · tài xế {ch.tai_xe}</>}
-                  {ch.xe && <> · xe {ch.xe}</>}
-                  {" "}· lấy hàng {fmtDateTime(ch.gio_lay_hang)} · dự kiến giao {fmtDateTime(ch.gio_du_kien_giao)}
-                  {ch.thoi_gian_ket_thuc && <> · kết thúc {fmtDateTime(ch.thoi_gian_ket_thuc)}</>}
-                  {ch.nguoi_nhan_thuc_te && <> · người nhận {ch.nguoi_nhan_thuc_te}</>}
-                  {ch.ly_do_that_bai && <> · lý do: {ch.ly_do_that_bai}</>}
-                  {ch.so_anh > 0 && <> · {ch.so_anh} ảnh</>}
-                  {ch.tra_hang_ma && (
-                    <> · trả hàng {ch.tra_hang_ma}: {ch.tra_hang_xong ? "kho đã nhận lại" : "chờ kho nhận lại"}</>
-                  )}
-                </div>
-              ) : y.trang_thai === "cho_len_ke_hoach" ? (
-                <div className="dhb__td-yc-chuyen">Chờ điều phối lên chuyến.</div>
-              ) : null}
-              {huy?.id === y.id && (
-                <div className="dhb__td-yc-huy">
-                  <input className="input" placeholder="Lý do huỷ yêu cầu…" value={lyDoHuy}
-                    aria-label={`Lý do huỷ ${y.code}`} onChange={(e) => setLyDoHuy(e.target.value)} />
-                  <Button variant="accent" disabled={!lyDoHuy.trim()} onClick={huyYc}>Xác nhận huỷ</Button>
-                  <Button variant="ghost" onClick={() => setHuy(null)}>Bỏ</Button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {order.status === "ordered" && canWrite && conPhai && (
-        <div className="dhb__td-tao">
-          <Button variant="accent" disabled={tongGiaoDuoc <= 0} onClick={() => setMo(true)}>
-            Tạo yêu cầu giao hàng
-          </Button>
-          <span className="dhb__td-note">
-            {tongGiaoDuoc > 0 ? `Giao được tối đa ${so(tongGiaoDuoc)}${td.cum.length === 1 && td.cum[0].don_vi ? ` ${td.cum[0].don_vi}` : ""}`
-              : lenhCho.length > 0
-                ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(", ")} xong là giao được.`
-                : "Chưa có hàng của đơn này ở kho nào."}
-          </span>
+    <>
+      {td.cum.length === 1 ? (() => {
+        const c = td.cum[0];
+        return (
+          <TomTat d={[
+            { nhan: "Khách đặt", so: `${so(c.dat)}${dv(c)}` },
+            { nhan: "Đã giao", so: `${so(c.da_giao)}${dv(c)}`, dien: c.khach_nhan_du ? "khách đã nhận đủ" : undefined,
+              tone: c.khach_nhan_du ? "ok" : undefined },
+            ...(c.dang_giu > 0 ? [{ nhan: "Đang chờ giao", so: `${so(c.dang_giu)}${dv(c)}`,
+              dien: soYcMo(c) > 0 ? `${soYcMo(c)} yêu cầu` : undefined }] : []),
+            { nhan: "Còn phải giao", so: `${so(c.con_phai_giao)}${dv(c)}`, tong: true },
+            { nhan: "Giao được ngay", so: `${so(c.giao_duoc)}${dv(c)}`, dien: lyDoGiaoDuoc(c) },
+          ]} />
+        );
+      })() : (
+        <div className="dhb__the-bang">
+          <table className="dhb__g">
+            <thead>
+              <tr>
+                <th>Mặt hàng</th><th className="dhb__text-right">Khách đặt</th><th className="dhb__text-right">Đã giao</th>
+                <th className="dhb__text-right">Đang chờ giao</th><th className="dhb__text-right">Còn phải giao</th>
+                <th className="dhb__text-right">Giao được ngay</th>
+              </tr>
+            </thead>
+            <tbody>
+              {td.cum.map((c) => (
+                <tr key={c.khoa}>
+                  <td>{c.ten}</td>
+                  <td className="dhb__text-right dhb__mono">{so(c.dat)}{dv(c)}</td>
+                  <td className="dhb__text-right dhb__mono">{so(c.da_giao)}</td>
+                  <td className="dhb__text-right dhb__mono">{so(c.dang_giu)}</td>
+                  <td className="dhb__text-right dhb__mono">{so(c.con_phai_giao)}</td>
+                  <td className="dhb__text-right dhb__mono" title={lyDoGiaoDuoc(c)}>{so(c.giao_duoc)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-      {order.status === "ordered" && !canWrite && conPhai && (
-        <p className="dhb__td-note">Chỉ xem — vai của bạn chưa được bật ô Thao tác ở màn Giao hàng.</p>
+
+      {loi && <div className="banner banner--error" role="alert" style={{ margin: "0 20px 8px" }}>{loi}</div>}
+
+      {td.yeu_cau.length > 0 && (
+        <div className="dhb__the-bang">
+          <table className="dhb__g">
+            <thead>
+              <tr>
+                <th>Yêu cầu giao</th><th>Cần giao</th><th className="dhb__text-right">Số lượng</th>
+                <th>Chuyến</th><th>Trạng thái</th><th />
+              </tr>
+            </thead>
+            <tbody>
+              {td.yeu_cau.flatMap((y) => {
+                const ch = y.chuyen;
+                const suaDuoc = canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
+                const huyDuoc = canWrite && (y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "chuyen_da_huy");
+                const khacDiaChi = y.dia_chi && y.dia_chi !== order.delivery_address;
+                return [
+                  <tr key={y.id}>
+                    <td className="dhb__g-hai">
+                      <span className="dhb__mono">{y.code}</span>
+                      {khacDiaChi && <small>{y.dia_chi}</small>}
+                      {y.trang_thai === "da_huy" && y.ly_do_huy && <small>Lý do huỷ: {y.ly_do_huy}</small>}
+                    </td>
+                    <td className="dhb__mono">{fmtDate(y.ngay_can_giao)}</td>
+                    <td className="dhb__text-right dhb__g-hai">
+                      {y.dong.map((d) => (
+                        <span key={d.order_line_id} className="dhb__mono">
+                          {td.cum.length > 1 ? `${d.ten || "Hàng"} ` : ""}{so(d.qty)}{motDv}
+                          {d.da_giao > 0 && d.da_giao !== d.qty && <small>đã giao {so(d.da_giao)}</small>}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="dhb__g-hai">
+                      {ch ? (
+                        <>
+                          <span>{nhanChuyen(ch)}</span>
+                          <small className="dhb__g-cach">
+                            {ch.tai_xe && <span>{ch.tai_xe}</span>}
+                            {ch.xe && <span>{ch.xe}</span>}
+                            {ch.thoi_gian_ket_thuc && <span>xong {fmtDateTime(ch.thoi_gian_ket_thuc)}</span>}
+                            {ch.nguoi_nhan_thuc_te && <span>{ch.nguoi_nhan_thuc_te} nhận</span>}
+                            {ch.so_anh > 0 && <span>{ch.so_anh} ảnh</span>}
+                          </small>
+                          {ch.ly_do_that_bai && <small>Lý do: {ch.ly_do_that_bai}</small>}
+                          {ch.tra_hang_ma && <small>Trả hàng {ch.tra_hang_ma} {ch.tra_hang_xong ? "kho đã nhận lại" : "chờ kho nhận lại"}</small>}
+                        </>
+                      ) : y.trang_thai === "cho_len_ke_hoach" ? <span className="dhb__muted">chờ điều phối</span> : <span className="dhb__muted">—</span>}
+                    </td>
+                    <td><ChipTT mau={(TONE_YC[y.trang_thai] ?? "slate") as MauTT}>{NHAN_TRANG_THAI_YC[y.trang_thai] ?? y.trang_thai}</ChipTT></td>
+                    <td className="dhb__text-right dhb__g-nut">
+                      {/* In theo SỐ THỰC XUẤT + số phiếu xuất ⇒ kho ghi sổ xong mới mở (13/10/2026). */}
+                      {y.chuyen?.kho_da_xuat
+                        ? <button type="button" className="dhb__td-link" onClick={() => onIn(y)}>In phiếu giao</button>
+                        : (y.chuyen?.trang_thai === "da_len_ke_hoach" || y.chuyen?.trang_thai === "dang_chuan_bi")
+                          && <span className="dhb__muted">chờ kho xuất mới in</span>}
+                      {suaDuoc && <button type="button" className="dhb__td-link" onClick={() => { setSua(y); setMo(false); }}>Sửa</button>}
+                      {huyDuoc && <button type="button" className="dhb__td-link dhb__td-link--do" onClick={() => { setHuy(y); setLyDoHuy(""); }}>Huỷ</button>}
+                    </td>
+                  </tr>,
+                  ...(huy?.id === y.id ? [
+                    <tr key={`${y.id}-huy`}>
+                      <td colSpan={6}>
+                        <div className="dhb__td-yc-huy">
+                          <input className="input" placeholder="Lý do huỷ yêu cầu…" value={lyDoHuy}
+                            aria-label={`Lý do huỷ ${y.code}`} onChange={(e) => setLyDoHuy(e.target.value)} />
+                          <Button variant="accent" disabled={!lyDoHuy.trim()} onClick={huyYc}>Xác nhận huỷ</Button>
+                          <Button variant="ghost" onClick={() => setHuy(null)}>Bỏ</Button>
+                        </div>
+                      </td>
+                    </tr>,
+                  ] : []),
+                ];
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      {order.status === "ordered" && conPhai ? (
+        <ChanKhung chu={!canWrite ? "Chỉ xem: vai của bạn chưa được bật ô Thao tác ở màn Giao hàng."
+          : tongGiaoDuoc > 0 ? `Giao được tối đa ${so(tongGiaoDuoc)}${motDv}.`
+          : lenhCho.length > 0 ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(" và ")} xong là giao được.`
+          : "Chưa có hàng của đơn này ở kho nào."}>
+          {canWrite && (
+            <Button variant="accent" disabled={tongGiaoDuoc <= 0} onClick={() => setMo(true)}>
+              Tạo yêu cầu giao hàng
+            </Button>
+          )}
+        </ChanKhung>
+      ) : td.yeu_cau.length === 0 ? (
+        <ChanKhung chu="Chưa có yêu cầu giao hàng nào." />
+      ) : null}
       {mo && (
         <FormYeuCau order={order} td={td} navigate={navigate}
           onXong={() => { setMo(false); taiLai(); }} onBo={() => setMo(false)} />
@@ -519,7 +632,7 @@ export function BuocGiaoHang({
         <FormYeuCau order={order} td={td} sua={sua} navigate={navigate}
           onXong={() => { setSua(null); taiLai(); }} onBo={() => setSua(null)} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -619,7 +732,11 @@ function FormYeuCau({
     <DetailModal
       kicker="Giao hàng"
       title={sua ? `Sửa yêu cầu ${sua.code}` : "Tạo yêu cầu giao hàng"}
-      subtitle={[order.order_no, order.customer_name].filter(Boolean).join(" · ")}
+      // Mã đơn và khách là hai mẩu riêng — khoảng cách tách, không nối bằng dấu chấm giữa.
+      subtitle={<span className="dhb__yc-phude">
+        {order.order_no && <span>{order.order_no}</span>}
+        {order.customer_name && <span>{order.customer_name}</span>}
+      </span>}
       width={620}
       onClose={onBo}
       footer={

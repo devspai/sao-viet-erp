@@ -9,11 +9,17 @@ export function dongPhuPhieuChi(
     PaymentVoucherRow,
     | "voucher_type" | "source_type" | "payment_stage" | "company_account_number" | "company_bank_name"
     | "beneficiary_account_number" | "beneficiary_bank_name" | "invoice_number" | "bank_reference"
-  >,
+  > & Pick<Partial<PaymentVoucherRow>, "muc_thu_chi_ten">,
 ): TT200Line[] {
   const isBank = row.voucher_type === "bank_transfer";
   return [
-    { label: "Nguồn chi", value: SOURCE_LABELS[row.source_type] ?? row.source_type },
+    // Mục chi (11/10/2026) thay dòng "Nguồn chi: Khác". Phiếu chưa phân loại thì chỉ in nguồn khi
+    // nguồn nói được điều gì (đơn mua, tạm ứng, gia công); phiếu rời chưa có mục thì bỏ dòng.
+    ...(row.muc_thu_chi_ten
+      ? [{ label: "Mục chi", value: row.muc_thu_chi_ten }]
+      : row.source_type !== "other"
+        ? [{ label: "Nguồn chi", value: SOURCE_LABELS[row.source_type] ?? row.source_type }]
+        : []),
     // Chỉ phiếu theo đơn mua mới có đợt thanh toán; phiếu rời, gia công, tạm ứng in "Khác" là thừa.
     ...(row.source_type === "purchase_request"
       ? [{ label: "Đợt thanh toán", value: STAGE_LABELS[row.payment_stage] }]

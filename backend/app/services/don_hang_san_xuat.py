@@ -45,6 +45,9 @@ CHO_GIAO = "giao"
 CHO_HOA_DON = "hoa_don"
 CHO_XONG = "xong"
 CHO_TAT_CA = (CHO_COC, CHO_KE_HOACH, CHO_XUONG, CHO_GIA_CONG, CHO_KHO, CHO_GIAO, CHO_HOA_DON, CHO_XONG)
+# Đơn ĐÃ HUỶ còn giữ cọc của khách (13/10/2026) — chờ kế toán lập phiếu chi trả lại. Không thuộc
+# CHO_TAT_CA vì tập đó suy từ đơn đã chốt; `order_service` tính riêng từ phiếu thu − phiếu chi.
+CHO_TRA_COC = "tra_coc"
 
 _O_SANG_CHO = {O_NGOAI: CHO_GIA_CONG, O_XUONG: CHO_XUONG, O_CHO_KHO: CHO_KHO,
                O_CHUA_XUONG: CHO_KE_HOACH, O_CHUA_LENH: CHO_KE_HOACH}
@@ -138,6 +141,9 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
             # được hàng làm dư của đơn trước — không chỉ phần kho nhận từ lệnh của chính đơn.
             co = n["da_giao"] + n["dang_giu"] + n["giao_duoc"]
             co = max(0.0, min(float(n["dat"]), float(co)))
+            # Phần đã có KHÔNG đến từ lệnh của chính đơn (tồn có sẵn của mã) — để câu chữ nói đúng
+            # nguồn, đừng ghi "kho đã nhận đủ" khi kho chưa nhận gì từ lệnh (12/10/2026).
+            tu_lenh = min(co, float(n.get("kho_da_nhan", 0)) + giao_thang)
             du = co >= n["dat"]
             if du:
                 o_cum = O_DU_HANG
@@ -160,7 +166,8 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
                         cho.add(_O_SANG_CHO[x["o"]])
             mons.append({
                 "khoa": c.khoa, "ten": c.ten, "don_vi": getattr(c.dong_dau, "don_vi_tinh", None),
-                "dat": n["dat"], "co_hang": round(co, 3), "du_hang": du, "o": o_cum,
+                "dat": n["dat"], "co_hang": round(co, 3), "co_tu_ton": round(co - tu_lenh, 3),
+                "du_hang": du, "o": o_cum,
                 "co_lenh": n["co_lenh"], "tu_ton": not n["co_lenh"] and du,
                 "giao_thang": giao_thang, "da_giao": n["da_giao"], "con_phai_giao": n["con_phai_giao"],
                 "khach_nhan_du": n["khach_nhan_du"],

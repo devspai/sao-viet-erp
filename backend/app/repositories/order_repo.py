@@ -695,6 +695,16 @@ class OrderRepository:
             selectinload(Order.lines))
         return list(self.db.execute(stmt).scalars())
 
+    def don_huy_khop(
+        self, *, scope: str, actor, q: str | None = None, order_kind: str | None = None,
+        nguoi: int | None = None, loc: LocDonHang | None = None,
+    ) -> list[int]:
+        """Id đơn ĐÃ HUỶ khớp phạm vi + ô tìm + bộ lọc (trừ "Đang chờ") — ứng viên "Chờ trả lại cọc"."""
+        conds = [c for c in [self._scope_condition(scope=scope, actor=actor)] if c is not None]
+        conds.extend(self._dk_loc(q=q, order_kind=order_kind, nguoi=nguoi, loc=loc))
+        return [int(i) for i in self.db.execute(
+            select(Order.id).where(Order.status == STATUS_CANCELLED, *conds)).scalars()]
+
     def dem_theo_nha_gia_cong(self, *, scope: str, actor) -> list[tuple[int, str, int]]:
         """(id, tên, số đơn) của nhà gia công có lần CHƯA HUỶ trên đơn trong tầm nhìn."""
         from ..models.bai_ghep import BaiGhepThanhVien

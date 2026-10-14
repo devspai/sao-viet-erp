@@ -157,6 +157,29 @@ def test_moi_san_pham_co_sl_rieng():
     assert comps[0]["gia_von_don"] == round(comps[0]["gia_von_tp"] / 1000, 2)
     # Tổng phiếu = Σ giá vốn sản phẩm.
     assert res["grand_total"] == round(comps[0]["gia_von_tp"] + comps[1]["gia_von_tp"], 2)
+    assert res["meta"]["so_san_pham"] == 2
+
+
+def test_ruot_bia_cung_nhom_la_mot_san_pham():
+    """Ruột + bìa cùng nhóm báo giá, cùng SL = MỘT sản phẩm (13/10/2026): 1.000 cuốn chứ không phải
+    2.000 SP, nên giá vốn mỗi sp = tổng ÷ 1.000 — không còn ra một nửa số đúng."""
+    ruot = _component(); ruot["so_luong"] = 1000; ruot["nhom_bao_gia"] = "Sách A5"
+    bia = _component(); bia["so_luong"] = 1000; bia["nhom_bao_gia"] = " sách a5 "
+    res = compute_phieu(so_luong=0, thanh_phans=[ruot, bia])
+    assert res["meta"]["so_thanh_phan"] == 2
+    assert res["meta"]["so_san_pham"] == 1
+    assert res["meta"]["tong_so_luong"] == 1000
+    assert res["meta"]["gia_von_don"] == round(res["grand_total"] / 1000, 2)
+
+
+def test_cung_nhom_khac_sl_van_tach_hai_san_pham():
+    """Đúng luật gộp của bản in báo giá: lệch SL thì tách dòng, SL cộng đủ hai cụm."""
+    ruot = _component(); ruot["so_luong"] = 1000; ruot["nhom_bao_gia"] = "Sách A5"
+    bia = _component(); bia["so_luong"] = 100; bia["nhom_bao_gia"] = "Sách A5"
+    to_roi = _component(); to_roi["so_luong"] = 500
+    res = compute_phieu(so_luong=0, thanh_phans=[ruot, bia, to_roi])
+    assert res["meta"]["so_san_pham"] == 3
+    assert res["meta"]["tong_so_luong"] == 1600
 
 
 def test_san_pham_khong_nhap_sl_thi_lay_mac_dinh_phieu():

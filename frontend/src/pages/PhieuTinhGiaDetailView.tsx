@@ -44,7 +44,6 @@ import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
 import { HAM_TOAN, catToken, laSo, laToanTu } from "./danh-muc/formulaTokens";
 import { ngatDongIf } from "../lib/ngatDongCongThuc";
-import { boDau } from "../utils/timGanDung";
 import "./rebuild-catalog.css";
 import "./tinh-gia.css";
 
@@ -944,6 +943,20 @@ function fromThanhPhanIn(
   };
 }
 
+/** Số sản phẩm theo cụm báo giá — cùng luật `cum_san_pham` ở engine: cùng nhãn nhóm (không phân
+ *  biệt hoa thường) VÀ cùng SL là một sản phẩm; dòng không nhãn đứng riêng. */
+function demSanPham(comps: EditableComponent[], phieuSL: number): number {
+  const daDem = new Set<string>();
+  let n = 0;
+  for (const c of comps) {
+    const nhan = c.nhom_bao_gia.trim().toLowerCase();
+    const khoa = `${nhan}|${c.so_luong > 0 ? c.so_luong : phieuSL}`;
+    if (!nhan) n += 1;
+    else if (!daDem.has(khoa)) { daDem.add(khoa); n += 1; }
+  }
+  return n;
+}
+
 /** Node hiển thị của bảng sản phẩm: 1 nhóm gộp (nhiều dòng) hoặc 1 dòng lẻ. */
 type NodeHienThi =
   | { kind: "nhom"; key: string; ten: string; members: EditableComponent[] }
@@ -1042,12 +1055,15 @@ function NumField({
   thapPhan?: boolean;
 }) {
   const [valStr, setValStr] = useState<string>(String(value ?? 0));
+  // Đang gõ thì KHÔNG nạp ngược giá trị từ ngoài: ô có giá trị dự phòng (Số lượng rỗng → lấy số
+  // lượng phiếu) sẽ nhét lại số cũ ngay khi xoá hết, con trỏ nhảy và số gõ tiếp chen vào trước.
+  const [dangGo, setDangGo] = useState(false);
 
   useEffect(() => {
-    if (Number(valStr) !== value) {
+    if (!dangGo && Number(valStr) !== value) {
       setValStr(String(value ?? 0));
     }
-  }, [value]);
+  }, [value, dangGo]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Ô mm là ô CHỮ nên chữ cái lọt được vào: lọc ngay tại đây, chỉ giữ số và MỘT dấu thập phân
@@ -1068,11 +1084,13 @@ function NumField({
 
   const handleBlur = () => {
     const num = Math.max(min, Number(valStr) || min);
+    setDangGo(false);
     setValStr(String(num));
     onChange(num);
   };
 
   const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setDangGo(true);
     e.target.select();
   };
 
@@ -1516,8 +1534,10 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
     setComps((cs) => cs.map((c) => (c.tai_ban?.id === maId ? { ...c, tai_ban: null } : c)));
   }, []);
   const addComp = useCallback(() => {
+    // Ô tên để TRỐNG (13/10/2026): "Sản phẩm 3" máy tự đặt trông như tên thật, người lập quên sửa
+    // là nó chạy sang báo giá, lệnh sản xuất. Ô trống thì nhìn là biết chưa đặt tên.
     const c = blankComponent("");
-    setComps((cs) => [...cs, { ...c, ten: `Sản phẩm ${cs.length + 1}` }]);
+    setComps((cs) => [...cs, c]);
     setEditingUid(c.uid);
   }, []);
   // Nhân bản: copy NGUYÊN cấu hình dòng gốc (giấy/máy/mực/công đoạn/vật tư), chèn ngay dưới —
@@ -1871,6 +1891,10 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
   const grand = result ? result.grand_total : xemRuotGia ? null : tongGiaVon;
   // Đơn giá BÌNH QUÂN (nhiều SP khác SL) — ưu tiên meta engine; fallback grand/ΣSL.
   const tongSoLuong = result?.meta?.tong_so_luong ?? 0;
+  // Số SẢN PHẨM khách mua, không phải số dòng thành phần: ruột + bìa cùng nhóm báo giá là một
+  // cuốn. Đếm từ `comps` để góc bảng và thẻ tối luôn cùng một số, kể cả lúc vừa sửa chưa tính
+  // lại; vai không được xem ruột phiếu (comps rỗng) thì lấy số engine đã chốt.
+  const soSanPham = comps.length > 0 ? demSanPham(comps, phieuSL) : (result?.meta?.so_san_pham ?? 0);
   const perPiece =
     result?.meta?.gia_von_don != null && result.meta.gia_von_don > 0
       ? Math.round(result.meta.gia_von_don)
@@ -2172,14 +2196,14 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
             <section className="panel">
               <div className="panel__hd">
                 <h3><GridIcon /> Sản phẩm trong phiếu</h3>
-                <span className="tag">{comps.length} sản phẩm</span>
+                <span className="tag">{soSanPham} sản phẩm</span>
               </div>
               {comps.length === 0 ? (
                 <div className="tg-empty tg-empty--sm">
                   <p className="tg-empty__title">Chưa có sản phẩm</p>
                   <p className="tg-empty__sub">
                     {suaDuoc
-                      ? "Bấm “Thêm sản phẩm” để khai — sản phẩm đã từng chốt đơn thì gõ tên ở ô Sản phẩm tái bản để nạp lại cấu hình."
+                      ? "Bấm “Thêm sản phẩm” để khai — hàng khách đã đặt thì gõ tên rồi chọn trong gợi ý để nạp lại cấu hình."
                       : "Bạn chỉ được xem phiếu này — người lập phiếu sẽ khai sản phẩm."}
                   </p>
                 </div>
@@ -2579,10 +2603,10 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                 {grand == null ? "—" : fmt(grand)}
                 <span className="u">đ</span>
               </div>
-              {perPiece != null && comps.length <= 1 ? (
-                <div className="dk__meta">≈ {fmt(perPiece)} đ · đơn giá bình quân</div>
+              {perPiece != null && soSanPham <= 1 ? (
+                <div className="dk__meta">≈ {fmt(perPiece)} đ mỗi sản phẩm</div>
               ) : tongSoLuong > 0 ? (
-                <div className="dk__meta">{fmt(comps.length)} sản phẩm · tổng {fmt(tongSoLuong)} SP</div>
+                <div className="dk__meta">{fmt(soSanPham)} sản phẩm, tổng {fmt(tongSoLuong)} SP</div>
               ) : (
                 <div className="dk__meta">Giá vốn sản xuất · chưa gồm lợi nhuận</div>
               )}
@@ -2748,7 +2772,11 @@ function ComponentModal({
   // Snapshot lúc MỞ thẻ này — dùng để biết đang có sửa tay CHƯA lưu hay chưa, mới quyết có cần
   // hỏi trước khi ghi đè hay không. Modal remount mỗi lần mở lại (xem `{editing ? <ComponentModal>
   // : null}` ở nơi gọi) nên khởi tạo một lần lúc mount là đúng, khỏi cần theo dõi uid đổi.
-  const openSnapRef = useRef(JSON.stringify(toThanhPhanIn(c)));
+  // BỎ tên + mã tái bản khỏi snapshot: chọn gợi ý ngay trong ô tên thì hai thứ đó đằng nào cũng bị
+  // thay, hỏi "ghi đè thay đổi chưa lưu" vì gõ mấy chữ hay vừa bấm bỏ gắn chỉ làm người dùng hoang mang.
+  const snapKhongTen = (x: EditableComponent) =>
+    JSON.stringify({ ...toThanhPhanIn(x), ten: "", tai_ban_thanh_pham_id: null });
+  const openSnapRef = useRef(snapKhongTen(c));
   const [taiBanXacNhan, setTaiBanXacNhan] = useState<number | null>(null);
   const [taiBanBusy, setTaiBanBusy] = useState(false);
   const [taiBanErr, setTaiBanErr] = useState<string | null>(null);
@@ -2778,35 +2806,11 @@ function ComponentModal({
     },
     [token, customerId, patchComp, thayComp, c.uid, c.so_luong],
   );
-  // Khách đã có thành phẩm TRÙNG TÊN mà thẻ chưa gắn tái bản: nhắc, không tự gắn — danh tính do
-  // người lập phiếu chọn, đoán theo tên từng làm hàng hai sản phẩm khác nhau chung một mã.
-  const tenSoKhop = (c.nhom_bao_gia.trim() || c.ten).trim();
-  const [trungTen, setTrungTen] = useState<TaiBanNhan | null>(null);
-  useEffect(() => {
-    if (!token || customerId == null || c.tai_ban || !tenSoKhop) {
-      setTrungTen(null);
-      return;
-    }
-    let huy = false;
-    const t = window.setTimeout(() => {
-      api.phieuTinhGia
-        .timSanPhamTaiBan(token, customerId, tenSoKhop, 10)
-        .then((ds) => {
-          if (huy) return;
-          const k = boDau(tenSoKhop);
-          const r = ds.find((x) => boDau(x.ten) === k);
-          setTrungTen(r ? { id: r.id, ma: r.ma, ten: r.ten } : null);
-        })
-        .catch(() => {});
-    }, 300);
-    return () => {
-      huy = true;
-      window.clearTimeout(t);
-    };
-  }, [token, customerId, c.tai_ban, tenSoKhop]);
+  // Danh tính tái bản do người lập phiếu CHỌN ở gợi ý của ô tên, không tự gắn theo tên trùng —
+  // đoán theo tên từng làm hàng hai sản phẩm khác nhau chung một mã.
   const chonTaiBan = useCallback(
     (id: number) => {
-      const dirty = JSON.stringify(toThanhPhanIn(c)) !== openSnapRef.current;
+      const dirty = snapKhongTen(c) !== openSnapRef.current;
       if (dirty || cungNhom > 0) setTaiBanXacNhan(id);
       else napTaiBan(id, false);
     },
@@ -3092,45 +3096,18 @@ function ComponentModal({
               <div className="tg-grid">
                 <label className="tg-field tg-span-6">
                   <span className="tg-microlabel">Tên sản phẩm</span>
-                  <input
-                    className="tg-input"
-                    type="text"
+                  {/* MỘT ô cho cả sản phẩm mới lẫn tái bản: gõ tên rồi đi tiếp = sản phẩm mới; chọn
+                      dòng gợi ý (hàng CỦA KHÁCH đầu phiếu) = gắn mã + nạp NGUYÊN cấu hình lần chốt gần
+                      nhất (cả ruột lẫn bìa) — KHÔNG nạp số lượng/giá vốn. Chốt đơn dùng lại đúng mã đó
+                      nên tồn kho của mã giao được cho đơn này. */}
+                  <SanPhamTaiBanCombo
+                    token={token ?? ""}
+                    customerId={customerId}
                     value={c.ten}
-                    placeholder="VD Thân hộp / Ruột / Bìa"
-                    autoComplete="off"
-                    onChange={(e) => patchComp(c.uid, { ten: e.target.value })}
+                    onChange={(ten) => patchComp(c.uid, { ten })}
+                    onChon={chonTaiBan}
                   />
                 </label>
-                <div className="tg-field tg-span-6">
-                  <span className="tg-microlabel">
-                    Sản phẩm tái bản <span className="tg-microlabel__opt">hàng của khách đã từng làm</span>
-                  </span>
-                  {/* Chỉ thành phẩm CỦA KHÁCH đầu phiếu. Chọn là gắn mã + nạp NGUYÊN cấu hình lần
-                      chốt gần nhất (cả ruột lẫn bìa) — KHÔNG nạp số lượng/giá vốn. Chốt đơn dùng lại
-                      đúng mã đó nên tồn kho của mã giao được cho đơn này. */}
-                  <SanPhamTaiBanCombo token={token ?? ""} customerId={customerId} onChon={chonTaiBan} />
-                  {c.tai_ban ? (
-                    <div className="tg-taiban">
-                      <span className="tg-taiban__nhan">Tái bản {c.tai_ban.ma} {c.tai_ban.ten}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="tg-taiban__tach"
-                        onClick={() => c.tai_ban && tachTaiBan(c.tai_ban.id)}
-                      >
-                        Tách thành sản phẩm mới
-                      </Button>
-                    </div>
-                  ) : trungTen ? (
-                    <span className="tg-hint">
-                      Khách đã có {trungTen.ma} {trungTen.ten}. Nếu là in lại thì chọn ở ô này, không
-                      chọn thì chốt đơn sẽ tạo mã sản phẩm mới.
-                    </span>
-                  ) : null}
-                  {taiBanErr && !taiBanXacNhan && (
-                    <div className="banner banner--error" role="alert">{taiBanErr}</div>
-                  )}
-                </div>
                 <div className="tg-span-3">
                   <NumField
                     label="Số lượng"
@@ -3152,6 +3129,26 @@ function ComponentModal({
                     listClassName="tg-pop"
                   />
                 </label>
+                {/* Dòng RIÊNG cả bề ngang ngay dưới hàng tên — để trong cột ô tên thì hàng cao lên,
+                    hai ô Số lượng/ĐVT bên phải hụt một khoảng trắng. Tên đã nằm trong ô nên chỉ nói mã. */}
+                {c.tai_ban && (
+                  <div className="tg-taiban tg-span-12">
+                    <span className="tg-taiban__nhan">
+                      Tái bản mã <span className="tg-taiban__ma">{c.tai_ban.ma}</span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="tg-taiban__tach"
+                      onClick={() => c.tai_ban && tachTaiBan(c.tai_ban.id)}
+                    >
+                      Bỏ, làm sản phẩm mới
+                    </Button>
+                  </div>
+                )}
+                {taiBanErr && !taiBanXacNhan && (
+                  <div className="banner banner--error tg-span-12" role="alert">{taiBanErr}</div>
+                )}
                 {/* Gộp dòng khi báo giá KHÔNG có ô ở đây: nó là quan hệ giữa các dòng, thao tác
                     nằm ở bảng "Sản phẩm trong phiếu" (tick nhiều dòng → gõ tên nhóm 1 lần). */}
                 <div className="tg-span-6">

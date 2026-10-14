@@ -26,6 +26,7 @@ export function InvoiceDialog({
   const [chon, setChon] = useState<number[]>(() =>
     row.deliveries.filter((d) => !d.invoice_number).map((d) => d.id),
   );
+  const [kyHieu, setKyHieu] = useState("");
   const [so, setSo] = useState("");
   const [ngay, setNgay] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,12 +38,17 @@ export function InvoiceDialog({
       setError("Chưa chọn đợt giao nào để gán hoá đơn.");
       return;
     }
+    if (kyHieu.trim() && !so.trim()) {
+      setError("Có ký hiệu thì phải có số hoá đơn.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
       onDone(
         await api.purchaseRequests.assignInvoice(token, row.id, {
           delivery_ids: chon,
+          invoice_symbol: kyHieu.trim().toUpperCase() || null,
           invoice_number: so.trim() || null,
           invoice_date: ngay || null,
         }),
@@ -60,7 +66,7 @@ export function InvoiceDialog({
     <ConfirmDialog
       open
       title="Gán hoá đơn cho nhiều đợt"
-      message={`Phiếu ${row.code} — các đợt được chọn sẽ mang CÙNG một số hoá đơn. Để trống số hoá đơn là gỡ hoá đơn khỏi các đợt đó.`}
+      message={`Phiếu ${row.code}: các đợt được chọn sẽ mang CÙNG một hoá đơn (ký hiệu và số). Để trống số hoá đơn là gỡ hoá đơn khỏi các đợt đó.`}
       confirmLabel="Gán hoá đơn"
       busy={busy}
       error={error}
@@ -69,11 +75,21 @@ export function InvoiceDialog({
     >
       <div className="pdot__form">
         <label className="purchase__field">
-          <span>Số hoá đơn</span>
+          <span>Ký hiệu</span>
           <input
             className="input"
             maxLength={64}
             autoFocus
+            value={kyHieu}
+            placeholder="VD 1C26TAA"
+            onChange={(e) => setKyHieu(e.target.value.toUpperCase())}
+          />
+        </label>
+        <label className="purchase__field">
+          <span>Số hoá đơn</span>
+          <input
+            className="input"
+            maxLength={64}
             value={so}
             onChange={(e) => setSo(e.target.value)}
           />
@@ -93,8 +109,9 @@ export function InvoiceDialog({
           <colgroup>
             <col style={{ width: 40 }} />
             <col style={{ width: 72 }} />
-            <col style={{ width: 92 }} />
+            <col style={{ width: 112 }} />
             <col />
+            <col style={{ width: 92 }} />
             <col style={{ width: 96 }} />
           </colgroup>
           <thead>
@@ -102,8 +119,9 @@ export function InvoiceDialog({
               {/* Cột ô chọn — `<th>` rỗng là ô câm với trình đọc màn hình, phải có `aria-label`. */}
               <th className="lds-tick" aria-label="Chọn đợt giao" />
               <th>Đợt</th>
-              <th>Ngày giao</th>
-              <th>Hoá đơn hiện tại</th>
+              <th>Ngày nhận hàng</th>
+              <th>Số hoá đơn hiện tại</th>
+              <th>Ký hiệu</th>
               <th className="n">Thành tiền</th>
             </tr>
           </thead>
@@ -131,6 +149,7 @@ export function InvoiceDialog({
                     <small className="pdot__muted">chưa gán</small>
                   )}
                 </td>
+                <td className="lds-mu">{dot.invoice_symbol ?? ""}</td>
                 <td className="n">{money(dot.amount)}</td>
               </tr>
             ))}

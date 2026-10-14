@@ -23,12 +23,13 @@ from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.document_sequence_repo import DocumentSequenceRepository
 from ..repositories.kho_gia_goc_repo import KhoGiaGocRepository
 from ..repositories.kho_hang_repo import KhoHangRepository
+from ..repositories.nguon_phieu_kho_repo import NguonPhieuKhoRepository
 from ..repositories.org_scope import dept_subtree_ids
 from ..repositories.purchase_repo import PurchaseRequestRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
 from ..repositories.stock_lot_repo import StockLotRepository, StockThresholdRepository
-from ..repositories.stock_request_repo import StockRequestRepository
+from ..repositories.stock_request_repo import NGUON_YEU_CAU, StockRequestRepository
 from ..repositories.stock_voucher_repo import StockVoucherRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.user_repo import UserRepository
@@ -42,6 +43,7 @@ from ..schemas.stock import (
     StockRequestUpdate,
 )
 from ..services.kho_giay import co_don_vi_goc, khoa_ton_cua
+from ..services.kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
 from ..services.quyen_kho import xem_ton_kho
 from ..services.rbac_service import AuthorizationService
@@ -143,6 +145,14 @@ def _ten_map(db: Session, reqs) -> dict[str, dict[int, str]]:
         # Đợt giao mua → (id phiếu mua, mã, số đợt): ô "Nguồn" của yêu cầu nhập từ Mua hàng.
         "dot": PurchaseRequestRepository(db).ma_dot_theo_ids(
             {getattr(r, "purchase_delivery_id", None) for r in reqs}),
+        # Chuyến giao → (mã lượt, mã yêu cầu giao, số đơn, khách, xe, tài xế): ô "Nguồn" + khối
+        # "Giao hàng" của phiếu do Giao hàng lập.
+        "giao": NguonPhieuKhoRepository(db).giao_theo_chuyen(
+            {getattr(r, "delivery_trip_id", None) for r in reqs}),
+        # Mặt hàng thành phẩm trên trang + id Kho thành phẩm: đề nghị có thành phẩm thì phiếu chỉ
+        # lập ở kho đó (`kho_thanh_pham`) ⇒ `kho_bat_buoc_id`.
+        "tp": hang_thanh_pham(db, {(ln.hang_loai, ln.hang_id) for r in reqs for ln in r.lines}),
+        "kho_tp": id_kho_thanh_pham(db),
     }
 
 
@@ -280,6 +290,8 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
     # ĐIỀU CHUYỂN: yêu cầu NHẬP đích có `kho_nguon_id` → hiện "Điều chuyển từ «kho nguồn»".
     kho_nguon_id = getattr(req, "kho_nguon_id", None)
     dot = ten_map.get("dot", {}).get(getattr(req, "purchase_delivery_id", None))
+    trip_id = getattr(req, "delivery_trip_id", None)
+    giao = ten_map.get("giao", {}).get(trip_id) if trip_id else None
     return StockRequestOut(
         id=req.id, ma=req.ma, loai=req.loai,
         nguoi_tao_id=req.nguoi_tao_id,
@@ -300,11 +312,21 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         purchase_delivery_id=getattr(req, "purchase_delivery_id", None),
         don_mua_id=dot[0] if dot else None, don_mua_ma=dot[1] if dot else None,
         dot_so=dot[2] if dot else None,
+        delivery_trip_id=trip_id,
+        giao_luot_ma=giao[0] if giao else None,
+        giao_yeu_cau_ma=giao[1] if giao else None,
+        giao_don_ma=giao[2] if giao else None,
+        giao_khach_ten=giao[3] if giao else None,
+        giao_xe_bien_so=giao[4] if giao else None,
+        giao_tai_xe_ten=giao[5] if giao else None,
+        kho_bat_buoc_id=(ten_map.get("kho_tp") if not getattr(req, "dieu_chuyen", False) and any(
+            (ln.hang_loai, ln.hang_id) in ten_map.get("tp", ()) for ln in req.lines) else None),
         # Gỡ nhãn UTC trước khi ra JSON: Postgres trả `can_luc` AWARE, còn FE (`fmtGioCan`,
         # `isOverdue`) đọc naive = giờ NHÀ MÁY — để nguyên là thủ kho thấy giờ cần lệch +7h.
         can_luc=can_luc_hien_thi(getattr(req, "can_luc", None) or bc.get("can_luc")),
         san_xuat_cong_viec_id=bc.get("cong_viec_id"),
         san_xuat_cong_doan_ten=bc.get("cong_doan_ten"),
+        gia_cong_ngoai_id=getattr(req, "gia_cong_ngoai_id", None),
         created_at=req.created_at, updated_at=req.updated_at, lines=lines,
     )
 
@@ -374,6 +396,7 @@ def list_requests(
     bo_phan: int | None = Query(default=None, description="Điều kiện Phòng ban yêu cầu"),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None, description="Điều kiện Kho: gắn kho hoặc có phiếu ở kho"),
+    nguon: list[str] | None = Query(default=None, description="Điều kiện Nguồn (NGUON_YEU_CAU)"),
     order: str = Query(default="id", pattern="^(id|updated)$"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
@@ -381,7 +404,7 @@ def list_requests(
     rows, total = svc.requests.list(
         loai=loai, trang_thai=trang_thai, q=q, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
         tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
-        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon,
         order=order, page=page, size=size,
         **_scoped_filters(db, user, authz),
     )
@@ -459,13 +482,14 @@ def request_counts_by_status(
     bo_phan: int | None = Query(default=None),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None),
+    nguon: list[str] | None = Query(default=None),
 ) -> dict[str, int]:
     """Đếm yêu cầu theo TỪNG trạng thái (áp cùng bộ lọc list, TRỪ tab) → FE cộng theo tab cho badge.
     Trả {trang_thai: số}. Áp SCOPE như list để badge khớp đúng danh sách người dùng thấy."""
     return svc.requests.count_by_status(
         loai=loai, base_trang_thai=trang_thai, kho_id=kho_id, dieu_chuyen=dieu_chuyen, q=q,
         tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
-        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon,
         **_scoped_filters(db, user, authz),
     )
 
@@ -520,6 +544,30 @@ def loc_kho(
         n = svc.requests.dem(kho_loc=kid, **nen)
         if n:
             ra.append({"id": kid, "ten": ten, "so": n})
+    return ra
+
+
+#: Nhãn điều kiện "Nguồn" — trùng chữ ô Nguồn trên danh sách.
+_NHAN_NGUON = {
+    "mua_hang": "Mua hàng", "dieu_chuyen": "Điều chuyển", "giao_hang": "Giao hàng", "kcs": "KCS",
+    "gia_cong": "Gia công ngoài", "san_xuat": "Lệnh sản xuất", "khong": "Không nguồn",
+}
+
+
+@router.get("/loc-nguon")
+def loc_nguon(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Nguồn": nguồn có yêu cầu trong tầm nhìn, kèm số; nguồn trống thì bỏ."""
+    nen = _loc_nen(db, user, authz, loai, dieu_chuyen)
+    ra = []
+    for n in NGUON_YEU_CAU:
+        so = svc.requests.dem(nguon=[n], **nen)
+        if so:
+            ra.append({"id": n, "ten": _NHAN_NGUON[n], "so": so})
     return ra
 
 

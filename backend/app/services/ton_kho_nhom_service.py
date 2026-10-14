@@ -41,6 +41,9 @@ SO_NGAY_SAP_HET_HAN = 30
 
 #: `du_bao(khoas)` → các dòng dự báo như `DuBaoTonService.du_bao`.
 DuBaoFn = Callable[[list[tuple]], list[dict]]
+#: `cho_xuat(kho_id)` → `{khoá 5 phần: [việc xuất]}` như `DuBaoTonService.cho_xuat` — đề nghị xuất còn
+#: treo của kho, tính TƯƠI (ngoài cache dự báo) rồi ghép vào dòng qua `gop_cho_xuat`.
+ChoXuatFn = Callable[[int], dict[tuple, list[dict]]]
 
 
 def _khoa5(k: tuple) -> tuple[str, int, int, int, str]:
@@ -157,6 +160,7 @@ class _Nhom:
     ten: str = ""
     muc: str | None = None           # `stock_level` nhưng None khi chưa khai ngưỡng (và còn hàng)
     co_nguong: bool = False
+    la_thanh_pham: bool = False
     can_mua: bool = False
     tinh_trang: str | None = None
     d: dict | None = None            # kết quả `tinh_du_bao_gon` khi dự báo dùng được
@@ -170,11 +174,13 @@ class _Nhom:
 
 
 class TonKhoNhomService:
-    def __init__(self, lots, thresholds, hang, du_bao: DuBaoFn | None = None) -> None:
+    def __init__(self, lots, thresholds, hang, du_bao: DuBaoFn | None = None,
+                 cho_xuat: ChoXuatFn | None = None) -> None:
         self.lots = lots
         self.thresholds = thresholds
         self.hang = hang
         self.du_bao = du_bao
+        self.cho_xuat = cho_xuat
 
     def _du_bao_co_cache(self, kho_id: int, khoas: list[tuple]) -> tuple[dict[tuple, dict], bool]:
         """`({khoá 5 phần: dòng dự báo}, dùng_được)`. Cache theo (kho, tập khoá); lỗi dự báo KHÔNG bị cache và
@@ -219,9 +225,15 @@ class TonKhoNhomService:
         nguong = {_khoa5((t.hang_loai, t.hang_id, t.kho_rong, t.kho_dai, t.don_vi_goc)): t
                   for t in self.thresholds.list_active(kho_id)}
         du_bao, du_bao_ok = self._du_bao_co_cache(kho_id, [n.khoa for n in nhom])
+        if du_bao_ok and self.cho_xuat is not None:
+            from .du_bao_ton_service import DuBaoTonService
+
+            for k, viec in self.cho_xuat(kho_id).items():
+                du_bao[k] = DuBaoTonService.gop_cho_xuat(du_bao.get(k), k, viec)
         for n in nhom:
             m = hang.get((n.hang_loai, n.hang_id))
             n.ma, n.ten = getattr(m, "ma", None) or "", getattr(m, "ten", None) or ""
+            n.la_thanh_pham = bool(getattr(m, "la_thanh_pham", False))
             th = nguong.get(n.khoa)
             n.co_nguong = th is not None
             muc = stock_level(n.tong, th)
@@ -304,11 +316,13 @@ class TonKhoNhomService:
         return {
             "lots": lots, "total": len(khop), "dem": dem, "du_bao_ok": du_bao_ok,
             "co_hsd": any(n.hsd_som is not None for n in nhom),
+            "chi_thanh_pham": bool(nhom) and all(n.la_thanh_pham for n in nhom),
             "nhom": [
                 {
                     "khoa": n.khoa_chuoi, "hang_loai": n.hang_loai, "hang_id": n.hang_id,
                     "kho_rong": n.khoa[2], "kho_dai": n.khoa[3], "don_vi_goc": n.khoa[4],
                     "can_mua": n.can_mua, "co_nguong": n.co_nguong, "tinh_trang": n.tinh_trang,
+                    "la_thanh_pham": n.la_thanh_pham,
                     "can_lenh": n.d["can_lenh"] if n.d else None,
                     "dang_ve": n.d["dang_ve"] if n.d else None,
                     "du_kien": n.d["du_kien"] if n.d else None,

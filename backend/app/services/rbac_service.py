@@ -47,7 +47,6 @@ ACTION_ADJUST = "adjust"  # nhan_su (Chấm công): điều chỉnh công qua pu
 ACTION_VIEW_LOG = "view_log"
 ACTION_APPROVE_EXCEPTION = "approve_exception"  # don_hang_ban (A2): GĐ duyệt "đơn đặc thù"
 ACTION_SET_CREDIT_TERMS = "set_credit_terms"  # khach_hang: sửa chính sách tài chính (hạn mức + điều khoản + chiết khấu/biên min-max)
-ACTION_RECORD_DEPOSIT = "record_deposit"  # don_hang_ban: ghi phiếu thu cọc (Kế toán)
 ACTION_ASSIGN_WORK = "assign_work"  # san_xuat: tổ trưởng gán thợ vào công đoạn của lệnh đã phát
 ACTION_RECORD_OUTPUT = "record_output"  # san_xuat: tổ trưởng ghi sản lượng đạt/hỏng cho bước (Lát 2)
 ACTION_HANDOVER = "handover"  # san_xuat: tổ trưởng bàn giao số sang tổ kế + xác nhận nhận (Lát 2)
@@ -108,7 +107,6 @@ _ACTION_ATTR = {
     ACTION_ADJUST: "can_adjust",
     ACTION_APPROVE_EXCEPTION: "can_approve_exception",
     ACTION_SET_CREDIT_TERMS: "can_set_credit_terms",
-    ACTION_RECORD_DEPOSIT: "can_record_deposit",
     ACTION_ASSIGN_WORK: "can_assign_work",
     ACTION_RECORD_OUTPUT: "can_record_output",
     ACTION_HANDOVER: "can_handover",
@@ -263,7 +261,6 @@ class AuthorizationService:
                 "can_view_log": p.can_view_log,
                 "can_approve_exception": p.can_approve_exception,
                 "can_set_credit_terms": p.can_set_credit_terms,
-                "can_record_deposit": p.can_record_deposit,
                 "can_assign_work": p.can_assign_work,
                 "can_record_output": p.can_record_output,
                 "can_handover": p.can_handover,

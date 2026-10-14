@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from tests.giao_hang_fixtures import giao_het
 from app.db import SessionLocal
 # "Hôm nay" phải là ĐỒNG HỒ CỦA SERVER (`Asia/Bangkok`), không phải của runner.
 #
@@ -65,8 +66,10 @@ def _sales_order(
 
 
 def _invoice_payload(order_id: int, *, number: str, amount: int | None = None) -> dict:
+    # Hóa đơn gắn lượt khách đã nhận (mg 0402) — dựng sẵn lượt giao hết đơn.
     payload = {
         "order_id": order_id,
+        "delivery_trip_id": giao_het(order_id),
         "invoice_symbol": "1C26TSV",
         "invoice_number": number,
         "invoice_date": _hom_nay().isoformat(),
@@ -267,6 +270,12 @@ def test_invoice_receipt_reduces_debt_and_guards_cancellation(client):
     ).json()
     assert detail["total_due"] == 300_000
     assert detail["items"][0]["direct_received_amount"] == 200_000
+
+    # Sổ hoá đơn của đơn kể từng phiếu thu thẳng vào hoá đơn — khối Hoá đơn ghi số phiếu.
+    book = client.get(f"/api/accounting/sales-invoices?order_id={order_id}", headers=headers).json()
+    assert [(p["code"], p["invoice_id"], p["amount"]) for p in book["phieu_thu"]] == [
+        (receipt.json()["code"], invoice["id"], 200_000)
+    ]
 
     overpay = client.post(
         f"/api/accounting/sales-invoices/{invoice['id']}/receipts",
@@ -488,3 +497,112 @@ def test_man_khach_hang_va_man_cong_no_khong_duoc_lech(client):
     assert ar.status_code == 200, ar.text
     assert crm.status_code == 200, crm.text
     assert crm.json()["receivable"]["balance"] == ar.json()["total_due"] == 650_000
+
+
+def test_hoa_don_theo_so_da_giao_tung_luot(client):
+    """Hóa đơn gắn lượt khách đã nhận; trần duy nhất là tổng đơn (13/10/2026).
+
+    Đơn 100 hộp 1.000.000 đ: chưa giao thì không ghi được; giao 30 hộp (300.000) vẫn ghi được
+    500.000 rồi 500.000 nữa — tới tổng đơn thì chặn. Lượt sau giao 70 nốt đã được phần dư phủ."""
+    headers = _headers(client)
+    order_id, _ = _sales_order(suffix="GL1")
+    khac_id, _ = _sales_order(suffix="GL2")
+    goc = {
+        "order_id": order_id, "invoice_symbol": "1C26TSV",
+        "invoice_date": _hom_nay().isoformat(),
+    }
+
+    r = client.post("/api/accounting/sales-invoices", json={**goc, "invoice_number": "GL-1"},
+                    headers=headers)
+    assert r.status_code == 422 and "lượt giao" in r.json()["detail"], r.text
+
+    book = client.get(f"/api/accounting/sales-invoices?order_id={order_id}", headers=headers).json()
+    assert (book["delivered_amount"], book["invoiceable_amount"], book["luot_giao"]) == (0, 0, [])
+
+    db = SessionLocal()
+    try:
+        dong = db.query(OrderLine).filter(OrderLine.order_id == order_id).one().id
+    finally:
+        db.close()
+    l1 = giao_het(order_id, {dong: 30})
+
+    # Lượt của đơn khác không ghi được cho đơn này.
+    l_khac = giao_het(khac_id)
+    r = client.post("/api/accounting/sales-invoices",
+                    json={**goc, "invoice_number": "GL-2", "delivery_trip_id": l_khac}, headers=headers)
+    assert r.status_code == 422, r.text
+
+    r = client.post("/api/accounting/sales-invoices",
+                    json={**goc, "invoice_number": "GL-3", "delivery_trip_id": l1, "amount_vnd": 1_000_001},
+                    headers=headers)
+    assert r.status_code == 422 and "1,000,000" in r.json()["detail"], r.text
+
+    # Không gõ số thì điền sẵn phần chưa ghi của lượt.
+    r = client.post("/api/accounting/sales-invoices",
+                    json={**goc, "invoice_number": "GL-4", "delivery_trip_id": l1}, headers=headers)
+    assert r.status_code == 201, r.text
+    assert (r.json()["amount_vnd"], r.json()["delivery_trip_id"]) == (300_000, l1)
+
+    # Vượt hàng của lượt vẫn được, miễn chưa quá tổng đơn.
+    r = client.post("/api/accounting/sales-invoices",
+                    json={**goc, "invoice_number": "GL-5", "delivery_trip_id": l1, "amount_vnd": 200_000},
+                    headers=headers)
+    assert r.status_code == 201, r.text
+    # Lượt đã ghi đủ thì điền sẵn phần còn lại của cả đơn.
+    r = client.post("/api/accounting/sales-invoices",
+                    json={**goc, "invoice_number": "GL-6", "delivery_trip_id": l1}, headers=headers)
+    assert r.status_code == 201 and r.json()["amount_vnd"] == 500_000, r.text
+    r = client.post("/api/accounting/sales-invoices",
+                    json={**goc, "invoice_number": "GL-7", "delivery_trip_id": l1}, headers=headers)
+    assert r.status_code == 422 and "đủ tổng" in r.json()["detail"], r.text
+
+    # Lượt sau giao nốt: phần ghi dư ở lượt 1 dồn sang phủ lượt 2.
+    l2 = giao_het(order_id)
+    book = client.get(f"/api/accounting/sales-invoices?order_id={order_id}", headers=headers).json()
+    assert (book["delivered_amount"], book["invoiced_amount"]) == (1_000_000, 1_000_000)
+    assert [(x["trip_id"], x["gia_tri"], x["da_ghi"], x["con_ghi"]) for x in book["luot_giao"]] == [
+        (l1, 300_000, 300_000, 0), (l2, 700_000, 700_000, 0),
+    ]
+    assert book["items"][0]["luot_giao_ma"] == book["luot_giao"][0]["ma"]
+
+
+def test_gia_tri_luot_co_vat_va_lam_tron_khop_tong_don(client):
+    """Ba lượt 1 + 1 + 1 của đơn 3 hộp 100 đ VAT 10%: tổng các lượt bằng đúng tổng đơn gồm VAT."""
+    headers = _headers(client)
+    order_id, _ = _sales_order(total=100, suffix="GL3")
+    db = SessionLocal()
+    try:
+        ln = db.query(OrderLine).filter(OrderLine.order_id == order_id).one()
+        ln.qty, ln.vat_pct_estimate = 3, 10
+        db.commit()
+        dong = ln.id
+    finally:
+        db.close()
+    for _ in range(3):
+        giao_het(order_id, {dong: 1})
+    book = client.get(f"/api/accounting/sales-invoices?order_id={order_id}", headers=headers).json()
+    assert [x["gia_tri"] for x in book["luot_giao"]] == [36, 37, 37]
+    assert book["delivered_amount"] == book["order_total"] == 110
+
+
+def test_hoa_don_cu_chua_gan_luot_don_vao_luot_theo_thu_tu(client):
+    """Hóa đơn ghi trước mg 0402 không có lượt: dồn vào lượt đầu, lượt chỉ còn phần chưa ghi."""
+    from app.models.accounting import SalesInvoice
+
+    headers = _headers(client)
+    order_id, customer_id = _sales_order(suffix="GL4")
+    db = SessionLocal()
+    try:
+        db.add(SalesInvoice(order_id=order_id, customer_id=customer_id, invoice_symbol="1C26TSV",
+                            invoice_number="CU-1", invoice_date=_hom_nay(), amount_vnd=400_000,
+                            customer_name_snapshot="x", status="issued"))
+        db.commit()
+    finally:
+        db.close()
+    luot = giao_het(order_id)
+    book = client.get(f"/api/accounting/sales-invoices?order_id={order_id}", headers=headers).json()
+    assert [(x["da_ghi"], x["con_ghi"]) for x in book["luot_giao"]] == [(400_000, 600_000)]
+    r = client.post("/api/accounting/sales-invoices", json={
+        "order_id": order_id, "invoice_symbol": "1C26TSV", "invoice_number": "CU-2",
+        "invoice_date": _hom_nay().isoformat(), "delivery_trip_id": luot}, headers=headers)
+    assert r.status_code == 201 and r.json()["amount_vnd"] == 600_000, r.text

@@ -208,6 +208,22 @@ class PaymentVoucher(Base):
     supplier_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Mục thu chi (11/10/2026, mg 0395). Phiếu lập tay bắt buộc chọn; phiếu sinh từ nghiệp vụ để
+    # trống — mục của nó là mục cố định suy từ `source_type` (`models.muc_thu_chi.MUC_CO_DINH`).
+    muc_thu_chi_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("muc_thu_chi.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    # Khách nhận tiền — chỉ phiếu TRẢ LẠI TIỀN CHO KHÁCH (`source_type = customer_refund`, 12/10/2026,
+    # lập từ ngăn Công nợ phải thu hoặc "Trả lại cọc" trên đơn đã huỷ). Tiền này vào Công nợ phải
+    # thu của khách đó (`bao_cao_cong_no._chung_tu_phai_thu`).
+    customer_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    # Đơn bán đã huỷ mà phiếu này trả lại cọc (mg 0397). Trống = trả lại tiền chung của khách. Cọc
+    # còn lại của đơn = Σ phiếu thu cọc − Σ phiếu chi còn hiệu lực trỏ đơn này.
+    order_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("orders.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     voucher_type: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
     payment_stage: Mapped[str] = mapped_column(String(16), nullable=False)
     status: Mapped[str] = mapped_column(
@@ -272,6 +288,9 @@ class PaymentVoucher(Base):
 
     purchase_request = relationship("PurchaseRequest", back_populates="payment_vouchers")
     supplier = relationship("Supplier")
+    muc_thu_chi = relationship("MucThuChi")
+    customer = relationship("Customer")
+    order = relationship("Order")
     company_bank_account = relationship("CompanyBankAccount")
     supplier_bank_account = relationship("SupplierBankAccount")
     receipts: Mapped[list["PaymentReceipt"]] = relationship(
@@ -309,6 +328,12 @@ class SalesInvoice(Base):
     payment_term_days_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     customer_name_snapshot: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Lượt giao mà hóa đơn này lập cho (mg 0402, 13/10/2026). Hóa đơn bán hàng lập lúc giao hàng,
+    # giao nhiều lần thì mỗi lần một hóa đơn đúng số đã giao — nên hóa đơn mới BẮT BUỘC gắn một
+    # lượt khách đã nhận. Hóa đơn ghi trước đó để trống.
+    delivery_trip_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("delivery_trips.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=SALES_INVOICE_ISSUED, index=True
     )
@@ -366,6 +391,15 @@ class PaymentReceipt(Base):
     sales_invoice_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("sales_invoices.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    # NCC hoàn tiền (`purchase_refund`, mg 0397). Phiếu lập từ ngăn Công nợ phải trả gắn thẳng NCC,
+    # không cần phiếu chi gốc; phiếu cũ lập từ phiếu chi được điền ngược từ phiếu chi đó.
+    supplier_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    # Mục thu chi (11/10/2026, mg 0395) — cùng luật với `PaymentVoucher.muc_thu_chi_id`.
+    muc_thu_chi_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("muc_thu_chi.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
     order_no_snapshot: Mapped[str | None] = mapped_column(String(32), nullable=True)
     customer_name_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Người nộp lại tiền — mặc định suy từ phiếu chi (người phụ trách mua / người nhận TM).
@@ -418,6 +452,8 @@ class PaymentReceipt(Base):
 
     payment_voucher = relationship("PaymentVoucher", back_populates="receipts")
     sales_invoice = relationship("SalesInvoice", back_populates="receipts")
+    supplier = relationship("Supplier")
+    muc_thu_chi = relationship("MucThuChi")
     company_bank_account = relationship("CompanyBankAccount")
     attachments: Mapped[list["PaymentReceiptAttachment"]] = relationship(
         "PaymentReceiptAttachment",

@@ -780,8 +780,8 @@ class BaiGhepService:
             bai_ghep_id=bg.id,
             cong_doan_id=mau.cong_doan_id, ten=mau.ten, nhom=mau.nhom,
             loai_buoc=mau.loai_buoc, bat_buoc=bool(mau.bat_buoc),
-            # CHƯA gán tổ/máy: gộp xong là phải lập lại kế hoạch cho lượt chạy chung, không thừa
-            # kế mù của bất kỳ lệnh nào — hai lệnh có thể đang khai hai máy khác nhau.
+            # CHƯA gán tổ: gộp xong là phải lập lại kế hoạch cho lượt chạy chung, không thừa kế mù
+            # của bất kỳ lệnh nào. MÁY thì điền ngay bên dưới (`_may_cho_luot_chung`).
             # SỐ GIỜ KẾ HOẠCH để 0 (mg `0319`): gộp xong là phải lập lại kế hoạch cho lượt chạy
             # chung, mà giờ của lượt chung không phải tổng giờ của các bước thành viên.
             so_gio_ke_hoach=0,
@@ -800,6 +800,8 @@ class BaiGhepService:
         ncc_ids = {cd.nha_cung_cap_id for cd in cds}
         if mau.loai_buoc == LB_THUE_NGOAI and len(ncc_ids) == 1 and None not in ncc_ids:
             chung.nha_cung_cap_id, chung.nha_cung_cap = mau.nha_cung_cap_id, mau.nha_cung_cap
+        if mau.loai_buoc == LB_MAY:
+            chung.may_id = self._may_cho_luot_chung(mau.cong_doan_id, cds)
         self.db.add(chung)
         self.db.flush()
         for k in keys:
@@ -817,6 +819,23 @@ class BaiGhepService:
         )
         self.repo.commit()
         return self._get(bg.id)
+
+    def _may_cho_luot_chung(self, cong_doan_id: int | None, cds) -> int | None:
+        """Máy điền sẵn cho lượt chạy chung (12/10/2026) — trước đó luôn để trống, phải chọn tay.
+
+        Mọi bước gộp đang khai CÙNG một máy còn dùng mà công đoạn nhận ⇒ giữ máy đó. Khác máy (hoặc
+        có bước trống máy) ⇒ máy mặc định của công đoạn: máy còn dùng đứng đầu bảng "Máy chạy được
+        công đoạn này" — cùng luật bước lệnh (`LsxService._may_mac_dinh`). Công đoạn chưa khai máy
+        nào ⇒ để trống, không có căn cứ để chọn.
+        """
+        cd = self.db.get(CongDoan, cong_doan_id) if cong_doan_id else None
+        cac_may = {c.may_id for c in cds}
+        if len(cac_may) == 1 and None not in cac_may:
+            may = self.db.get(MayThietBi, next(iter(cac_may)))
+            if may is not None and may.active and not self.may_ngoai_cong_doan(cd, may):
+                return may.id
+        ds = [int(r.may_id) for r in (getattr(cd, "may_lam_duoc", None) or []) if r.may_id is not None]
+        return self._lsx_svc().may_dau_con_dung(ds) if ds else None
 
     def tach(self, *, bai_ghep_id: int, gang_step_key: str, actor) -> BaiGhep:
         """Tách lượt chung → mỗi lệnh lấy lại bước và số của chính nó.

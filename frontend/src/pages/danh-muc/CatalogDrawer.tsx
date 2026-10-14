@@ -16,7 +16,7 @@ import {
   BandsField, ChuanBiKhoanField, DonViTocDoField, FormulaField,
   KhoanCongDoanField, LichBaoTriField, MayCuaCongDoanField, NhomMayField, NhomMayMultiField, RefMultiField,
   RefSearchField,
-  SelfRefMultiField, ToMultiField, VatTuChipsField, VatTuCongDoanField, ViecPhatSinhField, chipsThanhBien,
+  ToMultiField, VatTuChipsField, VatTuCongDoanField, ViecPhatSinhField, chipsThanhBien,
   type VatTuChipRow,
 } from "./fields";
 import { goiYMaTiepTheo } from "./maGoiY";
@@ -32,7 +32,7 @@ import type {
 
 /** Ô mà GIÁ TRỊ là một MẢNG (bảng con / chọn nhiều) — khởi tạo `[]` và gửi lên nguyên mảng. */
 const KIEU_MANG = new Set<string>([
-  "ref-multi", "self-ref-multi", "nhom_may-multi", "bands", "vat-tu-cong-doan", "may-cua-cong-doan",
+  "ref-multi", "nhom_may-multi", "bands", "vat-tu-cong-doan", "may-cua-cong-doan",
   "viec-phat-sinh", "to-multi", "vat-tu-chip", "don-vi-them",
 ]);
 
@@ -70,7 +70,7 @@ function locConDung(rows: Row[], dangChon: unknown, nhan = true): Row[] {
 }
 
 const KIEU_CO_THAM_CHIEU = new Set<string>([
-  "ref", "ref-multi", "self-ref-multi", "ref-search", "ref-search-ma",
+  "ref", "ref-multi", "ref-search", "ref-search-ma",
   "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi", "vat-tu-chip",
   "don-vi-them",
 ]);
@@ -283,12 +283,12 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     const { cleanLabel, suffix } = parseLabelAndSuffix(f.label);
     const hint = typeof f.hint === "function" ? f.hint(form) : f.hint;
     const laDonVi = config.prefix.includes("don-vi");
-    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "self-ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.type === "don-vi-them" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
+    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
     // "div" chứ không "label": khối này chứa NHIỀU input, bọc trong <label> là bấm đâu cũng nhảy
     // focus vào ô đầu tiên.
     const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "don-vi-them" ? "div" : "label";
     return (
-      <Tag className={`rc-field${f.type === "checkbox" ? " rc-field--check" : ""}${isFullWidth ? " rc-field--full" : ""}`} key={f.key}>
+      <Tag className={`rc-field${f.type === "checkbox" ? " rc-field--check" : ""}${isFullWidth ? " rc-field--full" : ""}${f.type === "don-vi-them" ? " rc-field--dvn" : ""}`} key={f.key}>
         {cleanLabel && <span className="rc-field__label">{cleanLabel}{f.required ? " *" : ""}</span>}
         {f.type === "lich_bao_tri" ? (
           <LichBaoTriField value={Array.isArray(form[f.key]) ? (form[f.key] as LichBaoTriRow[]) : []}
@@ -422,13 +422,6 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             value={Array.isArray(form[f.key]) ? (form[f.key] as number[]) : []}
             options={optsRef(f)}
             nhanDau={f.nhanDau}
-            onChange={(v) => set(f.key, v)}
-          />
-        ) : f.type === "self-ref-multi" ? (
-          <SelfRefMultiField
-            value={Array.isArray(form[f.key]) ? (form[f.key] as number[]) : []}
-            options={optsRef(f).filter(
-              (o) => !isEdit || Number(o.id) !== Number(existing?.id))}
             onChange={(v) => set(f.key, v)}
           />
         ) : f.type === "formula" ? (

@@ -15,6 +15,7 @@ from app.repositories.rbac_repo import (
     ModuleRepository,
     RoleRepository,
 )
+from app.repositories.quyen_kho_repo import KHOA_TIEN_TO_KHO
 from app.repositories.user_repo import UserRepository
 from app.seed import MODULES, seed_du_lieu
 
@@ -34,8 +35,11 @@ def test_modules_seeded(client):
     db = SessionLocal()
     try:
         modules = ModuleRepository(db)
-        assert modules.count() == len(MODULES)
         keys = {m.key for m in modules.list_all()}
+        # Dòng quyền THEO KHO (`ton_kho_<id>`) sinh theo kho đã khai — DB trắng vẫn có kho thành phẩm
+        # cố định KHO-TP (mg 0398) nên có sẵn một dòng. Không thuộc danh mục tĩnh `MODULES`.
+        tinh = {k for k in keys if not k.startswith(KHOA_TIEN_TO_KHO)}
+        assert tinh == {k for k, _ in MODULES}
         assert {"dashboard", "khach_hang", "phong_ban", "nhan_su"} <= keys
         # Các phân hệ mới (Thu mua/Kế toán/Sản xuất/Kho) đã có module riêng.
         assert {"thu_mua", "ke_toan", "san_xuat", "kho"} <= keys

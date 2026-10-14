@@ -25,7 +25,7 @@ from ..services.gia_cong_ngoai import chot as chot_svc
 from ..services.gia_cong_ngoai import mot_phan, tron_goi
 from ..services.gia_cong_ngoai.lan import lan_cua_bai_ghep, lan_cua_lenh, lan_dict, nguon_lan
 from ..services.rbac_service import AuthorizationService
-from .lsx import _guard_scope, _owner_ids_for_scope
+from .lsx import _guard_scope, _owner_ids_for_scope, lenh_trong_pham_vi
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -78,7 +78,7 @@ def _pham_vi_bai_ghep(db: Session, authz: AuthorizationService, user: User,
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is None:
         return len(lenh), len(lenh)
-    trong = sum(1 for l in lenh if l.nguoi_phu_trach_id in owner_ids or l.created_by in owner_ids)
+    trong = sum(1 for l in lenh if lenh_trong_pham_vi(db, l, owner_ids))
     return trong, len(lenh)
 
 

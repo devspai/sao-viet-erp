@@ -234,8 +234,8 @@ class DeliveryTrip(Base):
         Integer, ForeignKey("xe.id"), index=True, nullable=True
     )
 
-    gio_lay_hang: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    gio_du_kien_giao: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Giờ lấy hàng / dự kiến giao GỠ (mg 0400, 12/10/2026): người lên đơn không biết trước, ô chỉ
+    # mang số mặc định. Giờ kho phải soạn xong nằm ở `can_luc` của đề nghị xuất kho của chuyến.
     ghi_chu_phan_cong: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # NHÀ GIA CÔNG GIAO THẲNG (mg 0339): chuyến này không có xe, không xuất kho — chỉ để "đã giao"
     # của dòng đơn cộng đúng số khách nhận. `khoan_km_service` loại chuyến có cột này.

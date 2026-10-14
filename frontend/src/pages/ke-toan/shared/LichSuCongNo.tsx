@@ -46,6 +46,10 @@ function viecCuaDong(ben: BenCongNo, d: SoChiTietDong, i: number, onMoPhieu?: (c
       return { ...goc, loai: "lap", icon: <Banknote size={14} aria-hidden="true" />, ten: `Thu ${tien(s.giam)}`, chiTiet: phieu };
     case "phieu_chi":
       return { ...goc, loai: "lap", icon: <Banknote size={14} aria-hidden="true" />, ten: `Trả ${tien(s.giam)}`, chiTiet: phieu };
+    case "hoan_tien_khach":
+      // Trả lại tiền cho khách: phần khách đã đưa trước giảm đi, tức số khách nợ TĂNG lại.
+      return { ...goc, loai: "khac", icon: <Undo2 size={14} aria-hidden="true" />, ten: `Trả lại khách ${tien(s.tang)}`,
+        chiTiet: <Cum><TheNho>{d.so_ct}</TheNho><span>{d.dien_giai}</span></Cum> };
     default:
       // Nhà cung cấp hoàn tiền: nợ của mình TĂNG lại (tiền về két nhưng phần đã trả bị trừ đi).
       return { ...goc, loai: "khac", icon: <Undo2 size={14} aria-hidden="true" />, ten: `Nhà cung cấp hoàn ${tien(s.tang)}`,

@@ -1,7 +1,8 @@
-// Màn "Hồ sơ lệnh sản xuất" — TRA CỨU lệnh đã phát hành (làm gọn 05/10/2026).
-// Trả lời "lệnh này là gì, đã đi qua những gì". Theo dõi trực tiếp, cảnh báo, máy nào đứng là việc
-// của màn Theo dõi sản xuất — màn này không đếm cảnh báo, không chạy cân đối vật tư.
-// Đặc tả: `docs/superpowers/specs/2026-10-05-lam-gon-ho-so-lenh-theo-doi-sx-design.md` mục 4.1.
+// Màn "Hồ sơ lệnh sản xuất" — một dòng một LỆNH đã phát hành, kể cả lệnh đã đóng (phương án A,
+// 12/10/2026). Dòng có tuyến bước ngang (lệnh trọn gói là một chấm mang tên nhà gia công); bấm dòng mở
+// ngăn `LenhSxNgan` (quy cách một dòng, routing dọc, Sau xưởng). Ai thấy lệnh nào: theo luật của Đơn
+// hàng bán với cấp phạm vi của module này — máy chủ gắn từ token.
+// Kế hoạch: `docs/superpowers/plans/2026-10-12-theo-doi-don-ho-so-lenh.md`.
 //
 // ⚠️ MÀN NÀY KHÔNG GHI GÌ CẢ, KHÔNG MỘT SỐ TIỀN NÀO. Lọc, đếm tab, cắt trang đều ở MÁY CHỦ — không
 // `rows.filter`, không `rows.slice`, không đếm số trên tab từ `items`.
@@ -18,9 +19,10 @@ import {
 import { trangHopLe } from "../components/Pager";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useTre } from "../lib/useTre";
-import { LenhSxHoSoView } from "./LenhSxHoSoView";
 import { BangLoi } from "./keHoachSxShared";
+import { LenhSxNgan } from "./LenhSxNgan";
 import { nhanKhau, TheGap } from "./lsxKhau";
+import { TuyenBuoc } from "./lsxRoutingDoc";
 import {
   LOC_HO_SO_LENH_TRONG,
   MOC_HO_SO_LENH,
@@ -30,7 +32,6 @@ import {
   useDieuKienHoSoLenh,
   type LocHoSoLenh,
 } from "./loc-san-xuat/dieu-kien-lenh-san-xuat";
-import { ngayDayDu, ngayGioDayDu } from "./loc-san-xuat/ngay";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
 import { daAp, dkTheoTab, type DieuKien } from "./thanh-loc/thanh-loc";
@@ -62,18 +63,18 @@ const MAU_TAB: Record<LenhSxTab, MauTT | undefined> = {
 const MAU_KHAU: Record<string, MauTT> = { dang_sx: "xanh", da_giao: "la" };
 const MAU_KHAU_CT: Record<string, MauTT> = { dang_kcs: "tim", cho_nhap_kho: "vang", san_sang_giao: "ngoc" };
 
-// --- Lưới danh sách (phương án A). Thứ tự: Mã lệnh, Ngày tạo, Hạn SX (hai cột ngày đứng liền), Khách, Đơn,
-// Sản phẩm, Số lượng, Trạng thái (cột cuối co giãn). Màn không có sắp xếp ở máy chủ nên không cột nào có `sx`.
+// --- Lưới danh sách (phương án A, 12/10/2026). Thứ tự: Lệnh, Đơn, Khách hàng, Mặt hàng, Số lượng, Các bước,
+// Trạng thái, Hạn giao (hạn giao khách — hạn SX nội bộ không còn là cột). Không sắp xếp ở máy chủ.
 interface CotLenh extends CotLuoi { w?: number; n?: boolean }
 const COT_LENH: CotLenh[] = [
-  { key: "ma", label: "Lệnh", coDinh: true, w: 130 },
-  { key: "ngay", label: "Ngày tạo", w: 104 },
-  { key: "han", label: "Hạn SX", w: 104 },
-  { key: "khach", label: "Khách", w: 190 },
-  { key: "don", label: "Đơn", w: 110 },
-  { key: "sp", label: "Sản phẩm", w: 220 },
-  { key: "sl", label: "Số lượng", w: 110, n: true },
-  { key: "tt", label: "Trạng thái" },
+  { key: "ma", label: "Lệnh", coDinh: true, w: 150 },
+  { key: "don", label: "Đơn", w: 80 },
+  { key: "khach", label: "Khách hàng", w: 140 },
+  { key: "sp", label: "Mặt hàng", w: 170 },
+  { key: "sl", label: "Số lượng", w: 96, n: true },
+  { key: "buoc", label: "Các bước", w: 320 },
+  { key: "tt", label: "Trạng thái", w: 140 },
+  { key: "han", label: "Hạn giao" },
 ];
 
 /** Thanh lọc (06/10/2026): kỳ theo ngày tạo / hạn SX / hạn giao + Khách, Đơn, Gia công ngoài.
@@ -110,7 +111,7 @@ export function LenhSanXuatPage({
   const timRef = useRef<HTMLInputElement | null>(null);
   const trangRef = useRef<HTMLElement | null>(null);
   const [q, setQ] = useState("");
-  const luoi = useCauHinhLuoi("ho-so-lenh");
+  const luoi = useCauHinhLuoi("ho-so-lenh-a");
   const cotHien = luoi.rongHien(luoi.xep(COT_LENH).filter((c) => !luoi.an.has(c.key)));
   const qTre = useTre(q);
   const [locMan, setLocMan] = useLocMan("lenh-san-xuat", LOC_MAN_TRONG, docLocMan, ghiLocMan);
@@ -131,7 +132,7 @@ export function LenhSanXuatPage({
     return () => window.removeEventListener("keydown", phim);
   }, []);
 
-  // --- hồ sơ một lệnh: vẽ ĐÈ lên bảng để quay lại thấy y nguyên tab/lọc/trang ------------------
+  // --- ngăn một lệnh: phủ bên phải, bảng giữ nguyên tab/lọc/trang -------------------------------
   const [hoSoId, setHoSoId] = useState<number | null>(null);
   const [hoSoPv, setHoSoPv] = useState<number | null>(null);
   useEffect(() => {
@@ -236,6 +237,7 @@ export function LenhSanXuatPage({
     ...dieuKien,
   ];
 
+  const viTri = hoSoId == null ? -1 : rows.findIndex((r) => r.id === hoSoId);
   const nhanTab = TABS.find((t) => t.key === tab)?.label ?? "Tất cả";
   // Số trên hàng lọc nhanh = `dem_theo_tab` của máy chủ (tập ĐÃ LỌC, không bị chính tab lọc lại).
   // Đang tải lần đầu ⇒ để trống chỗ số, không hiện 0.
@@ -270,8 +272,8 @@ export function LenhSanXuatPage({
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
             onXoaHet={xoaLoc}
           />
-          {/* Có khối điều kiện thì "Xoá bộ lọc" nằm cuối hàng khối (ThanhLoc); chỉ lọc bằng ô tìm/kỳ/khâu thì ở đây. */}
-          {(dangLoc || tab !== "tat_ca") && !dieuKien.some((d) => daAp(d, locMan.loc) && !d.anKhoi) && (
+          {/* Có khối điều kiện thì "Xoá bộ lọc" nằm cuối hàng khối (ThanhLoc); chỉ lọc bằng ô tìm/kỳ thì ở đây. */}
+          {(dangLoc || tab !== "tat_ca") && !dkDu.some((d) => daAp(d, locMan.loc) && !d.anKhoi) && (
             <button type="button" className="lds-lk" onClick={xoaLoc}>
               Xoá bộ lọc
             </button>
@@ -282,7 +284,7 @@ export function LenhSanXuatPage({
 
       <div className="lds-sheet">
         <CuonLuoi ghim={luoi.soGhim(cotHien)}>
-          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 180) }}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 100) }}>
             <caption className="sr-only">Danh sách lệnh sản xuất đã phát hành</caption>
             <colgroup>
               {cotHien.map((c) => (
@@ -380,11 +382,13 @@ export function LenhSanXuatPage({
       </div>
 
       {hoSoId !== null && (
-        <LenhSxHoSoView
+        <LenhSxNgan
           lsxId={hoSoId}
           pv={hoSoPv}
-          onClose={dongHoSo}
+          onDong={dongHoSo}
           eventTick={tickTre}
+          len={viTri > 0 ? () => moHoSoTay(rows[viTri - 1].id) : undefined}
+          xuong={viTri >= 0 && viTri < rows.length - 1 ? () => moHoSoTay(rows[viTri + 1].id) : undefined}
           onMoDon={navigate ? (orderId) => navigate("don-hang-ban", { openOrderId: orderId }) : undefined}
         />
       )}
@@ -402,8 +406,6 @@ function OLenh({ cot, r }: { cot: string; r: LenhSxItem }) {
           {r.is_rush && <TheGap />}
         </td>
       );
-    case "ngay":
-      return <td title={ngayGioDayDu(r.created_at)}>{ngayDayDu(r.created_at)}</td>;
     case "khach":
       return r.khach_hang ? (
         <td title={r.khach_hang}>{tenKhachGon(r.khach_hang)}</td>
@@ -422,7 +424,13 @@ function OLenh({ cot, r }: { cot: string; r: LenhSxItem }) {
         </td>
       );
     case "han":
-      return <td className={r.han_hoan_thanh_sx ? undefined : "lds-mu3"}>{ngayVN(r.han_hoan_thanh_sx)}</td>;
+      return <td className={r.han_giao_khach ? undefined : "lds-mu3"}>{r.han_giao_khach ? ngayVN(r.han_giao_khach) : "Chưa hẹn"}</td>;
+    case "buoc":
+      return (
+        <td className="lsc-o-tuyen">
+          <TuyenBuoc chang={r.chang ?? []} tronGoi={r.tron_goi} nhaGiaCong={r.nha_gia_cong} xong={r.khau !== "dang_sx"} />
+        </td>
+      );
     case "tt": {
       const mau = (r.khau === "sau_sx" && r.khau_chi_tiet && MAU_KHAU_CT[r.khau_chi_tiet]) || MAU_KHAU[r.khau] || "xam";
       return (

@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 from app.services import accounting_service
+from tests.muc_thu_chi_fixtures import muc_id
 
 URL_PC = "/api/accounting/payment-vouchers"
 URL_PT = "/api/accounting/payment-receipts"
@@ -24,8 +25,9 @@ def _headers(client) -> dict[str, str]:
 
 
 def _lap_phieu_chi(client, h, *, so_tien, ngay=None, hinh_thuc="cash", nguon="internal_expense",
-                   nguoi_nhan="Nguyễn Văn Nhận", noi_dung="Chi phí văn phòng"):
-    """Phiếu chi lập rời (chi phí nội bộ, tiền mặt) — lập ra là ĐÃ CHI."""
+                   nguoi_nhan="Nguyễn Văn Nhận", noi_dung="Chi phí văn phòng", **them):
+    """Phiếu chi lập rời (chi phí nội bộ, tiền mặt) — lập ra là ĐÃ CHI. `them` gửi kèm (vd
+    `customer_id` cho phiếu trả lại tiền cho khách)."""
     r = client.post(
         URL_PC,
         json={
@@ -38,6 +40,8 @@ def _lap_phieu_chi(client, h, *, so_tien, ngay=None, hinh_thuc="cash", nguon="in
             "exchange_rate": 1,
             "content": noi_dung,
             "cash_recipient_name": nguoi_nhan,
+            "muc_thu_chi_id": muc_id(client, h, "chi"),
+            **them,
         },
         headers=h,
     )
@@ -60,6 +64,7 @@ def _lap_phieu_thu_khac(client, h, *, so_tien, ngay=None, nguoi_nop="Nguyễn V�
             "receipt_date": (ngay or _hom_nay()).isoformat(),
             "amount": so_tien,
             "content": noi_dung,
+            "muc_thu_chi_id": muc_id(client, h, "thu"),
         },
         headers=h,
     )
@@ -95,12 +100,26 @@ def test_phieu_chi_tu_ngay_sau_den_ngay_bi_chan(client):
     assert r.status_code == 422
 
 
+def _khach_moi() -> int:
+    from app.db import SessionLocal
+    from app.models.customer import Customer
+
+    db = SessionLocal()
+    try:
+        c = Customer(code="KH-LOC-01", name="Khách lọc phiếu")
+        db.add(c)
+        db.commit()
+        return c.id
+    finally:
+        db.close()
+
+
 def test_phieu_chi_loc_khoang_tien_hinh_thuc_nhieu_nguon(client):
     h = _headers(client)
     nho = _lap_phieu_chi(client, h, so_tien=300_000)
     lon = _lap_phieu_chi(client, h, so_tien=9_000_000)
     khac = _lap_phieu_chi(client, h, so_tien=9_500_000, nguon="other")
-    hoan = _lap_phieu_chi(client, h, so_tien=9_700_000, nguon="customer_refund")
+    hoan = _lap_phieu_chi(client, h, so_tien=9_700_000, nguon="customer_refund", customer_id=_khach_moi())
     r = client.get(URL_PC, headers=h, params=[("tien_tu", 5_000_000), ("nguon", "internal_expense"),
                                                ("nguon", "other")])
     ids = [x["id"] for x in r.json()["items"]]

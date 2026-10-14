@@ -130,7 +130,7 @@ export function KhoDeNghiPage({
   const dieuKien = useDieuKienYeuCauKho(dieuChuyen);
   // Nhập và Xuất chung một bảng; đang lọc đúng một chiều thì "Tạo yêu cầu" mở sẵn chiều đó.
   const loai = locMan.loc.loai;
-  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc) });
+  const khoaLoc = JSON.stringify({ ...thamSoKy(locMan.ky), ...thamSoLocYCK(locMan.loc, dieuChuyen) });
   const coLoc = locMan.ky.loai !== "tat_ca" || soDaAp(dieuKien, locMan.loc) > 0;
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   // null = đóng; "new" = soạn mới; {id} = mở yêu cầu đã có; {seed} = tạo lại từ yêu cầu cũ.

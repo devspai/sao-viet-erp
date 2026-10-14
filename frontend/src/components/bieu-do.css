@@ -1,0 +1,94 @@
+/* Mảnh biểu đồ dùng chung (components/BieuDo.tsx) — dạng Biểu đồ của Báo cáo kinh doanh, Báo cáo
+ * công nợ. Khối nền trắng viền mảnh, thẻ số có thanh phần trăm, vòng + chú giải, thanh ngang. */
+.bd { display: grid; gap: 12px; container-type: inline-size; min-width: 0; }
+.bd-hang { display: grid; gap: 12px; min-width: 0; }
+.bd-rong { margin: 0; padding: 28px 16px; text-align: center; }
+
+.bd-khoi { min-width: 0; display: flex; flex-direction: column; background: var(--canvas, #fff);
+  border: 1px solid var(--rule-soft); border-radius: 8px; padding: 10px 14px; }
+.bd-dau { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex: none; min-width: 0; }
+.bd-tieu { font-size: 13.5px; color: var(--ink); white-space: nowrap; }
+.bd-ph { font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bd-sp { flex: 1; }
+.bd-cg { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--ash-2); font-size: var(--fs-xs); flex: none; }
+.bd-cg span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.bd-cg i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.bd-cg i.duong { height: 2px; border-radius: 0; }
+.bd-ten { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* Thẻ số */
+.bd-the-hang { display: grid; gap: 12px; }
+.bd-the { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 14px; background: var(--canvas, #fff);
+  border: 1px solid var(--rule-soft); border-radius: 8px; font: inherit; color: var(--ink); text-align: left; }
+.bd-the--bam { cursor: pointer; }
+.bd-the--bam:hover { background: var(--rule-hair); }
+.bd-the__nhan { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ash-2); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.bd-the__nhan i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.bd-the__so { font-size: 20px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bd-the__ray { display: block; height: 6px; border-radius: 3px; background: var(--rule-hair); overflow: hidden; margin: 6px 0 2px; }
+.bd-the__ray b { display: block; height: 100%; border-radius: 3px; }
+.bd-the__phu { font-size: var(--fs-xs); color: var(--ash-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tab trong khối */
+.bd-tab { display: flex; gap: 18px; border-bottom: 1px solid var(--rule-soft); margin: -2px 0 10px; }
+.bd-tab button { padding: 4px 0 7px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none;
+  font: inherit; font-size: 13px; color: var(--ash-2); cursor: pointer; white-space: nowrap; }
+.bd-tab button.on { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* SVG */
+.bd-ve { min-width: 0; overflow: hidden; }
+.bd-svg { display: block; }
+.bd-svg text, .bd-vong text { font-family: inherit; }
+.bd-luoi { stroke: var(--rule-hair); }
+.bd-truc0 { stroke: var(--ash-3); }
+.bd-so { font-size: 11px; fill: var(--ash-2); }
+.bd-dv { font-size: 10.5px; fill: var(--ash-3); }
+.bd-chan { font-size: 11px; fill: var(--ash); }
+.bd-chan--phu { fill: var(--ash-3); }
+.bd-nhan-cot { font-size: 10.5px; fill: var(--ash); }
+.bd .bam { cursor: pointer; }
+.bd .bam:hover { opacity: .82; }
+
+/* Vòng + chú giải */
+.bd-dn { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; }
+.bd-vong { display: block; flex: none; }
+.bd-lat { stroke: var(--canvas, #fff); stroke-width: 1.5; }
+.bd-vong__so { font-size: 15px; fill: var(--ink); }
+.bd-vong__nhan { font-size: 11.5px; fill: var(--ash-2); }
+.bd-lg { min-width: 0; max-width: 560px; }
+.bd-lg__r { display: grid; grid-template-columns: 10px minmax(0, 1fr) 40px auto; gap: 8px; align-items: center; width: 100%;
+  height: 26px; padding: 0 6px; border: 0; border-radius: 6px; background: none; font: inherit; font-size: 12.5px;
+  color: var(--ink); text-align: left; }
+button.bd-lg__r { cursor: pointer; }
+button.bd-lg__r:hover { background: var(--rule-hair); }
+.bd-lg__r i { width: 10px; height: 10px; border-radius: 2px; }
+.bd-lg__r .p { text-align: right; color: var(--ash-2); font-variant-numeric: tabular-nums; }
+.bd-lg__r .n { min-width: 92px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bd-trong { margin: 24px 6px; font-size: 13px; color: var(--ash-2); }
+
+/* Thanh ngang */
+.bd-hb { display: grid; row-gap: 2px; column-gap: 10px; align-items: center; }
+.bd-hb__r { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; height: 30px; padding: 0 6px;
+  border: 0; border-radius: 6px; background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; }
+button.bd-hb__r { cursor: pointer; }
+button.bd-hb__r:hover { background: var(--rule-hair); }
+.bd-hb__ray { display: flex; height: 14px; border-radius: 3px; background: var(--rule-hair); overflow: hidden; min-width: 0; }
+.bd-hb__ray b { display: block; height: 100%; flex: none; }
+.bd-hb__r .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 92px; }
+
+.bd-tip { position: fixed; z-index: 140; pointer-events: none; padding: 6px 9px; border-radius: 6px; background: var(--charcoal);
+  color: var(--on-charcoal, #fff); font-size: 12px; line-height: 1.5; white-space: nowrap; }
+
+/* Khối hẹp (điện thoại): chú giải xuống dòng dưới tiêu đề, cột tên của thanh ngang co lại. */
+@container (max-width: 560px) {
+  .bd-dau { flex-wrap: wrap; }
+  .bd-hb { grid-template-columns: minmax(0, 120px) minmax(0, 1fr) auto !important; }
+  .bd-hb__r .n { min-width: 0; }
+}
+
+@media (max-width: 640px) {
+  .bd-dn { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .bd-lg { width: 100%; }
+  .bd-ph { display: none; }
+}

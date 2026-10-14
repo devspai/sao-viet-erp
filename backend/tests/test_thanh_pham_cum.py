@@ -14,7 +14,10 @@ from app.models.delivery import DeliveryRequest
 from app.models.order import STATUS_ORDERED, Order, OrderLine
 from app.models.vat_lieu_kho import VatTuInAn
 from app.services.thanh_pham_khai_bao import cum_ban, gia_ban_cum, khai_cho_don
-from tests.test_giao_hang_api import _admin, _di_toi_dang_giao, _len_kh, _nap_ton, _tai_xe
+from app.models.stock_request import StockRequest
+from tests.test_giao_hang_api import (
+    _admin, _de_nghi_xuat, _di_toi_dang_giao, _len_kh, _nap_ton, _tai_xe,
+)
 
 
 def _don(suffix: str, dong: list[dict]) -> tuple[int, list[int]]:
@@ -129,9 +132,19 @@ def test_yeu_cau_giao_bung_ca_cum_va_xuat_kho_MOT_dong(client):
 
     nv = _tai_xe("Tai xe cum")
     trip = _len_kh(client, h, r.json()["id"], nv).json()["trip"]["id"]
-    xuat = client.get(f"/api/giao-hang/plans/{trip}/hang-can-xuat", headers=h)
-    assert xuat.status_code == 200, xuat.text
-    assert [(d["sl_de_nghi"]) for d in xuat.json()] == [200]
+    # Lên đơn tự gửi kho (12/10/2026): đề nghị xuất có MỘT dòng mã thành phẩm cho cả cụm.
+    xuat = _de_nghi_xuat(trip)
+    db = SessionLocal()
+    try:
+        assert [float(d.sl_de_nghi) for d in db.get(StockRequest, xuat.id).lines] == [200]
+    finally:
+        db.close()
+    # Bảng Đơn giao hàng (lượt xe) cũng mang khoá cụm — thiếu thì màn bày "Ruột" + "Bìa" thành hai món.
+    bang = client.get("/api/giao-hang/bang-giao", headers=h).json()["items"]
+    diem = [t for it in bang for t in ((it["luot"] or {}).get("diem") or [it["trip"]]) if t]
+    hang = next(t["hang"] for t in diem if t["id"] == trip)
+    assert {x["cum_khoa"] for x in hang} == {khoa[ruot][0]}
+    assert {x["cum_ten"] for x in hang} == {"Kỷ yếu 25 năm"}
 
 
 def test_hai_dong_cung_cum_khac_sl_bi_chan(client):

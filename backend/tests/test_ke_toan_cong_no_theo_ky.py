@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from tests.giao_hang_fixtures import giao_het
 from app.db import SessionLocal
 from app.models.customer import Customer, CustomerTag
 from app.models.order import Order, OrderLine, STATUS_ORDERED
@@ -291,8 +292,10 @@ def _sales_order(
 
 
 def _invoice_payload(order_id: int, *, number: str, amount: int | None = None) -> dict:
+    # Hóa đơn gắn lượt khách đã nhận (mg 0402) — dựng sẵn lượt giao hết đơn.
     payload = {
         "order_id": order_id,
+        "delivery_trip_id": giao_het(order_id),
         "invoice_symbol": "1C26TSV",
         "invoice_number": number,
         "invoice_date": _hom_nay().isoformat(),
@@ -766,14 +769,14 @@ def test_phai_thu_the_loc_dem_truoc_nut_dang_chon(client):
         return r.json()
 
     ca = _thu()
-    assert ca["the_loc"] == {"tat_ca": 2, "qua_han": 1, "vuot_han_muc": 1}
+    assert ca["the_loc"] == {"tat_ca": 2, "qua_han": 1, "vuot_han_muc": 1, "tra_coc": 0}
     qh = _thu(filter="overdue")
     assert [x["customer_id"] for x in qh["items"]] == [kh_tre]
     assert qh["the_loc"] == ca["the_loc"]
     vh = _thu(filter="vuot_han_muc")
     assert [x["customer_id"] for x in vh["items"]] == [kh_vuot]
     assert vh["the_loc"] == ca["the_loc"]
-    assert _thu(no_tu=500_000)["the_loc"] == {"tat_ca": 1, "qua_han": 0, "vuot_han_muc": 1}
+    assert _thu(no_tu=500_000)["the_loc"] == {"tat_ca": 1, "qua_han": 0, "vuot_han_muc": 1, "tra_coc": 0}
 
 
 def test_chi_tiet_phai_tra_phan_trang_da_tra(client):

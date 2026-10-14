@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biểu đồ Báo cáo kinh doanh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --chot:#334155;--giao:#10b981;--hd:#8b5cf6;--thu:#2563eb;--con:#f97316;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+.doc{max-width:1500px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;height:280px;object-fit:contain;background:#f8fafc;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink)}
+
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+
+.frame{width:1440px;height:900px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:14px 24px 16px;flex:1;display:flex;flex-direction:column;min-height:0;overflow:auto}
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex:none}
+.tool h2{font-size:18px;font-weight:500;margin:0 8px 0 0;white-space:nowrap}
+.tool .sp{flex:1}
+.ky-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 10px;font-size:13px;white-space:nowrap}
+.ky-btn .lb{color:var(--ash-2)}
+.search{display:flex;align-items:center;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:220px;color:var(--ash-3);font-size:13px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+.locchip{display:flex;gap:8px;margin-bottom:10px;flex:none}
+.locchip button{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid var(--rule);border-radius:999px;background:#fff;font-size:12.5px;cursor:pointer}
+.ghi-loc{font-size:12.5px;color:var(--ash-2);margin:-2px 0 10px;flex:none}
+
+.wrap{min-height:0;overflow:auto;background:#fff;border:1px solid var(--rule-soft);border-radius:8px;flex:1}
+table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.g th,.g td{height:32px;padding:0 10px;border-bottom:1px solid var(--rule-hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.g thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:var(--ash-2);font-weight:400;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:30px}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .mu{color:var(--ash-3)}
+.g tbody tr:hover td{background:var(--rule-hair)}
+.g tr.hl td{background:#eff6ff !important}
+.g tfoot td{background:#f8fafc;position:sticky;bottom:0}
+
+.khoi{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;min-width:0;display:flex;flex-direction:column}
+.khoi .dau{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex:none}
+.khoi .dau .t{font-size:13.5px;white-space:nowrap}
+.khoi .dau .sp{flex:1}
+.khoi .dau .ph{color:var(--ash-2);font-size:12px;white-space:nowrap}
+.cg{display:flex;gap:12px;color:var(--ash-2);font-size:12px;flex-wrap:wrap}
+.cg span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.cg i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.cg i.ln2{height:2px;border-radius:0}
+svg{display:block}
+svg text{font-family:"Be Vietnam Pro",system-ui,sans-serif}
+.bam{cursor:pointer}
+.bam:hover{opacity:.82}
+.luoi{display:grid;gap:12px;min-height:0}
+.tabk{display:flex;gap:18px;border-bottom:1px solid var(--rule-soft);margin:-2px 0 10px}
+.tabk span{padding:4px 0 7px;font-size:13px;color:var(--ash-2);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap}
+.tabk span.on{color:var(--ink);border-bottom-color:var(--ink)}
+
+/* thẻ số */
+.kpi{display:grid;gap:12px;flex:none}
+.kp{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kp .l{font-size:12.5px;color:var(--ash-2);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.kp .l i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.kp .v{font-size:21px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+.kp .p{font-size:12px;color:var(--ash-2);white-space:nowrap}
+.kp .ray{height:6px;border-radius:3px;background:var(--rule-hair);overflow:hidden;margin-top:6px}
+.kp .ray b{display:block;height:100%;border-radius:3px}
+.kp.hero{background:#2563eb;border-color:#2563eb;color:#fff}
+.kp.hero .l,.kp.hero .p{color:#dbeafe}
+.ico{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none}
+.kp.kp2{flex-direction:row;gap:12px;align-items:center}
+
+/* thanh ngang */
+.hb .r{display:grid;grid-template-columns:var(--cot-ten,190px) 1fr 104px;gap:10px;align-items:center;height:30px;padding:0 6px;border-radius:6px;font-size:12.5px}
+.hb .r[data-kh],.hb .r[data-don]{cursor:pointer}
+.hb .r:hover{background:var(--rule-hair)}
+.hb .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .r .tr{height:14px;border-radius:3px;background:var(--rule-hair);position:relative;overflow:hidden;display:flex}
+.hb .r .tr b{height:100%;display:block}
+.hb .r .n{text-align:right;font-variant-numeric:tabular-nums}
+
+.dn{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.lg .r{display:grid;grid-template-columns:10px minmax(0,1fr) 40px 96px;gap:8px;align-items:center;height:26px;font-size:12.5px;padding:0 6px;border-radius:6px}
+.lg .r[data-kh]{cursor:pointer}
+.lg .r:hover{background:var(--rule-hair)}
+.lg .r i{width:10px;height:10px;border-radius:2px}
+.lg .r .n,.lg .r .p{text-align:right;font-variant-numeric:tabular-nums}
+.lg .r .p{color:var(--ash-2)}
+.lg .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;white-space:nowrap}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.c-tim{background:#f3e8ff;color:#7e22ce}.c-tim i{background:#a855f7}
+.c-slate{background:#e2e8f0;color:#334155}.c-slate i{background:#64748b}
+.c-do{background:#fee2e2;color:#b91c1c}.c-do i{background:#ef4444}
+.c-cam{background:#ffedd5;color:#c2410c}.c-cam i{background:#f97316}
+.c-la{background:#dcfce7;color:#15803d}.c-la i{background:#22c55e}
+
+.ds .r{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:10px;align-items:center;height:34px;padding:0 6px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.ds .r:hover{background:var(--rule-hair)}
+.ds .r .mu{color:var(--ash-2)}
+.ds .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+#tip{position:fixed;pointer-events:none;z-index:99;background:#0f172a;color:#fff;font-size:12px;border-radius:6px;padding:6px 9px;display:none;white-space:nowrap;line-height:1.5}
+.gia{color:#b45309}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<div class="doc">
+<h1>Báo cáo kinh doanh: làm lại dạng biểu đồ</h1>
+<p>Ba phương án cho dạng Biểu đồ, mỗi phương án bám một ảnh tham khảo trên Pinterest, cùng độ phong phú với biểu đồ Báo cáo thu chi vừa làm (thẻ số, cột theo ngày, vòng cơ cấu có tab, thanh xếp hạng, rê chuột ra số, bấm để đi xuống bảng). Dạng Bảng giữ nguyên lưới đang chạy.</p>
+<p>Số liệu là số thật trong DB dev, kỳ Tháng này 01/10 – 12/10/2026, tính tới 12/10/2026: 6 đơn, 3 khách, 1 sale. Chốt đơn 55.666.239, Đã giao 8.460.973, Đã xuất hoá đơn 44.274.598, Đã thu 21.880.289, Còn phải thu 33.785.950. Không có số nào giả định.</p>
+
+<h2>Đã đọc trước khi vẽ</h2>
+<ul>
+<li>Giao diện: <code>frontend/src/pages/bao-cao-kinh-doanh/BaoCaoKinhDoanhPage.tsx</code> (lưới dòng mặt hàng 17 cột, nút Bảng | Biểu đồ nhớ ở trình duyệt, Lọc cọc, giao, thu, tỷ lệ báo giá) và <code>BieuDoTienDo.tsx</code> (bản đang chạy: ống tiến độ 4 thanh, bảng theo khách hoặc sale có thanh % trong ô, cột Cần chú ý).</li>
+<li>Máy chủ: <code>backend/app/services/bao_cao_kinh_doanh.py</code> và router <code>/api/bao-cao-kinh-doanh</code>: trả mỗi khách một danh sách đơn, mỗi đơn có ngày chốt, sale, hẹn giao, tiền có VAT, đã giao quy ra tiền, đã xuất hoá đơn, đã thu, cọc, trạng thái giao và thu, các dòng mặt hàng.</li>
+<li>Mockup cũ: <code>bao-cao-kinh-doanh-3-phuong-an.html</code> (lần trước anh chọn C, là bản đang chạy) và ảnh trong <code>tham-khao-bao-cao-kinh-doanh/</code>. Mẫu để so độ phong phú: <code>bao-cao-thu-chi-pinterest-3-phuong-an.html</code> mục C.</li>
+</ul>
+
+<h2>Logic chung cho cả ba (nói bằng lời)</h2>
+<ol>
+<li>Biểu đồ vẽ từ <b>chính lần gọi API của bảng</b>, máy chủ không thêm phép tính nào. Thanh lọc (ô tìm, kỳ, Lọc cọc, giao, thu) áp cho cả hai dạng.</li>
+<li>Trục thời gian theo <b>ngày chốt đơn</b>: kỳ đến 31 ngày thì mỗi ngày một cột, dài hơn thì mỗi tháng một cột, dài hơn 2 năm thì theo quý. Chỉ có ngày chốt mới có ngày; đã giao, đã thu không có ngày trong API nên không vẽ theo thời gian, chỉ vẽ theo khách, đơn, mặt hàng.</li>
+<li>Bấm vào biểu đồ:
+  <ul>
+    <li>Bấm một khách (lát tròn, thanh, dòng chú giải) thì chuyển sang Bảng, lọc đúng khách đó, có chip "Khách: … ×" để bỏ.</li>
+    <li>Bấm một ngày thì chuyển sang Bảng, chỉ còn đơn chốt ngày đó.</li>
+    <li>Bấm một đơn thì chuyển sang Bảng và tô các dòng của đơn đó.</li>
+  </ul></li>
+<li>Mỗi khách một màu riêng, giữ nguyên màu ở mọi khối. Mỗi khâu một màu cố định: Chốt đơn xám đậm, Đã giao xanh lá, Đã xuất hoá đơn tím, Đã thu xanh dương, Còn phải thu cam.</li>
+<li>Trên biểu đồ tên khách bỏ tiền tố loại hình (CÔNG TY CỔ PHẦN, CÔNG TY TNHH) cho đủ chỗ; rê chuột ra tên đủ, bảng vẫn in tên đủ.</li>
+<li>Không có giá vốn, lãi gộp (giá thành gốc kế toán chưa điền), giống bản đang chạy. Xuất Excel luôn ra bảng.</li>
+</ol>
+
+<h2>Ảnh tham khảo (Pinterest, đã mở và chụp lại)</h2>
+<div class="refs">
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh-pinterest/a-executive-sales-xanh.jpg" alt=""><p><span class="t">A. Executive Sales Dashboard.</span> Hàng thẻ số trên cùng, dưới là cột xu hướng có đường, hai vòng cơ cấu, hai khối thanh ngang xếp hạng. Học được: thanh ngang xếp hạng đọc ngay ai lớn nhất mà không cần rê chuột.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh-pinterest/b-sales-performance-navy.jpg" alt=""><p><span class="t">B. Sales Performance Dashboard.</span> Bốn thẻ có biểu tượng, cột doanh thu theo tháng cạnh đường số đơn, vòng theo nhóm hàng, top 5 thanh ngang, bảng nhỏ theo vùng, dải chỉ số phụ ở đáy. Học được: dải chỉ số phụ ở đáy chứa những con số không đáng một biểu đồ.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-kinh-doanh-pinterest/c-sales-report-vong-tron.jpg" alt=""><p><span class="t">C. Sales Report.</span> Một thẻ nổi màu cho con số chính, vòng tròn đồng tâm cho các tỷ lệ, cột đôi theo nhóm, chú giải có số ngay cạnh. Học được: vòng đồng tâm nói được ba tỷ lệ tiến độ trong một hình.</p></div>
+</div>
+<p style="font-size:12.5px">Đã xem khoảng 20 ghim với từ khoá sales dashboard charts. Ba ảnh trên là ba bố cục khác nhau rõ nhất.</p>
+
+<div class="sw">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Thẻ số có thanh tiến độ, cột theo ngày, vòng, hai khối xếp hạng</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Thẻ có biểu tượng, cột và đường, phễu tiến độ, dải chỉ số đáy</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Thẻ nổi, vòng đồng tâm, cột đôi theo khách, lịch hẹn giao</button>
+</div>
+<div class="desc" id="desc"></div>
+
+<div class="frame" id="fr">
+  <div class="rail"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo kinh doanh</h2>
+        <span class="search">Tìm khách, đơn, mặt hàng</span>
+        <span class="ky-btn"><span class="lb">Kỳ</span>Tháng này</span>
+        <button class="btn">Lọc</button>
+        <span class="sp"></span>
+        <div class="seg" id="dang"><button data-v="bang">Bảng</button><button data-v="bieu">Biểu đồ</button></div>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div id="noi" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── Số liệu thật, DB dev svn_erp_trong, kỳ 01/10 – 12/10/2026 ───────────────────────────────
+const KHACH = [
+  {ten:"CÔNG TY CỔ PHẦN BIBICA", mau:"#2563eb"},
+  {ten:"CÔNG TY CỔ PHẦN CAFÉ KATINAT", mau:"#ec4899"},
+  {ten:"CÔNG TY CỔ PHẦN CAO LỢI HƯNG VIỆT NAM", mau:"#14b8a6"},
+];
+const SALE = "Nguyễn Thị Huyên";
+// ngày = số ngày trong tháng 10 (ngày chốt); hen = hẹn giao
+const DON = [
+  {so:"DH001", kh:2, ngay:5,  hen:"30/10", henN:30, vat:8460973,  giao:8460973, hd:8460973,  thu:1000000,  coc:0,       tg:"du",   tt:"mot_phan",
+   dong:[{mh:"Hộp kem 50ml (5×5×12 cm)", sl:5000, dvt:"cái", vat:8460973, da:5000}]},
+  {so:"DH002", kh:0, ngay:6,  hen:"06/11", henN:37, vat:26943796, giao:0,       hd:26943796, thu:13472000, coc:0,       tg:"chua", tt:"mot_phan",
+   dong:[{mh:"Ruột sách A5 64 trang", sl:1000, dvt:"cuốn", vat:23691579, da:0},{mh:"Bìa sách A5", sl:1000, dvt:"cuốn", vat:3252217, da:0}]},
+  {so:"DH003", kh:1, ngay:6,  hen:"27/10", henN:27, vat:5201400,  giao:0,       hd:3120840,  thu:3120840,  coc:1560420, tg:"chua", tt:"mot_phan",
+   dong:[{mh:"Tờ rơi A4 4/4", sl:3000, dvt:"tờ", vat:5201400, da:0}]},
+  {so:"DH004", kh:1, ngay:7,  hen:"27/10", henN:27, vat:5748989,  giao:0,       hd:5748989,  thu:4000000,  coc:0,       tg:"chua", tt:"mot_phan",
+   dong:[{mh:"Tờ rơi A4 4/4", sl:4000, dvt:"tờ", vat:5748989, da:0}]},
+  {so:"DH007", kh:1, ngay:11, hen:"27/10", henN:27, vat:5748989,  giao:0,       hd:0,        thu:287449,   coc:287449,  tg:"chua", tt:"mot_phan",
+   dong:[{mh:"Tờ rơi A4 4/4", sl:4000, dvt:"tờ", vat:5748989, da:0}]},
+  {so:"DH008", kh:1, ngay:12, hen:"30/10", henN:30, vat:3562092,  giao:0,       hd:0,        thu:0,        coc:0,       tg:"chua", tt:"chua",
+   dong:[{mh:"Tờ rơi A4 4/4", sl:1, dvt:"tờ", vat:3562092, da:0}]},
+];
+DON.forEach(d => d.con = d.vat - d.thu);
+const TINH_TOI = 12;
+const T = ["vat","giao","hd","thu","con"].reduce((o,k)=>(o[k]=DON.reduce((a,d)=>a+d[k],0),o),{});
+const KHAU = [
+  {k:"vat",  ten:"Chốt đơn",         mau:"var(--chot)", hex:"#334155"},
+  {k:"giao", ten:"Đã giao",          mau:"var(--giao)", hex:"#10b981"},
+  {k:"hd",   ten:"Đã xuất hoá đơn",  mau:"var(--hd)",   hex:"#8b5cf6"},
+  {k:"thu",  ten:"Đã thu",           mau:"var(--thu)",  hex:"#2563eb"},
+  {k:"con",  ten:"Còn phải thu",     mau:"var(--con)",  hex:"#f97316"},
+];
+// Tên khách trên biểu đồ bỏ tiền tố loại hình (CÔNG TY CỔ PHẦN, CÔNG TY TNHH…); rê chuột vẫn ra tên đủ.
+const ngan = t => t.replace(/^(CÔNG TY|Công ty)\s+(CỔ PHẦN|Cổ phần|CP|TNHH|TNHH MTV)\s+/,'');
+KHACH.forEach(k => k.ngan = ngan(k.ten));
+const MAU_MH = ["#2563eb","#10b981","#8b5cf6","#ec4899","#14b8a6","#ef4444"];
+
+let PA="A", DANG="bieu", LOC=null, HL=null, TAB_A="kh", TAB_B="kh";
+
+// ── tiện ích ─────────────────────────────────────────────────────────────────────────────
+const vn = n => (n<0?"−":"") + Math.abs(Math.round(n)).toLocaleString("vi-VN");
+const tr = n => { const v=Math.abs(n)/1e6; return (n<0?"−":"")+(v>=100?Math.round(v):Math.round(v*10)/10).toLocaleString("vi-VN")+" tr"; };
+const pt = (v,t) => t>0 ? Math.round(v*100/t) : 0;
+const tip = document.getElementById("tip");
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (!t) { tip.style.display="none"; return; }
+  tip.innerHTML = t.getAttribute("data-tip"); tip.style.display="block";
+  tip.style.left=(e.clientX+14)+"px"; tip.style.top=(e.clientY+12)+"px";
+});
+function nice(mx){ if(mx<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(mx))); const f=mx/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
+const khoi = (t, ph, inner, them="") => `<div class="khoi"><div class="dau"><span class="t">${t}</span>${ph?`<span class="ph">${ph}</span>`:''}<span class="sp"></span>${them}</div>${inner}</div>`;
+const cg = ds => `<div class="cg">${ds.map(d=>`<span><i class="${d.ln?'ln2':''}" style="background:${d.mau}"></i>${d.ten}</span>`).join('')}</div>`;
+const NGAY = Array.from({length:TINH_TOI},(_,i)=>i+1);
+const chotNgay = NGAY.map(n => DON.filter(d=>d.ngay===n).reduce((a,d)=>a+d.vat,0));
+const donNgay = NGAY.map(n => DON.filter(d=>d.ngay===n).length);
+const luyKe = chotNgay.reduce((a,v,i)=>(a.push((a[i-1]||0)+v),a),[]);
+const khachTong = KHACH.map((k,i)=>{ const ds=DON.filter(d=>d.kh===i); return {...k, i, don:ds.length, vat:ds.reduce((a,d)=>a+d.vat,0), thu:ds.reduce((a,d)=>a+d.thu,0), con:ds.reduce((a,d)=>a+d.con,0), hd:ds.reduce((a,d)=>a+d.hd,0), giao:ds.reduce((a,d)=>a+d.giao,0)}; });
+const matHang = (()=>{ const m=new Map(); DON.forEach(d=>d.dong.forEach(l=>m.set(l.mh,(m.get(l.mh)||0)+l.vat))); return [...m].map(([ten,vat])=>({ten,vat})).sort((a,b)=>b.vat-a.vat).map((x,i)=>({...x,mau:MAU_MH[i]})); })();
+
+// cột theo ngày + đường (trục trái tiền)
+function cotNgay({w,h,cot,mauCot,duong,mauDuong,nhanSo}){
+  const L=50,R=duong?46:12,Tt=18,B=24,W=w-L-R,H=h-Tt-B;
+  const mx=nice(Math.max(...cot)/4)*4, y=v=>Tt+H*(1-v/mx);
+  const mx2=duong?nice(Math.max(...duong)/4)*4:1, y2=v=>Tt+H*(1-v/mx2);
+  const n=NGAY.length, cw=W/n, bw=Math.min(30,cw*.6);
+  let s=`<svg width="${w}" height="${h}">`;
+  for(let k=0;k<=4;k++){ const v=mx*k/4; s+=`<line x1="${L}" x2="${w-R}" y1="${y(v)}" y2="${y(v)}" stroke="${k?'#eef2f6':'#94a3b8'}"/><text x="${L-6}" y="${y(v)+4}" font-size="11" fill="#64748b" text-anchor="end">${tr(v).replace(' tr','')}</text>`;
+    if(duong) s+=`<text x="${w-R+6}" y="${y(v)+4}" font-size="11" fill="${mauDuong}">${tr(mx2*k/4).replace(' tr','')}</text>`; }
+  s+=`<text x="${L-6}" y="9" font-size="10.5" fill="#94a3b8" text-anchor="end">triệu</text>`;
+  NGAY.forEach((d,i)=>{ const x=L+cw*i+cw/2; s+=`<text x="${x}" y="${h-7}" font-size="11" fill="#475569" text-anchor="middle">${String(d).padStart(2,'0')}/10</text>`;
+    const v=cot[i]; if(!v) return;
+    s+=`<rect class="bam" data-ngay="${d}" data-tip="Chốt ngày ${String(d).padStart(2,'0')}/10<br>${donNgay[i]} đơn ${vn(v)} đ" x="${x-bw/2}" y="${y(v)}" width="${bw}" height="${y(0)-y(v)}" rx="3" fill="${mauCot}"/>`;
+    if(nhanSo) s+=`<text x="${x}" y="${y(v)-5}" font-size="10.5" fill="#475569" text-anchor="middle">${tr(v).replace(' tr','')}</text>`; });
+  if(duong){ const p=duong.map((v,i)=>[L+cw*i+cw/2,y2(v)]);
+    s+=`<polyline points="${p.map(q=>q.join(',')).join(' ')}" fill="none" stroke="${mauDuong}" stroke-width="2"/>`;
+    p.forEach((q,i)=>{ if(chotNgay[i]) s+=`<circle data-tip="Luỹ kế tới ${String(i+1).padStart(2,'0')}/10<br>${vn(duong[i])} đ" cx="${q[0]}" cy="${q[1]}" r="4" fill="#fff" stroke="${mauDuong}" stroke-width="2"/>`; }); }
+  return s+`</svg>`;
+}
+// đường số đơn theo ngày
+function duongDon(w,h){
+  const L=30,R=12,Tt=14,B=24,W=w-L-R,H=h-Tt-B, mx=3, y=v=>Tt+H*(1-v/mx), n=NGAY.length, cw=W/n;
+  let s=`<svg width="${w}" height="${h}">`;
+  for(let k=0;k<=3;k++) s+=`<line x1="${L}" x2="${w-R}" y1="${y(k)}" y2="${y(k)}" stroke="${k?'#eef2f6':'#94a3b8'}"/><text x="${L-6}" y="${y(k)+4}" font-size="11" fill="#64748b" text-anchor="end">${k}</text>`;
+  const p=donNgay.map((v,i)=>[L+cw*i+cw/2,y(v)]);
+  s+=`<path d="M${p[0][0]},${y(0)} L${p.map(q=>q.join(',')).join(' L')} L${p[n-1][0]},${y(0)} Z" fill="#2563eb" opacity=".08"/><polyline points="${p.map(q=>q.join(',')).join(' ')}" fill="none" stroke="#2563eb" stroke-width="2"/>`;
+  p.forEach((q,i)=>{ if(donNgay[i]) s+=`<circle class="bam" data-ngay="${i+1}" data-tip="${String(i+1).padStart(2,'0')}/10<br>${donNgay[i]} đơn" cx="${q[0]}" cy="${q[1]}" r="4" fill="#fff" stroke="#2563eb" stroke-width="2"/>`;
+    if(i%2===0||i===n-1) s+=`<text x="${q[0]}" y="${h-7}" font-size="11" fill="#475569" text-anchor="middle">${String(i+1).padStart(2,'0')}/10</text>`; });
+  return s+`</svg>`;
+}
+function donut(ds, size, giua, nhan, attr){
+  const tg=ds.reduce((a,d)=>a+d.v,0)||1, r=size/2-4, r0=r-24, c=size/2; let a=-Math.PI/2, s=`<svg width="${size}" height="${size}">`;
+  ds.forEach(d=>{ const g=2*Math.PI*d.v/tg; if(g<=0) return; const a2=a+Math.min(g,2*Math.PI-1e-4), lg=g>Math.PI?1:0, P=(rr,aa)=>[c+rr*Math.cos(aa),c+rr*Math.sin(aa)];
+    const [x1,y1]=P(r,a),[x2,y2]=P(r,a2),[x3,y3]=P(r0,a2),[x4,y4]=P(r0,a);
+    s+=`<path class="bam" ${attr?attr(d):''} data-tip="${d.ten}<br>${vn(d.v)} đ (${pt(d.v,tg)}%)" d="M${x1},${y1} A${r},${r} 0 ${lg} 1 ${x2},${y2} L${x3},${y3} A${r0},${r0} 0 ${lg} 0 ${x4},${y4} Z" fill="${d.mau}" stroke="#fff" stroke-width="1.5"/>`; a=a2; });
+  return s+`<text x="${c}" y="${c-1}" text-anchor="middle" font-size="16">${giua}</text><text x="${c}" y="${c+17}" text-anchor="middle" font-size="11.5" fill="#64748b">${nhan}</text></svg>`;
+}
+const legend = (ds, attr) => { const tg=ds.reduce((a,d)=>a+d.v,0)||1; return `<div class="lg">${ds.map(d=>`<div class="r" ${attr?attr(d):''} data-tip="${d.ten}"><i style="background:${d.mau}"></i><span class="ten">${d.ten}</span><span class="p">${pt(d.v,tg)}%</span><span class="n">${vn(d.v)}</span></div>`).join('')}</div>`; };
+const atKh = d => d.i!=null ? `data-kh="${d.i}"` : '';
+
+// ── bảng (giữ lưới đang chạy, rút gọn cột cho mockup) ───────────────────────────────────────
+function bang(){
+  let ds = DON;
+  if (LOC?.kh!=null) ds = ds.filter(d=>d.kh===LOC.kh);
+  if (LOC?.ngay!=null) ds = ds.filter(d=>d.ngay===LOC.ngay);
+  let s = `<div class="wrap"><table class="g"><colgroup><col style="width:270px"><col style="width:90px"><col style="width:150px"><col style="width:210px"><col style="width:80px"><col style="width:60px"><col style="width:80px"><col style="width:120px"><col style="width:120px"><col style="width:110px"><col style="width:120px"><col style="width:90px"></colgroup>
+  <thead><tr><th>Khách hàng</th><th>Đơn hàng</th><th>Sale</th><th>Mặt hàng</th><th class="n">SL đặt</th><th>ĐVT</th><th class="n">Đã giao</th><th class="n">Tổng có VAT</th><th class="n">Đã xuất HĐ</th><th class="n">Đã thu</th><th class="n">Còn phải thu</th><th>Hẹn giao</th></tr></thead><tbody>`;
+  ds.forEach(d => d.dong.forEach((l,j) => {
+    s += `<tr class="${HL===d.so?'hl':''}"><td>${j?'':KHACH[d.kh].ten}</td><td>${j?'':d.so}</td><td>${j?'':SALE}</td><td>${l.mh}</td><td class="n">${vn(l.sl)}</td><td>${l.dvt}</td><td class="n">${vn(l.da)}</td><td class="n">${vn(l.vat)}</td><td class="n">${j?'':vn(d.hd)}</td><td class="n">${j?'':vn(d.thu)}</td><td class="n">${j?'':vn(d.con)}</td><td>${j?'':d.hen+'/2026'}</td></tr>`;
+  }));
+  const c = k => ds.reduce((a,d)=>a+d[k],0);
+  s += `</tbody><tfoot><tr><td colspan="7">Cộng ${ds.length} đơn</td><td class="n">${vn(c('vat'))}</td><td class="n">${vn(c('hd'))}</td><td class="n">${vn(c('thu'))}</td><td class="n">${vn(c('con'))}</td><td></td></tr></tfoot></table></div>`;
+  return s;
+}
+
+// ── A: Executive Sales (thẻ số, cột theo ngày + luỹ kế, vòng có tab, hai khối xếp hạng) ───────
+function A(){
+  const the = KHAU.map(k => `<div class="kp"><span class="l"><i style="background:${k.mau}"></i>${k.ten}</span><span class="v">${vn(T[k.k])}</span>
+    <div class="ray"><b style="width:${k.k==='vat'?100:pt(T[k.k],T.vat)}%;background:${k.mau}"></b></div>
+    <span class="p">${k.k==='vat'?`${DON.length} đơn của ${KHACH.length} khách`:`${pt(T[k.k],T.vat)}% doanh số có VAT`}</span></div>`).join('');
+  const dsV = TAB_A==="kh" ? khachTong.map(k=>({ten:k.ngan,v:k.vat,mau:k.mau,i:k.i})) : matHang.map(m=>({ten:m.ten,v:m.vat,mau:m.mau}));
+  const vong = khoi("Cơ cấu doanh số", "", `<div class="tabk"><span data-taba="kh" class="${TAB_A==='kh'?'on':''}">Theo khách</span><span data-taba="mh" class="${TAB_A==='mh'?'on':''}">Theo mặt hàng</span></div>
+    <div class="dn">${donut(dsV,190,tr(T.vat),"có VAT",atKh)}${legend(dsV,atKh)}</div>`);
+  const mxC = Math.max(...khachTong.map(k=>k.vat));
+  const xepCon = khoi("Còn phải thu theo khách", "đã thu và còn lại trên doanh số", `<div class="hb" style="--cot-ten:200px">${[...khachTong].sort((a,b)=>b.con-a.con).map(k=>`<div class="r" data-kh="${k.i}" data-tip="${k.ten}<br>Đã thu ${vn(k.thu)} đ<br>Còn phải thu ${vn(k.con)} đ"><span class="ten">${k.ngan}</span><span class="tr"><b style="width:${100*k.thu/mxC}%;background:var(--thu)"></b><b style="width:${100*k.con/mxC}%;background:var(--con)"></b></span><span class="n">${vn(k.con)}</span></div>`).join('')}</div>
+    <div style="margin-top:8px">${cg([{ten:"Đã thu",mau:"var(--thu)"},{ten:"Còn phải thu",mau:"var(--con)"}])}</div>`);
+  const mxD = Math.max(...DON.map(d=>d.vat));
+  const xepDon = khoi("Đơn lớn nhất", "theo doanh số có VAT", `<div class="hb" style="--cot-ten:200px">${[...DON].sort((a,b)=>b.vat-a.vat).map(d=>`<div class="r" data-don="${d.so}" data-tip="${d.so} ${KHACH[d.kh].ten}<br>${vn(d.vat)} đ"><span class="ten">${d.so} <span style="color:#64748b">${KHACH[d.kh].ngan}</span></span><span class="tr"><b style="width:${100*d.vat/mxD}%;background:${KHACH[d.kh].mau}"></b></span><span class="n">${vn(d.vat)}</span></div>`).join('')}</div>`);
+  return `<div class="kpi" style="grid-template-columns:repeat(5,1fr);margin-bottom:12px">${the}</div>
+  <div class="luoi" style="grid-template-columns:1.45fr 1fr">
+    ${khoi("Chốt đơn theo ngày", "cột là tiền chốt trong ngày, đường là luỹ kế", cotNgay({w:740,h:250,cot:chotNgay,mauCot:"#334155",duong:luyKe,mauDuong:"#f97316",nhanSo:true}), cg([{ten:"Chốt trong ngày",mau:"#334155"},{ten:"Luỹ kế",mau:"#f97316",ln:1}]))}
+    ${vong}
+  </div>
+  <div class="luoi" style="grid-template-columns:1fr 1fr;margin-top:12px">${xepCon}${xepDon}</div>`;
+}
+
+// ── B: Sales Performance (thẻ có biểu tượng, cột + đường, vòng tình trạng, phễu, bảng sale, dải đáy) ─
+function B(){
+  const ico = (mau,nen,svg) => `<span class="ico" style="background:${nen};color:${mau}">${svg}</span>`;
+  const I = {
+    tien:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>`,
+    don:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l3 3v15H6z"/><path d="M9 12h6M9 16h6"/></svg>`,
+    tb:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>`,
+    thu:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/></svg>`,
+  };
+  const the = [
+    {l:"Doanh số có VAT", v:vn(T.vat), p:"tiền chốt trong kỳ", i:ico("#334155","#e2e8f0",I.tien)},
+    {l:"Số đơn", v:DON.length, p:`${KHACH.length} khách ${1} sale`, i:ico("#2563eb","#dbeafe",I.don)},
+    {l:"Giá trị bình quân một đơn", v:vn(T.vat/DON.length), p:"doanh số chia số đơn", i:ico("#8b5cf6","#ede9fe",I.tb)},
+    {l:"Còn phải thu", v:vn(T.con), p:`${pt(T.con,T.vat)}% doanh số`, i:ico("#c2410c","#ffedd5",I.thu)},
+  ].map(x=>`<div class="kp kp2">${x.i}<div style="min-width:0"><div class="l">${x.l}</div><div class="v">${x.v}</div><div class="p">${x.p}</div></div></div>`).join('');
+  const TT = [
+    {ten:"Chưa giao", v:DON.filter(d=>d.tg==='chua').length, mau:"#94a3b8"},
+    {ten:"Giao một phần", v:DON.filter(d=>d.tg==='mot_phan').length, mau:"#f59e0b"},
+    {ten:"Đã giao đủ", v:DON.filter(d=>d.tg==='du').length, mau:"#10b981"},
+  ];
+  const TT2 = [
+    {ten:"Chưa thu", v:DON.filter(d=>d.tt==='chua').length, mau:"#94a3b8"},
+    {ten:"Thu một phần", v:DON.filter(d=>d.tt==='mot_phan').length, mau:"#f59e0b"},
+    {ten:"Đã thu đủ", v:DON.filter(d=>d.tt==='du').length, mau:"#2563eb"},
+  ];
+  const ds = TAB_B==="kh" ? TT : TT2;
+  const donutDem = (ds,size) => { const tg=ds.reduce((a,d)=>a+d.v,0), r=size/2-4, r0=r-22, c=size/2; let a=-Math.PI/2, s=`<svg width="${size}" height="${size}">`;
+    ds.forEach(d=>{ const g=2*Math.PI*d.v/tg; if(g<=0) return; const a2=a+Math.min(g,2*Math.PI-1e-4), lg=g>Math.PI?1:0, P=(rr,aa)=>[c+rr*Math.cos(aa),c+rr*Math.sin(aa)];
+      const [x1,y1]=P(r,a),[x2,y2]=P(r,a2),[x3,y3]=P(r0,a2),[x4,y4]=P(r0,a);
+      s+=`<path data-tip="${d.ten}<br>${d.v} đơn" d="M${x1},${y1} A${r},${r} 0 ${lg} 1 ${x2},${y2} L${x3},${y3} A${r0},${r0} 0 ${lg} 0 ${x4},${y4} Z" fill="${d.mau}" stroke="#fff" stroke-width="1.5"/>`; a=a2; });
+    return s+`<text x="${c}" y="${c-1}" text-anchor="middle" font-size="18">${tg}</text><text x="${c}" y="${c+16}" text-anchor="middle" font-size="11.5" fill="#64748b">đơn</text></svg>`; };
+  const vong = khoi("Tình trạng đơn", "", `<div class="tabk"><span data-tabb="kh" class="${TAB_B==='kh'?'on':''}">Giao hàng</span><span data-tabb="tt" class="${TAB_B==='tt'?'on':''}">Thu tiền</span></div>
+    <div class="dn">${donutDem(ds,150)}<div class="lg">${ds.map(d=>`<div class="r" style="grid-template-columns:10px 1fr 50px"><i style="background:${d.mau}"></i><span class="ten">${d.ten}</span><span class="n">${d.v} đơn</span></div>`).join('')}</div></div>`);
+  // phễu tiến độ dạng cột đứng
+  const phieu = (()=>{ const w=430,h=210,L=10,B=40,Tt=20,H=h-B-Tt, ks=KHAU.slice(0,4), cw=(w-L*2)/ks.length, bw=cw*.62; let s=`<svg width="${w}" height="${h}">`;
+    ks.forEach((k,i)=>{ const v=T[k.k], hh=H*v/T.vat, x=L+cw*i+(cw-bw)/2;
+      s+=`<rect x="${x}" y="${Tt}" width="${bw}" height="${H}" rx="4" fill="#f1f5f9"/><rect data-tip="${k.ten}<br>${vn(v)} đ (${pt(v,T.vat)}%)" x="${x}" y="${Tt+H-hh}" width="${bw}" height="${hh}" rx="4" fill="${k.hex}"/>`;
+      s+=`<text x="${x+bw/2}" y="${Tt+H-hh-6}" font-size="12" text-anchor="middle" fill="#0f172a">${pt(v,T.vat)}%</text><text x="${x+bw/2}" y="${h-22}" font-size="11.5" text-anchor="middle" fill="#475569">${k.ten}</text><text x="${x+bw/2}" y="${h-6}" font-size="11" text-anchor="middle" fill="#64748b">${tr(v)}</text>`; });
+    return s+`</svg>`; })();
+  const mxM = matHang[0].vat;
+  const top = khoi("Mặt hàng bán nhiều nhất", "theo tiền có VAT", `<div class="hb" style="--cot-ten:180px">${matHang.map(m=>`<div class="r" data-tip="${m.ten}<br>${vn(m.vat)} đ"><span class="ten">${m.ten}</span><span class="tr"><b style="width:${100*m.vat/mxM}%;background:${m.mau}"></b></span><span class="n">${vn(m.vat)}</span></div>`).join('')}</div>`);
+  const bangSale = khoi("Theo sale", "", `<table class="g" style="font-size:12.5px"><colgroup><col><col style="width:50px"><col style="width:110px"><col style="width:60px"></colgroup><thead><tr><th>Sale</th><th class="n">Đơn</th><th class="n">Doanh số</th><th class="n">Đã thu</th></tr></thead><tbody><tr><td>${SALE}</td><td class="n">${DON.length}</td><td class="n">${vn(T.vat)}</td><td class="n">${pt(T.thu,T.vat)}%</td></tr></tbody></table>`);
+  const day = [
+    {l:"Cọc phải thu", v:vn(DON.reduce((a,d)=>a+d.coc,0))},
+    {l:"Cọc còn thiếu", v:"0"},
+    {l:"Đơn quá hẹn giao", v:"0"},
+    {l:"Đơn hẹn giao 7 ngày tới", v:"0"},
+    {l:"Giao xong chưa thu đủ", v:"1 đơn"},
+  ].map(x=>`<div style="display:flex;flex-direction:column;padding:0 18px;border-left:1px solid var(--rule-soft)"><span style="font-size:12px;color:var(--ash-2)">${x.l}</span><span style="font-size:16px;font-variant-numeric:tabular-nums">${x.v}</span></div>`).join('');
+  return `<div class="kpi" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">${the}</div>
+  <div class="luoi" style="grid-template-columns:1.2fr 1fr .9fr">
+    ${khoi("Doanh số chốt theo ngày", "", cotNgay({w:460,h:220,cot:chotNgay,mauCot:"#1e3a8a",nhanSo:true}))}
+    ${khoi("Số đơn chốt theo ngày", "", duongDon(380,220))}
+    ${vong}
+  </div>
+  <div class="luoi" style="grid-template-columns:1.2fr 1fr .9fr;margin-top:12px">
+    ${khoi("Từ chốt đơn tới thu tiền", "phần trăm trên doanh số có VAT", phieu)}
+    ${top}
+    ${bangSale}
+  </div>
+  <div class="khoi" style="flex-direction:row;margin-top:12px;padding:10px 0">${day}</div>`;
+}
+
+// ── C: Sales Report (thẻ nổi, vòng đồng tâm, cột đôi theo khách, lịch hẹn giao) ─────────────
+function C(){
+  const hero = `<div class="kp hero" style="justify-content:space-between"><span class="l">Doanh số có VAT</span><span class="v" style="font-size:28px">${vn(T.vat)}</span><span class="p">${DON.length} đơn chốt từ 01/10 tới 12/10</span></div>`;
+  const nho = [
+    {l:"Đã xuất hoá đơn", v:T.hd, k:"hd"},
+    {l:"Đã thu", v:T.thu, k:"thu"},
+    {l:"Còn phải thu", v:T.con, k:"con"},
+  ].map(x=>`<div class="kp"><span class="l"><i style="background:var(--${x.k})"></i>${x.l}</span><span class="v">${vn(x.v)}</span><span class="p">${pt(x.v,T.vat)}% doanh số</span></div>`).join('');
+  // vòng đồng tâm
+  const vongs = [{k:"giao",ten:"Đã giao",mau:"#10b981"},{k:"hd",ten:"Đã xuất hoá đơn",mau:"#8b5cf6"},{k:"thu",ten:"Đã thu",mau:"#2563eb"}];
+  const S=230,c=S/2; let rs=`<svg width="${S}" height="${S}">`;
+  vongs.forEach((v,i)=>{ const r=c-10-i*24, p=T[v.k]/T.vat, len=2*Math.PI*r;
+    rs+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#eef2f6" stroke-width="14"/><circle data-tip="${v.ten}<br>${vn(T[v.k])} đ (${pt(T[v.k],T.vat)}%)" cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${v.mau}" stroke-width="14" stroke-linecap="round" stroke-dasharray="${len*p} ${len}" transform="rotate(-90 ${c} ${c})"/>`; });
+  rs+=`<text x="${c}" y="${c-2}" text-anchor="middle" font-size="22">${pt(T.thu,T.vat)}%</text><text x="${c}" y="${c+18}" text-anchor="middle" font-size="11.5" fill="#64748b">đã thu</text></svg>`;
+  const vong = khoi("Tiến độ thực hiện đơn", "phần trăm trên doanh số có VAT", `<div class="dn" style="grid-template-columns:auto 1fr">${rs}<div class="lg">${vongs.map(v=>`<div class="r" style="grid-template-columns:10px 1fr 44px 100px;height:34px"><i style="background:${v.mau};border-radius:50%"></i><span class="ten">${v.ten}</span><span class="p" style="color:#0f172a">${pt(T[v.k],T.vat)}%</span><span class="n">${vn(T[v.k])}</span></div>`).join('')}</div></div>`);
+  // cột đôi theo khách: doanh số | đã thu
+  const w=700,h=320,L=50,R=10,Tt=26,B=40,W=w-L-R,H=h-Tt-B, mx=nice(Math.max(...khachTong.map(k=>k.vat))/4)*4, y=v=>Tt+H*(1-v/mx), cw=W/khachTong.length, bw=38;
+  let cs=`<svg width="${w}" height="${h}">`;
+  for(let k=0;k<=4;k++){ const v=mx*k/4; cs+=`<line x1="${L}" x2="${w-R}" y1="${y(v)}" y2="${y(v)}" stroke="${k?'#eef2f6':'#94a3b8'}"/><text x="${L-6}" y="${y(v)+4}" font-size="11" fill="#64748b" text-anchor="end">${tr(v).replace(' tr','')}</text>`; }
+  cs+=`<text x="${L-6}" y="12" font-size="10.5" fill="#94a3b8" text-anchor="end">triệu</text>`;
+  khachTong.forEach((k,i)=>{ const x0=L+cw*i+cw/2;
+    [["vat","Doanh số","#cbd5e1"],["thu","Đã thu","#2563eb"]].forEach(([f,ten,m],j)=>{ const x=x0-bw-3+j*(bw+6), v=k[f];
+      cs+=`<rect class="bam" data-kh="${i}" data-tip="${k.ten}<br>${ten} ${vn(v)} đ" x="${x}" y="${y(v)}" width="${bw}" height="${y(0)-y(v)}" rx="5" fill="${m}"/><text x="${x+bw/2}" y="${y(v)-5}" font-size="10.5" text-anchor="middle" fill="#475569">${tr(v).replace(' tr','')}</text>`; });
+    cs+=`<circle cx="${x0-bw*1.5-18}" cy="${h-20}" r="5" fill="${k.mau}"/><text x="${x0-bw*1.5-8}" y="${h-16}" font-size="11.5" fill="#475569">${k.ngan}</text>`; });
+  cs+=`</svg>`;
+  const cot = khoi("Doanh số và đã thu theo khách", "", cs, cg([{ten:"Doanh số có VAT",mau:"#cbd5e1"},{ten:"Đã thu",mau:"#2563eb"}]));
+  // lịch hẹn giao: trục 12/10 → 06/11
+  const ngay = n => n<=31 ? `${String(n).padStart(2,'0')}/10` : `${String(n-31).padStart(2,'0')}/11`;
+  const w2=600, L2=16, R2=16, a=TINH_TOI, b=38, X=n=>L2+(w2-L2-R2)*(n-a)/(b-a);
+  let ls=`<svg width="${w2}" height="66"><line x1="${L2}" x2="${w2-R2}" y1="30" y2="30" stroke="#cbd5e1" stroke-width="2"/>`;
+  [12,19,26,33].forEach(n=>{ ls+=`<line x1="${X(n)}" x2="${X(n)}" y1="25" y2="35" stroke="#94a3b8"/><text x="${X(n)}" y="56" font-size="11" fill="#64748b" text-anchor="middle">${ngay(n)}</text>`; });
+  ls+=`<rect x="${X(12)}" y="27" width="${X(19)-X(12)}" height="6" fill="#fed7aa" rx="3"/><text x="${X(12)}" y="14" font-size="11" fill="#c2410c">7 ngày tới</text>`;
+  const nhom = {}; DON.forEach(d=>{ (nhom[d.henN] ||= []).push(d); });
+  Object.entries(nhom).forEach(([n,ds])=>{ const x=X(+n); ds.forEach((d,j)=>{ ls+=`<circle class="bam" data-don="${d.so}" data-tip="${d.so} hẹn giao ${d.hen}<br>${KHACH[d.kh].ten}<br>${d.tg==='du'?'Đã giao đủ':'Chưa giao'}" cx="${x}" cy="${30-j*0}" r="${7}" fill="${d.tg==='du'?'#10b981':KHACH[d.kh].mau}" stroke="#fff" stroke-width="2" transform="translate(${j*9-((ds.length-1)*4.5)},0)"/>`; }); });
+  ls+=`</svg>`;
+  const chuY = [
+    {chip:"c-tim", chu:"Giao xong chưa thu đủ", d:DON[0]},
+    ...DON.filter(d=>d.tg!=='du').sort((x,y)=>x.henN-y.henN).map(d=>({chip:"c-slate", chu:`Hẹn giao ${d.hen}`, d})),
+  ];
+  const lich = khoi("Hẹn giao và việc cần chú ý", "tính tới 12/10/2026", `${ls}<div class="ds" style="margin-top:6px;overflow:auto;max-height:250px">${chuY.map(x=>`<div class="r" data-don="${x.d.so}"><span>${x.d.so}</span><span class="ten mu">${KHACH[x.d.kh].ngan}</span><span class="chip ${x.chip}"><i></i>${x.chu}</span></div>`).join('')}</div>`);
+  return `
+  <div class="luoi" style="grid-template-columns:1.1fr 1fr">
+    <div class="luoi" style="grid-template-columns:1fr 1fr;align-content:start">${hero}${nho}</div>
+    ${vong}
+  </div>
+  <div class="luoi" style="grid-template-columns:1.1fr 1fr;margin-top:12px">${cot}${lich}</div>`;
+}
+
+const MO = {
+  A:{t:"A. Thẻ số có thanh tiến độ, cột theo ngày, vòng cơ cấu, hai khối xếp hạng", p:["Bám ảnh A (Executive Sales). Hàng năm thẻ là năm khâu Chốt đơn, Đã giao, Đã xuất hoá đơn, Đã thu, Còn phải thu; mỗi thẻ có thanh phần trăm trên doanh số, thay cho ống tiến độ đang chạy.","Hàng giữa: cột chốt đơn theo ngày kèm đường luỹ kế, vòng cơ cấu doanh số có hai tab Theo khách | Theo mặt hàng. Hàng dưới: thanh ngang còn phải thu theo khách (xanh là đã thu, cam là còn lại) và thanh ngang đơn lớn nhất."]},
+  B:{t:"B. Thẻ có biểu tượng, cột và đường theo ngày, phễu tiến độ, dải chỉ số ở đáy", p:["Bám ảnh B (Sales Performance). Bốn thẻ có biểu tượng: doanh số, số đơn, giá trị bình quân một đơn, còn phải thu. Hàng giữa: cột doanh số theo ngày, đường số đơn theo ngày, vòng tình trạng đơn có hai tab Giao hàng | Thu tiền (đếm đơn).","Hàng dưới: bốn cột đứng từ chốt đơn tới thu tiền (thay ống tiến độ), mặt hàng bán nhiều nhất, bảng nhỏ theo sale. Dải đáy gom các số lẻ: cọc phải thu, cọc còn thiếu, đơn quá hẹn, đơn hẹn giao 7 ngày tới, đơn giao xong chưa thu đủ."]},
+  C:{t:"C. Thẻ nổi, vòng đồng tâm, cột đôi theo khách, lịch hẹn giao", p:["Bám ảnh C (Sales Report). Thẻ nổi xanh cho doanh số có VAT, ba thẻ nhỏ cho hoá đơn, đã thu, còn phải thu. Vòng đồng tâm ba lớp cho ba tỷ lệ Đã giao, Đã xuất hoá đơn, Đã thu, chính giữa là phần trăm đã thu.","Hàng dưới: cột đôi doanh số và đã thu cho từng khách; trục hẹn giao từ hôm nay tới hẹn xa nhất có dải cam 7 ngày tới, chấm là đơn (xanh lá là đã giao đủ), bên dưới là danh sách việc cần chú ý bằng chip màu giống bản đang chạy."]},
+};
+
+function ve(){
+  document.querySelectorAll(".pill").forEach(b=>b.classList.toggle("on", b.dataset.pa===PA));
+  document.querySelectorAll("#dang button").forEach(b=>b.classList.toggle("on", b.dataset.v===DANG));
+  document.getElementById("desc").innerHTML = `<h3>${MO[PA].t}</h3>${MO[PA].p.map(x=>`<p>${x}</p>`).join('')}`;
+  const noi = document.getElementById("noi");
+  if (DANG==="bang"){
+    const chip = LOC?.kh!=null ? `Khách: ${KHACH[LOC.kh].ten}` : LOC?.ngay!=null ? `Chốt ngày ${String(LOC.ngay).padStart(2,'0')}/10` : null;
+    noi.innerHTML = (chip?`<div class="locchip"><button id="boloc">${chip} ✕</button></div>`:'') + (HL?`<div class="ghi-loc">Đang tô đơn ${HL}, bấm từ biểu đồ.</div>`:'') + bang();
+  } else {
+    noi.innerHTML = `<div style="overflow:auto;min-height:0">${({A,B,C})[PA]()}</div>`;
+  }
+}
+document.addEventListener("click", e => {
+  const p = e.target.closest(".pill"); if (p){ PA=p.dataset.pa; DANG="bieu"; LOC=null; HL=null; ve(); return; }
+  const dg = e.target.closest("#dang button"); if (dg){ DANG=dg.dataset.v; if(DANG==="bieu"){LOC=null;HL=null;} ve(); return; }
+  if (e.target.closest("#boloc")){ LOC=null; ve(); return; }
+  const ta = e.target.closest("[data-taba]"); if (ta){ TAB_A=ta.dataset.taba; ve(); return; }
+  const tb = e.target.closest("[data-tabb]"); if (tb){ TAB_B=tb.dataset.tabb; ve(); return; }
+  const kh = e.target.closest("[data-kh]"); if (kh){ DANG="bang"; LOC={kh:+kh.dataset.kh}; HL=null; ve(); return; }
+  const ng = e.target.closest("[data-ngay]"); if (ng){ DANG="bang"; LOC={ngay:+ng.dataset.ngay}; HL=null; ve(); return; }
+  const dn = e.target.closest("[data-don]"); if (dn){ DANG="bang"; LOC=null; HL=dn.dataset.don; ve(); return; }
+});
+ve();
+</script>
+</body>
+</html>

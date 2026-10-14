@@ -6,7 +6,10 @@ import { useAuth } from "../../auth/useAuth";
 import type { GiaTriDK } from "./thanh-loc";
 
 /** Nạp một lần khi có phiên; lỗi thì rỗng (thanh lọc vẫn chạy, chỉ thiếu giá trị để chọn). */
-export function useLuaChonLoc(nap: (token: string) => Promise<LuaChonLoc[]>): GiaTriDK[] {
+/** `id` là chữ khi giá trị là mã cố định (vd Nguồn: "kcs", "giao_hang") thay vì id bản ghi. */
+export function useLuaChonLoc(
+  nap: (token: string) => Promise<(Omit<LuaChonLoc, "id"> & { id: number | string })[]>,
+): GiaTriDK[] {
   const { token } = useAuth();
   const [ds, setDs] = useState<GiaTriDK[]>([]);
   useEffect(() => {

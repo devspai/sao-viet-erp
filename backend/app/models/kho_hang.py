@@ -27,6 +27,14 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+#: KHO THÀNH PHẨM của hệ thống (12/10/2026, mg 0398) — cùng khuôn các mục cố định `HT-xx` của Mục thu
+#: chi: một dòng có sẵn, mã cố định, KHÔNG xoá / ngừng dùng / đổi tên được (`KhoHangService`). Vẫn là
+#: dòng thật trong bảng (lô tồn trỏ khoá ngoại vào), nên sửa vị trí / ghi chú / vị trí cất vẫn được.
+#: Mã không theo dạng `KHO-####` ⇒ `next_ma()` bỏ qua nó.
+MA_KHO_THANH_PHAM = "KHO-TP"
+TEN_KHO_THANH_PHAM = "Kho thành phẩm"
+
+
 class KhoHang(Base):
     """1 dòng = 1 kho đã khai báo (vd "Kho thành phẩm")."""
 
@@ -37,7 +45,6 @@ class KhoHang(Base):
     ten: Mapped[str] = mapped_column(String(150), nullable=False)          # "Kho thành phẩm"
     vi_tri: Mapped[str | None] = mapped_column(String(255), nullable=True)  # "Tầng 1 — xưởng A"
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
-
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

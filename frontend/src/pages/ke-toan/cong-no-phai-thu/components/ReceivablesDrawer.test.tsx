@@ -79,10 +79,10 @@ function chiTiet(p: Partial<ReceivablesDetail> = {}): ReceivablesDetail {
 function soCai(p: Partial<SoChiTietCongNo> = {}): SoChiTietCongNo {
   return {
     tk: "131", tieu_de: "Sổ chi tiết", doi_tuong_id: 12, ma: "KH012", ten: "Thực phẩm An Phát",
-    tu_ngay: "2026-10-01", den_ngay: "2026-10-31", dau_no: 36_000_000, dau_co: 0,
+    tu_ngay: "2026-10-01", den_ngay: "2026-10-31", dau_no: 36_000_000, dau_co: 0, hoan: 0,
     dong: [
-      { ngay: "2026-10-01", luc: null, loai: "hoa_don", so_ct: "1C26TSV 0001251", dien_giai: "Hoá đơn bán hàng",
-        no: 106_000_000, co: 0, luy_ke_no: 142_000_000, luy_ke_co: 0 },
+      { ngay: "2026-10-01", luc: null, loai: "hoa_don", so_ct: "1C26TSV 0001251", ky_hieu: "1C26TSV", don_id: 40,
+        dien_giai: "Hoá đơn bán hàng", no: 106_000_000, co: 0, luy_ke_no: 142_000_000, luy_ke_co: 0 },
       { ngay: "2026-10-03", luc: null, loai: "phieu_thu", so_ct: "PT-300", dien_giai: "Thu tiền hoá đơn 0001234",
         no: 0, co: 32_000_000, luy_ke_no: 110_000_000, luy_ke_co: 0 },
     ],
@@ -175,7 +175,7 @@ describe("ReceivablesDrawer — đầu ngăn", () => {
     expect(within(cot).queryByText("Hạn mức")).toBeNull();
     expect(within(cot).getByText("Hạn mức và cho nợ").nextElementSibling).toHaveTextContent("chưa đặtĐặt trong hồ sơ");
     const dong = screen.getByText("0001251").closest("tr")!;
-    expect(dong.querySelectorAll("td")[2].textContent).toBe("–");
+    expect(dong.querySelectorAll("td")[3].textContent).toBe("–");
     expect(screen.queryByText(/chưa đặt hạn/)).toBeNull();
     await userEvent.click(within(cot).getByRole("button", { name: "Đặt trong hồ sơ" }));
     expect(navigate).toHaveBeenCalledWith("khach-hang", { openCustomerId: 12 });
@@ -183,11 +183,11 @@ describe("ReceivablesDrawer — đầu ngăn", () => {
 });
 
 describe("ReceivablesDrawer — tab Còn nợ", () => {
-  it("một lưới nhóm theo đơn bán: số + ký hiệu, ngày đủ năm, hạn trễ / còn N ngày; Trừ cọc và Đã thu tách cột", async () => {
+  it("một lưới nhóm theo đơn bán: số và ký hiệu hai cột, ngày đủ năm, hạn trễ / còn N ngày; Trừ cọc và Đã thu tách cột", async () => {
     await moNgan();
     const bang = screen.getByRole("table", { name: "Hoá đơn còn nợ" });
     expect(within(bang).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(
-      ["Hoá đơn", "Ngày", "Hạn thu", "Giá trị", "Trừ cọc", "Đã thu", "Còn nợ", ""]);
+      ["Số hoá đơn", "Ký hiệu", "Ngày", "Hạn thu", "Giá trị", "Trừ cọc", "Đã thu", "Còn nợ", ""]);
     expect(within(bang).getByRole("columnheader", { name: "Trừ cọc" })).toBeInTheDocument();
     expect(within(bang).getByRole("columnheader", { name: "Đã thu" })).toBeInTheDocument();
     // Không tick nhiều hoá đơn (máy chủ chưa thu gộp).
@@ -195,25 +195,31 @@ describe("ReceivablesDrawer — tab Còn nợ", () => {
 
     const dong = screen.getByText("0001198").closest("tr")!;
     expect([...dong.querySelectorAll("td")].map((c) => c.textContent)).toEqual(
-      ["00011981C26TSV", "21/07/2026", "20/08/2026trễ 46", "36.000.000", "–", "–", "36.000.000", "Thu"]);
+      ["0001198", "1C26TSV", "21/07/2026", "20/08/2026trễ 46", "36.000.000", "–", "–", "36.000.000", "Thu"]);
     expect(within(dong).getByText("1C26TSV")).toHaveClass("lds-mu");
     expect(within(dong).getByText("trễ 46")).toHaveClass("lds-do");
     expect(dong.textContent).not.toMatch(/[·•]|, /);
 
     const dong2 = screen.getByText("0001234").closest("tr")!;
-    expect([...dong2.querySelectorAll("td")].slice(2, 7).map((c) => c.textContent)).toEqual(
+    expect([...dong2.querySelectorAll("td")].slice(3, 8).map((c) => c.textContent)).toEqual(
       ["22/10/2026còn 17", "96.000.000", "20.000.000", "32.000.000", "44.000.000"]);
     // Khách CÓ đặt cho nợ mà hoá đơn chưa có hạn (hoá đơn cũ): nói rõ.
-    expect(screen.getByText("0001251").closest("tr")!.querySelectorAll("td")[2]).toHaveTextContent("chưa đặt hạn");
+    expect(screen.getByText("0001251").closest("tr")!.querySelectorAll("td")[3]).toHaveTextContent("chưa đặt hạn");
 
     // Dòng nhóm: mã đơn mở Đơn hàng bán, "1 hoá đơn", 4 ô tổng; dòng Cộng cuối.
     const nhom = within(bang).getByRole("button", { name: "DH-0398" }).closest("tr")!;
     expect(nhom).toHaveClass("lds-nhom");
     expect(nhom).toHaveTextContent("DH-03981 hoá đơn");
+    // Dòng nhóm và dòng Cộng phủ đúng số cột tiêu đề — tách cột Ký hiệu từng làm hai dòng này lệch trái.
+    const soCot = within(bang).getAllByRole("columnheader").length;
+    const tongCot = (r: Element) => [...r.querySelectorAll("td")].reduce((t, c) => t + (c as HTMLTableCellElement).colSpan, 0);
+    expect(tongCot(nhom)).toBe(soCot);
+    expect(tongCot(within(bang).getByText("Cộng 3 hoá đơn").closest("tr")!)).toBe(soCot);
+    expect(nhom.querySelectorAll("td")[1]).toHaveTextContent("36.000.000");
     expect(within(bang).getByText("Cộng 3 hoá đơn").closest("tr")!.querySelectorAll("td")[1]).toHaveTextContent("238.000.000");
 
     await userEvent.click(within(nhom).getByRole("button", { name: "DH-0398" }));
-    expect(navigate).toHaveBeenCalledWith("don-hang-ban", { openOrderId: 40 });
+    expect(navigate).toHaveBeenCalledWith("don-hang-ban", { openOrderId: 40, openOrderChang: "hoadon" });
     expect(screen.getByRole("dialog").textContent).not.toMatch(/[·•]/);
   });
 
@@ -222,9 +228,12 @@ describe("ReceivablesDrawer — tab Còn nợ", () => {
     await userEvent.click(within(screen.getByRole("group", { name: "Xếp theo" })).getByRole("button", { name: "Hạn thu" }));
     const bang = screen.getByRole("table", { name: "Hoá đơn còn nợ" });
     expect(bang.querySelector(".lds-nhom")).toBeNull();
-    const o = [...bang.querySelectorAll("tbody tr:not(.lds-cong)")].map((r) => r.querySelector("td")!.textContent);
-    // Không còn dòng nhóm ⇒ mã đơn bán đứng sau số hoá đơn.
-    expect(o).toEqual(["0001198DH-0398", "0001234DH-0412", "0001251DH-0420"]);
+    expect(within(bang).getAllByRole("columnheader").slice(0, 3).map((c) => c.textContent))
+      .toEqual(["Số hoá đơn", "Ký hiệu", "Đơn bán"]);
+    const o = [...bang.querySelectorAll("tbody tr:not(.lds-cong)")]
+      .map((r) => [...r.querySelectorAll("td")].slice(0, 3).map((c) => c.textContent).join(" "));
+    // Không còn dòng nhóm ⇒ mã đơn bán có cột riêng.
+    expect(o).toEqual(["0001198 1C26TSV DH-0398", "0001234 1C26TSV DH-0412", "0001251  DH-0420"]);
   });
 
   it("ô hạn hẹp: bỏ chữ 'ngày', title và cột thuộc tính giữ chữ đủ", async () => {
@@ -264,20 +273,23 @@ describe("ReceivablesDrawer — tab Còn nợ", () => {
 });
 
 describe("ReceivablesDrawer — Sao kê và Lịch sử", () => {
-  it("bấm số Đã thu ngoài bảng mở thẳng Sao kê: đầu kỳ, số dư chạy, cuối kỳ; phiếu thu mở được", async () => {
+  it("bấm số Đã thu ngoài bảng mở thẳng Sao kê: đầu kỳ, số dư chạy, cuối kỳ; số hoá đơn và ký hiệu hai cột; phiếu thu và hoá đơn mở được", async () => {
     render(ve({ bucket: "paid" }));
     const bang = await screen.findByRole("table");
     expect(saoKeDoiTac).toHaveBeenCalledWith("token-test", "receivables", 12, { tuNgay: KY.tu, denNgay: KY.den });
     const dong = within(bang).getAllByRole("row").slice(1).map((r) => [...r.querySelectorAll("td")].map((c) => c.textContent));
     expect(dong).toEqual([
       ["01/10/2026", "", "Số dư đầu kỳ", "", "", "36.000.000"],
-      ["01/10/2026", "1C26TSV 0001251", "Hoá đơn bán hàng", "106.000.000", "", "142.000.000"],
-      ["03/10/2026", "PT-300", "Thu tiền hoá đơn 0001234", "", "32.000.000", "110.000.000"],
+      ["01/10/2026", "0001251", "1C26TSV", "Hoá đơn bán hàng", "106.000.000", "", "142.000.000"],
+      ["03/10/2026", "PT-300", "", "Thu tiền hoá đơn 0001234", "", "32.000.000", "110.000.000"],
       ["31/10/2026", "", "Số dư cuối kỳ", "106.000.000", "32.000.000", "110.000.000"],
     ]);
     expect(screen.getByText("Số dư = khách còn nợ mình")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "PT-300" }));
     expect(navigate).toHaveBeenCalledWith("ke-toan-phieu-thu", { focusReceiptQuery: "PT-300" });
+    // Hoá đơn không có màn riêng: bấm số mở đơn bán của nó.
+    await userEvent.click(within(bang).getByRole("button", { name: "0001251" }));
+    expect(navigate).toHaveBeenCalledWith("don-hang-ban", { openOrderId: 40, openOrderChang: "hoadon" });
   });
 
   it("đổi kỳ sao kê thì tải lại đúng khoảng; Tuỳ chọn ngược thì báo, không gọi máy chủ", async () => {
@@ -358,8 +370,8 @@ describe("ReceivablesDrawer — Thu tiền (NPTh-3)", () => {
     expect(await screen.findByText("Đã lập PT-261006-AB12")).toBeInTheDocument();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     const dongMoi = screen.getByText("0001198").closest("tr")!;
-    expect(dongMoi.querySelectorAll("td")[6]).toHaveTextContent("26.000.000");
-    expect(dongMoi.querySelectorAll("td")[5]).toHaveTextContent("10.000.000");
+    expect(dongMoi.querySelectorAll("td")[7]).toHaveTextContent("26.000.000");
+    expect(dongMoi.querySelectorAll("td")[6]).toHaveTextContent("10.000.000");
     expect(onChanged).toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Xem phiếu" }));
     expect(navigate).toHaveBeenCalledWith("ke-toan-phieu-thu", { focusReceiptQuery: "PT-261006-AB12" });

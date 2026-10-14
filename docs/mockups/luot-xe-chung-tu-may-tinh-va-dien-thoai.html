@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chứng từ lượt xe</title>
+<style>
+  :root{
+    --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --soft:#f8fafc; --paper:#fff; --hover:#f1f5f9; --chon:#eef2ff;
+    --accent:#1f2937;
+    --la-bg:#dcfce7; --la-fg:#15803d; --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8;
+    --vang-bg:#fef3c7; --vang-fg:#b45309; --cam-bg:#ffedd5; --cam-fg:#c2410c;
+    --tim-bg:#ede9fe; --tim-fg:#6d28d9; --ngoc-bg:#ccfbf1; --ngoc-fg:#0f766e;
+    --xam-bg:#f1f5f9; --xam-fg:#475569;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef1f5;color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+  b,h1,h2,th{font-weight:500}
+  .trang{max-width:1240px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:22px;margin:0 0 6px} h2{font-size:18px;margin:36px 0 4px}
+  p.mo{color:var(--mute);margin:0 0 12px;max-width:940px}
+  .ghi{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0}
+  .ghi ol{margin:6px 0 0;padding-left:20px} .ghi li{margin:3px 0}
+  .mute{color:var(--mute)} .nho{font-size:12px}
+
+  .ngan{background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 30px rgba(15,23,42,.08);width:1100px;max-width:100%;overflow:hidden}
+  .ngan__dau{padding:16px 22px 0}
+  .duong{color:var(--mute);font-size:13px}
+  .tieu{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+  .tieu .ma{font-size:20px}
+  .kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 12px}
+  .kv dt{color:var(--mute);font-size:12px} .kv dd{margin:0} .kv small{display:block;color:var(--mute);font-size:12px}
+  .tabs{display:flex;gap:20px;border-bottom:1px solid var(--line)}
+  .tabs span{padding:8px 0;color:var(--mute)} .tabs span.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+  .than{padding:16px 22px 22px}
+
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px;font-size:12px;white-space:nowrap}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+  .c-la{background:var(--la-bg);color:var(--la-fg)} .c-xanh{background:var(--xanh-bg);color:var(--xanh-fg)}
+  .c-vang{background:var(--vang-bg);color:var(--vang-fg)} .c-cam{background:var(--cam-bg);color:var(--cam-fg)}
+  .the{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;font-size:12px;color:var(--mute)}
+  .btn{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+  .btn--chinh{background:var(--accent);border-color:var(--accent);color:#fff}
+  a.lk{color:var(--xanh-fg);text-decoration:none;font-size:13px}
+
+  .so-tron{display:inline-grid;place-items:center;flex:none;width:24px;height:24px;border-radius:50%;font-size:12px;color:#fff;background:var(--la-fg)}
+  .so-tron.dang{background:var(--xanh-fg)}
+
+  /* Máy tính */
+  .ct{display:grid;grid-template-columns:280px minmax(0,1fr);gap:20px}
+  .ray{display:flex;flex-direction:column;gap:6px}
+  .don{display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .don:hover{background:var(--hover)}
+  .don.chon{background:var(--chon);border-color:#c7d2fe}
+  .don .ten{line-height:1.35}
+  .don .phu{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px}
+  .kep{font-size:12px;color:var(--mute);display:inline-flex;align-items:center;gap:3px}
+  .kep.co{color:var(--ngoc-fg)}
+
+  .muc{font-size:13px;color:var(--mute);margin:0 0 8px;display:flex;align-items:baseline;gap:8px}
+  .giay{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:22px}
+  .gd{display:grid;grid-template-columns:36px minmax(0,1fr) 170px 200px 56px;gap:14px;align-items:center;padding:11px 14px;border-top:1px solid var(--line)}
+  .gd:first-child{border-top:0}
+  .gd .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:16px}
+  .ic-giao{background:var(--xanh-bg);color:var(--xanh-fg)} .ic-kho{background:var(--tim-bg);color:var(--tim-fg)} .ic-tra{background:var(--cam-bg);color:var(--cam-fg)}
+  .gd .loai{line-height:1.3} .gd .so{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+  .gd .ai{font-size:13px;line-height:1.3} .gd .ai small{display:block;color:var(--mute);font-size:12px}
+  .gd .mo{text-align:right}
+
+  .tep{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .anh{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper)}
+  .anh .hinh{height:96px;background:linear-gradient(135deg,#e2e8f0,#f8fafc);display:grid;place-items:center;color:var(--mute);font-size:12px}
+  .anh .hinh.pdf{background:#fef2f2;color:#b91c1c}
+  .anh .tn{padding:6px 8px;font-size:12px;line-height:1.3;word-break:break-word}
+  .anh .tn small{display:block;color:var(--mute)}
+  .them{border:1.5px dashed #cbd5e1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:140px;color:var(--mute);font-size:12px;text-align:center;padding:10px;background:var(--soft)}
+  .them .icn{font-size:20px;color:var(--ink)}
+
+  /* Điện thoại */
+  .dt-hang{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .dt-nhan{font-size:13px;color:var(--mute);margin-bottom:6px}
+  .dt{width:375px;height:780px;border:10px solid #1f2937;border-radius:34px;background:var(--paper);overflow:hidden;display:flex;flex-direction:column}
+  .dt__cuon{flex:1;overflow-y:auto;padding:12px 16px 20px}
+  .dt .tieu{flex-wrap:wrap;gap:8px} .dt .tieu .ma{font-size:17px;flex:1 1 auto}
+  .dt .kv{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:10px 0}
+  .dt .tabs{margin:0 -16px;padding:0 16px;gap:18px}
+  .dt-ray{position:relative;display:flex;gap:8px;overflow-x:auto;margin:14px -16px 4px;padding:0 16px 4px;scrollbar-width:none}
+  .dt-ray .don{flex:none;width:230px;border-color:var(--line);background:var(--paper)}
+  .dt-ray .don.chon{background:var(--chon);border-color:#c7d2fe}
+  .dt-dau{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+  .dt .giay{border-radius:10px}
+  .dt .gd{grid-template-columns:36px minmax(0,1fr) auto;grid-template-areas:"ic loai tt" "ic loai ai";gap:2px 10px;align-items:start}
+  .dt .gd .ic{grid-area:ic} .dt .gd > div:nth-child(2){grid-area:loai} .dt .gd .tt{grid-area:tt;text-align:right}
+  .dt .gd .ai{grid-area:ai;text-align:right;font-size:12px} .dt .gd .ai small{display:inline;margin-left:4px} .dt .gd .mo{display:none}
+  .dt .gd .dau-gd{display:flex;justify-content:flex-start;gap:8px;flex-wrap:wrap;align-items:center}
+  .dt .tep{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dt-nut-tep{display:flex;gap:8px;margin-bottom:10px}
+  .dt-nut-tep .btn{flex:1;height:46px;font-size:15px;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="trang">
+<h1>Tab Chứng từ của ngăn Lượt xe — chỉnh cho bắt mắt + bản điện thoại</h1>
+<p class="mo">Giữ nguyên logic hiện tại: mỗi đơn một bộ giấy tờ, cột trái chọn đơn, bên phải giấy tờ và tệp của đơn đang chọn; các dòng giấy tờ và chữ trạng thái lấy đúng như <code>ChungTuDon</code> trong <code>NganLuot.tsx</code> (Phiếu giao hàng, Yêu cầu xuất kho hoặc Phiếu xuất kho, Phiếu nhập trả khi có trả hàng). Chỉ đổi cách bày.</p>
+
+<div class="ghi">Đổi gì so với ảnh hiện tại:
+<ol>
+  <li>Cột đơn: bỏ chữ đậm và viền đen dày; đơn đang chọn tô nền xanh nhạt. Chip trạng thái của đơn chuyển về đây, cạnh mã đơn, PO và số tệp (kẹp giấy, có tệp thì màu ngọc).</li>
+  <li>Bên phải thôi nhắc lại tên khách và mã đơn — cột trái đã nói (mỗi thông tin nói một lần). Bắt đầu ngay bằng Giấy tờ.</li>
+  <li>Giấy tờ từ bảng 4 cột thưa thành danh sách dòng có ô biểu tượng màu theo loại (giao: xanh dương, kho: tím, trả: cam). Số giấy tờ nằm dưới tên loại. Giờ hết đóng hộp, thành chữ xám dưới tên người. Cuối dòng có nút Mở để sang phiếu.</li>
+  <li>Tệp: có tệp thì lưới ảnh thu nhỏ, ô "Thêm tệp" là ô cuối của lưới; chưa có tệp thì vẫn ô kéo-thả như cũ nhưng thấp hơn.</li>
+</ol>
+Dữ liệu đơn 1 lấy từ ảnh. Hai tệp ở đơn 2 và trạng thái "Đã xuất kho" của đơn 2 là GIẢ ĐỊNH để thấy lưới ảnh và chip xanh.</div>
+
+<h2>Máy tính</h2>
+<div class="ngan" id="mt"></div>
+
+<h2>Điện thoại (375px)</h2>
+<p class="mo">Cột đơn thành dải thẻ trượt ngang ngay dưới tab (cùng chỗ với dải điểm của tab Lộ trình phương án C). Mỗi dòng giấy tờ hai tầng: trái là tên loại và số, phải là chip trạng thái và người làm kèm giờ; bấm cả dòng để mở phiếu nên bỏ nút Mở. Phần tệp có hai nút to <i>Chụp ảnh</i> (mở thẳng camera sau để chụp biên bản khách ký) và <i>Chọn tệp</i>; ảnh xếp 2 cột.</p>
+<div class="dt-hang">
+  <div><div class="dt-nhan">Đơn 1, chưa có tệp</div><div class="dt" id="dt1"></div></div>
+  <div><div class="dt-nhan">Đơn 2, đã có 2 tệp</div><div class="dt" id="dt2"></div></div>
+</div>
+</div>
+
+<script>
+const DON = [
+  {kh:"CÔNG TY CỔ PHẦN CAFÉ KATINAT", dh:"DH008", po:"po999", tt:["Giao thành công","la"],
+   giay:[
+     {ic:"giao", loai:"Phiếu giao hàng", so:"YCGH-261012-PQKC", tt:["Khách đã ký","la"], ai:"hh", luc:"09:29 12/10"},
+     {ic:"kho", loai:"Yêu cầu xuất kho", so:"DNX00090", tt:["Chờ kho lập phiếu","cam"]},
+   ], tep:[]},
+  {kh:"CÔNG TY CỔ PHẦN CAFÉ KATINAT", dh:"DH004", po:"www", tt:["Giao thành công","la"],
+   giay:[
+     {ic:"giao", loai:"Phiếu giao hàng", so:"YCGH-261006-UHN8", tt:["Khách đã ký","la"], ai:"hh", luc:"09:30 12/10"},
+     {ic:"kho", loai:"Phiếu xuất kho", so:"PXK-261012-0041", tt:["Đã xuất kho","la"], ai:"Lê Thị Kho", luc:"08:02 12/10"},
+   ], tep:[{ten:"bien-ban-ky-nhan.jpg", kt:"1,2 MB", loai:"anh"},{ten:"hoa-don-0001234.pdf", kt:"340 KB", loai:"pdf"}]},
+];
+const IC = {giao:"🚚", kho:"📦", tra:"↩"};
+const DAU = (dt) => `
+  <div class="${dt?"":"ngan__dau"}">
+    <div class="duong">Lượt xe</div>
+    <div class="tieu"><span class="ma">LX-261012-R2CQ</span><span class="chip c-la">Đã về kho</span></div>
+    <dl class="kv">
+      <div><dt>Xe</dt><dd>51D-40752<small>Xe a Sang</small></dd></div>
+      <div><dt>Kíp</dt><dd>Trần Hùng Tín<small>phụ xe Trần Văn Thạch Sang</small></dd></div>
+      <div><dt>Xuất phát</dt><dd>09:29 12/10<small>đồng hồ 5.731</small></dd></div>
+      <div><dt>Đã chạy</dt><dd>2.269 km<small>2 trên 2 điểm</small></dd></div>
+    </dl>
+    <div class="tabs"><span>Lộ trình</span><span class="on">Chứng từ</span><span>Lịch sử</span></div>
+  </div>`;
+const theDon = (d,i,chon) => `<div class="don${i===chon?" chon":""}" data-i="${i}">
+   <span class="so-tron">${i+1}</span>
+   <div><div class="ten">${d.kh}</div>
+     <div class="phu"><span class="the">${d.dh}</span><span class="the">PO ${d.po}</span>
+       <span class="chip c-${d.tt[1]}">${d.tt[0]}</span>
+       <span class="kep${d.tep.length?" co":""}">📎 ${d.tep.length?d.tep.length+" tệp":"chưa có tệp"}</span></div></div></div>`;
+const dongGiay = g => `<div class="gd">
+   <span class="ic ic-${g.ic}">${IC[g.ic]}</span>
+   <div><div class="dau-gd"><span class="loai">${g.loai}</span></div><div class="so">${g.so}</div></div>
+   <div class="tt"><span class="chip c-${g.tt[1]}">${g.tt[0]}</span></div>
+   <div class="ai">${g.ai?`${g.ai}<small>${g.luc}</small>`:`<span class="mute">Chưa có ai làm</span>`}</div>
+   <div class="mo"><a class="lk" href="#">Mở</a></div></div>`;
+const tep = (d, dt) => {
+  if (!d.tep.length) return (dt?`<div class="dt-nut-tep"><button class="btn btn--chinh">📷 Chụp ảnh</button><button class="btn">Chọn tệp</button></div>`:"")
+    + `<div class="them" style="min-height:${dt?84:110}px"><span class="icn">⤒</span>Chưa có tệp. ${dt?"Ảnh biên bản khách ký, hoá đơn":"Kéo ảnh hoá đơn hoặc biên bản khách ký vào đây <button class='btn'>Chọn tệp</button>"}<br><span>Ảnh hoặc PDF, tối đa 10 MB mỗi tệp</span></div>`;
+  return (dt?`<div class="dt-nut-tep"><button class="btn btn--chinh">📷 Chụp ảnh</button><button class="btn">Chọn tệp</button></div>`:"")
+    + `<div class="tep">${d.tep.map(f=>`<div class="anh"><div class="hinh ${f.loai==="pdf"?"pdf":""}">${f.loai==="pdf"?"PDF":"ảnh"}</div><div class="tn">${f.ten}<small>${f.kt}</small></div></div>`).join("")}
+       ${dt?"":`<div class="them"><span class="icn">＋</span>Thêm tệp<br>kéo vào hoặc bấm</div>`}</div>`;
+};
+const phai = (d, dt) => `
+  <div class="muc">Giấy tờ của đơn</div>
+  <div class="giay">${d.giay.map(dongGiay).join("")}</div>
+  <div class="muc">Tệp đính kèm của đơn ${d.tep.length?`<span class="nho">${d.tep.length} tệp</span>`:""}</div>
+  ${tep(d, dt)}`;
+
+function veMT(chon){
+  const el = document.getElementById("mt");
+  el.innerHTML = DAU(false) + `<div class="than"><div class="ct"><div class="ray">${DON.map((d,i)=>theDon(d,i,chon)).join("")}</div><div>${phai(DON[chon],false)}</div></div></div>`;
+  el.querySelectorAll(".don").forEach(e=>e.onclick=()=>veMT(+e.dataset.i));
+}
+function veDT(id, chon){
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="dt__cuon">${DAU(true)}
+     <div class="dt-ray">${DON.map((d,i)=>theDon(d,i,chon)).join("")}</div>
+     <div style="height:12px"></div>${phai(DON[chon],true)}</div>`;
+  el.querySelectorAll(".don").forEach(e=>e.onclick=()=>veDT(id,+e.dataset.i));
+  const c = el.querySelector(".dt-ray .don.chon"); if (c) el.querySelector(".dt-ray").scrollLeft = c.offsetLeft - 16;
+}
+veMT(0); veDT("dt1",0); veDT("dt2",1);
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@ export const NHAN_TRANG_THAI_YC: Record<string, string> = {
 
 export const NHAN_TRANG_THAI_CHUYEN: Record<string, string> = {
   da_len_ke_hoach: "Đã lên kế hoạch",
-  dang_chuan_bi: "Kho đang chuẩn bị",
+  dang_chuan_bi: "Chờ kho xuất",
   da_lay_hang: "Đã lấy hàng",
   dang_giao: "Đang giao",
   thanh_cong: "Giao thành công",

@@ -98,6 +98,10 @@ export type CauHinhThanCongNo<R> = {
   /** Lần thu / trả gần nhất (cả lịch sử); null = chưa lần nào. */
   ganNhat: (r: R) => { ngay: string; tien: number } | null;
   lienHe: (r: R) => { ten?: string | null; sdt?: string | null; phuTrach?: string | null };
+  /** Nút lọc nhanh thêm sau ba nút chung (phải thu: "Còn giữ cọc đơn huỷ"). */
+  theThem?: [TheCongNo, string][];
+  /** Dấu cạnh tên đối tác (phải thu: cọc đơn huỷ còn giữ). */
+  danhDau?: (r: R) => ReactNode;
 };
 
 /** Hai bộ cột của lưới; lựa chọn nhớ chung cho hai màn. */
@@ -167,7 +171,7 @@ function NutSo({ onBam, children }: { onBam: () => void; children: ReactNode }) 
 }
 
 /** Mục của hàng lọc nhanh → màu chấm (mỗi mục một sắc). */
-const MAU_THE: Record<TheCongNo, MauTT | undefined> = { all: undefined, overdue: "do", vuot_han_muc: "vang" };
+const MAU_THE: Record<TheCongNo, MauTT | undefined> = { all: undefined, overdue: "do", vuot_han_muc: "vang", tra_coc: "cam" };
 
 export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>({
   ch,
@@ -215,7 +219,8 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
   // sống còn: số đang để trống, không phải bằng 0.
   const chuLoiDu = sp.loi ? (sp.loi === ch.chuLoi ? ch.chuLoi : `${ch.chuLoi} ${sp.loi}`) : null;
 
-  const muc: MucLocNhanh[] = THE_CONG_NO.map(([id, nhan]) => ({
+  const cacThe = [...THE_CONG_NO, ...(ch.theThem ?? [])];
+  const muc: MucLocNhanh[] = cacThe.map(([id, nhan]) => ({
     key: id,
     label: nhan,
     mau: MAU_THE[id],
@@ -224,7 +229,7 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
   // "Trạng thái" trong nút Lọc = hàng lọc nhanh Tất cả / Quá hạn / Vượt hạn mức (đọc/ghi thẳng mục đang chọn).
   const dkDu: DieuKien<LocThanhCongNo>[] = [
     dkTheoTab<LocThanhCongNo>({
-      tabs: THE_CONG_NO.map(([id, nhan]) => ({ id, nhan, so: sp.demThe?.[id] })),
+      tabs: cacThe.map(([id, nhan]) => ({ id, nhan, so: sp.demThe?.[id] })),
       tatCa: "all",
       dang: the,
       dat: (id) => sp.setThe(id as TheCongNo),
@@ -278,8 +283,12 @@ export function ThanTrangCongNo<R extends DongCongNo, S extends TomTatTrang<R>>(
     const daTra = ch.daTraTrongKy(row);
     const pt = row.credit_limit > 0 ? Math.round((row.total_due / row.credit_limit) * 100) : null;
     switch (c.key) {
-      case "ten":
-        return <td key={c.key} title={ten}>{ten}</td>;
+      case "ten": {
+        const dau = ch.danhDau?.(row);
+        return dau ? (
+          <td key={c.key} title={ten}><div className="kt-ten-dau"><span>{ten}</span>{dau}</div></td>
+        ) : <td key={c.key} title={ten}>{ten}</td>;
+      }
       case "khoan":
         return <td key={c.key} className="n lds-mu">{soHoacGach(soKhoanCua(row))}</td>;
       case "con_no":

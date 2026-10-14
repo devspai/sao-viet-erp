@@ -1,11 +1,11 @@
-// Khung màn Theo dõi sản xuất (làm gọn 05/10/2026, đặc tả 3): đổi góc nhớ trong localStorage, mỗi
-// lượt chỉ gọi ĐÚNG góc đang xem, thẻ lọc bất thường lọc bảng (một mục một lúc, bấm lại để bỏ),
-// 403 nói đúng tên màn, lọc rỗng có nút Xoá bộ lọc. Lên lưới chung 08/10/2026.
-import { render, screen, waitFor } from "@testing-library/react";
+// Màn Theo dõi sản xuất THEO ĐƠN (12/10/2026): chip đếm do máy chủ trả, chọn chip/điều kiện gửi tham số
+// lên máy chủ, 403 nói đúng tên màn, bấm dòng mở ngăn bảng mặt hàng; đơn một món bung sẵn routing, nhiều
+// món thì chip lọc món và bấm món để bung; mã lệnh chỉ bấm được khi có quyền Hồ sơ lệnh.
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ModuleCapability, TdsxBoLocOut, TdsxTheoLenhOut, TdsxTheoMayOut } from "../api/client";
+import type { ModuleCapability, TdsxBuoc, TdsxDonChiTiet, TdsxDonDong, TdsxMon, TdsxTheoDonOut } from "../api/client";
 import { AuthContext, type AuthState } from "../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../auth/permissions";
 import { TheoDoiSanXuatPage } from "./TheoDoiSanXuatPage";
@@ -16,63 +16,68 @@ const AUTH: AuthState = {
   updateUser: () => {}, notice: null, setNotice: () => {},
 };
 
-const DEM = { tre_han: 2, su_co: 0, tam_dung: 0, kcs_khong_dat: 0, may_hong: 1, chua_may: 0 };
-
-const BO_LOC: TdsxBoLocOut = {
-  may: [{ id: "3", ten: "Máy in A", ngung_dung: false, co_viec: true }],
-  khach_hang: [{ id: "9", ten: "Công ty Sao" }],
+const DONG: TdsxDonDong = {
+  order_id: 7, order_no: "DH007", khach_hang: "Công ty Sao", phu_trach: "Huyên", so_mon: 1,
+  mon_dau: "Hộp thuốc", so_luong: 1000, don_vi: "cái", chang: "sx", chang_ket: true,
+  dai_dien: {
+    ten: "Hộp thuốc", o: "xuong", nhom: "vuong", dat: 1000, don_vi: "cái", kho_da_nhan: 0, da_giao: 0,
+    buoc: "Cán màng", buoc_so: 2, buoc_tong: 3, pct: 40, nha_gia_cong: null,
+  },
+  so_mon_kho: 0, so_mon_giao: 0, han_giao: "2026-10-20", du_kien_xong: "2026-10-18T10:00:00",
+  tre_ngay: null, con_ngay: 8, vuong: { so_mon: 1, ly_do: "thieu_vat_tu", buoc: "Cán màng" },
+  nhom: "dang_lam", can_de_y: true,
 };
 
-const THEO_MAY: TdsxTheoMayOut = {
-  nhom: [{
-    loai: "may", ten: "Máy in",
-    dong: [{
-      khoa: "may:3", may_id: 3, ten: "Máy in A", ngung_dung: false,
-      tinh_trang: "dang_chay", nhan_tinh_trang: "Đang chạy",
-      dang_chay: {
-        cong_viec_id: 500, ten_buoc: "In", trang_thai: "running", bai_ma: null,
-        lsx: [{ lsx_id: 31, ma: "LSX26-0031", ten: "Hộp thuốc", is_rush: false }],
-      },
-      dang_chay_them: 0, san_luong: null, ke_hoach_xong: null, ke_hoach_bat_dau: null,
-      ke_tiep: [], ke_tiep_them: 0,
-    }],
+const LIST: TdsxTheoDonOut = {
+  items: [DONG], total: 1, page: 1, page_size: 25,
+  dem: { tat_ca: 1, can_de_y: 1, dang_lam: 1, cho_giao: 0, da_giao: 0 },
+};
+
+const buoc = (ten: string, trang_thai: string, hien_tai = false): TdsxBuoc => ({
+  ten, to: "Tổ " + ten, ngoai: false, nha_cung_cap: null, trang_thai, hien_tai,
+  hoan_thanh_luc: trang_thai === "xong" ? "2026-10-11T09:00:00" : null, kcs_khong_dat: 0,
+  lam_ra: trang_thai === "xong" ? 1000 : 0, ke_hoach_ra: 1000, don_vi_ra: "tờ",
+});
+
+const mon = (khoa: string, ten: string, nhom: TdsxMon["nhom"], lsxId: number): TdsxMon => ({
+  khoa, ten, dat: 1000, don_vi: "cái", o: nhom === "kho" ? "du_hang" : "xuong", nhom,
+  co: nhom === "vuong" ? ["thieu_vat_tu"] : [], kho_da_nhan: nhom === "kho" ? 1000 : 0, da_giao: 0,
+  buoc: "Cán màng", buoc_so: 2, buoc_tong: 3, pct: 40, nha_gia_cong: null,
+  lam_ra: null, co_hang: nhom === "kho" ? 1000 : 0, co_tu_ton: 0, dang_giu: 0, con_phai_giao: 1000,
+  lenh: [{
+    id: lsxId, ma: `LSX26-00${lsxId}`, ten, o: "xuong", xong: false, co: [], da_xuong: true,
+    tron_goi: false, nha_gia_cong: null, buoc: "Cán màng", buoc_so: 2, buoc_tong: 3, pct: 40,
+    buoc_ds: [buoc("In", "xong"), buoc(`Cán màng ${ten}`, "dung", true), buoc("Đóng gói", "cho")],
+    lam_ra: 0, ke_hoach_ra: 1000, don_vi_ra: "cái",
   }],
-  may_trong: [],
-  bat_thuong: DEM,
+});
+
+const CT_MOT: TdsxDonChiTiet = {
+  don: DONG, mon: [mon("c1", "Hộp thuốc", "vuong", 31)], giao_xuong_luc: "2026-10-10T15:22:00Z",
+  // 02:00 UTC = 09:00 giờ xưởng, Chủ nhật 11/10.
+  lich_su: [{ luc: "2026-10-11T02:00:00Z", loai: "xong_buoc", noi_dung: "Xong In", lenh: "LSX26-0031" }],
+};
+const CT_NHIEU: TdsxDonChiTiet = {
+  don: { ...DONG, so_mon: 2, so_mon_kho: 1 },
+  mon: [mon("c1", "Hộp thuốc", "dang", 31), mon("c2", "Tờ hướng dẫn", "kho", 32)],
+  lich_su: [], giao_xuong_luc: null,
 };
 
-const THEO_LENH: TdsxTheoLenhOut = {
-  items: [{
-    lsx_id: 31, ma: "LSX26-0031", ten: "Hộp thuốc", is_rush: false, so_luong_dat: 100,
-    don_vi_tinh: "cái", khach_hang: "Công ty Sao", chang: [], buoc_hien_tai: "In",
-    khau: "dang_sx", khau_chi_tiet: null, han_hoan_thanh_sx: null, created_at: null, du_kien_xong: null,
-    canh_bao: [], tre_ngay: null,
-  }],
-  total: 1,
-  bat_thuong: DEM,
-};
+type Tuy = { list?: TdsxTheoDonOut; ct?: TdsxDonChiTiet; status?: number };
 
-type Tuy = { theoMay?: TdsxTheoMayOut; theoLenh?: TdsxTheoLenhOut; status?: number };
-
-/** Fetch giả phân biệt đường; trả mảng URL đã gọi để soi tham số. */
 function stubApi(t: Tuy = {}): string[] {
   const goi: string[] = [];
   vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     goi.push(url);
-    let data: unknown = {};
+    let data: unknown = [];
     let status = 200;
-    if (url.includes("/api/don-vi")) data = { items: [] };
-    else if (url.includes("/api/theo-doi-san-xuat/bo-loc")) data = BO_LOC;
-    else if (url.includes("/api/theo-doi-san-xuat/theo-may")) {
+    if (url.includes("/api/theo-doi-san-xuat/khach-loc")) data = [{ id: 9, ten: "Công ty Sao", so: 1 }];
+    else if (url.includes("/api/theo-doi-san-xuat/phu-trach-loc")) data = [{ id: 4, ten: "Huyên", so: 1 }];
+    else if (url.includes("/api/theo-doi-san-xuat/theo-don/")) data = t.ct ?? CT_MOT;
+    else if (url.includes("/api/theo-doi-san-xuat/theo-don")) {
       status = t.status ?? 200;
-      data = status === 200 ? (t.theoMay ?? THEO_MAY) : { detail: "Không có quyền" };
-    } else if (url.includes("/api/theo-doi-san-xuat/theo-lenh")) {
-      status = t.status ?? 200;
-      data = status === 200 ? (t.theoLenh ?? THEO_LENH) : { detail: "Không có quyền" };
-    } else if (url.includes("/api/lenh-san-xuat/")) {
-      status = 404;
-      data = { detail: "không có trong stub" };
+      data = status === 200 ? (t.list ?? LIST) : { detail: "Không có quyền" };
     }
     return Promise.resolve({
       ok: status < 400, status, headers: new Headers({ "content-type": "application/json" }),
@@ -82,115 +87,58 @@ function stubApi(t: Tuy = {}): string[] {
   return goi;
 }
 
-const CAPS = buildCapabilities([
-  { module_key: "theo_doi_san_xuat", scope: "all", can_read: true } as ModuleCapability,
-  { module_key: "lenh_san_xuat", scope: "all", can_read: true } as ModuleCapability,
-]);
-
-function ve() {
-  return render(
+function ve(coHoSo = true, navigate = vi.fn()) {
+  const caps = buildCapabilities([
+    { module_key: "theo_doi_san_xuat", scope: "all", can_read: true } as ModuleCapability,
+    ...(coHoSo ? [{ module_key: "lenh_san_xuat", scope: "all", can_read: true } as ModuleCapability] : []),
+  ]);
+  render(
     <AuthContext.Provider value={AUTH}>
-      <PermissionsProvider caps={CAPS}>
-        <TheoDoiSanXuatPage />
+      <PermissionsProvider caps={caps}>
+        <TheoDoiSanXuatPage navigate={navigate} />
       </PermissionsProvider>
     </AuthContext.Provider>,
   );
+  return navigate;
 }
 
 const goiToi = (goi: string[], duong: string) => goi.filter((u) => u.includes(duong));
 
-describe("TheoDoiSanXuatPage · khung màn", () => {
+describe("TheoDoiSanXuatPage · theo đơn", () => {
   beforeEach(() => {
     localStorage.clear();
-    // Thanh lọc ghi lên URL — mỗi bài bắt đầu từ URL sạch.
     window.history.replaceState(null, "", "/");
   });
 
-  it("⭐ mặc định Theo máy: chỉ gọi /theo-may, không gọi /theo-lenh", async () => {
-    const goi = stubApi();
+  it("⭐ một dòng một đơn: đang làm, hạn giao còn N ngày, đang vướng thành câu", async () => {
+    stubApi();
     ve();
-    await screen.findByText("Máy in A");
-    expect(screen.getByRole("button", { name: "Theo máy" })).toHaveAttribute("aria-pressed", "true");
-    expect(goiToi(goi, "/theo-may")).toHaveLength(1);
-    expect(goiToi(goi, "/theo-lenh")).toHaveLength(0);
-    // Điều kiện Máy chỉ có ở góc Theo lệnh.
-    await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
-    expect(screen.getByRole("menuitem", { name: /Khách hàng/ })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /^Máy/ })).toBeNull();
+    expect(await screen.findByText("DH007")).toBeInTheDocument();
+    expect(screen.getByText("Cán màng")).toBeInTheDocument();
+    expect(screen.getByText("bước 2 trên 3")).toBeInTheDocument();
+    expect(screen.getByText("còn 8 ngày")).toBeInTheDocument();
+    expect(screen.getByText("Thiếu vật tư ở Cán màng")).toBeInTheDocument();
   });
 
-  it("⭐ thẻ lọc bất thường: chữ + số máy chủ đếm, mục 0 chữ nhạt, bấm lọc rồi bấm lại để bỏ", async () => {
+  it("⭐ chip đếm do máy chủ trả; bấm chip gửi chip= lên máy chủ", async () => {
     const goi = stubApi();
     ve();
-    const tre = await screen.findByRole("button", { name: /^Lệnh trễ hạn/ });
-    await waitFor(() => expect(tre.textContent).toBe("Lệnh trễ hạn2"));
-    const suCo = screen.getByRole("button", { name: /^Sự cố đang mở/ });
-    expect(suCo.textContent).toBe("Sự cố đang mở0");
-    expect(suCo.className).toContain("z");
-    expect(screen.getByRole("button", { name: "Tất cả" })).toHaveAttribute("aria-pressed", "true");
-
-    await userEvent.click(tre);
-    expect(tre).toHaveAttribute("aria-pressed", "true");
-    await waitFor(() => expect(goiToi(goi, "bat_thuong=tre_han")).toHaveLength(1));
-
-    // Một mục một lúc: chọn "máy hỏng" thì "trễ hạn" nhả.
-    await userEvent.click(screen.getByRole("button", { name: /^Máy hỏng/ }));
-    expect(tre).toHaveAttribute("aria-pressed", "false");
-    await waitFor(() => expect(goiToi(goi, "bat_thuong=may_hong")).toHaveLength(1));
-
-    await userEvent.click(screen.getByRole("button", { name: /^Máy hỏng/ }));
-    expect(screen.getByRole("button", { name: /^Máy hỏng/ })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Tất cả" })).toHaveAttribute("aria-pressed", "true");
+    const canDeY = await screen.findByRole("button", { name: /^Cần để ý/ });
+    await waitFor(() => expect(canDeY.textContent).toBe("Cần để ý1"));
+    expect(screen.getByRole("button", { name: /^Chờ giao/ }).className).toContain("z");
+    await userEvent.click(canDeY);
+    await waitFor(() => expect(goiToi(goi, "chip=can_de_y")).toHaveLength(1));
   });
 
-  it("⭐ đổi sang Theo lệnh: gọi /theo-lenh, nhớ vào localStorage, có điều kiện Máy gửi may_id", async () => {
+  it("⭐ điều kiện Khách hàng gửi khach_hang_id", async () => {
     const goi = stubApi();
-    ve();
-    await screen.findByText("Máy in A");
-    await userEvent.click(screen.getByRole("button", { name: "Theo lệnh" }));
-    await screen.findByText("Hộp thuốc");
-    expect(localStorage.getItem("tdsx.goc")).toBe("theo_lenh");
-    expect(goiToi(goi, "/theo-lenh")).toHaveLength(1);
-
-    await userEvent.click(screen.getByRole("button", { name: "Lọc" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: /^Máy/ }));
-    await userEvent.click(screen.getByRole("radio", { name: /Máy in A/ }));
-    await waitFor(() => expect(goiToi(goi, "may_id=3")).toHaveLength(1));
-    // Bỏ điều kiện để bài sau không thừa hưởng (thanh lọc nhớ theo màn).
-    await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc Máy" }));
-  });
-
-  it("⭐ đã chọn Theo lệnh lần trước ⇒ mở màn là Theo lệnh, không gọi /theo-may", async () => {
-    localStorage.setItem("tdsx.goc", "theo_lenh");
-    const goi = stubApi();
-    ve();
-    await screen.findByText("Hộp thuốc");
-    expect(goiToi(goi, "/theo-may")).toHaveLength(0);
-  });
-
-  it("⭐ điều kiện Khách gửi khach_hang_id; lọc rỗng ⇒ 'Bộ lọc không ra kết quả nào.' + Xoá bộ lọc", async () => {
-    const goi = stubApi({ theoMay: { nhom: [], may_trong: [], bat_thuong: DEM } });
     ve();
     await userEvent.click(await screen.findByRole("button", { name: "Lọc" }));
+    expect(screen.getByRole("menuitem", { name: /Phụ trách/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("menuitem", { name: /Khách hàng/ }));
     await userEvent.click(await screen.findByRole("radio", { name: /Công ty Sao/ }));
     await waitFor(() => expect(goiToi(goi, "khach_hang_id=9")).toHaveLength(1));
-    expect(await screen.findByText(/Không có việc nào khớp điều kiện đang lọc/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Khách hàng: Công ty Sao. Bấm để sửa" })).toBeInTheDocument();
-    await userEvent.click(screen.getAllByRole("button", { name: "Xoá bộ lọc" })[0]);
-    expect(screen.queryByRole("button", { name: /Khách hàng: Công ty Sao/ })).toBeNull();
-  });
-
-  it("ô tìm: giới hạn 120 ký tự như máy chủ, một nút xoá duy nhất, Ctrl K đưa tiêu điểm vào ô", async () => {
-    stubApi();
-    ve();
-    const o = await screen.findByRole("textbox", { name: "Tìm mã lệnh, sản phẩm, số đơn, khách" });
-    expect(o).toHaveAttribute("maxlength", "120");
-    expect(o).not.toHaveFocus();
-    await userEvent.keyboard("{Control>}k{/Control}");
-    expect(o).toHaveFocus();
-    await userEvent.type(o, "abc");
-    expect(screen.getAllByRole("button", { name: "Xoá ô tìm" })).toHaveLength(1);
+    await userEvent.click(screen.getByRole("button", { name: "Bỏ lọc Khách hàng" }));
   });
 
   it("⭐ 403 ⇒ nói đúng thiếu quyền Theo dõi sản xuất, không nút Thử lại", async () => {
@@ -200,10 +148,53 @@ describe("TheoDoiSanXuatPage · khung màn", () => {
     expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
   });
 
-  it("⭐ bấm mã lệnh ⇒ mở hồ sơ đúng lệnh (gọi /api/lenh-san-xuat/31)", async () => {
+  it("⭐ bấm dòng ⇒ ngăn đơn; đơn một món bung sẵn tuyến bước; mã lệnh sang Hồ sơ lệnh", async () => {
     const goi = stubApi();
+    const nav = ve();
+    await userEvent.click(await screen.findByText("DH007"));
+    await waitFor(() => expect(goiToi(goi, "/theo-don/7")).toHaveLength(1));
+    expect(await screen.findByText("Cán màng Hộp thuốc")).toBeInTheDocument();
+    expect(screen.getByText("Đang ở Cán màng")).toBeInTheDocument();
+    expect(screen.getByText("/ 1.000 cái", { exact: false })).toBeInTheDocument();
+    // Cột phải: giao xưởng theo giờ xưởng, giao hàng nói phần chưa lên yêu cầu.
+    expect(screen.getByText("10/10 22:22")).toBeInTheDocument();
+    expect(screen.getByText("Chưa lên yêu cầu giao")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "LSX26-0031" }));
+    expect(nav).toHaveBeenCalledWith("lenh-san-xuat", { openHoSoLsxId: 31 });
+  });
+
+  it("⭐ tab Lịch sử: chia theo ngày giờ xưởng, giờ UTC quy về +7", async () => {
+    stubApi();
     ve();
-    await userEvent.click(await screen.findByRole("button", { name: /Mở hồ sơ lệnh LSX26-0031/ }));
-    await waitFor(() => expect(goiToi(goi, "/api/lenh-san-xuat/31")).toHaveLength(1));
+    await userEvent.click(await screen.findByText("DH007"));
+    await userEvent.click(await screen.findByRole("tab", { name: /Lịch sử/ }));
+    expect(await screen.findByText("Chủ nhật 11/10")).toBeInTheDocument();
+    expect(screen.getByText("09:00")).toBeInTheDocument();
+    expect(screen.getByText("Xong In")).toBeInTheDocument();
+  });
+
+  it("không có quyền Hồ sơ lệnh ⇒ mã lệnh là chữ, không bấm được", async () => {
+    stubApi();
+    ve(false);
+    await userEvent.click(await screen.findByText("DH007"));
+    expect(await screen.findByText("LSX26-0031")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "LSX26-0031" })).toBeNull();
+  });
+
+  it("⭐ đơn nhiều món: chip lọc món, bấm món mới bung routing của món đó", async () => {
+    stubApi({ ct: CT_NHIEU });
+    ve();
+    await userEvent.click(await screen.findByText("DH007"));
+    const bang = await screen.findByRole("table", { name: /Mặt hàng của đơn DH007/ });
+    expect(within(bang).getByText("Tờ hướng dẫn")).toBeInTheDocument();
+    // Không món nào vướng ⇒ chưa bung món nào.
+    expect(screen.queryByText("Cán màng Hộp thuốc")).toBeNull();
+
+    await userEvent.click(within(bang).getByText("Hộp thuốc"));
+    expect(screen.getByText("Cán màng Hộp thuốc")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^Đã nhập kho/ }));
+    expect(within(bang).queryByText("Hộp thuốc")).toBeNull();
+    expect(within(bang).getByText("Tờ hướng dẫn")).toBeInTheDocument();
   });
 });

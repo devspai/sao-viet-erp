@@ -99,6 +99,31 @@ def sua_gia_goc(db: Session, *, user, lot_id: int, don_gia: int) -> dict:
     }
 
 
+def chan_chot_khi_chua_gia(db: Session, *, tu_ngay: date, den_ngay: date,
+                           kho_ids: list[int] | None = None, viec: str = "chốt kỳ") -> None:
+    """Còn thành phẩm chưa có giá gốc (giá 0) thì KHÔNG khoá sổ / tính giá kỳ (chủ chốt 12/10/2026).
+
+    Giá gốc thường gõ sau khi hàng đã xuất, và giá vốn phiếu xuất đọc thẳng giá lô — chốt kỳ lúc còn
+    lô 0 đ là số đã chốt (tồn cuối, giá vốn xuất) lệch với số sau khi kế toán gõ giá. Xét lô nhập tới
+    hết kỳ; lô nhập TRƯỚC kỳ mà nằm trong kỳ đã khoá thì bỏ qua (dữ liệu cũ, muốn gõ giá phải mở kỳ
+    đó — chặn ở đây là kẹt luôn kỳ này)."""
+    khoa = KhoKhoaSoRepository(db)
+    con = [
+        (lot, ten) for lot, ten in KhoGiaGocRepository(db).lo_chua_gia_goc_toi(
+            den_ngay=den_ngay, kho_ids=kho_ids)
+        if lot.ngay_nhap is None or lot.ngay_nhap >= tu_ngay
+        or not khoa.is_locked(lot.kho_id, lot.ngay_nhap)
+    ]
+    if not con:
+        return
+    vd = ", ".join(f"{lot.ma_lo} ({ten or 'thành phẩm'})" for lot, ten in con[:3])
+    them = f" và {len(con) - 3} lô khác" if len(con) > 3 else ""
+    raise GiaGocError(
+        f"Còn {len(con)} lô thành phẩm chưa có giá gốc: {vd}{them}. Kế toán gõ giá ở Báo cáo kho, "
+        f"mục Giá gốc thành phẩm, rồi mới {viec} được."
+    )
+
+
 def _ds_id(v) -> list[int]:
     """Một id, nhiều id hoặc không gì ⇒ danh sách id (ô lọc chọn nhiều)."""
     if v is None:

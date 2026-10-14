@@ -2,7 +2,7 @@
 // docs/mockups/giao-hang-phuong-an-B-chi-tiet.html) — vỏ `NganPhai` chung của hệ thống, 1180px.
 //
 //   Lộ trình — Rời kho → thẻ từng khách (nơi giao, người nhận, hẹn, lưu ý, hàng, kết quả) → Về kho.
-//              Bước CẢ LƯỢT (gửi kho, lấy hàng, xuất phát, về kho) ở đầu ngăn; việc của RIÊNG một
+//              Bước CẢ LƯỢT (xuất phát, về kho) ở đầu ngăn; việc của RIÊNG một
 //              điểm (nhập kết quả, trả hàng, đổi/huỷ) ở thẻ điểm đó.
 //   Chứng từ — MỖI ĐƠN một bộ giấy tờ (chủ chốt "cách 1"): cột trái các đơn của lượt, bên phải chỉ
 //              giấy tờ và tệp của đơn đang chọn (bảng hàng Yêu cầu / Đã giao / Còn nằm ở thẻ điểm
@@ -21,13 +21,21 @@
 // thường; thân trái là khách + lưu ý + lưới hàng kiểu bảng tính; mọi ô ngắn (nơi giao, người nhận, xe,
 // nhà gia công, kết quả…) dồn vào cột thuộc tính bên phải (`RayThuocTinh`). Tab Chứng từ dùng lưới giấy
 // tờ + ô kéo-thả tệp của kế toán (`TabChungTu`) cho cả ngăn lượt.
+// Lộ trình phương án C (docs/mockups/luot-xe-lo-trinh-3-phuong-an.html, 12/10/2026): thẻ từng điểm
+// xếp chồng làm lượt 5 điểm dài gần 2 màn ⇒ cả lượt gói trong MỘT dải ô số (Kho → 1 → … → Kho), bấm
+// ô nào thì thẻ điểm đó hiện dưới dải. Màn hẹp (tài xế dùng điện thoại): dải chỉ còn ô số, thêm
+// nút ‹ › lật điểm, nút của điểm dính đáy ngăn. Tab Chứng từ theo
+// docs/mockups/luot-xe-chung-tu-may-tinh-va-dien-thoai.html: giấy tờ là danh sách có ô biểu tượng theo
+// loại, chip trạng thái đơn nằm ở cột đơn, điện thoại có nút Chụp ảnh.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, Package, Paperclip, Truck, Undo2 } from "lucide-react";
 import type {
   BangGiaoItem, DeliveryHistory, DeliveryRequestDetail, DeliveryRequestLine, DeliveryTrip, DinhKemChuyen,
   LuotXeChiTiet,
 } from "../../../../api/client";
 import { api } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
+import { useHep } from "../../../../lib/useHep";
 import { Cum, TheNho } from "../../../ke-toan/shared/Cum";
 import { RayThuocTinh } from "../../../ke-toan/shared/LuoiGon";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
@@ -37,7 +45,9 @@ import {
   buocLuot,
   coKetQua,
   gioNgay,
+  henKho,
   lienKetBanDo,
+  monGiao,
   ngay,
   ngayIso,
   nhanChuyen,
@@ -50,7 +60,11 @@ import {
   type FormLuot,
 } from "../shared/helpers";
 import { NutBuocChuyen, type ThaoTacChuyen } from "../tabs/BangKeHoach";
-import { FormSoDongHo } from "./FormSoDongHo";
+import { BuocGuiKho } from "../modals/BuocGuiKho";
+import { ChungTuKhoNoi, type ChungTuKho } from "../../../gia-cong/ChungTuKhoNoi";
+import { DrawerChiTiet } from "./DrawerChiTiet";
+import { HopBatDauGiao } from "./HopBatDauGiao";
+import { HopVeKho } from "./HopVeKho";
 import { CHUA_CAM_HANG, ChipGh, Pill, TraHang } from "./giaoHangCells";
 import "../../../ke-toan/ke-toan.css";
 
@@ -68,7 +82,6 @@ const o2 = (chinh: ReactNode, phu?: ReactNode) => (
 export function NganLuot({
   item,
   token,
-  canPlan,
   canWrite,
   formDau = null,
   onDoi,
@@ -80,7 +93,6 @@ export function NganLuot({
 }: {
   item: BangGiaoItem;
   token: string;
-  canPlan: boolean;
   canWrite: boolean;
   /** Bấm nút cần ô nhập ở dòng bảng ⇒ ngăn mở sẵn ô đó. */
   formDau?: FormLuot | null;
@@ -98,7 +110,6 @@ export function NganLuot({
 
   const [tab, setTab] = useState<Tab>("lo-trinh");
   const [mo, setMo] = useState<FormLuot | null>(formDau);
-  const [ghiChu, setGhiChu] = useState("");
   const [dangGui, setDangGui] = useState(false);
   const [tin, setTin] = useState<string | null>(null);
   const [canhBao, setCanhBao] = useState<string[]>([]);
@@ -106,6 +117,33 @@ export function NganLuot({
   const [chiTiet, setChiTiet] = useState<Record<number, DeliveryRequestDetail>>({});
   const [chonDon, setChonDon] = useState<number | null>(dau?.id ?? null);
   const [demTep, setDemTep] = useState<Record<number, number>>({});
+  const hep = useHep();
+  const [moTomTat, setMoTomTat] = useState(false);
+  // Nút Sửa ở dòng "Yêu cầu xuất kho" (tab Chứng từ) ⇒ mở lại bước hẹn kho cho các chuyến này.
+  const [henKhoMo, setHenKhoMo] = useState<number[] | null>(null);
+  // Bấm mã ở tab Chứng từ: mở đúng bản ghi của module đó, chồng lên ngăn lượt, chỉ đọc.
+  const [chungTuKho, setChungTuKho] = useState<ChungTuKho | null>(null);
+  const [yeuCauMo, setYeuCauMo] = useState<DeliveryRequestDetail | null>(null);
+  const moYeuCau = (requestId: number) => {
+    api.giaoHang.request(token, requestId).then(setYeuCauMo)
+      .catch((e: unknown) => setLoi(e instanceof Error ? e.message : "Không mở được yêu cầu giao"));
+  };
+  // Ô đang chọn trên dải lộ trình: -1 = Rời kho, 0…n-1 = điểm, n = Về kho.
+  const [chonDiem, setChonDiem] = useState<number>(() => diemMacDinh(ds, l));
+
+  // Điểm đang chọn vừa có kết quả ⇒ tự sang điểm còn đang giao kế tiếp (hết thì sang ô Về kho) —
+  // tài xế nhập xong khách này là thấy ngay khách sau.
+  const ttChon = useRef<string | null>(null);
+  const ttHienTai = ds[chonDiem]?.trang_thai ?? null;
+  useEffect(() => {
+    const truoc = ttChon.current;
+    ttChon.current = ttHienTai;
+    const t = dsRef.current[chonDiem];
+    if (truoc !== "dang_giao" || !t || !coKetQua(t)) return;
+    const ke = dsRef.current.findIndex((x, i) => i > chonDiem && x.trang_thai === "dang_giao");
+    const vong = ke >= 0 ? ke : dsRef.current.findIndex((x) => x.trang_thai === "dang_giao");
+    setChonDiem(vong >= 0 ? vong : l?.cho_ve_kho ? dsRef.current.length : chonDiem);
+  }, [ttHienTai, chonDiem, l?.cho_ve_kho]);
 
   // Lịch sử nằm ở chi tiết YÊU CẦU — nạp lại mỗi khi một điểm đổi trạng thái. Bảng hàng KHÔNG chờ
   // nó nữa: bảng giao gửi kèm `t.hang` (07/10/2026), chi tiết chỉ là đường dự phòng.
@@ -168,7 +206,7 @@ export function NganLuot({
     setMo(f);
   };
 
-  const buoc = l ? buocLuot(l, canPlan, canWrite) : [];
+  const buoc = l ? buocLuot(l, canWrite) : [];
   const tinh = l ? trangThaiLuot(l) : { text: nhanChuyen(dau), tone: toneChuyen(dau.trang_thai) };
   const xong = ds.filter(coKetQua).length;
 
@@ -185,7 +223,8 @@ export function NganLuot({
           nhan: "Xuất phát",
           giaTri: l.so_dong_ho_xuat_phat != null
             ? o2(gioNgay(lucXuatPhat(ds, chiTiet)), `đồng hồ ${so(l.so_dong_ho_xuat_phat)}`)
-            : o2("Chưa rời kho", `lấy hàng ${gioNgay(dau.gio_lay_hang)}`),
+            : o2("Chưa rời kho", henKho(dau) ? `kho hẹn ${henKho(dau)}`
+              : dau.ngay_can_giao ? `cần giao ${ngay(dau.ngay_can_giao)}` : null),
         },
         { nhan: "Đã chạy", giaTri: o2(`${so(l.tong_km)} km`, `${xong} trên ${ds.length} điểm`) },
       ]
@@ -211,7 +250,7 @@ export function NganLuot({
     : nutChuyen;
 
   const theDiem = (t: DeliveryTrip, i: number) => (
-    <TheDiem key={t.id} t={t} stt={l ? i + 1 : null} ct={chiTiet[t.request_id]} giaoThang={!!gt}
+    <TheDiem key={t.id} t={t} stt={l ? i + 1 : null} ct={chiTiet[t.request_id]} giaoThang={!!gt} hep={hep}
       nut={
         <>
           {l ? (
@@ -234,20 +273,34 @@ export function NganLuot({
   const tc = ds.find((t) => t.id === chonDon) ?? dau;
 
   return (
+    <>
     <NganPhai
       duongDan={l ? "Lượt xe" : gt ? "Nhà gia công giao thẳng" : "Chuyến giao"}
       tieuDe={l ? l.code : <span className="kt-ngan__soLon">{dau.request_code}</span>}
       the={l ? <Pill text={tinh.text} tone={tinh.tone} /> : <ChipGh text={tinh.text} tone={tinh.tone} />}
       hanhDong={hanhDong}
       phuDe={l ? (
-        <dl className="gh-kv">
+        <>
+        {/* Điện thoại: bốn ô chiếm gần nửa màn ⇒ gom thành MỘT dòng (biển số, số điểm đã xong), bấm mới
+            mở đủ bốn ô (12/10/2026). */}
+        {hep && (
+          <button type="button" className="gh-kv-gon" aria-expanded={moTomTat}
+            onClick={() => setMoTomTat((v) => !v)}>
+            <span>{l.xe_bien_so ?? "—"}</span>
+            <span className="gh-nho">{dau.employee_name ?? "—"}</span>
+            <span className="gh-kv-gon__phai">{xong} trên {ds.length} điểm</span>
+            <ChevronDown size={16} aria-hidden="true" className="gh-kv-gon__mui" />
+          </button>
+        )}
+        {(!hep || moTomTat) && <dl className="gh-kv">
           {tomTat.map((o) => (
             <div key={o.nhan}>
               <dt>{o.nhan}</dt>
               <dd>{o.giaTri}</dd>
             </div>
           ))}
-        </dl>
+        </dl>}
+        </>
       ) : undefined}
       cot={l ? undefined : <RayDon t={dau} />}
       // Tab không mang số đếm (luật chung).
@@ -261,7 +314,6 @@ export function NganLuot({
       len={len}
       xuong={xuong}
       onDong={onDong}
-      chanDong={() => mo === "gui_kho" && ghiChu.trim() !== ""}
     >
       {tin && <div className="banner banner--success" role="status">{tin}</div>}
       {canhBao.map((c) => (
@@ -271,80 +323,44 @@ export function NganLuot({
 
       {tab === "lo-trinh" && (
         <>
-          {l && mo === "gui_kho" && (
-            <div className="gh-o-luot gh-form">
-              <p className="rc__sub">
-                Mỗi điểm một phiếu yêu cầu xuất kho ({l.so_cho_gui_kho} phiếu). Ghi chú phiếu tự mang mã
-                lượt để kho biết các phiếu lên cùng một xe.
-              </p>
-              <label>
-                Ghi chú cho kho <span className="gh-opt">(không bắt buộc)</span>
-                <input className="input" value={ghiChu} onChange={(e) => setGhiChu(e.target.value)} />
-              </label>
-              <div className="gh-actions">
-                <Button variant="accent" disabled={dangGui}
-                  onClick={() => lam({
-                    nhan: "", lam: (tk) => api.giaoHang.guiXuatKhoCaLuot(tk, l.id, ghiChu),
-                    bao: (r) => `Đã gửi ${r.so_chuyen} phiếu yêu cầu xuất kho: ${r.phieu.join(", ")}.`,
-                  })}>
-                  Gửi {l.so_cho_gui_kho} phiếu
-                </Button>
-                <Button variant="ghost" onClick={() => setMo(null)}>Thôi</Button>
-              </div>
-            </div>
-          )}
           {l && mo === "xuat_phat" && (
-            <div className="gh-o-luot">
-              <FormSoDongHo
-                cheDo="xuat_phat"
-                luot={l}
-                moTa={`Xe rời kho với ${l.so_cho_bat_dau} điểm đã lấy hàng. Chặng tới khách đầu tiên trừ từ số này.`}
-                nhanNut={`Bắt đầu giao ${l.so_cho_bat_dau} điểm`}
-                gui={(n, xn) => api.giaoHang.batDauGiaoCaLuot(token, l.id, { so_dong_ho_xuat_phat: n, xac_nhan_km_lon: xn })
-                  .then((r) => {
-                    onDoi();
-                    return r.canh_bao;
-                  })}
-                onXong={() => setMo(null)}
-                onHuy={() => setMo(null)}
-              />
-            </div>
+            <HopBatDauGiao
+              luot={l}
+              gui={(n, xn) => api.giaoHang.batDauGiaoCaLuot(token, l.id, { so_dong_ho_xuat_phat: n, xac_nhan_km_lon: xn })
+                .then((r) => {
+                  setTin(`Lượt ${l.code} đã rời kho, đồng hồ ${so(n)} km.`);
+                  setCanhBao(r.canh_bao);
+                  onDoi();
+                })}
+              onXong={() => setMo(null)}
+              onHuy={() => setMo(null)}
+            />
           )}
           {l && mo === "ve_kho" && (
-            <div className="gh-o-luot">
-              <FormSoDongHo
-                cheDo="ve_kho"
-                luot={l}
-                moTa="Mọi điểm đã có kết quả. Chặng về kho tính tiền theo bậc km như các chặng khác, chia cho kíp của điểm giao cuối."
-                nhanNut="Lưu về kho"
-                gui={(n, xacNhan) => api.giaoHang.veKho(token, l.id, { so_dong_ho: n, xac_nhan_km_lon: xacNhan })
-                  .then((r) => {
-                    onDoi();
-                    return r.canh_bao;
-                  })}
-                onXong={() => setMo(null)}
-                onHuy={() => setMo(null)}
-              />
-            </div>
+            <HopVeKho
+              luot={l}
+              diemCuoi={ds.find((t) => t.luot?.so_dong_ho != null
+                && t.luot.so_dong_ho === l.so_dong_ho_gan_nhat)?.customer_name ?? null}
+              gui={(n) => api.giaoHang.veKho(token, l.id, { so_dong_ho: n })
+                .then((r) => {
+                  setTin(`Lượt ${l.code} đã về kho${r.km_ve_kho != null ? `, chặng về kho ${so(r.km_ve_kho)} km` : ""}.`);
+                  setCanhBao(r.canh_bao);
+                  onDoi();
+                })}
+              onXong={() => setMo(null)}
+              onHuy={() => setMo(null)}
+            />
           )}
-          {l && mo === null && buoc.length === 0 && l.so_dang_giao > 0 && canWrite && (
+          {l && mo === null && buoc.length === 0 && l.so_cho_lay_hang > 0 && (
             <p className="rc__sub gh-goi-y">
-              Tới khách nào thì bấm <b>Nhập kết quả</b> ở điểm đó, kèm số đồng hồ lúc tới.
+              Đơn đã gửi kho. Kho ghi sổ phiếu xuất xong thì điểm đó tự sang Đã lấy hàng.
             </p>
           )}
 
+
           {l ? (
-            <ol className="gh-lt" aria-label="Lộ trình">
-              <MocKho luot={l} loai="roi" luc={lucXuatPhat(ds, chiTiet)} />
-              {ds.map((t, i) => (
-                <li key={t.id}>
-                  <span className={`gh-lt__moc${coKetQua(t) ? " is-xong" : t.trang_thai === "dang_giao" ? " is-dang" : ""}`}
-                    aria-hidden="true">{i + 1}</span>
-                  {theDiem(t, i)}
-                </li>
-              ))}
-              <MocKho luot={l} loai="ve" />
-            </ol>
+            <DaiLoTrinh luot={l} ds={ds} chon={Math.min(chonDiem, ds.length)} onChon={setChonDiem} hep={hep}
+              lucRoi={lucXuatPhat(ds, chiTiet)} theDiem={theDiem} />
           ) : (
             <ChiTietDon t={dau} ct={chiTiet[dau.request_id]} />
           )}
@@ -353,28 +369,55 @@ export function NganLuot({
 
       {tab === "chung-tu" && (
         <div className={ds.length > 1 ? "gh-ctd" : undefined}>
+          {/* Lượt một đơn không có cột đơn ⇒ mã đơn, PO, yêu cầu giao nằm một dòng trên giấy tờ. */}
+          {l && ds.length === 1 && (
+            <div className="gh-ctd__phu gh-ctd__ma">
+              {tc.order_code && <span className="gh-the">{tc.order_code}</span>}
+              {tc.customer_po_no && <span className="gh-the">PO {tc.customer_po_no}</span>}
+              {tc.request_code && (
+                <MaChungTu ma={tc.request_code} title="Xem yêu cầu giao hàng" onMo={() => moYeuCau(tc.request_id)} />
+              )}
+            </div>
+          )}
           {ds.length > 1 && (
             <nav className="gh-ctd__ray" aria-label="Đơn trong lượt">
               {ds.map((t, i) => (
-                <button key={t.id} type="button" aria-pressed={t.id === tc.id}
-                  className={`gh-ctd__don${t.id === tc.id ? " is-chon" : ""}`}
+                // Thẻ là div (bấm chọn đơn); nút tên giữ bàn phím — chip yêu cầu giao bên trong là nút riêng.
+                <div key={t.id} className={`gh-ctd__don${t.id === tc.id ? " is-chon" : ""}`}
                   onClick={() => setChonDon(t.id)}>
                   <span className={`gh-so${coKetQua(t) ? " is-xong" : ""}`} aria-hidden="true">{i + 1}</span>
                   <span className="gh-ctd__ten">
-                    <b>{t.customer_name}</b>
+                    <button type="button" className="gh-ctd__chon" aria-pressed={t.id === tc.id}
+                      onClick={() => setChonDon(t.id)}>{t.customer_name}</button>
                     <span className="gh-ctd__phu">
                       {t.order_code && <span className="gh-the">{t.order_code}</span>}
+                      {t.customer_po_no && <span className="gh-the">PO {t.customer_po_no}</span>}
+                      {t.request_code && (
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <MaChungTu ma={t.request_code} title="Xem yêu cầu giao hàng"
+                            onMo={() => moYeuCau(t.request_id)} />
+                        </span>
+                      )}
+                    </span>
+                    <span className="gh-ctd__phu">
+                      <ChipGh text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />
                       {demTep[t.id] != null && (
-                        <span className="gh-nho">{demTep[t.id] > 0 ? `${demTep[t.id]} tệp` : "chưa có tệp"}</span>
+                        <span className={`gh-ctd__tep${demTep[t.id] > 0 ? " is-co" : ""}`}>
+                          <Paperclip size={12} aria-hidden="true" />
+                          {demTep[t.id] > 0 ? `${demTep[t.id]} tệp` : "chưa có tệp"}
+                        </span>
                       )}
                     </span>
                   </span>
-                </button>
+                </div>
               ))}
             </nav>
           )}
           <ChungTuDon key={tc.id} t={tc} giaoThang={!!gt} nhieuDon={ds.length > 1}
-            maLaTieuDe={!l} token={token}
+            token={token} hep={hep}
+            onMoKho={setChungTuKho}
+            // Lượt nhiều khách: mở cả lượt — Cần lúc là chung một xe tới lấy.
+            onHenKho={canWrite ? () => setHenKhoMo(ds.filter((x) => x.yeu_cau_kho_ma).map((x) => x.id)) : undefined}
             onDemTep={(n) => setDemTep((c) => (c[tc.id] === n ? c : { ...c, [tc.id]: n }))} />
         </div>
       )}
@@ -404,6 +447,24 @@ export function NganLuot({
         )
       )}
     </NganPhai>
+    {yeuCauMo && (
+      <DrawerChiTiet key={yeuCauMo.request.id} detail={yeuCauMo} canCancel={false} tang={1}
+        onClose={() => setYeuCauMo(null)} />
+    )}
+    {chungTuKho && (
+      <ChungTuKhoNoi mo={chungTuKho} token={token} lop="gh-chung-tu-lop" onClose={() => setChungTuKho(null)} />
+    )}
+    {henKhoMo && (
+      <BuocGuiKho tripIds={henKhoMo} token={token} tang={1}
+        onXong={(daLuu) => {
+          setHenKhoMo(null);
+          if (daLuu) {
+            setTin("Đã hẹn kho.");
+            onDoi();
+          }
+        }} />
+    )}
+    </>
   );
 }
 
@@ -418,37 +479,125 @@ function lucXuatPhat(ds: DeliveryTrip[], ct: Record<number, DeliveryRequestDetai
   return moc[0] ?? null;
 }
 
-function MocKho({ luot: l, loai, luc }: { luot: LuotXeChiTiet; loai: "roi" | "ve"; luc?: string | null }) {
-  if (loai === "roi") {
-    const da = l.so_dong_ho_xuat_phat != null;
-    return (
-      <li>
-        <span className={`gh-lt__moc${da ? " is-xong" : ""}`} aria-hidden="true">{da ? "✓" : ""}</span>
-        <div className={`gh-lt__kho${da ? "" : " is-cho"}`}>
-          <b>{da ? "Rời kho" : "Chưa rời kho"}</b>
-          {da && luc && <span>{gioNgay(luc)}</span>}
-          {da && <span className="gh-nho">đồng hồ {so(l.so_dong_ho_xuat_phat)}</span>}
-        </div>
-      </li>
-    );
-  }
-  const da = !!l.ve_kho_luc;
+/** Ô chọn sẵn lúc mở ngăn: điểm đang giao; chưa ai đi thì điểm đầu chưa có kết quả; xong hết mà chưa
+ *  về kho thì ô Về kho; còn lại (đã về kho) điểm 1. */
+function diemMacDinh(ds: DeliveryTrip[], l: LuotXeChiTiet | null | undefined): number {
+  const dang = ds.findIndex((t) => t.trang_thai === "dang_giao");
+  if (dang >= 0) return dang;
+  const chua = ds.findIndex((t) => !coKetQua(t));
+  if (chua >= 0) return chua;
+  return l && !l.ve_kho_luc ? ds.length : 0;
+}
+
+/** Tên khách trên dải: bỏ loại hình công ty ở đầu — ô dải hẹp, đủ chỗ cho phần tên riêng. */
+function tenNgan(ten?: string | null): string {
+  return (ten ?? "—").replace(/^(công ty|cty)\s+(cổ phần|cp|tnhh(\s+(mtv|một thành viên))?)\s+/iu, "");
+}
+
+function lopMoc(t: DeliveryTrip): string {
+  if (t.trang_thai === "dang_giao") return " is-dang";
+  if (t.trang_thai === "that_bai") return " is-loi";
+  return coKetQua(t) ? " is-xong" : "";
+}
+
+/** Giờ phút của một mốc ("09:29 12/10" ⇒ "09:29"). */
+const gio = (v?: string | null) => gioNgay(v).split(" ")[0];
+
+/** Dải lộ trình: Kho → điểm 1…n → Kho, giữa hai ô là km chặng (đoạn đã chạy tô xanh). Bấm ô nào thì
+ *  thẻ của ô đó hiện dưới dải. Màn hẹp: ô chỉ còn số tròn, thêm hàng ‹ › để lật bằng ngón cái. */
+function DaiLoTrinh({
+  luot: l, ds, chon, onChon, hep, lucRoi, theDiem,
+}: {
+  luot: LuotXeChiTiet;
+  ds: DeliveryTrip[];
+  chon: number;
+  onChon: (i: number) => void;
+  hep: boolean;
+  lucRoi: string | null;
+  theDiem: (t: DeliveryTrip, i: number) => ReactNode;
+}) {
+  const n = ds.length;
+  const daRoi = l.so_dong_ho_xuat_phat != null;
+  const daVe = !!l.ve_kho_luc;
+  const refChon = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (hep) refChon.current?.scrollIntoView?.({ inline: "center", block: "nearest" });
+  }, [chon, hep]);
+
+  const o = (i: number, nhan: string, moc: ReactNode, lop: string, ten?: ReactNode, phu?: ReactNode) => (
+    <button type="button" ref={i === chon ? refChon : undefined} aria-label={nhan} aria-pressed={i === chon}
+      className={`gh-c__o${i === chon ? " is-chon" : ""}`} onClick={() => onChon(i)}>
+      <span className={`gh-c__moc${lop}`} aria-hidden="true">{moc}</span>
+      {!hep && <span className="gh-c__ten" aria-hidden="true">{ten}</span>}
+      {!hep && <span className="gh-c__phu" aria-hidden="true">{phu}</span>}
+    </button>
+  );
+  const noi = (xong: boolean, km?: number | null) => (
+    <span className="gh-c__noi" aria-hidden="true">
+      <i className={xong ? "is-xong" : undefined} />
+      {!hep && km != null && <span>{so(km)} km</span>}
+    </span>
+  );
+  const nhanLat = chon < 0 ? "Rời kho" : chon >= n ? "Về kho" : `Điểm ${chon + 1} trên ${n}`;
+
   return (
-    <li>
-      <span className={`gh-lt__moc${da ? " is-xong" : ""}`} aria-hidden="true">{da ? "✓" : ""}</span>
-      <div className={`gh-lt__kho${da ? "" : " is-cho"}`}>
-        <b>Về kho</b>
-        {da ? (
-          <>
-            <span>{gioNgay(l.ve_kho_luc)}</span>
-            <span className="gh-nho">đồng hồ {so(l.so_dong_ho_ve_kho)}</span>
-            <span className="gh-nho">chặng về {so(l.km_ve_kho)} km</span>
-          </>
-        ) : (
-          <span className="gh-nho">Mọi điểm có kết quả thì nút “Về kho” hiện ở đầu ngăn</span>
-        )}
+    <div className={`gh-c${hep ? " is-hep" : ""}`}>
+      <ol className="gh-c__dai" aria-label="Lộ trình">
+        <li>
+          {o(-1, "Mốc rời kho", daRoi ? "✓" : "", daRoi ? " is-xong" : " is-kho", "Rời kho",
+            daRoi ? gio(lucRoi) : "chưa rời")}
+        </li>
+        {ds.map((t, i) => (
+          <li key={t.id}>
+            {noi(coKetQua(t), t.km)}
+            {o(i, `Điểm ${i + 1} ${t.customer_name ?? ""}`.trim(), i + 1, lopMoc(t), tenNgan(t.customer_name),
+              coKetQua(t) ? gio(t.thoi_gian_ket_thuc) : `hẹn ${ngay(t.ngay_can_giao).slice(0, 5)}`)}
+          </li>
+        ))}
+        <li>
+          {noi(daVe, l.km_ve_kho)}
+          {o(n, "Mốc về kho", daVe ? "✓" : "", daVe ? " is-xong" : " is-kho", "Về kho",
+            daVe ? gio(l.ve_kho_luc) : "chưa về")}
+        </li>
+      </ol>
+      {hep && (
+        <div className="gh-c__lat">
+          <button type="button" aria-label="Ô trước" disabled={chon <= -1} onClick={() => onChon(chon - 1)}>
+            <ChevronLeft size={20} aria-hidden="true" />
+          </button>
+          <span>{nhanLat}</span>
+          <button type="button" aria-label="Ô sau" disabled={chon >= n} onClick={() => onChon(chon + 1)}>
+            <ChevronRight size={20} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {chon >= 0 && chon < n ? theDiem(ds[chon], chon) : <TheKho luot={l} loai={chon < 0 ? "roi" : "ve"} luc={lucRoi} />}
+    </div>
+  );
+}
+
+/** Thẻ của ô Kho trên dải: lúc rời / về, số đồng hồ, chặng về. */
+function TheKho({ luot: l, loai, luc }: { luot: LuotXeChiTiet; loai: "roi" | "ve"; luc?: string | null }) {
+  const roi = loai === "roi";
+  const da = roi ? l.so_dong_ho_xuat_phat != null : !!l.ve_kho_luc;
+  return (
+    <article className="gh-dt" aria-label={roi ? "Rời kho" : "Về kho"}>
+      <div className="gh-dt__dau">
+        <div className="gh-dt__ten"><b>{roi ? "Rời kho" : "Về kho"}</b></div>
       </div>
-    </li>
+      {da ? (
+        <dl className="gh-dt__luoi">
+          <div><dt>{roi ? "Lúc rời" : "Lúc về"}</dt><dd>{gioNgay(roi ? luc : l.ve_kho_luc)}</dd></div>
+          <div><dt>Đồng hồ</dt><dd>{so(roi ? l.so_dong_ho_xuat_phat : l.so_dong_ho_ve_kho)}</dd></div>
+          {!roi && <div><dt>Chặng về</dt><dd>{so(l.km_ve_kho)} km</dd></div>}
+        </dl>
+      ) : (
+        <p className="gh-dt__luu gh-nho gh-c__goi-y">
+          {roi ? "Xe chưa rời kho. Bắt đầu giao ở đầu ngăn, kèm số đồng hồ lúc xuất phát."
+            : "Mọi điểm có kết quả thì nút “Về kho” hiện ở đầu ngăn."}
+        </p>
+      )}
+    </article>
   );
 }
 
@@ -459,8 +608,27 @@ function dongHang(t: DeliveryTrip, ct?: DeliveryRequestDetail): DeliveryRequestL
 }
 
 /** Bảng hàng Yêu cầu / Đã giao / Còn trong thẻ từng điểm của lượt. */
-function BangHang({ dong }: { dong: DeliveryRequestLine[] }) {
+function BangHang({ dong, hep = false }: { dong: DeliveryRequestLine[]; hep?: boolean }) {
   if (dong.length === 0) return null;
+  // Điện thoại: bốn cột không đủ chỗ ⇒ tên hàng một dòng, ba số Yêu cầu / Đã giao / Còn ở dòng dưới.
+  if (hep) return (
+    <ul className="gh-hang-dt" aria-label="Hàng giao">
+      {monGiao(dong).map((x) => {
+        const dv = x.dvt ?? "";
+        const con = x.qty - x.da_giao;
+        return (
+          <li key={x.id}>
+            <span>{x.ten}</span>
+            <span className="gh-hang-dt__so">
+              <span><small>Yêu cầu</small>{so(x.qty)} <span className="gh-nho">{dv}</span></span>
+              <span><small>Đã giao</small>{so(x.da_giao)} <span className="gh-nho">{dv}</span></span>
+              <span><small>Còn</small>{so(con)} <span className="gh-nho">{dv}</span></span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
   return (
     <table>
       <thead>
@@ -472,12 +640,12 @@ function BangHang({ dong }: { dong: DeliveryRequestLine[] }) {
         </tr>
       </thead>
       <tbody>
-        {dong.map((x) => {
-          const dv = x.don_vi_tinh ?? x.dvt ?? "";
+        {monGiao(dong).map((x) => {
+          const dv = x.dvt ?? "";
           const con = x.qty - x.da_giao;
           return (
             <tr key={x.id}>
-              <td>{x.mo_ta ?? x.hang_ten}</td>
+              <td title={x.thanhPhan.join(" + ") || undefined}>{x.ten}</td>
               <td className="r gh-num">{so(x.qty)} <span className="gh-nho">{dv}</span></td>
               <td className="r gh-num">{x.da_giao > 0 ? <>{so(x.da_giao)} <span className="gh-nho">{dv}</span></> : <span className="gh-mo">0</span>}</td>
               <td className="r gh-num">{con > 0 ? <>{so(con)} <span className="gh-nho">{dv}</span></> : <span className="gh-mo">0</span>}</td>
@@ -534,12 +702,12 @@ function ChiTietDon({ t, ct }: { t: DeliveryTrip; ct?: DeliveryRequestDetail }) 
                 </tr>
               </thead>
               <tbody>
-                {dong.map((x) => {
-                  const dv = x.don_vi_tinh ?? x.dvt ?? "";
-                  const ten = x.mo_ta ?? x.hang_ten ?? "";
+                {monGiao(dong).map((x) => {
+                  const dv = x.dvt ?? "";
+                  const ten = x.ten;
                   return (
                     <tr key={x.id}>
-                      <td title={ten}>{ten}</td>
+                      <td title={x.thanhPhan.length ? `${ten} (${x.thanhPhan.join(" + ")})` : ten}>{ten}</td>
                       <td className="kt-g__so">{oSl(x.qty, dv)}</td>
                       <td className="kt-g__so">{oSl(x.da_giao, dv)}</td>
                       <td className="kt-g__so">{oSl(x.qty - x.da_giao, dv)}</td>
@@ -605,8 +773,7 @@ function RayDon({ t }: { t: DeliveryTrip }) {
       ) },
       { nhan: "Tài xế", giaTri: gt ? null : t.employee_name ?? "—" },
       { nhan: "Phụ xe", giaTri: gt ? null : t.phu_xe_name },
-      { nhan: "Lấy hàng", giaTri: gt ? null : gioNgay(t.gio_lay_hang) },
-      { nhan: "Giao dự kiến", giaTri: gt || !t.gio_du_kien_giao ? null : gioNgay(t.gio_du_kien_giao) },
+      { nhan: "Kho hẹn", giaTri: gt ? null : henKho(t) },
       { nhan: "Tới nơi", giaTri: ketQua ? gioNgay(t.thoi_gian_ket_thuc) : null },
       { nhan: "Km", giaTri: gt ? null : t.km != null ? `${so(t.km)} km` : t.tong_km > 0 ? `${so(t.tong_km)} km` : null },
       { nhan: "Ký nhận", giaTri: ketQua ? t.nguoi_nhan_thuc_te : null },
@@ -627,12 +794,15 @@ function TheDiem({
   stt,
   ct,
   giaoThang,
+  hep = false,
   nut,
 }: {
   t: DeliveryTrip;
   stt: number | null;
   ct?: DeliveryRequestDetail;
   giaoThang: boolean;
+  /** Màn hẹp: Chỉ đường / Gọi thành nút to, nút của điểm dính đáy ngăn, bảng hàng thành danh sách. */
+  hep?: boolean;
   nut: ReactNode;
 }) {
   const dong = dongHang(t, ct);
@@ -653,7 +823,7 @@ function TheDiem({
         <div className="gh-dt__nut">
           {/* Ngăn một đơn đã nói trạng thái ở đầu ngăn — thẻ chỉ nói khi lượt có nhiều điểm. */}
           {stt != null && <Pill text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />}
-          {nut}
+          {!hep && nut}
         </div>
       </div>
       <dl className="gh-dt__luoi">
@@ -662,8 +832,9 @@ function TheDiem({
           <dd>
             <span>{t.dia_chi || "Chưa có địa chỉ"}</span>
             {t.dia_chi && (
-              <a className="gh-lk gh-nho" href={lienKetBanDo(t.dia_chi)} target="_blank" rel="noreferrer">
-                Mở bản đồ
+              <a className={hep ? "btn btn--ghost gh-dt__nut-to" : "gh-lk gh-nho"} href={lienKetBanDo(t.dia_chi)}
+                target="_blank" rel="noreferrer">
+                {hep ? "Chỉ đường" : "Mở bản đồ"}
               </a>
             )}
           </dd>
@@ -672,9 +843,16 @@ function TheDiem({
           <dt>Người nhận</dt>
           <dd>
             <span>{t.nguoi_nhan || "—"}</span>
-            {t.sdt_nguoi_nhan && (
+            {t.sdt_nguoi_nhan && (hep ? (
+              <>
+                <span className="gh-nho">{sdtDoc(t.sdt_nguoi_nhan)}</span>
+                <a className="btn btn--ghost gh-dt__nut-to" href={`tel:${t.sdt_nguoi_nhan.replace(/\s+/g, "")}`}>
+                  Gọi
+                </a>
+              </>
+            ) : (
               <a className="gh-lk" href={`tel:${t.sdt_nguoi_nhan.replace(/\s+/g, "")}`}>{sdtDoc(t.sdt_nguoi_nhan)}</a>
-            )}
+            ))}
           </dd>
         </div>
         <div>
@@ -690,7 +868,7 @@ function TheDiem({
       )}
       {dong.length > 0 && (
         <div className="gh-dt__hang">
-          <BangHang dong={dong} />
+          <BangHang dong={dong} hep={hep} />
         </div>
       )}
       {coKetQua(t) && !giaoThang && (
@@ -703,6 +881,7 @@ function TheDiem({
           {!t.ly_do_that_bai && t.ghi_chu_ket_qua && <span>Ghi chú <span className="gh-muc">{t.ghi_chu_ket_qua}</span></span>}
         </div>
       )}
+      {hep && <div className="gh-dt__day">{nut}</div>}
     </article>
   );
 }
@@ -714,11 +893,59 @@ function nhanPhieuKho(tt: string, loai: "xuat" | "tra"): { text: string; tone: "
   return { text: loai === "xuat" ? "Kho đang soạn" : "Chờ kho nhận lại", tone: "warn" };
 }
 
-/** Một dòng của lưới giấy tờ: loại giấy | số | trạng thái | ai, lúc nào. */
-type DongGiay = { loai: string; so: ReactNode; tt: ReactNode; ai: ReactNode };
+/** Một dòng giấy tờ: ô biểu tượng theo loại | loại + số | trạng thái | ai, lúc nào. */
+type DongGiay = { ic: "giao" | "kho" | "tra"; loai: string; so: ReactNode; tt: ReactNode; ai: ReactNode };
+
+const IC_GIAY = { giao: Truck, kho: Package, tra: Undo2 } as const;
+
+/** Trạng thái đề nghị kho — cùng chữ màn Kho. */
+const TT_DE_NGHI: Record<string, { text: string; tone: "on" | "warn" | "off" | "xanh" | "tim" }> = {
+  approved: { text: "Chờ kho lập phiếu", tone: "warn" },
+  received: { text: "Kho tiếp nhận", tone: "xanh" },
+  preparing: { text: "Đang chuẩn bị", tone: "tim" },
+  partial: { text: "Đã cấp một phần", tone: "warn" },
+  done: { text: "Hoàn tất", tone: "on" },
+  rejected: { text: "Từ chối", tone: "off" },
+  cancelled: { text: "Đã huỷ", tone: "off" },
+};
+
+/** Phiếu kho của dòng đề nghị: mã + lúc ghi sổ, bấm mở phiếu chỉ đọc — cùng dáng `PhieuKhoChip` bàn tổ. */
+function PhieuKhoThe({ p, chu, onMo }: {
+  p: NonNullable<DeliveryTrip["phieu_xuat"]>; chu: string; onMo: (c: ChungTuKho) => void;
+}) {
+  const id = p.id;
+  return (
+    <button type="button" className="gh-ma-ct" aria-haspopup="dialog" disabled={id == null}
+      title={`Xem phiếu ${chu} kho${p.boi_ten ? `
+Ghi sổ: ${p.boi_ten}` : ""}`}
+      onClick={() => id != null && onMo({ loai: "phieu", id })}>
+      <Package size={13} aria-hidden="true" />
+      <span>{p.ma}</span>
+      {p.luc && <small>{chu} {gioNgay(p.luc)}</small>}
+    </button>
+  );
+}
+
+/** Mã chứng từ bấm được — mở bản ghi của module đó (ngăn kho / ngăn yêu cầu giao), chỉ đọc. */
+function MaChungTu({ ma, title, onMo }: { ma: string; title: string; onMo?: () => void }) {
+  if (!onMo) return <>{ma}</>;
+  return (
+    <button type="button" className="gh-ma-ct" aria-haspopup="dialog" title={title} onClick={onMo}>{ma}</button>
+  );
+}
+
+/** Người làm + giờ: tên trên, giờ chữ xám dưới — giờ không đóng hộp. */
+const aiLuc = (ten: ReactNode, luc?: string | null) => (
+  <>
+    <span>{ten}</span>
+    {luc && <small>{gioNgay(luc)}</small>}
+  </>
+);
 
 /** Tệp của MỘT chuyến trong khuôn ô kéo-thả + lưới ảnh của kế toán. Đếm tệp báo lên cho rail đơn. */
-function TepChuyen({ tripId, token, onDem }: { tripId: number; token: string; onDem: (n: number) => void }) {
+function TepChuyen({ tripId, token, onDem, hep }: {
+  tripId: number; token: string; onDem: (n: number) => void; hep: boolean;
+}) {
   const [tep, setTep] = useState<DinhKemChuyen[]>([]);
   const onDemRef = useRef(onDem);
   onDemRef.current = onDem;
@@ -732,7 +959,7 @@ function TepChuyen({ tripId, token, onDem }: { tripId: number; token: string; on
   }, [token, tripId]);
   useEffect(nap, [nap]);
   return (
-    <TabChungTu tep={tep} daHuy={false} coQuyen onDoi={nap}
+    <TabChungTu tep={tep} daHuy={false} coQuyen onDoi={nap} chupAnh={hep}
       taiMot={(f) => api.giaoHang.themDinhKemChuyen(token, tripId, f)}
       xoaMot={(id) => api.giaoHang.xoaDinhKemChuyen(token, tripId, id)}
       chuKeo="Kéo ảnh hoá đơn hoặc biên bản khách ký vào đây"
@@ -744,106 +971,121 @@ function ChungTuDon({
   t,
   giaoThang,
   nhieuDon,
-  maLaTieuDe,
   token,
+  hep,
   onDemTep,
+  onHenKho,
+  onMoKho,
 }: {
   t: DeliveryTrip;
   giaoThang: boolean;
   /** Lượt nhiều đơn ⇒ nói trạng thái của đơn đang chọn; một đơn thì đầu ngăn đã nói. */
   nhieuDon: boolean;
-  /** Mã yêu cầu đang là tiêu đề ngăn (ngăn một chuyến) ⇒ dòng phiếu giao hàng khỏi nhắc lại. */
-  maLaTieuDe: boolean;
   token: string;
+  hep: boolean;
   onDemTep: (n: number) => void;
+  /** Có quyền ⇒ dòng "Đề nghị xuất kho" có nút Sửa (hẹn lại kho) tới lúc kho lập phiếu. */
+  onHenKho?: () => void;
+  onMoKho: (c: ChungTuKho) => void;
 }) {
   const daKy = coKetQua(t) && !!t.nguoi_nhan_thuc_te;
   const px = t.phieu_xuat ? nhanPhieuKho(t.phieu_xuat.trang_thai, "xuat") : null;
   const pt = t.phieu_tra ? nhanPhieuKho(t.phieu_tra.trang_thai, "tra") : null;
   const mo = <span className="kt-mo">–</span>;
 
-  const giay: DongGiay[] = [
-    {
-      loai: "Phiếu giao hàng",
-      so: maLaTieuDe ? mo : t.request_code,
-      // Giao thẳng đã xong mà một đơn: đầu ngăn đã nói "Giao thành công" — thôi nhắc.
-      tt: daKy ? <ChipGh text="Khách đã ký" tone="on" />
-        : giaoThang && coKetQua(t) ? (nhieuDon ? <ChipGh text="Đã giao" tone="on" /> : mo)
-          : <ChipGh text="Chưa giao" tone="warn" />,
-      ai: daKy ? <Cum><span>{t.nguoi_nhan_thuc_te}</span><TheNho>{gioNgay(t.thoi_gian_ket_thuc)}</TheNho></Cum> : null,
-    },
-    giaoThang
-      ? { loai: "Phiếu xuất kho", so: <span className="kt-mo">Không qua kho</span>, tt: mo,
-          ai: <span className="kt-mo">Nhà gia công giao thẳng cho khách</span> }
-      : t.phieu_xuat
-        ? { loai: "Phiếu xuất kho", so: t.phieu_xuat.ma, tt: <ChipGh text={px!.text} tone={px!.tone} />,
-            ai: <Cum><span>{t.phieu_xuat.boi_ten}</span><TheNho>{gioNgay(t.phieu_xuat.luc)}</TheNho></Cum> }
-        : { loai: t.yeu_cau_kho_ma ? "Yêu cầu xuất kho" : "Phiếu xuất kho", so: t.yeu_cau_kho_ma ?? mo,
-            tt: <ChipGh text={t.yeu_cau_kho_ma ? "Chờ kho lập phiếu" : "Chưa gửi kho"} tone="warn" />, ai: null },
-  ];
-  if (t.phieu_tra || t.tra_hang_ma) {
+  const hen = t.yeu_cau_kho_ma ? (
+    <span className="gh-giay__hen">
+      <span>{henKho(t) ? `Cần lúc ${henKho(t)}` : "Chưa hẹn giờ"}</span>
+      {/* Hẹn kho (mg 0400): sửa được tới lúc kho lập phiếu. */}
+      {onHenKho && !t.kho_da_lap_phieu && (
+        <Button variant="ghost" className="gh-giay__sua" onClick={onHenKho}>Sửa</Button>
+      )}
+    </span>
+  ) : null;
+  const ttDn = t.yeu_cau_kho_trang_thai ? TT_DE_NGHI[t.yeu_cau_kho_trang_thai] : null;
+  const ycKhoId = t.yeu_cau_kho_id;
+  const traId = t.tra_hang_id;
+
+  const giay: DongGiay[] = [];
+  // Xuất kho / nhập trả: MỘT dòng mỗi chiều như "Đề nghị và phiếu kho" của bàn tổ — mã đề nghị ở cột
+  // tên, phiếu kho do nó sinh ra là thẻ ở cột cuối cùng dòng; chưa có phiếu thì cột cuối là hẹn kho.
+  if (giaoThang) {
+    giay.push({ ic: "kho", loai: "Xuất kho", so: <span className="kt-mo">Không qua kho</span>, tt: mo,
+      ai: <span className="kt-mo">Nhà gia công giao thẳng cho khách</span> });
+  } else {
     giay.push({
-      loai: "Phiếu nhập trả",
-      so: t.phieu_tra?.ma ?? t.tra_hang_ma,
-      tt: pt
-        ? <ChipGh text={pt.text} tone={pt.tone} />
+      ic: "kho",
+      loai: "Đề nghị xuất kho",
+      so: t.yeu_cau_kho_ma
+        ? <MaChungTu ma={t.yeu_cau_kho_ma} title="Xem đề nghị xuất kho"
+            onMo={ycKhoId != null ? () => onMoKho({ loai: "de_nghi", id: ycKhoId }) : undefined} />
+        : mo,
+      tt: px ? <ChipGh text={px.text} tone={px.tone} />
+        : t.yeu_cau_kho_ma ? <ChipGh text={ttDn?.text ?? (t.yeu_cau_kho_trang_thai ?? "—")} tone={ttDn?.tone ?? "warn"} />
+          : <ChipGh text="Chưa gửi kho" tone="warn" />,
+      ai: t.phieu_xuat
+        ? <PhieuKhoThe p={t.phieu_xuat} chu="xuất" onMo={onMoKho} />
+        : hen,
+    });
+  }
+  // Phiếu xuất kho bán hàng = cùng số PXK, đọc theo việc GIAO: kho ghi sổ xong mới tới tay tài xế,
+  // khách ký là xong. Giao thẳng không qua kho ⇒ chỉ còn việc giao (13/10/2026).
+  const xuatXong = t.phieu_xuat?.trang_thai === "posted";
+  giay.push({
+    ic: "giao",
+    loai: giaoThang ? "Giao cho khách" : "Phiếu xuất kho bán hàng",
+    so: !giaoThang && xuatXong && t.phieu_xuat ? t.phieu_xuat.ma : mo,
+    // Giao thẳng một đơn đã có kết quả: đầu ngăn đã nói — thôi nhắc.
+    tt: daKy && t.trang_thai === "thanh_cong" ? <ChipGh text="Khách đã ký" tone="on" />
+      : coKetQua(t) ? (giaoThang && !nhieuDon ? mo : <ChipGh text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />)
+        : !giaoThang && !xuatXong ? <ChipGh text="Chờ kho xuất" tone="warn" />
+          : <ChipGh text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />,
+    ai: coKetQua(t)
+      ? aiLuc(t.nguoi_nhan_thuc_te ?? <span className="kt-mo">Không ai ký nhận</span>, t.thoi_gian_ket_thuc)
+      : <span className="kt-mo">Chờ khách ký</span>,
+  });
+  if (t.tra_hang_ma || t.phieu_tra) {
+    giay.push({
+      ic: "tra",
+      loai: "Đề nghị nhập trả",
+      so: t.tra_hang_ma
+        ? <MaChungTu ma={t.tra_hang_ma} title="Xem đề nghị nhập trả"
+            onMo={traId != null ? () => onMoKho({ loai: "de_nghi", id: traId }) : undefined} />
+        : mo,
+      tt: pt ? <ChipGh text={pt.text} tone={pt.tone} />
         : <ChipGh text={t.tra_hang_trang_thai === "done" ? "Kho đã nhận lại" : "Chờ kho nhận lại"}
             tone={t.tra_hang_trang_thai === "done" ? "on" : "warn"} />,
-      ai: t.phieu_tra ? <Cum><span>{t.phieu_tra.boi_ten}</span><TheNho>{gioNgay(t.phieu_tra.luc)}</TheNho></Cum> : null,
+      ai: t.phieu_tra ? <PhieuKhoThe p={t.phieu_tra} chu="nhập" onMo={onMoKho} /> : null,
     });
   }
 
   return (
     <div className="gh-ctd__mat">
-      {/* Một đơn: khách + mã đơn đã ở tab Chi tiết — tab này chỉ giấy tờ và tệp. */}
-      {nhieuDon && (
-        <div className="gh-ctd__dau">
-          <div className="gh-dt__ten">
-            <b>{t.customer_name}</b>
-            <div className="gh-dt__the">
-              {t.order_code && <span className="gh-the">{t.order_code}</span>}
-              {t.customer_po_no && <span className="gh-the">PO {t.customer_po_no}</span>}
-            </div>
-          </div>
-          <Pill text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />
-        </div>
-      )}
-
+      {/* Khách, mã đơn, PO và trạng thái đơn đã ở cột đơn bên trái (lượt) hoặc đầu ngăn (một đơn) —
+          bên này chỉ giấy tờ và tệp, mỗi thông tin nói một lần. */}
       <section>
         <div className="kt-ngan__muc">Giấy tờ của đơn</div>
-        <div className="kt-bang">
-          <table className="kt-g" style={{ minWidth: 620 }}>
-            <colgroup>
-              <col style={{ width: 150 }} />
-              <col style={{ width: 170 }} />
-              <col style={{ width: 160 }} />
-              <col />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>Giấy tờ</th>
-                <th>Số</th>
-                <th>Trạng thái</th>
-                <th>Người làm</th>
-              </tr>
-            </thead>
-            <tbody>
-              {giay.map((g) => (
-                <tr key={g.loai}>
-                  <td>{g.loai}</td>
-                  <td>{g.so}</td>
-                  <td>{g.tt}</td>
-                  <td style={{ whiteSpace: "normal" }}>{g.ai ?? mo}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className="gh-giay" aria-label="Giấy tờ của đơn">
+          {giay.map((g) => {
+            const Ic = IC_GIAY[g.ic];
+            return (
+              <li key={g.loai}>
+                <span className={`gh-giay__ic gh-giay__ic--${g.ic}`} aria-hidden="true"><Ic size={18} /></span>
+                <span className="gh-giay__loai">
+                  <span>{g.loai}</span>
+                  <span className="gh-giay__so">{g.so}</span>
+                </span>
+                <span className="gh-giay__tt">{g.tt}</span>
+                <span className="gh-giay__ai">{g.ai ?? <span className="kt-mo">Chưa ai làm</span>}</span>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       <section>
         <div className="kt-ngan__muc">Tệp đính kèm của đơn</div>
-        <TepChuyen tripId={t.id} token={token} onDem={onDemTep} />
+        <TepChuyen tripId={t.id} token={token} onDem={onDemTep} hep={hep} />
       </section>
     </div>
   );

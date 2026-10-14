@@ -16,7 +16,20 @@ from app.models.notification import Notification
 from app.models.stock_request import REQ_DONE, REQ_PARTIAL, StockRequest, StockRequestLine
 from app.services.stock_request_service import StockRequestService
 
-from tests.test_kho_de_nghi import _admin, _approved_request, _login, _mk_material, _nhap, _setup
+from tests.test_kho_de_nghi import _approved_request, _login, _mk_material, _nhap, _setup
+
+
+def _so_da_tinh_ky_chua_khoa(kho_id, tu, den):
+    """Dựng số đã tính giá trên kỳ CHƯA khóa — dữ liệu cũ trước 13/10/2026 (nay API bắt khóa trước
+    rồi mới tính). Gọi thẳng hàm chốt snapshot, không qua `tinh-gia-ky`."""
+    from datetime import date
+
+    from app.routers.kho_baocao import _chot_ky
+
+    with SessionLocal() as s:
+        _chot_ky(s, tu=date.fromisoformat(tu), den=date.fromisoformat(den), ten=None,
+                 kho_ids=[kho_id], khoa_so_id=None)
+        s.commit()
 
 
 def test_dieu_chinh_ghi_chot_thuc_xuat_va_dong_yeu_cau(client):
@@ -256,7 +269,7 @@ def test_dieu_chinh_lien_tiep_tren_yeu_cau_da_hoan_tat_chi_reo_chuong_mot_lan(cl
 
 
 def test_ky_da_tinh_gia_thi_khong_sua_so_xuat_duoc(client):
-    """11/10/2026: kỳ đã bấm "Tính giá kỳ" (chưa khoá) cũng chặn — N-X-T kỳ sau đọc đầu kỳ từ số đã
+    """11/10/2026: kỳ có số đã tính giá (chưa khoá — dữ liệu cũ) cũng chặn — N-X-T kỳ sau đọc đầu kỳ từ số đã
     chốt và bỏ qua phiếu trong kỳ đó, sửa lùi là tồn đầu kỳ sau lệch ngầm."""
     from datetime import date
 
@@ -272,9 +285,7 @@ def test_ky_da_tinh_gia_thi_khong_sua_so_xuat_duoc(client):
     vid = r.json()["id"]
     line_id = client.post(f"/api/kho/phieu/{vid}/ghi-so", headers=tk).json()["lines"][0]["id"]
 
-    r = client.post("/api/kho/bao-cao/tinh-gia-ky", headers=_admin(client), json={
-        "tu": "2026-01-01", "den": date.today().isoformat(), "kho_id": kho_id})
-    assert r.status_code == 200, r.text
+    _so_da_tinh_ky_chua_khoa(kho_id, "2026-01-01", date.today().isoformat())
 
     r = client.post(f"/api/kho/phieu/{vid}/dieu-chinh-xuat", headers=tk, json={
         "lines": [{"line_id": line_id, "so_luong_moi": 70}], "ly_do": "xuất nhầm",
@@ -284,7 +295,7 @@ def test_ky_da_tinh_gia_thi_khong_sua_so_xuat_duoc(client):
 
 
 def test_ky_da_tinh_gia_thi_khong_ghi_so_lui_ngay_vao_duoc(client):
-    """11/10/2026: phiếu có ngày nằm trong kỳ đã tính giá ⇒ không ghi sổ được (N-X-T kỳ sau sẽ bỏ
+    """11/10/2026: phiếu có ngày nằm trong kỳ đã tính giá (chưa khoá — dữ liệu cũ) ⇒ không ghi sổ được (N-X-T kỳ sau sẽ bỏ
     qua phiếu đó). Kỳ đã tính tới HÔM QUA thì phiếu hôm nay vẫn ghi sổ bình thường."""
     from datetime import date, timedelta
 
@@ -301,9 +312,7 @@ def test_ky_da_tinh_gia_thi_khong_ghi_so_lui_ngay_vao_duoc(client):
         return client.post(f"/api/kho/phieu/{r.json()['id']}/ghi-so", headers=tk)
 
     assert _ghi_so_nhap_hom_qua(10).status_code == 200       # chưa tính giá: ghi lùi ngày được
-    r = client.post("/api/kho/bao-cao/tinh-gia-ky", headers=_admin(client), json={
-        "tu": "2026-01-01", "den": hom_qua, "kho_id": kho_id})
-    assert r.status_code == 200, r.text
+    _so_da_tinh_ky_chua_khoa(kho_id, "2026-01-01", hom_qua)
 
     r = _ghi_so_nhap_hom_qua(12)
     assert r.status_code == 400, r.text

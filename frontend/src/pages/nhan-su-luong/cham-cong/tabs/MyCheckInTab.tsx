@@ -33,6 +33,7 @@ import {
   fmtElapsed,
   getPosition,
   geoErrText,
+  kiemSaiSoDatDiem,
 } from "../shared/helpers";
 
 // --- Tab: Chấm công của tôi -------------------------------------------------
@@ -119,6 +120,7 @@ export function MyCheckIn({
         token,
         pos.coords.latitude,
         pos.coords.longitude,
+        pos.coords.accuracy,
       );
       if (mounted.current) setPreview(p);
     } catch (e) {
@@ -169,6 +171,7 @@ export function MyCheckIn({
         token,
         pos.coords.latitude,
         pos.coords.longitude,
+        pos.coords.accuracy,
       );
       setResult(res);
       load();
@@ -192,7 +195,10 @@ export function MyCheckIn({
     setResult(null);
     setGeoErr(null);
     try {
-      const pos = await getPosition();
+      const pos = kiemSaiSoDatDiem(
+        await getPosition(),
+        "Bật Vị trí chính xác cho trình duyệt, ra chỗ thoáng rồi thử lại, hoặc nhờ HCNS đặt điểm trên bản đồ.",
+      );
       await api.attendance.createLocation(token, {
         name: "Điểm chấm công của tôi",
         latitude: Number(pos.coords.latitude.toFixed(7)),
@@ -204,6 +210,7 @@ export function MyCheckIn({
         token,
         pos.coords.latitude,
         pos.coords.longitude,
+        pos.coords.accuracy,
       );
       setResult(res);
       load();
@@ -435,6 +442,12 @@ export function MyCheckIn({
               </button>
             </div>
 
+            {outside && preview?.vi_tri_gan_dung && (
+              <div className="cc-outside-hint-box">
+                <AlertTriangle size={14} style={{ color: "var(--signal)", flexShrink: 0 }} />
+                <span>{preview.message}</span>
+              </div>
+            )}
             {outside && preview?.meters_out != null && (
               <div className="cc-outside-hint-box">
                 <AlertTriangle size={14} style={{ color: "var(--signal)", flexShrink: 0 }} />
@@ -545,7 +558,7 @@ export function MyCheckIn({
 
             {canConfig &&
               (!status.locations_configured ||
-                (result != null && !result.within_range)) && (
+                (result != null && !result.within_range && !result.vi_tri_gan_dung)) && (
                 <div className="cc-setup" style={{ width: "100%", marginTop: 12 }}>
                   <button
                     className="btn btn--ghost cc-setup__btn"

@@ -107,6 +107,7 @@ class AttendanceLogOut(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     distance_m: float | None = None
+    accuracy_m: float | None = None
     within_range: bool = True
     note: str | None = None
 
@@ -133,6 +134,8 @@ class AttendanceLogsOut(BaseModel):
 class CheckIn(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    # `coords.accuracy` (mét) của trình duyệt. Rỗng = client cũ, chấm như trước.
+    accuracy: float | None = Field(default=None, ge=0)
 
 
 class NearestLocationOut(BaseModel):
@@ -148,6 +151,7 @@ class CheckResultOut(BaseModel):
     ot_mode: bool = False                  # lượt vừa chấm thuộc phiên TĂNG CA (vào/ra tăng ca)
     distance_m: float | None = None
     nearest_location: NearestLocationOut | None = None
+    vi_tri_gan_dung: bool = False          # bị từ chối vì trình duyệt chỉ cho vị trí gần đúng
     message: str
     log: AttendanceLogOut | None = None
 
@@ -162,6 +166,7 @@ class PreviewOut(BaseModel):
     radius_m: int | None = None
     next_action: str | None = None        # "in" | "out" — nhãn nút kế tiếp
     ot_mode: bool = False                  # lượt kế tiếp thuộc phiên TĂNG CA (vào/ra tăng ca)
+    vi_tri_gan_dung: bool = False          # sai số cỡ vị trí gần đúng ⇒ không đo được khoảng cách
     message: str
 
 

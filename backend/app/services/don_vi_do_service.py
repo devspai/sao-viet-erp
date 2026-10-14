@@ -99,6 +99,7 @@ class DonViDoService(CatalogService):
             raise DonViDoValidationError("Mã đơn vị không được trống.")
         if not (data.get("ten") or "").strip():
             raise DonViDoValidationError("Tên đơn vị không được trống.")
+        self._kiem_trung_ten(data, obj)
         # `tram_dong_giay` (cờ TRẠM trên dòng giấy) GỠ 06/09/2026. Nó là lớp trung gian cho một thứ
         # không cần trung gian: dòng giấy có ĐÚNG 5 chặng đóng cứng trong engine, cờ này chỉ cho
         # đổi TÊN chặng chứ không thêm được chặng thứ 6 — đổi lại bắt người khai đơn vị (việc của
@@ -107,6 +108,26 @@ class DonViDoService(CatalogService):
         # CÁCH ĐO của đơn vị (`cong_thuc`, mg 0192) GỠ 17/08/2026 — xem mg `0215`. Module này nay
         # chỉ còn HAI việc: khai đơn vị, và quy đổi giữa các đơn vị bằng hệ số cố định. Câu "một
         # lệnh cần bao nhiêu" thuộc về MÓN / MÁY / ĐẦU VIỆC / BƯỚC, mỗi nơi đã có ô riêng.
+
+    def _kiem_trung_ten(self, data: dict, obj=None) -> None:
+        """Chặn hai đơn vị cùng TÊN (bỏ hoa thường, bỏ khoảng trắng hai đầu).
+
+        ĐVT của phiếu tính giá / báo giá / đơn hàng lưu TÊN, rồi `ma_theo_ten` tra ngược ra mã.
+        Tên trùng thì nó BỎ HẲN tên đó, và đơn đang dùng «tờ» không chốt được với câu báo "không
+        có trong danh mục" (11/10/2026: `to` và `to_tp` cùng tên «tờ»). Xét cả dòng đã ngừng dùng
+        vì `ma_theo_ten` cũng tra trên chúng. Dòng mang ĐÚNG mã đang khai được bỏ qua: tạo lại mã
+        đã xoá mềm là ghi đè chính dòng đó.
+        """
+        ten = (data.get("ten") or "").strip().lower()
+        ma = (data.get("ma") or "").strip().lower()
+        for d in self.repo.all_rows():
+            if obj is not None and d.id == obj.id:
+                continue
+            if obj is None and (d.ma or "").strip().lower() == ma:
+                continue
+            if (d.ten or "").strip().lower() == ten:
+                raise DonViDoDuplicate(
+                    f"Tên «{(d.ten or '').strip()}» đã có ở đơn vị mã {d.ma} — đặt tên khác.")
 
     @staticmethod
     def _chuan_hoa(data: dict) -> dict:

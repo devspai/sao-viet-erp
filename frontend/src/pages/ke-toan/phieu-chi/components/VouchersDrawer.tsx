@@ -48,12 +48,16 @@ export type QuyenNgan = {
   xemDonMua: boolean;
 };
 
-/** Độ rộng cột bảng đối chiếu đợt giao (cột trái của ngăn kiểu 3 hẹp ⇒ ô Hàng xuống dòng). Đo font thật
- *  13px: "1.234.567.890" 94px ⇒ cột tiền 114 (đủ 9,99 tỷ); Trừ cọc, Trả trước đó 104 (đủ trăm triệu);
- *  "HD0712" ⇒ 84. Tổng tối thiểu 810 vừa cột trái ngăn rộng mặc định (đo 820px) — trước 840 nên lúc nào
- *  cũng cuộn. Khung hẹp hơn (điện thoại) thì bảng cuộn ngang, không để cột Hàng về 0px. */
-const COT_DOT = [56, 84, null, 116, 106, 106, 116, 116]; // +2px cột tiền vì ô lds-g đệm 10px (kt-g 9px); tổng tối thiểu 816 (khung lds-bang có viền 1px mỗi bên, cột trái 820px chứa 818)
-const RONG_DOT_TOI_THIEU = COT_DOT.reduce<number>((t, w) => t + (w ?? 116), 0);
+/** Đợt giao chia HAI bảng xếp chồng (13/10/2026): bảng đợt (Đợt | Ngày nhận hàng | Số hoá đơn | Ký hiệu
+ *  | Ngày hoá đơn | Hàng) và bảng tiền (Giá trị đợt | Trừ cọc | Trả trước đó | Phiếu này | Còn nợ). Gộp
+ *  một bảng thì tối thiểu ~1170px, quá cột trái ngăn rộng mặc định (đo 820px) ⇒ cột tiền trôi khỏi màn.
+ *  Ngày nhận hàng và ngày hoá đơn tách cột vì hạn trả tính từ ngày hoá đơn. Đo font thật 13px:
+ *  "1.234.567.890" 94px ⇒ cột tiền 114 (+2px vì ô lds-g đệm 10px); Trừ cọc, Trả trước đó 104 (đủ trăm
+ *  triệu); "Ngày nhận hàng" ⇒ 120, "0000123" ⇒ 112, "1C26TAA" ⇒ 88. Cột Hàng giữ tối thiểu 200 (116 thì
+ *  ba tên giấy xếp thành sáu dòng, bảng cao 250px). Khung hẹp hơn thì bảng cuộn ngang. */
+const COT_DOT = [56, 120, 112, 88, 114, null];
+const COT_TIEN_DOT = [116, 106, 106, 116, 116];
+const rongToiThieu = (cot: (number | null)[]) => cot.reduce<number>((t, w) => t + (w ?? 200), 0);
 
 export function VouchersDrawer({
   dau,
@@ -228,6 +232,9 @@ export function VouchersDrawer({
       cot={
         <RayThuocTinh o={[
           { nhan: "Người nhận tiền", giaTri: nguoiNhan || "—" },
+          { nhan: "Mục chi", giaTri: phieu.muc_thu_chi_ten || <span className="kt-mo">Chưa phân loại</span> },
+          // Phiếu hoàn tiền khách: tiền này vào Công nợ phải thu của đúng khách.
+          { nhan: "Khách hàng", giaTri: phieu.customer_name },
           { nhan: "Hình thức", giaTri: VOUCHER_METHOD_LABELS[phieu.voucher_type] },
           { nhan: "Ngày chi", giaTri: ngay(phieu.voucher_date) },
           // Thiếu cả ngân hàng, số lẫn chi nhánh thì `TaiKhoanO` (gọi như hàm) trả null ⇒ ô ẩn hẳn, không còn nhãn trơ.
@@ -256,7 +263,7 @@ export function VouchersDrawer({
               )}
             </Cum>
           ) },
-          { nhan: "Hoá đơn", giaTri: phieu.invoice_number && (
+          { nhan: "Số chứng từ", giaTri: phieu.invoice_number && (
             <Cum>
               <span>{phieu.invoice_number}</span>
               {phieu.invoice_date && <TheNho>{`Ngày ${ngay(phieu.invoice_date)}`}</TheNho>}
@@ -310,44 +317,67 @@ export function VouchersDrawer({
               ) : phieu.delivery_seq_no == null ? (
                 <p className="kt-mo">Đơn không theo dõi theo đợt giao.</p>
               ) : (
-                <div className="lds-bang">
-                  <table className="lds-g" style={{ minWidth: RONG_DOT_TOI_THIEU }}>
-                    <colgroup>
-                      {COT_DOT.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>Đợt</th>
-                        <th>Hoá đơn</th>
-                        <th>Hàng</th>
-                        <th className="n">Giá trị đợt</th>
-                        <th className="n">Trừ cọc</th>
-                        <th className="n">Trả trước đó</th>
-                        <th className="n">Phiếu này</th>
-                        <th className="n">Còn nợ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>{`Đợt ${phieu.delivery_seq_no}`}</td>
-                        <td title={dot?.invoice_number || undefined}>
-                          {dot?.invoice_number || <span className="lds-mu3">–</span>}
-                        </td>
-                        <td style={{ whiteSpace: "normal", lineHeight: "24px" }}
-                          title={dot?.lines.map((l) => l.item_name).join("\n") || undefined}>
-                          {dot && dot.lines.length > 0
-                            ? <Cum>{dot.lines.map((l) => <TheNho key={l.id}>{l.item_name}</TheNho>)}</Cum>
-                            : <span className="lds-mu3">–</span>}
-                        </td>
-                        <td className="n"><OSo so={dot?.amount} /></td>
-                        <td className="n"><OSo so={dot?.coc_bu} /></td>
-                        <td className="n"><OSo so={phieu.truoc_do} /></td>
-                        <td className="n">{vietSo(phieu.amount_vnd)}</td>
-                        <td className="n"><OSo so={phieu.con_no_sau} /></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="lds-bang">
+                    <table className="lds-g" aria-label="Đợt giao" style={{ minWidth: rongToiThieu(COT_DOT) }}>
+                      <colgroup>
+                        {COT_DOT.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th>Đợt</th>
+                          <th>Ngày nhận hàng</th>
+                          <th>Số hoá đơn</th>
+                          <th>Ký hiệu</th>
+                          <th>Ngày hoá đơn</th>
+                          <th>Hàng</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>{`Đợt ${phieu.delivery_seq_no}`}</td>
+                          <td>{dot?.delivery_date ? ngay(dot.delivery_date) : <span className="lds-mu3">–</span>}</td>
+                          <td title={dot?.invoice_number || undefined}>
+                            {dot?.invoice_number || <span className="lds-mu3">–</span>}
+                          </td>
+                          <td className="lds-mu">{dot?.invoice_symbol || <span className="lds-mu3">–</span>}</td>
+                          <td>{dot?.invoice_date ? ngay(dot.invoice_date) : <span className="lds-mu3">–</span>}</td>
+                          <td style={{ whiteSpace: "normal", lineHeight: "24px" }}
+                            title={dot?.lines.map((l) => l.item_name).join("\n") || undefined}>
+                            {dot && dot.lines.length > 0
+                              ? <Cum>{dot.lines.map((l) => <TheNho key={l.id}>{l.item_name}</TheNho>)}</Cum>
+                              : <span className="lds-mu3">–</span>}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="lds-bang">
+                    <table className="lds-g" aria-label="Tiền của đợt" style={{ minWidth: rongToiThieu(COT_TIEN_DOT) }}>
+                      <colgroup>
+                        {COT_TIEN_DOT.map((w, i) => <col key={i} style={{ width: w }} />)}
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th className="n">Giá trị đợt</th>
+                          <th className="n">Trừ cọc</th>
+                          <th className="n">Trả trước đó</th>
+                          <th className="n">Phiếu này</th>
+                          <th className="n">Còn nợ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="n"><OSo so={dot?.amount} /></td>
+                          <td className="n"><OSo so={dot?.coc_bu} /></td>
+                          <td className="n"><OSo so={phieu.truoc_do} /></td>
+                          <td className="n">{vietSo(phieu.amount_vnd)}</td>
+                          <td className="n"><OSo so={phieu.con_no_sau} /></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </>
           )}

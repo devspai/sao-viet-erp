@@ -134,7 +134,7 @@ def ghi_giao_thang(db: Session, *, user, gcn, cv, so: float, ngay_khach_nhan: da
     )
     repo.add_request_line(req.id, ln.id, qty, hang_loai="vat_tu", hang_id=tp.id, dvt=tp.don_vi_gia)
     trip = repo.create_trip(
-        request_id=req.id, lan_thu=1, employee_id=emp.id, gio_lay_hang=luc, gio_du_kien_giao=luc,
+        request_id=req.id, lan_thu=1, employee_id=emp.id,
         ghi_chu_phan_cong=f"{ghi} — không xe, không kho", trang_thai=LG_THANH_CONG,
         thoi_gian_ket_thuc=luc, ghi_chu_ket_qua=ghi, created_by=uid, gia_cong_ngoai_id=gcn.id,
     )

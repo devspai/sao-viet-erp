@@ -1,6 +1,6 @@
 /** Luật chặn TIỀN của form lập phiếu chi theo đơn mua (PC-4) — trần cọc, trần đợt, hết chỗ chi,
  *  bắt buộc chọn đợt. Câu chữ giữ nguyên bản cũ; lỗi nay gom theo ô thay vì dừng ở câu đầu. */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -109,5 +109,17 @@ describe("PaymentVoucherDialog — nối trần vào form", () => {
     expect(screen.getByText("Số tiền quy đổi không được vượt quá 3.000.000 đ (công nợ hiện tại).")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Lập phiếu chi" })).toBeDisabled();
     expect(createVoucher).not.toHaveBeenCalled();
+  });
+
+  it("thẻ đợt: ngày nhận hàng tách khỏi ngày hoá đơn, ký hiệu là một thẻ riêng", () => {
+    const coHd = { ...dot(11, 1, 3_000_000), invoice_number: "0000123", invoice_symbol: "1C26TAA", invoice_date: "2026-10-10" };
+    render(<PaymentVoucherDialog purchase={don({ deliveries: [coHd, dot(12, 2, 2_000_000)] as never })}
+      onClose={() => {}} onSaved={() => {}} />);
+    const the1 = screen.getByRole("radio", { name: /Đợt 1/ });
+    expect(within(the1).getByText("Nhận hàng 28/09/2026")).toBeInTheDocument();
+    expect(within(the1).getByText("Số hoá đơn 0000123")).toBeInTheDocument();
+    expect(within(the1).getByText("Ký hiệu 1C26TAA")).toBeInTheDocument();
+    expect(within(the1).getByText("Ngày hoá đơn 10/10/2026")).toBeInTheDocument();
+    expect(within(screen.getByRole("radio", { name: /Đợt 2/ })).getByText("Chưa có hoá đơn")).toBeInTheDocument();
   });
 });

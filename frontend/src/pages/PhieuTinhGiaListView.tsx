@@ -45,18 +45,16 @@ const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_TG_
 const docLocMan = (p: URLSearchParams): LocMan => ({ ky: kyTuUrl(p, ["tao"], "tao"), loc: locTGTuUrl(p) });
 const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locTGLenUrl(t.loc) });
 
-// Cột của lưới, đúng thứ tự hiện: Mã, Ngày tạo, Khách, Hàng, Số lượng, Tiền, Trạng thái, chứng từ
-// kế tiếp (Báo giá), Người, Ghi chú cuối (giãn theo chỗ trống).
+// Cột của lưới, đúng thứ tự hiện: Mã, Ngày tạo, Khách, Hàng, Tiền, Trạng thái, chứng từ kế tiếp
+// (Báo giá), Người, Ghi chú cuối (giãn theo chỗ trống). Hai cột Số lượng + Giá vốn mỗi sp ĐÃ GỠ
+// (13/10/2026): phiếu nhiều sản phẩm khác loại thì một SL chung và một giá bình quân không nói lên
+// gì — số từng sản phẩm xem trong phiếu.
 // `sx` = khoá sắp xếp gửi máy chủ; `n` = cột số (căn phải).
 const COT: (CotLuoi & { w?: number; n?: boolean; sx?: string; goiY?: string })[] = [
   { key: "ma", label: "Mã phiếu", coDinh: true, w: 135, sx: "ma" },
   { key: "ngay", label: "Ngày tạo", w: 100, sx: "ngay" },
   { key: "khach", label: "Khách hàng", w: 200 },
   { key: "sp", label: "Sản phẩm", w: 210 },
-  // Số lượng = Σ SL CÁC SẢN PHẨM trong phiếu (không phải ô SL mặc định đầu phiếu) — có vậy SL × giá
-  // vốn mỗi sp mới ra tổng giá vốn.
-  { key: "sl", label: "Số lượng", w: 100, n: true, sx: "so_luong", goiY: "Tổng số lượng của các sản phẩm trong phiếu" },
-  { key: "gv", label: "Giá vốn mỗi sp", w: 115, n: true, sx: "gia_von_don" },
   { key: "tong", label: "Tổng giá vốn", w: 120, n: true, sx: "tong_gia_von" },
   { key: "tt", label: "Trạng thái", w: 115 },
   { key: "bg", label: "Báo giá", w: 100 },
@@ -250,13 +248,12 @@ export function PhieuTinhGiaListView({
                 </tr>
               ) : (
                 items.map((it) => {
-                  // Tên ở ĐẦU PHIẾU (`ten_san_pham`) là chữ ĐÓNG BĂNG, không chạy theo tên hàng bên trong:
-                  // phiếu 1 món → lấy tên món (sửa trong phiếu là ngoài này đổi theo); nhiều món → tên
-                  // cụm đầu phiếu + thẻ "+N" (rê chuột xem đủ tên từng món); chưa có món → còn gì hiện nấy.
+                  // CHỈ tên sản phẩm bên trong phiếu (ruột + bìa cùng nhóm = tên nhóm), tên đầu + thẻ "+N"
+                  // (rê chuột xem đủ). KHÔNG dùng `ten_san_pham` ở đầu phiếu nữa (13/10/2026): ô đó
+                  // không còn chỗ sửa trong phiếu, chữ cũ kiểu "TEST · …" đóng băng mãi ở đây.
                   const trong = it.ten_thanh_phans ?? [];
-                  const motMon = trong.length === 1;
-                  const chinh = motMon ? trong[0] : it.ten_san_pham || trong[0] || "";
-                  const con = motMon ? [] : it.ten_san_pham ? trong : trong.slice(1);
+                  const chinh = trong[0] ?? "";
+                  const con = trong.slice(1);
                   const tt = trangThai(it);
                   return (
                     <tr
@@ -289,12 +286,6 @@ export function PhieuTinhGiaListView({
                                 {chinh || "—"}
                                 {con.length > 0 ? <span className="lds-tag">+{con.length}</span> : null}
                               </td>
-                            );
-                          case "sl":
-                            return <td key={c.key} className="n">{soVN(it.so_luong)}</td>;
-                          case "gv":
-                            return (
-                              <td key={c.key} className="n">{it.gia_von_don ? soVN(it.gia_von_don) : <span className="lds-mu3">—</span>}</td>
                             );
                           case "tong":
                             return (

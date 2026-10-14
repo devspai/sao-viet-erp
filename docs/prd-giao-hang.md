@@ -62,9 +62,9 @@ nhiều yêu cầu.
 - Theo dõi số lượng đã yêu cầu · đã giao · còn lại.
 - Danh sách yêu cầu chờ lên kế hoạch.
 - Phân công nhân viên giao hàng; theo dõi rảnh / có lịch / đang giao / nghỉ.
-- **Gửi Yêu cầu xuất kho** (chứng từ của KHO) khi lên kế hoạch; kho lập phiếu · ghi sổ như mọi
-  phiếu vật tư khác.
-- Nhân viên xác nhận lấy hàng và kết quả giao.
+- **Lên đơn là gửi Yêu cầu xuất kho luôn** (chứng từ của KHO); kho lập phiếu · ghi sổ như mọi
+  phiếu vật tư khác. Kho ghi sổ phiếu xuất ⇒ chuyến tự sang *Đã lấy hàng* (12/10/2026).
+- Nhân viên bấm bắt đầu giao và ghi kết quả giao.
 - Giao thành công · **giao thiếu** · giao thất bại · **khách hẹn lại** · hàng trả lại.
 - Ghi nhận số kilomet thực tế từng lần giao.
 - Lịch sử trạng thái + người thao tác.
@@ -121,14 +121,14 @@ flowchart TD
     C --> D["Xác nhận địa chỉ, người nhận, ngày cần giao<br/>(mặc định kéo từ đơn)"]
     D --> F["Chờ lên kế hoạch"]
     F --> G["Quản lý chọn nhân viên + giờ lấy / giờ dự kiến giao"]
-    G --> I["Đã lên kế hoạch"]
-    I --> X["Quản lý BẤM TAY: Gửi yêu cầu xuất kho<br/>(stock_requests loại XUẤT — chứng từ của KHO)"]
-    X --> Y["Kho lập phiếu + ghi sổ<br/>(luồng sẵn có, không sửa gì)"]
-    Y --> Z["Kho đang chuẩn bị hàng"]
-    I --> K["Nhân viên nhận thông báo"]
-    Z --> L["TÀI XẾ bấm: Đã lấy hàng"]
-    K --> L
-    L --> M["Đang giao"]
+    G --> X["Lên đơn = máy tự gửi Yêu cầu xuất kho<br/>(stock_requests loại XUẤT — chứng từ của KHO)"]
+    X --> Z["Chờ kho xuất"]
+    Z --> Y["Kho lập phiếu + ghi sổ<br/>(luồng sẵn có, không sửa gì)"]
+    G --> K["Nhân viên nhận thông báo"]
+    Y --> L["Máy tự chuyển: Đã lấy hàng<br/>+ báo tài xế"]
+    L --> T["TÀI XẾ bấm: Bắt đầu giao"]
+    K --> T
+    T --> M["Đang giao"]
     M --> N{"Kết quả"}
     N -->|"Thành công / Giao thiếu"| O["Nhập số nhận thực, km, người nhận"]
     N -->|"Khách hẹn lại"| S["Nhập km + ngày hẹn mới"]
@@ -228,14 +228,14 @@ Bốn mốc đẩy **đích danh** cho tài xế của chuyến (`hub.publish(us
 
 | Mốc | `viec` | Ai bấm |
 |---|---|---|
-| Phân chuyến | `phan_chuyen` | Quản lý — lên kế hoạch, hoặc đổi sang tài xế khác |
+| Phân chuyến | `phan_chuyen` | Quản lý — lên đơn (đã kèm gửi kho), hoặc đổi sang tài xế khác |
 | Đổi giờ chuyến | `doi_gio` | Quản lý |
-| Gửi yêu cầu xuất kho | `gui_kho` | Quản lý |
-| **Kho lập phiếu** | `kho_xong` | **Kho** — mốc tài xế lên đường |
+| **Kho lập phiếu** | `kho_xong` | **Kho** — hàng đã soạn, tài xế tới lấy được |
+| **Kho ghi sổ phiếu xuất** | `da_xuat_kho` | **Kho** — chuyến tự sang *Đã lấy hàng*, bắt đầu giao được |
 
-⚠️ Mốc cuối là **móc duy nhất Giao hàng đặt vào luồng Kho**. Toàn bộ logic ở
-`services/delivery_notify`; `routers/kho_voucher` chỉ có MỘT dòng gọi và hàm đó **tự nuốt lỗi** —
-hỏng gửi toast không được làm hỏng việc lập phiếu. Chỉ đọc, không sửa gì của kho.
+⚠️ Hai mốc cuối là **móc Giao hàng đặt vào luồng Kho**. Toàn bộ logic ở `services/delivery_notify`;
+`routers/kho_voucher` mỗi chỗ (lập phiếu, ghi sổ) chỉ MỘT dòng gọi và hàm đó **tự nuốt lỗi** — hỏng
+phần phụ không được làm hỏng việc lập phiếu / ghi sổ. Không sửa gì của kho.
 
 Tài xế thường **chỉ có ô `giao_hang`**, nên cổng mở SSE ở `AppShell` phải kể tên module đó —
 thiếu thì họ không kết nối và mọi thông báo rơi vào hư không.
@@ -312,19 +312,27 @@ Bản gốc viết *"cảnh báo và không cho lưu"* — hai vế đá nhau. V
 
 Một nhân viên được nhiều chuyến trong ngày miễn không trùng.
 
-**Gửi Yêu cầu xuất kho — BẤM TAY, và là chứng từ CỦA KHO**
+**Gửi Yêu cầu xuất kho — TỰ GỬI LÚC LÊN ĐƠN, và là chứng từ CỦA KHO**
+
+> **Sửa 12/10/2026.** Bỏ hai nút bấm tay. (1) *Gửi yêu cầu xuất kho* của điều phối: lên đơn rồi thì
+> kiểu gì cũng gửi, nút thứ hai chỉ là thêm một chỗ quên. Nay lên đơn (một yêu cầu hoặc cả lượt) là
+> máy lập luôn mỗi chuyến một yêu cầu XUẤT trong cùng giao dịch — kho thiếu hàng thì lên đơn bị
+> chặn cả gói. (2) *Đã lấy hàng* của tài xế: nút chỉ gác "đã gửi kho" nên bấm được cả khi kho
+> **chưa lập phiếu** — đã có chuyến giao xong mà hàng chưa ra khỏi sổ kho. Nay kho **ghi sổ** phiếu
+> xuất đủ (yêu cầu `done`) thì chuyến tự sang *Đã lấy hàng* và báo tài xế; xuất thiếu thì vẫn chờ.
 
 > **Sửa 19/08/2026, lần thứ ba.** Bản đầu tự sinh chứng từ lúc lưu kế hoạch. Bản hai dựng bảng
 > `delivery_issue_requests` song song kèm nút *Duyệt* riêng cho kho. Cả hai đều sai: hàng ra khỏi
 > kho phải có **phiếu kho**, và kho **không có bước duyệt** — họ **lập phiếu**.
 
-- Lên kế hoạch xong, chuyến ở *Đã lên kế hoạch*. Quản lý bấm **Gửi yêu cầu xuất kho** trên chính
-  dòng chuyến ⇒ tạo **một `stock_requests` loại XUẤT** qua đúng service của kho.
+- Lên đơn ⇒ máy tạo **một `stock_requests` loại XUẤT** cho mỗi chuyến qua đúng service của kho.
+  Ô kho để trống — thủ kho chọn lúc lập phiếu. Ghi chú mang mã lượt + mã yêu cầu giao.
+  *(Bản trước 12/10/2026: quản lý bấm tay nút **Gửi yêu cầu xuất kho**.)*
 - Form giống hệt màn xin xuất vật tư: chọn **kho** + **mặt hàng trong danh mục** + đơn vị + số
   lượng. Mọi luật của kho áp y hệt — kể cả luật siết 08/08/2026 *"mặt hàng phải có thật trong danh
   mục"*. Không có cửa sau cho giao khách.
 - **Không có bước duyệt.** `StockRequestService.create()` duyệt luôn (bỏ bước duyệt 06/08/2026),
-  nên kho thấy là lập phiếu được ngay. Chuyến sang *Kho đang chuẩn bị hàng*.
+  nên kho thấy là lập phiếu được ngay. Chuyến sang *Chờ kho xuất*.
 - **Một chuyến chỉ một yêu cầu xuất kho.** Gửi lần hai bị chặn.
 - Đổi giờ sau khi đã gửi ⇒ **CẢNH BÁO**, KHÔNG tự huỷ phiếu bên kho. Đó là chứng từ của họ; huỷ hộ
   là đụng vào sổ sách bên đó. Quản lý tự vào màn Kho huỷ nếu cần.
@@ -371,8 +379,10 @@ sau — chính là Đề nghị xuất hàng ở §6:
 
 | Trạng thái | Ai chuyển | Dữ liệu đứng sau |
 |---|---|---|
-| `dang_chuan_bi` | **Quản lý** bấm *Gửi yêu cầu xuất kho* | `stock_requests` XUẤT được tạo (đã duyệt sẵn) |
-| `da_lay_hang` | **Tài xế** tự bấm khi đã cầm được hàng | đòi chuyến đang ở `dang_chuan_bi` |
+| `dang_chuan_bi` (*Chờ kho xuất*) | **Máy**, ngay lúc lên đơn | `stock_requests` XUẤT được tạo (đã duyệt sẵn) |
+| `da_lay_hang` | **Máy**, khi kho ghi sổ phiếu xuất đủ (12/10/2026) | yêu cầu XUẤT `done` |
+
+`da_len_ke_hoach` chỉ còn là trạng thái thoáng qua trong lúc lưu (và ở chuyến cũ trước 12/10/2026).
 
 > **`cho_lay_hang` ĐÃ BỎ (19/08/2026).** Nó cần kho báo *"đã soạn xong"*, mà kho chỉ duyệt rồi
 > thôi. Không ai bấm thì trạng thái đó chỉ là chữ trên màn — đúng lý do đã bỏ *Đang chuẩn bị hàng*
@@ -547,7 +557,8 @@ Viết lại cho **đo được** — mỗi dòng phải dịch thẳng thành m
     quản lý phải bấm gửi lại.
 16. Vai kho **không có** ô `giao_hang` vẫn duyệt được đề nghị trong Hộp yêu cầu; nhưng **không**
     mở được màn Giao hàng.
-17. Tài xế bấm *Đã lấy hàng* khi **chưa gửi đề nghị** hoặc kho **chưa duyệt** ⇒ bị chặn.
+17. Kho **chưa ghi sổ** phiếu xuất (kể cả đã lập phiếu) ⇒ chuyến vẫn *Chờ kho xuất*, không bắt đầu
+    giao được; ghi sổ xong ⇒ tự *Đã lấy hàng* (12/10/2026, thay nút tài xế tự bấm).
 18. Mặt hàng KHÔNG có trong danh mục ⇒ yêu cầu xuất kho bị chặn — luật siết 08/08/2026
     của kho áp cho giao hàng y hệt, không có cửa sau.
 

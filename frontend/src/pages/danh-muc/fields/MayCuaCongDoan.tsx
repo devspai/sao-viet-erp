@@ -5,6 +5,9 @@
 // đơn giá cũng theo máy: máy 5 màu khổ lớn và máy 2 màu khổ nhỏ có giá khác nhau.
 //
 // Hàng tick "Máy làm được công đoạn này" (nhóm máy) nay chỉ là BỘ LỌC cho bảng này.
+//
+// Máy ĐẦU bảng là MÁY MẶC ĐỊNH (12/10/2026) — bước lệnh / lượt chạy chung mới ra đời tự điền máy này
+// (`LsxService._may_mac_dinh`), cùng luật tổ đầu = tổ mặc định. Thứ tự lưu xuống `cong_doan_may.thu_tu`.
 import { useMemo, useState } from "react";
 
 import { Select, type SelectOption } from "../../../components/Select";
@@ -126,6 +129,14 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
                     onClick={(e) => bat(r.may_id, "gio", e.currentTarget, r.cong_thuc_gio ?? null)}>
                     {may ? `${String(may.ma)} · ${String(may.ten)}` : `#${r.may_id}`}
                   </button>
+                  {/* Một máy thì chẳng có gì để chọn — nhãn chỉ hiện khi có từ hai máy, như chip tổ. */}
+                  {chon.length > 1 && (i === 0
+                    ? <span className="rc-may-mac-dinh">mặc định</span>
+                    : <button type="button" className="rc-may-dat-mac-dinh"
+                        title="Đưa máy này lên đầu: bước lệnh mới tự gán máy này"
+                        onClick={() => onChange([r, ...chon.filter((_, j) => j !== i)])}>
+                        Đặt mặc định
+                      </button>)}
                 </td>
                 {/* NĂNG LỰC MÁY — chỉ đọc, kế thừa từ danh mục Thiết bị & Máy móc. Bày ở đây vì
                     người khai "Cách đo giờ chạy" cần biết máy chạy nhanh cỡ nào theo đơn vị nào

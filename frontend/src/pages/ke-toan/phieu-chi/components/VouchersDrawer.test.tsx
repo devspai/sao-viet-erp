@@ -62,9 +62,12 @@ describe("VouchersDrawer — kiểu 3", () => {
     render(<VouchersDrawer dau={DOT} eventTick={0} quyen={QUYEN} onDong={() => {}} onDoi={() => {}}
       onMoPhieuThu={() => {}} />);
     expect(screen.getByText("Trả cho đợt giao")).toBeInTheDocument();
-    const bang = screen.getByRole("table");
+    // Hai bảng: đợt (ngày nhận hàng tách khỏi ngày hoá đơn, ký hiệu cạnh số) và tiền của đợt.
+    expect(within(screen.getByRole("table", { name: "Đợt giao" })).getAllByRole("columnheader").map((th) => th.textContent))
+      .toEqual(["Đợt", "Ngày nhận hàng", "Số hoá đơn", "Ký hiệu", "Ngày hoá đơn", "Hàng"]);
+    const bang = screen.getByRole("table", { name: "Tiền của đợt" });
     const tieuDe = within(bang).getAllByRole("columnheader").map((th) => th.textContent);
-    expect(tieuDe).toEqual(["Đợt", "Hoá đơn", "Hàng", "Giá trị đợt", "Trừ cọc", "Trả trước đó", "Phiếu này", "Còn nợ"]);
+    expect(tieuDe).toEqual(["Giá trị đợt", "Trừ cọc", "Trả trước đó", "Phiếu này", "Còn nợ"]);
     await waitFor(() => expect(within(bang).getByText("74.239.000")).toBeInTheDocument());
     expect(within(bang).getByText("31.817.000")).toBeInTheDocument();
     const dong = within(bang).getAllByRole("row")[1];

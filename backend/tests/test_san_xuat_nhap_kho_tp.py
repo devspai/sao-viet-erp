@@ -14,7 +14,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.don_vi_do import DonViDo, DonViQuyDoi
-from app.models.kho_hang import KhoHang
+from app.models.kho_hang import MA_KHO_THANH_PHAM, KhoHang
 from app.models.lsx import Lsx
 from app.models.order import OrderLine
 from app.models.san_xuat import SanXuatNhomLsx
@@ -83,7 +83,9 @@ def test_bam_gui_kho_lap_yeu_cau_nhap_that_tu_duyet(db, orders, lsx_svc, admin, 
     res = _gui(db, cv, rb)
 
     req = db.get(StockRequest, res["request_id"])
-    assert req.loai == REQ_NHAP and req.trang_thai == REQ_APPROVED and req.kho_id is None
+    assert req.loai == REQ_NHAP and req.trang_thai == REQ_APPROVED
+    # Thành phẩm chỉ vào Kho thành phẩm (12/10/2026) — đề nghị gắn sẵn kho đó.
+    assert db.get(KhoHang, req.kho_id).ma == MA_KHO_THANH_PHAM
     assert req.san_xuat_cong_viec_id == cv.id and req.bo_phan_id == phong_kcs.id
     assert req.nguoi_tao_id == rb["nguoi_kcs"].id
     [ln] = req.lines

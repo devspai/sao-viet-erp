@@ -40,10 +40,9 @@ export function useDieuKienYeuCau(): DieuKien<LocYeuCau>[] {
 }
 
 // ---------------------------------------------------------------- Đơn giao hàng
+/** Chỉ còn mốc ngày tạo (= ngày lên đơn): giờ lấy hàng / dự kiến giao đã gỡ ở mg 0400. */
 export const MOC_DON: [string, string][] = [
   ["tao", "Ngày tạo"],
-  ["lay", "Giờ lấy hàng"],
-  ["giao", "Giờ dự kiến giao"],
 ];
 
 export type LocDonGiao = { xe?: number; tai_xe?: number; trang_thai: string[] };

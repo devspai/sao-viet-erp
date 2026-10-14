@@ -270,3 +270,8 @@ label.kna-hang__anh--them:hover { border-color: var(--rule); color: var(--ink); 
 .kna-luoi-xuat > tbody > tr > td > .kna-o--nho { height: 28px; padding: 0 8px; border-color: var(--rule-soft); border-radius: 6px; }
 .kna-luoi-xuat > tbody > tr > td > .kna-o--nho:hover { border-color: var(--rule); }
 .lds-bang.lds-bang--nhap .lds-g tbody tr.kna-bang__phu > td { background: var(--paper); }
+
+/* Giá vốn khi xuất lô thành phẩm chưa có giá gốc (12/10/2026): số đã biết + dòng nhỏ phần chưa có giá. */
+.kna .lds-g td.n .kna-dv--duoi, .kna-dv--duoi { display: block; margin-left: 0; white-space: nowrap; }
+.kna-tong-gv { display: inline-flex; flex-direction: column; align-items: flex-end; }
+.kna-tong-gv .kna-dv { margin-left: 0; }

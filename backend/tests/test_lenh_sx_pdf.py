@@ -1,8 +1,9 @@
 """Phiếu công nghệ A4 (Task 13). Dùng ReportLab đang có ở `routers/quotations.py` — KHÔNG thêm
 thư viện QR mới, widget QR của chính ReportLab (`graphics.barcode.qr`) đủ dùng.
 
-Bốn luật: đúng PDF · nội dung dài thì TỰ chia trang (không cắt bảng giữa dòng) · mọi trang lặp
-mã LSX + phiên bản + QR · tải PDF KHÔNG làm tăng phiên bản phát hành.
+Bốn luật: đúng PDF; nội dung dài thì TỰ chia trang (không cắt bảng giữa dòng); mọi trang lặp
+mã LSX + phiên bản + QR; tải PDF KHÔNG làm tăng phiên bản phát hành. Bố cục "phiếu đi theo hàng"
+(13/10/2026, phương án B): xem docstring `phieu_cong_nghe`.
 
 Bản nháp brief (`task-13-brief.md`, Bước 1) gọi bốn fixture KHÔNG tồn tại trong repo — nó viết
 trước khi Task 10-12 dựng `tests/lenh_sx_fixtures.py`. Ánh xạ đã chốt ở phần "Điều chỉnh của điều
@@ -98,6 +99,7 @@ def _bat_chu(monkeypatch) -> _Giay:
 
     ve_trai = Canvas.drawString
     ve_giua = Canvas.drawCentredString
+    ve_phai = Canvas.drawRightString
     khoi_tao_o = Paragraph.__init__
     ve_hinh = renderPDF.draw
 
@@ -109,6 +111,10 @@ def _bat_chu(monkeypatch) -> _Giay:
         giay.canvas.append(text)
         return ve_giua(self, x, y, text, *a, **k)
 
+    def bat_phai(self, x, y, text, *a, **k):
+        giay.canvas.append(text)
+        return ve_phai(self, x, y, text, *a, **k)
+
     def bat_o(self, text, *a, **k):
         giay.o.append(text)
         return khoi_tao_o(self, text, *a, **k)
@@ -119,35 +125,10 @@ def _bat_chu(monkeypatch) -> _Giay:
 
     monkeypatch.setattr(Canvas, "drawString", bat_trai)
     monkeypatch.setattr(Canvas, "drawCentredString", bat_giua)
+    monkeypatch.setattr(Canvas, "drawRightString", bat_phai)
     monkeypatch.setattr(Paragraph, "__init__", bat_o)
     monkeypatch.setattr(renderPDF, "draw", bat_hinh)
     return giay
-
-
-#: Tiêu đề bảng routing, đúng thứ tự cột trên giấy (`phieu_cong_nghe.routing_rows`).
-_COT_ROUTING = (
-    "STT", "Lớp", "Công đoạn", "Nhóm", "Loại bước",
-    "SL vào", "SL ra", "ĐVT", "Tổ",
-)
-
-
-def _bang_routing(giay: _Giay, so_buoc: int) -> list[dict[str, str]]:
-    """Dựng lại BẢNG routing theo DÒNG từ danh sách ô phẳng mà `_bat_chu` bắt được.
-
-    `giay.o` là các ô theo đúng thứ tự `Paragraph` được tạo, nên bảng routing là một khối liên
-    tục bắt đầu ở ô tiêu đề `"STT"`. So cả hàng tiêu đề trước khi cắt: đổi tên/đổi thứ tự/bỏ một
-    cột là bài đỏ ngay tại đây với thông báo đọc được, chứ không lệch âm thầm sang cột bên cạnh.
-
-    Cần soi theo DÒNG chứ không "có chứa": cột `Lớp` và cột `STT` dùng chung kho ký tự số, một
-    phép `"1" in giay.o` không phân biệt nổi hai cột — mà phân biệt đúng hai cột ấy chính là việc
-    của Q-02.
-    """
-    n = len(_COT_ROUTING)
-    dau = giay.o.index(_COT_ROUTING[0])
-    assert giay.o[dau:dau + n] == list(_COT_ROUTING), f"hàng tiêu đề lạ: {giay.o[dau:dau + n]}"
-    o = giay.o[dau + n:dau + n * (1 + so_buoc)]
-    assert len(o) == n * so_buoc, f"thiếu ô: cần {n * so_buoc}, có {len(o)}"
-    return [dict(zip(_COT_ROUTING, o[i * n:(i + 1) * n])) for i in range(so_buoc)]
 
 
 def _so_trang(noi_dung: bytes) -> int:
@@ -206,8 +187,9 @@ def test_moi_trang_deu_co_ma_va_phien_ban(client, seed_credentials, lenh_dai, mo
     so_trang = _so_trang(r.content)
     assert so_trang >= 2, f"tiền đề của bài: phiếu 40 công đoạn phải ra >1 trang, đang ra {so_trang}"
 
-    ma = [s for s in giay.canvas if s.startswith("Mã LSX:")]
-    pb = [s for s in giay.canvas if s.startswith("Phiên bản phát hành:")]
+    ma_lenh = client.get(f"/api/lenh-san-xuat/{lenh_dai}", headers=h).json()["thong_tin"]["ma"]
+    ma = [s for s in giay.canvas if s == ma_lenh]
+    pb = [s for s in giay.canvas if s.startswith("Phiên bản ")]
     assert len(ma) == so_trang, f"{so_trang} trang nhưng chỉ {len(ma)} trang có mã LSX: {ma}"
     assert len(pb) == so_trang, f"{so_trang} trang nhưng chỉ {len(pb)} trang có phiên bản: {pb}"
     assert giay.qr_trang == list(range(1, so_trang + 1)), giay.qr_trang
@@ -216,7 +198,7 @@ def test_moi_trang_deu_co_ma_va_phien_ban(client, seed_credentials, lenh_dai, mo
 
 
 def test_giay_in_ten_don_vi_khong_in_ma(client, seed_credentials, lenh_that, monkeypatch):
-    """Sửa gấp của chủ dự án giữa Task 13: cột ĐVT in TÊN đơn vị, không in MÃ.
+    """Sửa gấp của chủ dự án giữa Task 13: đơn vị in TÊN, không in MÃ.
 
     Tổ trưởng đọc "480 tờ", không phải "480 to". Bài cũ (`test_nhan_don_vi_ten_khong_phai_ma`) chỉ
     gọi hàm tra tên nên nó canh CÔNG CỤ chứ không canh chỗ CẮM công cụ vào giấy — bỏ hàm tra ra
@@ -230,27 +212,24 @@ def test_giay_in_ten_don_vi_khong_in_ma(client, seed_credentials, lenh_that, mon
     r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
 
-    assert "tờ" in giay.o, f"không ô nào trên giấy là 'tờ' — các ô: {giay.o}"
-    assert "to" not in giay.o, "MÃ đơn vị 'to' lọt lên giấy thay vì tên 'tờ'"
+    # Ô Kế hoạch: "480 tờ" / "ra 470 tờ" (13/10/2026 số đi kèm đơn vị, bỏ cột ĐVT riêng).
+    co_ten = [o for o in giay.o if re.fullmatch(r"(ra )?[\d.,]+ tờ", o)]
+    assert co_ten, f"không ô số lượng nào mang đơn vị 'tờ' — các ô: {giay.o}"
+    lot = [o for o in giay.o if re.fullmatch(r"(ra )?[\d.,]+ to", o) or o == "to"]
+    assert not lot, f"MÃ đơn vị 'to' lọt lên giấy thay vì tên 'tờ': {lot}"
 
 
-def test_giay_khong_in_khoa_may_cua_ba_cot(client, seed_credentials, lenh_that, monkeypatch):
-    """Quy cách in / Nhóm / Loại bước phải ra tiếng Việt, không phải khoá máy.
+def test_giay_khong_in_khoa_may(client, seed_credentials, lenh_that, monkeypatch):
+    """Không khoá máy nào (`mot_mat` / `print` / `may`…) lên giấy.
 
     CÙNG loại lỗi với "480 to", trên cùng tờ giấy: phiếu từng in `mot_mat` / `print` / `may` trong
-    khi màn hồ sơ cùng dữ liệu hiện `1 mặt` / `In` / `Máy`. Khoá là thứ chỉ máy đọc được.
-
-    Bài cũng canh luôn luật "khoá lạ ⇒ in NGUYÊN khoá" không bị đổi thành "nuốt mất": ô Nhóm và ô
-    Loại bước phải CÓ chữ, không được rỗng.
+    khi màn hồ sơ cùng dữ liệu hiện `1 mặt` / `In` / `Máy`. Khoá là thứ chỉ máy đọc được. Từ
+    13/10/2026 cột Nhóm và Loại bước đã gỡ, nhưng khoá vẫn còn đường lọt (quy cách in, dòng phụ).
     """
     giay = _bat_chu(monkeypatch)
     h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
     r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
-
-    # `lenh_that` dựng bước `nhom="print"`, `loai_buoc="may"` (`_dung_lenh`).
-    assert "In" in giay.o, f"nhóm `print` chưa được dịch — các ô: {giay.o}"
-    assert "Máy" in giay.o, "loại bước `may` chưa được dịch"
 
     khoa_may = {
         "prepress", "print", "finishing", "other",      # cong_doan.NHOM
@@ -299,28 +278,36 @@ def test_khong_mot_so_tien_nao_len_giay(client, seed_credentials, lenh_that, mon
     assert co_tien is None, f"số tiền lọt lên giấy: {co_tien.group(0) if co_tien else ''}"
 
 
-def test_giay_in_cot_lop_khong_phai_chi_stt(client, seed_credentials, lenh_that, monkeypatch):
-    """Q-02: bảng routing phải mang cột `Lớp`, và `Lớp` KHÁC `STT`.
-
-    `ho_so.py:209-219` giải thích vì sao: bìa và ruột chạy SONG SONG nhưng `thu_tu` của chúng vẫn
-    là 1 và 2. Một tờ giấy chỉ đánh số 1→N nói với tổ trưởng rằng bước 12 xong mới tới 13 — sai
-    với routing có nhánh. Hai bước cùng `lop` = làm song song được; `lop` lớn hơn = phải đợi.
-
-    Bài này lấp đúng lỗ mà mũi đột biến R5 của lượt rà lại chui qua: rút ruột cột `Lớp`
-    (`gia_tri(node.get("lop"))` → `gia_tri("")`) mà cả bộ test vẫn `11 passed`.
-
-    `lenh_that` là chuỗi tuyến tính CTP → In → Đóng gói, nên `lop` = 0/1/2 trong khi STT = 1/2/3
-    — hai cột lệch nhau ở MỌI dòng, không dòng nào trùng để lọt.
-    """
+def test_chuoi_thang_khong_ghi_lam_sau(client, seed_credentials, lenh_that, monkeypatch):
+    """Cột "Lớp" 0 1 2 gỡ 13/10/2026 — tổ trưởng không đọc được. Chuỗi đi thẳng một mạch
+    (`lenh_that`: CTP → In → Đóng gói) thì thứ tự dòng đã nói đủ, KHÔNG in "Làm sau bước…"."""
     giay = _bat_chu(monkeypatch)
     h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
     r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
 
-    dong = _bang_routing(giay, 3)
-    assert [d["Công đoạn"] for d in dong] == ["CTP", "In", "Đóng gói"], dong
-    assert [d["Lớp"] for d in dong] == ["0", "1", "2"], f"cột Lớp sai: {[d['Lớp'] for d in dong]}"
-    assert [d["STT"] for d in dong] == ["1", "2", "3"], "STT phải vẫn còn để người ta gọi 'dòng 2'"
+    for ten in ("CTP", "In", "Đóng gói"):
+        assert ten in giay.o, f"thiếu bước {ten}: {giay.o}"
+    assert not [o for o in giay.o if o.startswith(("Làm sau", "Không chờ"))], giay.o
+
+
+def test_lam_sau_chi_khi_routing_co_nhanh():
+    """Bìa (1) và ruột (2) chạy SONG SONG rồi gặp nhau ở bắt cuốn (3): thứ tự dòng 1 → 2 → 3 nói
+    SAI là ruột phải đợi bìa. Có nhánh thì MỌI bước ghi rõ nó chờ ai, kể cả bước không chờ ai."""
+    nhanh = [
+        {"id": 11, "phu_thuoc": []},
+        {"id": 12, "phu_thuoc": []},
+        {"id": 13, "phu_thuoc": [11, 12]},
+        {"id": 14, "phu_thuoc": [13]},
+    ]
+    assert phieu_cong_nghe._lam_sau(nhanh) == {
+        11: "Không chờ bước nào",
+        12: "Không chờ bước nào",
+        13: "Làm sau bước 1 và 2",
+        14: "Làm sau bước 3",
+    }
+    thang = [{"id": 1, "phu_thuoc": []}, {"id": 2, "phu_thuoc": [1]}, {"id": 3, "phu_thuoc": [2]}]
+    assert phieu_cong_nghe._lam_sau(thang) == {}
 
 
 def test_giay_in_nha_gia_cong_cua_buoc_thue_ngoai(
@@ -332,35 +319,36 @@ def test_giay_in_nha_gia_cong_cua_buoc_thue_ngoai(
     `lenh_thue_ngoai`, nhánh này chưa từng chạy trong bộ test — code đọc thì đúng nhưng "đúng khi
     đọc" là mức bảo đảm mà task này đã hai lần bị bác.
 
-    Canh luôn quyết định "đi CHUNG ô Loại bước, không thành cột riêng": bước không thuê ngoài chỉ
-    có `"Máy"` trần, không dính dấu hai chấm hay ô rỗng thừa.
+    Tên nhà gia công đi ở dòng phụ của ô Công đoạn (13/10/2026 gỡ cột Loại bước), và CHỈ ở bước
+    thuê ngoài — bước nội bộ không được dính tên nhà gia công.
     """
     giay = _bat_chu(monkeypatch)
     h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
     r = client.get(f"/api/lenh-san-xuat/{lenh_thue_ngoai}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
 
-    theo_ten = {d["Công đoạn"]: d for d in _bang_routing(giay, 3)}
-    assert theo_ten["Cán màng"]["Loại bước"] == f"Thuê ngoài: {NHA_GIA_CONG}"
-    assert theo_ten["In"]["Loại bước"] == "Máy", "bước nội bộ không được dính tên nhà gia công"
+    i = giay.o.index("Cán màng")
+    assert giay.o[i + 1] == f"Thuê ngoài: {NHA_GIA_CONG}", giay.o[i:i + 3]
+    assert [o for o in giay.o if NHA_GIA_CONG in o] == [f"Thuê ngoài: {NHA_GIA_CONG}"]
+    # Ô "Giao đi" / "Nhận về" thay cho giờ bắt đầu / xong của bước thuê ngoài.
+    assert giay.o.count("Giao đi") == 1 and giay.o.count("Nhận về") == 1
 
 
 def test_giay_in_ma_dao_va_so_ke(client, seed_credentials, lenh_co_khuon, monkeypatch):
     """Thợ cầm TỜ GIẤY đi lấy dao chứ không mở màn hình — thiếu số kệ ở đây là đứt chuỗi khuôn dù
     phần mềm giữ đủ dữ liệu.
 
-    Đi chung ô "Loại bước" với nhà gia công, cùng lý do (xem `phieu_cong_nghe.routing_rows`): chỉ
-    một phần nhỏ số dòng có dao, thêm hẳn một cột là bỏ trống gần hết bảng và ăn mất bề ngang của
-    cột Công đoạn.
+    Đi ở dòng phụ của ô Công đoạn: chỉ một phần nhỏ số dòng có dao, thêm hẳn một cột là bỏ trống
+    gần hết bảng và ăn mất bề ngang của cột Công đoạn.
     """
     giay = _bat_chu(monkeypatch)
     h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
     r = client.get(f"/api/lenh-san-xuat/{lenh_co_khuon}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
 
-    theo_ten = {d["Công đoạn"]: d for d in _bang_routing(giay, 3)}
-    assert theo_ten["Bế"]["Loại bước"] == f"Máy · {KHUON_MA} — {KHUON_KE}"
-    assert theo_ten["In"]["Loại bước"] == "Máy", "bước không dùng dao không được dính mã dao"
+    assert f"Khuôn {KHUON_MA} ở {KHUON_KE}" in giay.o, giay.o
+    khuon = [o for o in giay.o if o.startswith("Khuôn ")]
+    assert len(khuon) == 1, f"bước không dùng dao không được dính mã dao: {khuon}"
 
 
 def test_giay_noi_thang_dao_chua_ve(client, seed_credentials, lenh_co_khuon, sess, monkeypatch):
@@ -378,8 +366,7 @@ def test_giay_noi_thang_dao_chua_ve(client, seed_credentials, lenh_co_khuon, ses
     r = client.get(f"/api/lenh-san-xuat/{lenh_co_khuon}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
 
-    theo_ten = {d["Công đoạn"]: d for d in _bang_routing(giay, 3)}
-    assert theo_ten["Bế"]["Loại bước"] == f"Máy · {KHUON_MA} — chưa về"
+    assert f"Khuôn {KHUON_MA} chưa về" in giay.o, giay.o
 
 
 def test_chan_trang_co_moc_in_va_nguoi_in(client, seed_credentials, lenh_that, monkeypatch):
@@ -397,8 +384,8 @@ def test_chan_trang_co_moc_in_va_nguoi_in(client, seed_credentials, lenh_that, m
     chan = [s for s in giay.canvas if s.startswith("In lúc ")]
     assert len(chan) == _so_trang(r.content), f"số chân trang ≠ số trang: {chan}"
     # Mốc in là NGÀY GIỜ thật, không phải chuỗi mẫu bỏ quên.
-    assert re.fullmatch(r"In lúc \d{2}/\d{2}/\d{4} \d{2}:\d{2} · Người in: .+", chan[0]), chan[0]
-    assert f"Trang {len(chan)}" in giay.canvas, giay.canvas
+    assert re.fullmatch(r"In lúc \d{2}/\d{2}/\d{4} \d{2}:\d{2} bởi .+", chan[0]), chan[0]
+    assert f"Trang {len(chan)}/{len(chan)}" in giay.canvas, giay.canvas
 
 
 def test_chan_trang_khong_de_len_o_so_trang(
@@ -423,7 +410,9 @@ def test_chan_trang_khong_de_len_o_so_trang(
     dang_ky_font()
     giay = _bat_chu(monkeypatch)
     h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
-    ten_thu = ("Admin", "Nguyễn Thị Thanh Hương", "Nguyễn Thị Thanh Hương Trần Quốc Khánh Anh")
+    # Tên thứ ba dài quá chỗ trống (~160 mm từ 13/10/2026, khi ô số trang dời sang mép phải) để
+    # bài vẫn đi qua nhánh CẮT.
+    ten_thu = ("Admin", "Nguyễn Thị Thanh Hương", "Nguyễn Thị Thanh Hương Trần Quốc Khánh Anh " * 3)
     for ten in ten_thu:
         admin.name = ten
         sess.commit()
@@ -433,7 +422,8 @@ def test_chan_trang_khong_de_len_o_so_trang(
     chan = [s for s in giay.canvas if s.startswith("In lúc ")]
     assert len(chan) == len(ten_thu), chan
 
-    bat_dau_so_trang = A4[0] / 2 - stringWidth("Trang 1", THUONG, _CO_CHAN_TRANG) / 2
+    # Ô "Trang 1/1" canh PHẢI ở mép lề phải.
+    bat_dau_so_trang = A4[0] - _LE_MM * mm - stringWidth("Trang 1/1", THUONG, _CO_CHAN_TRANG)
     for s in chan:
         het = _LE_MM * mm + stringWidth(s, THUONG, _CO_CHAN_TRANG)
         assert het <= bat_dau_so_trang, (
@@ -441,7 +431,7 @@ def test_chan_trang_khong_de_len_o_so_trang(
             f"{bat_dau_so_trang / mm:.1f}mm: {s!r}"
         )
     # Tên ngắn KHÔNG được cắt oan — nếu không thì "luôn cắt" cũng qua được bài này.
-    assert chan[0].endswith("· Người in: Admin"), chan[0]
+    assert chan[0].endswith(" bởi Admin"), chan[0]
     assert chan[-1].endswith("…"), f"tên dài phải bị cắt và có dấu …: {chan[-1]!r}"
 
 

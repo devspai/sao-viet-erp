@@ -15,8 +15,11 @@
 // Phương án C (11/10/2026, mockup docs/mockups/bao-cao-kinh-doanh-3-phuong-an.html): Bảng thêm phần
 // thực hiện đơn (đã giao, còn phải giao, đã xuất HĐ, đã thu, còn phải thu, hẹn giao — lũy kế tới cuối
 // kỳ), dòng Tổng cộng cuối bảng và dải ghi chú "đầu báo cáo"; bỏ dải số tổng (Tổng cộng đã nói). Thêm
-// cách xem Biểu đồ (`BieuDoTienDo`). Tỷ lệ báo giá ẩn mặc định, Đơn hàng ghim mặc định.
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+// cách xem Biểu đồ. Tỷ lệ báo giá ẩn mặc định, Đơn hàng ghim mặc định.
+//
+// 12/10/2026 dạng Biểu đồ làm lại theo phương án A (`BieuDoKinhDoanh`): bấm khách → Bảng lọc khách đó,
+// bấm một cột thời gian → Bảng với kỳ đúng khoảng đó, bấm một đơn → Bảng tô các dòng của đơn.
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   ApiError,
   api,
@@ -30,7 +33,7 @@ import { Button } from "../../components/Button";
 import { EmptyRow } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { ChonCot, CuonLuoi, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi } from "../../components/LuoiDs";
-import { fmtDate, fmtDateTime, money } from "../../utils/format";
+import { fmtDate, fmtDateISO, fmtDateTime, money } from "../../utils/format";
 import { useDebounced } from "../../utils/useDebounced";
 import { ThanhLoc } from "../thanh-loc/ThanhLoc";
 import { thamSoKy } from "../thanh-loc/ky-danh-sach";
@@ -44,7 +47,7 @@ import {
   thamSoLocBCKD,
   useDieuKienBCKD,
 } from "./dieu-kien-bao-cao-kinh-doanh";
-import { BieuDoTienDo, kyChu, phamViChu } from "./BieuDoTienDo";
+import { BieuDoKinhDoanh } from "./BieuDoKinhDoanh";
 import "./bao-cao-kinh-doanh.css";
 
 type Cot = CotLuoi & { w?: number; n?: boolean };
@@ -97,6 +100,19 @@ function docCachXem(): CachXem {
 
 const so = (v: number) => v.toLocaleString("vi-VN");
 
+const PHAM_VI: Record<string, string> = {
+  all: "toàn công ty",
+  department: "khách của phòng bạn",
+  own: "khách bạn phụ trách",
+};
+
+function kyChu(tu: string | null, den: string | null): string {
+  if (tu && den) return `từ ${fmtDateISO(tu)} đến ${fmtDateISO(den)}`;
+  if (tu) return `từ ${fmtDateISO(tu)}`;
+  if (den) return `đến ${fmtDateISO(den)}`;
+  return "mọi thời gian";
+}
+
 const Khong = ({ children = "—" }: { children?: ReactNode }) => <span className="bckd__khong">{children}</span>;
 
 function Tien({ v }: { v: number | null | undefined }) {
@@ -146,7 +162,7 @@ function tienCot(key: string, m: BaoCaoKinhDoanhTien): number | undefined {
 
 /** Một khách = một khối dòng: ô Khách gộp dọc cả khối, ô Đơn / Sale / tiền của đơn / Hẹn giao / Cọc gộp
  *  dọc cả đơn, mỗi mặt hàng một dòng; cuối khối là dòng Cộng. */
-function KhoiKhach({ k, cot, soGhim }: { k: BaoCaoKinhDoanhKhach; cot: Cot[]; soGhim: number }) {
+function KhoiKhach({ k, cot, soGhim, hl }: { k: BaoCaoKinhDoanhKhach; cot: Cot[]; soGhim: number; hl: number | null }) {
   const soDong = (d: BaoCaoKinhDoanhDon) => Math.max(1, d.dong.length);
   const soDongKhach = k.don.reduce((s, d) => s + soDong(d), 0);
   return (
@@ -216,7 +232,7 @@ function KhoiKhach({ k, cot, soGhim }: { k: BaoCaoKinhDoanhKhach; cot: Cot[]; so
             }
           };
           return (
-            <tr key={`${d.order_id}-${li}`}>
+            <tr key={`${d.order_id}-${li}`} className={d.order_id === hl ? "bckd-hl" : undefined}>
               {cot.map(o)}
             </tr>
           );
@@ -275,6 +291,9 @@ export function BaoCaoKinhDoanhPage() {
   const [data, setData] = useState<BaoCaoKinhDoanh | null>(null);
   const [lapLuc, setLapLuc] = useState<string | null>(null);
   const [xem, setXem] = useState<CachXem>(docCachXem);
+  /** Đơn được bấm ở dạng biểu đồ — tô ở dạng bảng. */
+  const [hl, setHl] = useState<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const dieuKien = useDieuKienBCKD(data?.lua_chon);
   const thamSo = useMemo(
     () => ({ ...thamSoKy(ky), ...thamSoLocBCKD(loc), q: timTre || undefined }),
@@ -311,8 +330,15 @@ export function BaoCaoKinhDoanhPage() {
   const coLoc = !!timTre || soDaAp(dieuKien, loc) > 0;
   const trong = coLoc ? "Không có đơn đã chốt nào khớp điều kiện đang lọc." : "Không có đơn đã chốt nào trong kỳ này.";
 
+  // Đơn vừa bấm ở biểu đồ: cuộn tới dòng đầu của đơn khi bảng đã vẽ.
+  useEffect(() => {
+    if (xem !== "bang" || hl == null || !data) return;
+    sheetRef.current?.querySelector("tr.bckd-hl")?.scrollIntoView({ block: "center" });
+  }, [xem, hl, data]);
+
   function doiXem(v: CachXem) {
     setXem(v);
+    if (v === "bieu-do") setHl(null);
     try {
       localStorage.setItem(KHOA_XEM, v);
     } catch {
@@ -375,7 +401,7 @@ export function BaoCaoKinhDoanhPage() {
           <div className="bckd__ghi" aria-label="Thông tin báo cáo">
             <span>Kỳ <b>{kyChu(data.tu_ngay, data.den_ngay)}</b></span>
             <span>Đơn đã chốt, vào kỳ theo <b>ngày chốt</b></span>
-            <span>Phạm vi <b>{phamViChu(data.pham_vi)}</b></span>
+            <span>Phạm vi <b>{PHAM_VI[data.pham_vi] ?? data.pham_vi}</b></span>
             <span>Giao, hoá đơn, thu tính tới <b>{fmtDate(data.tinh_toi)}</b></span>
             {lapLuc && <span>Lập lúc <b>{fmtDateTime(lapLuc)}</b></span>}
           </div>
@@ -384,12 +410,26 @@ export function BaoCaoKinhDoanhPage() {
 
       {xem === "bieu-do" ? (
         data && khachHien.length > 0 ? (
-          <BieuDoTienDo bc={data} />
+          <BieuDoKinhDoanh
+            bc={data}
+            onKhach={(id) => {
+              setLocMan({ ky, loc: { ...loc, khach: id } });
+              doiXem("bang");
+            }}
+            onKy={(tu, den) => {
+              setLocMan({ ky: { loai: "tuy", tu, den, moc: ky.moc }, loc });
+              doiXem("bang");
+            }}
+            onDon={(id) => {
+              doiXem("bang");
+              setHl(id);
+            }}
+          />
         ) : (
           <div className="lds-sheet"><p className="lds-trong bckd__trong">{loading ? "Đang tải…" : trong}</p></div>
         )
       ) : (
-        <div className="lds-sheet">
+        <div className="lds-sheet" ref={sheetRef}>
           <CuonLuoi ghim={soGhim}>
             <table className="lds-g bckd__luoi" style={{ minWidth: rongLuoi(cot, 200) }}>
               <colgroup>
@@ -415,7 +455,7 @@ export function BaoCaoKinhDoanhPage() {
                 </tbody>
               ) : (
                 <>
-                  {khachHien.map((k) => <KhoiKhach key={k.customer_id ?? "khong-gan"} k={k} cot={cot} soGhim={soGhim} />)}
+                  {khachHien.map((k) => <KhoiKhach key={k.customer_id ?? "khong-gan"} k={k} cot={cot} soGhim={soGhim} hl={hl} />)}
                   <DongTongCong bc={data} cot={cot} soGhim={soGhim} />
                 </>
               )}

@@ -27,17 +27,8 @@ export type TheLocPT = "tat_ca" | "xong" | "thieu" | "cho" | "da_huy";
 /** Bộ lọc ĐÃ ÁP. */
 export type LocPT = LocNangCao;
 
-/** Bốn lựa chọn Nguồn thu — mỗi lựa chọn đúng một `source_type`. */
-export const NGUON_LUA_CHON: [string, string][] = [
-  ["order_deposit", "Cọc đơn bán"],
-  ["sales_invoice", "Hoá đơn"],
-  ["other", "Khác"],
-  ["purchase_refund", "Thu lại tiền chi"],
-];
-
 export const CAU_HINH_LOC_PT: CauHinhLocPhieu = {
-  nhanNguon: "Nguồn thu",
-  nguonLuaChon: NGUON_LUA_CHON,
+  nhanMuc: "Mục thu",
   nhanTaiKhoan: "Vào tài khoản",
 };
 
@@ -77,20 +68,12 @@ export type TrangThaiLocPT = { the: TheLocPT; tim: string; loc: LocPT };
 
 const THE_HOP_LE: TheLocPT[] = ["tat_ca", "xong", "thieu", "cho", "da_huy"];
 
-/** Mã ngắn của Nguồn thu trên URL — link đọc được: `nguon=coc,hd`. */
-const NGUON_URL: [string, string][] = [
-  ["order_deposit", "coc"],
-  ["sales_invoice", "hd"],
-  ["other", "khac"],
-  ["purchase_refund", "chi"],
-];
-
 /** Trạng thái lọc → khoá URL (kỳ do `useKyKeToan` tự ghi). Giá trị mặc định ⇒ undefined. */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPT): Record<string, string | undefined> {
   return {
     the: the === "tat_ca" ? undefined : the,
     q: tim.trim() || undefined,
-    ...locNangCaoLenUrl(loc, NGUON_URL),
+    ...locNangCaoLenUrl(loc),
   };
 }
 
@@ -98,5 +81,5 @@ export function locLenUrl({ the, tim, loc }: TrangThaiLocPT): Record<string, str
 export function locTuUrl(p: URLSearchParams | null): TrangThaiLocPT {
   if (!p) return { the: "tat_ca", tim: "", loc: LOC_TRONG };
   const the = THE_HOP_LE.find((t) => t === p.get("the")) ?? "tat_ca";
-  return { the, tim: p.get("q") ?? "", loc: locNangCaoTuUrl(p, NGUON_URL) };
+  return { the, tim: p.get("q") ?? "", loc: locNangCaoTuUrl(p) };
 }

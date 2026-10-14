@@ -21,6 +21,12 @@ class KhoHangRepository(CatalogRepo):
         return [(int(i), t) for i, t in self.db.execute(
             select(KhoHang.id, KhoHang.ten).where(KhoHang.active.is_(True)).order_by(KhoHang.ten)).all()]
 
+    def id_theo_ma(self, ma: str) -> int | None:
+        """Id kho theo mã (không phân biệt hoa thường) — dùng tra kho cố định `KHO-TP`."""
+        i = self.db.execute(
+            select(KhoHang.id).where(func.upper(KhoHang.ma) == (ma or "").upper())).scalar_one_or_none()
+        return int(i) if i is not None else None
+
     def ten_theo_ids(self, kho_ids) -> dict[int, str]:
         """`{kho_id: tên kho}` cho MỘT lượt đọc, một câu cho cả danh sách. Kho đã xoá mềm vẫn trả tên
         (lô cũ vẫn phải đọc được)."""

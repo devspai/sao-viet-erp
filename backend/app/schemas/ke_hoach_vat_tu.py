@@ -410,6 +410,8 @@ class LuoiDong(BaseModel):
     lsx_id: int | None = None
     bai_ghep_id: int | None = None
     ma: str
+    #: Lệnh đã ra khỏi kế hoạch — cách xem theo mặt hàng ghi nhãn cạnh mã lệnh.
+    ngoai_pham_vi: bool = False
     #: `<loai>:<id>:<rộng>:<dài>:<đơn vị gốc>` (giấy; hàng khác phần cuối rỗng)
     hang: str
     hang_loai: str
@@ -425,7 +427,7 @@ class LuoiDong(BaseModel):
     da_xuat: float
     giu_kho: float
     giu_ve: float
-    #: Đã xuất + đã giữ trong kho + đã giữ trên đơn đang về.
+    #: Đã xuất + đã giữ trong kho + đã giữ trên đơn đang về — cột "Đã có" trên lưới.
     da_giu: float
     con_thieu: float
     #: Số sẽ đề nghị mua nếu tick (phần thiếu theo bảng cân đối) — chỉ dòng "Cần mua".
@@ -435,7 +437,7 @@ class LuoiDong(BaseModel):
     #: Mã đơn mà ô đang giữ PHẦN DƯ trên đó ("dư từ …").
     du_tu: list[str] = Field(default_factory=list)
     ngay_co_hang: LuoiNgayCoHang
-    #: chua_tinh | can_mua | dang_mua | chua_giu | cho_ve | co_kho | da_xuat
+    #: chua_tinh | can_mua | nen_nha | dang_mua | chua_giu | cho_ve | co_kho | da_xuat
     tinh_trang: str
     ghi_chu: list[str] = Field(default_factory=list)
     buoc: list[LuoiBuoc] = Field(default_factory=list)

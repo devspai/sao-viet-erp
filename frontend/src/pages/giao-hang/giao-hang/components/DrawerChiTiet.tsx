@@ -12,7 +12,7 @@ import { Button } from "../../../../components/Button";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 import { NHAN_TRANG_THAI_CHUYEN, NHAN_TRANG_THAI_YC } from "../shared/constants";
 import {
-  gioNgay, hanGiao, lienKetBanDo, ngay, ngayThuan, nhanChuyen, sdtDoc, so, TONE_YC, toneChuyen,
+  gioNgay, hanGiao, henKho, lienKetBanDo, monGiao, ngay, ngayThuan, nhanChuyen, sdtDoc, so, TONE_YC, toneChuyen,
 } from "../shared/helpers";
 import { DinhKemChuyenBox } from "./DinhKemChuyenBox";
 import { Pill } from "./giaoHangCells";
@@ -28,6 +28,7 @@ export function DrawerChiTiet({
   onLenDon,
   len,
   xuong,
+  tang,
 }: {
   detail: DeliveryRequestDetail;
   canCancel: boolean;
@@ -38,6 +39,8 @@ export function DrawerChiTiet({
   onLenDon?: () => void;
   len?: () => void;
   xuong?: () => void;
+  /** Mở chồng lên ngăn khác (bấm mã yêu cầu ở tab Chứng từ của ngăn lượt xe). */
+  tang?: number;
 }) {
   const { token } = useAuth();
   const [tab, setTab] = useState<Tab>("chi-tiet");
@@ -69,6 +72,7 @@ export function DrawerChiTiet({
 
   return (
     <NganPhai
+      tang={tang}
       duongDan="Yêu cầu giao"
       tieuDe={r.code}
       the={<Pill text={NHAN_TRANG_THAI_YC[r.trang_thai] ?? r.trang_thai} tone={TONE_YC[r.trang_thai] ?? "slate"} />}
@@ -185,12 +189,12 @@ export function DrawerChiTiet({
                 </tr>
               </thead>
               <tbody>
-                {r.lines.map((l) => {
-                  const dv = l.don_vi_tinh ?? "";
+                {monGiao(r.lines).map((l) => {
+                  const dv = l.dvt ?? "";
                   const con = l.qty - l.da_giao;
                   return (
                     <tr key={l.id}>
-                      <td>{l.mo_ta ?? l.hang_ten}</td>
+                      <td title={l.thanhPhan.join(" + ") || undefined}>{l.ten}</td>
                       <td className="r gh-num">{so(l.qty)} <span className="gh-nho">{dv}</span></td>
                       <td className="r gh-num">
                         {l.da_giao > 0 ? <>{so(l.da_giao)} <span className="gh-nho">{dv}</span></> : <span className="gh-mo">0</span>}
@@ -213,7 +217,7 @@ export function DrawerChiTiet({
                   <li key={t.id}>
                     <Pill text={nhanChuyen(t)} tone={toneChuyen(t.trang_thai)} />
                     <span>{t.employee_name ?? "—"}</span>
-                    <span className="gh-nho">lấy hàng {gioNgay(t.gio_lay_hang)}</span>
+                    {henKho(t) && <span className="gh-nho">kho hẹn {henKho(t)}</span>}
                     {t.luot && <span className="gh-the">{t.luot.code}</span>}
                     {t.yeu_cau_kho_ma && <span className="gh-the">{t.yeu_cau_kho_ma}</span>}
                     {t.km != null && <span className="gh-nho">{so(t.km)} km</span>}

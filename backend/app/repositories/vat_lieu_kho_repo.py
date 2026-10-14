@@ -21,7 +21,7 @@ class _GiayRepo(CatalogRepo):
     model = GiayNguyen
     fields = ("ten", "gsm", "caliper_micron",
               "tho", "don_vi_gia", "don_gia", "gia_thi_truong", "kho_tinh_gia", "ghi_chu",
-              "active", "cong_thuc_gia", "thay_the_ids", "don_vi_them")
+              "active", "cong_thuc_gia", "don_vi_them")
     commit_on_write = False
     bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
 
@@ -33,7 +33,7 @@ class _GiayRepo(CatalogRepo):
 class _VatTuRepo(CatalogRepo):
     model = VatTuInAn
     fields = ("ten", "don_vi_gia", "don_gia", "ghi_chu", "active", "cong_thuc_gia",
-              "cong_thuc_dinh_muc", "thay_the_ids", "don_vi_them")
+              "cong_thuc_dinh_muc", "don_vi_them")
     commit_on_write = False
 
     def _base_select(self):
@@ -157,6 +157,14 @@ class VatLieuKhoRepository:
 
     def find_by_ma(self, kind: str, ma: str):
         return self._r(kind).find_by_ma(ma)
+
+    def la_thanh_pham_ids(self, ids) -> set[int]:
+        """Trong các id `vat_tu_in_an`, những id là thành phẩm — một câu cho cả nhóm."""
+        ids = {int(i) for i in ids or [] if i is not None}
+        if not ids:
+            return set()
+        return {int(i) for i in self.db.execute(
+            select(VatTuInAn.id).where(VatTuInAn.id.in_(ids), VatTuInAn.la_thanh_pham.is_(True))).scalars()}
 
     def noi_dung_don_vi(self, hang_loai: str, hang_id: int) -> dict:
         """Chỗ đang DÙNG đơn vị của một mã — để chặn bỏ đơn vị ở danh mục (spec 2026-10-10 §2.5).

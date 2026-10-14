@@ -1,7 +1,7 @@
-/* Màn Theo dõi sản xuất (làm gọn 05/10/2026; lên lưới chung `lds-` 08/10/2026). Khung, thẻ lọc, ô tìm,
-   bảng, chip dùng chung ở `components/luoi-ds.css`; thẻ/dải chặng của hồ sơ lệnh vẫn ở
-   `lenh-sx-chung.css` (`lsc-`). Tệp này chỉ giữ phần RIÊNG của hai góc Theo máy / Theo lệnh và bảng
-   chọn lệnh của việc ghép (`tdsxChonLenh.tsx`). Token lấy từ `styles/tokens.css`. */
+/* Màn Theo dõi sản xuất THEO ĐƠN (12/10/2026). Khung, thẻ lọc, ô tìm, bảng, chip dùng chung ở
+   `components/luoi-ds.css`; vỏ ngăn ở `ke-toan/ke-toan.css`; routing dọc ở `lenh-sx-chung.css`
+   (`lsc-tuyen`, `lsa-`). Tệp này chỉ giữ phần RIÊNG: bốn chấm chặng của dòng đơn và bảng mặt hàng trong ngăn.
+   Token lấy từ `styles/tokens.css`. */
 
 /* ---------- khung màn ---------- */
 .tdsx.lds {
@@ -9,15 +9,8 @@
   margin: 0 auto;
   padding: var(--sp-5) var(--page-pad-x) 40px;
 }
-.tdsx.lds:focus {
-  outline: none;
-}
-/* Hồ sơ lệnh mở đè lên màn: viền nét focus rust như trước (trước nằm ở `.lsc :focus-visible`). */
-.tdsx :focus-visible:not(tr) {
-  outline: 2px solid var(--rust);
-  outline-offset: 2px;
-}
-.tdsx .sr-only {
+.tdsx .sr-only,
+.kt-ngan .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -28,201 +21,140 @@
   white-space: nowrap;
   border: 0;
 }
-
-/* Nút đổi góc nhìn Theo máy / Theo lệnh nằm cạnh nút Cột. */
-.tdsx-goc {
-  display: inline-flex;
-  gap: 4px;
-}
-
-/* ---------- lưới dùng chung hai góc ---------- */
 /* Đang tải lại (realtime/đổi lọc): giữ nội dung cũ, làm mờ. */
 .tdsx .lds-g tbody.is-mo {
   opacity: 0.55;
 }
-/* Mã lệnh / mã bài bấm được: chữ thường như ô khác, chỉ gạch chân nhạt khi rê. */
-.tdsx-ma {
-  padding: 0;
-  margin-right: 6px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.tdsx-ma:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--rule);
-  text-underline-offset: 3px;
-}
-/* Thẻ GẤP (lsc-gap) nằm trong ô lưới: chữ vừa, cách mẩu kế bên. */
-.tdsx .lds-g .lsc-gap {
-  margin-right: 6px;
-  font-weight: var(--fw-medium);
-}
-/* Mẩu đứng sau mẩu khác trên cùng một dòng (bước, sản phẩm, "dự kiến…"): cách bằng khoảng trống. */
-.tdsx-sau {
+
+/* Mẩu đứng sau mẩu khác trong cùng ô: cách bằng khoảng trống, không dấu nối. */
+.tdsx-cach {
   margin-left: 8px;
 }
-.tdsx-chip {
-  margin-right: 6px;
+.tdsx-mu {
+  color: var(--ash-2);
+}
+.tdsx-do {
+  color: var(--tt-do-fg);
 }
 
-/* ---------- góc Theo máy ---------- */
-/* Dòng máy mang `lds-dong` để cột Máy ghim được và rê chuột tô `--rule-hair`, nhưng cả dòng KHÔNG bấm
-   được (một dòng có thể mang nhiều lệnh) — chỉ nút mã lệnh trong ô. */
-.tdsx .tdsx-may tbody tr.lds-dong {
-  cursor: default;
+/* ---------- bốn chấm chặng Lệnh / SX / Kho / Giao ---------- */
+.tdsx-c4,
+.tdsx-c4__nhan {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: 132px;
+  justify-items: center;
 }
-/* Tiêu đề nhóm (`tr.lds-so`) chữ thường, số đếm mờ. */
-.tdsx .tdsx-may tr.lds-so td {
-  padding-top: 6px;
-  padding-bottom: 6px;
-  color: var(--ink);
+.tdsx-c4__nhan span {
+  font-size: 11px;
 }
-.tdsx-nhom__dem {
-  margin-left: var(--sp-2);
-  color: var(--ash-2);
-  font-weight: var(--fw-regular);
+.tdsx-c4 {
+  position: relative;
+  align-items: center;
+  height: 16px;
 }
-.tdsx-sl__dv {
-  margin-right: 10px;
-  white-space: nowrap;
-}
-/* Thanh sản lượng mảnh nằm cùng dòng với chữ "x trên y". */
-.tdsx-thanh {
-  display: inline-block;
-  width: 56px;
-  height: 5px;
-  margin-left: 8px;
-  overflow: hidden;
-  vertical-align: middle;
-  border-radius: var(--r-pill);
+/* Đường nối chạy giữa tâm chấm đầu và chấm cuối. */
+.tdsx-c4::before {
+  content: "";
+  position: absolute;
+  left: 12.5%;
+  right: 12.5%;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
   background: var(--rule-soft);
 }
-.tdsx-thanh > i {
-  display: block;
-  height: 100%;
-  background: var(--steel);
-}
-.tdsx-thanh--do > i {
-  background: var(--signal);
-}
-
-/* Thẻ việc kế tiếp: 4 số cuối mã lệnh. Viền đủ bốn cạnh, hover `--rule-hair`. */
-.tdsx-ke {
-  margin-right: 4px;
-  padding: 1px 8px;
-  border: 1px solid var(--rule);
-  border-radius: var(--r-2);
+.tdsx-c4 i {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--rule);
   background: var(--canvas);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-regular);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  cursor: pointer;
+  box-sizing: border-box;
 }
-.tdsx-ke:hover {
-  background: var(--rule-hair);
+.tdsx-c4 i.is-xong {
+  background: var(--tt-slate-dot);
+  border-color: var(--tt-slate-dot);
 }
-.tdsx-ke--gap {
-  border-color: var(--signal);
-  color: var(--signal);
+.tdsx-c4 i.is-o {
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--tt-la-dot);
+  background: var(--tt-la-bg);
 }
-
-/* Dòng gập "N máy đang trống". */
-.tdsx-trong__nut {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 6px;
-  border: 0;
-  border-radius: var(--r-2);
-  background: none;
-  color: var(--ash);
-  font: inherit;
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-regular);
-  cursor: pointer;
-}
-.tdsx-trong__nut:hover {
-  background: var(--rule-hair);
-}
-/* `chevron` mặc định chỉ xuống (mở); gập thì quay sang phải. */
-.tdsx-trong__gap {
-  transform: rotate(-90deg);
+.tdsx-c4 i.is-ket {
+  border-color: var(--tt-do-dot);
+  background: var(--tt-do-bg);
 }
 
-/* ---------- góc Theo lệnh ---------- */
-/* Dòng nhắc "Hiện 200 trên 350 lệnh" nằm dưới lưới, trong cùng tấm thẻ. */
-.tdsx-cat {
-  margin: 0;
-  padding: 8px 12px;
-  border-top: 1px solid var(--rule-hair);
-  color: var(--ash);
-  font-size: var(--fs-xs);
-}
-
-/* --- popover chọn lệnh khi một việc phục vụ ≥2 lệnh (C123) — `position: fixed`, toạ độ JS truyền
- * qua `style.left/top`, giữ dưới lớp phủ hồ sơ (`z-index: 60`). Chép NGUYÊN từ bản trước. */
-.tdsx-picker {
-  position: fixed;
-  z-index: 35;
-  min-width: 240px;
-  max-width: 320px;
-  max-height: 280px;
-  overflow-y: auto;
-  background: var(--canvas);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-3);
-  box-shadow: var(--shadow-lg);
-}
-
-.tdsx-picker__head {
+/* ---------- ngăn một đơn ---------- */
+.tdsx-ngan__phu {
   display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  border-bottom: 1px solid var(--rule-soft);
-  font-size: var(--fs-2xs);
+  flex-wrap: wrap;
+  gap: 16px;
   color: var(--ash);
+  font-size: var(--fs-sm);
+}
+.tdsx-ngan__nho {
+  margin-left: 8px;
+  font-size: var(--fs-xs);
+  color: var(--ash-2);
+}
+.tdsx-ngan__nho.tdsx-do {
+  color: var(--tt-do-fg);
 }
 
-.tdsx-picker__head button {
-  margin-left: auto;
-  appearance: none;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  color: var(--ash);
-}
-
-.tdsx-picker__row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+.tdsx-mh {
   width: 100%;
-  padding: var(--sp-2) var(--sp-3);
-  border: 0;
-  border-bottom: 1px solid var(--rule-hair);
-  background: none;
-  cursor: pointer;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.tdsx-mh th {
   text-align: left;
-  font: inherit;
-  color: var(--ink);
+  font-weight: 400;
+  font-size: var(--fs-xs);
+  color: var(--ash-2);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--rule-soft);
+  white-space: nowrap;
 }
-
-.tdsx-picker__row:last-child {
-  border-bottom: 0;
+.tdsx-mh td {
+  padding: 8px;
+  border-bottom: 1px solid var(--rule-hair);
+  vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.tdsx-picker__row:hover {
+.tdsx-mh .n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tdsx-mh__dong {
+  cursor: pointer;
+}
+.tdsx-mh__dong:hover,
+.tdsx-mh__dong.is-mo {
   background: var(--rule-hair);
 }
-
-.tdsx-picker__ma {
-  font-weight: var(--fw-regular);
+.tdsx-mh__dong:focus-visible {
+  outline: 2px solid var(--rust);
+  outline-offset: -2px;
+}
+.tdsx-mh__mui {
+  color: var(--ash-2);
+  text-align: center;
+}
+.tdsx-mh__ten {
+  white-space: nowrap;
+}
+.tdsx-mh__phu {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--ash-2);
+}
+.tdsx-mh__bung > td {
+  background: var(--paper);
+  padding: 12px 16px 4px 8px;
 }

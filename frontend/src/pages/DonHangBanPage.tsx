@@ -1,7 +1,7 @@
 // Đơn hàng bán — redesign-don-hang-ban.md (P1: list + chi tiết + sửa thông tin đặt-hàng).
 // Cọc/chốt/hủy = P2–P5. Icon dùng bộ Icon nhà (không emoji).
 // Màn này KHÔNG tạo đơn: đơn sinh từ màn Báo giá khi khách chốt. Luồng duyệt đơn đặc thù đã gỡ.
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { OGoDinhDang } from "../components/OGoDinhDang";
 
@@ -19,7 +19,7 @@ import {
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import {
-  BangSanXuatMon, BuocGiaoHang, CanhBaoTre, DaiSo, SanXuatO, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
+  BangSanXuatMon, BuocGiaoHang, CanhBaoTre, ChanKhung, TomTat, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
   viecTiepTheo,
 } from "./giao-hang/tien-do-don";
 import {
@@ -32,9 +32,11 @@ import {
   type OrderStatsOut,
   type SalesInvoiceListOut,
   type SalesInvoiceRow,
+  type LuotGiaoHoaDon,
 } from "../api/client";
-import { DeliveryNotePrint } from "./giao-hang/phieu-giao-hang";
+import { PhieuXuatBanHangPrint } from "./giao-hang/phieu-giao-hang";
 import { DepositReceiptDialog } from "./ke-toan/phieu-thu/modals/DepositReceiptDialog";
+import { TraLaiTienKhachModal } from "./ke-toan/phieu-chi/modals/TraLaiTienKhachModal";
 import { batTatRongHet, docDoRong, ghiDoRong } from "./ke-toan/shared/doRongNgan";
 import { LOC_DH_TRONG, locDHLenUrl, locDHTuUrl, thamSoLocDH, useDieuKienDonHang, type LocDonHang } from "./loc-kinh-doanh/dieu-kien-don-hang";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
@@ -42,6 +44,7 @@ import { dkTheoTab } from "./thanh-loc/thanh-loc";
 import { kyLenUrl, kyTuUrl, thamSoKy, type KyDS } from "./thanh-loc/ky-danh-sach";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { gopTheoNhom } from "../utils/gop-nhom";
+import { layHoaDonNapTruoc, layLenhNapTruoc, layNhatKyNapTruoc, napTruocNganDon } from "./napTruocNganDon";
 import "./don-hang-ban.css";
 import { fmtDateTime } from "../utils/format";
 
@@ -140,6 +143,8 @@ function RowFlags({ o }: { o: OrderRow }) {
 interface Props {
   navigate?: (id: string, params?: Record<string, unknown>) => void;
   openOrderId?: number | null;   // deep-link từ Báo giá ("Xem đơn") → mở drawer đơn vừa tạo
+  /** Đi kèm `openOrderId`: mở ngăn ở đúng chặng này thay vì chặng đang chạy (Công nợ → "hoadon"). */
+  openOrderChang?: "hoadon" | null;
   /** Tick nhóm bán hàng + sản xuất + kho + giao hàng (kênh SSE chung của AppShell) — drawer đơn nạp
    *  lại tiến độ. Trước 28/09/2026 drawer tự mở kênh SSE riêng. */
   eventTick?: number;
@@ -147,12 +152,15 @@ interface Props {
   keToanTick?: number;
 }
 
-export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }: Props) {
+export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTick, keToanTick }: Props) {
+  // Chặng mở sẵn của ngăn — chỉ cho đơn mở qua liên kết; mở từ danh sách thì về chặng đang chạy.
+  const [changMo, setChangMo] = useState<"hoadon" | null>(null);
   const { token } = useAuth();
   const can = useCan();
   // `create` KHÔNG còn được dùng ở màn này (đơn sinh từ Báo giá) — quyền vẫn tồn tại, gác ở đó.
   const canUpdate = can("don_hang_ban", "update");
-  const canRecordDeposit = can("don_hang_ban", "record_deposit");
+  // Thu cọc = lập phiếu thu ⇒ hỏi Phiếu thu → Tạo (13/10/2026, trước đó là ô riêng của Đơn hàng bán).
+  const canRecordDeposit = can("phieu_thu", "create");
   // Hủy đơn đã chốt MẶC ĐỊNH BẬT cho vai có Sửa đơn (gỡ công tắc `approve_exception` 24/08/2026;
   // luồng "duyệt đơn đặc thù" vốn đã bỏ nên cờ này giờ chỉ còn gác việc hủy đơn đã chốt).
   const canApproveException = true;
@@ -224,22 +232,21 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
 
   const coLoc = !!q.trim() || khoaLoc !== "{}" || nguoi != null || tab !== "all";
 
-  const moLenh = navigate && can("san_xuat", "read")
-    ? (id: number) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined;
-
   // `trangThai` biết từ dòng danh sách: đơn nháp không có tiến độ nên khỏi bắn trước. Mở qua liên
   // kết (không biết trạng thái) thì để ngăn tự hỏi như cũ.
-  function openDetail(id: number, trangThai?: string) {
+  function openDetail(id: number, dong?: OrderRow, chang: "hoadon" | null = null) {
     if (!token) return;
-    napTruocTienDo(token, id, !!trangThai && trangThai !== "draft");
+    setChangMo(chang);
+    napTruocTienDo(token, id, !!dong && dong.status !== "draft");
+    napTruocNganDon(token, id, dong);
     api.orders.get(token, id).then(setSelected).catch((e) => setErr(String(e?.message ?? e)));
   }
 
   // Deep-link từ Báo giá (nút "Xem đơn" sau khi tạo đơn) → mở drawer đơn ngay khi vào màn.
   useEffect(() => {
-    if (token && openOrderId) openDetail(openOrderId);
+    if (token && openOrderId) openDetail(openOrderId, undefined, openOrderChang ?? null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, openOrderId]);
+  }, [token, openOrderId, openOrderChang]);
 
   // Cột ngày thứ hai theo mốc kỳ: Ngày tạo / Ngày chốt (mốc "Ngày giao hẹn" đã có cột Hẹn giao).
   const mocNgay = locMan.ky.moc === "chot" ? "chot" : "tao";
@@ -306,16 +313,16 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
                   key={o.id}
                   className="lds-dong"
                   tabIndex={0}
-                  onClick={() => openDetail(o.id, o.status)}
+                  onClick={() => openDetail(o.id, o)}
                   onKeyDown={(e) => {
                     if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
                       e.preventDefault();
-                      openDetail(o.id, o.status);
+                      openDetail(o.id, o);
                     }
                   }}
                 >
                   {cotHien.map((c) => (
-                    <ODon key={c.key} cot={c.key} o={o} mocNgay={mocNgay} onMoLenh={moLenh} onMoDon={() => openDetail(o.id, o.status)} />
+                    <ODon key={c.key} cot={c.key} o={o} mocNgay={mocNgay} />
                   ))}
                 </tr>
               ))}
@@ -371,6 +378,7 @@ export function DonHangBanPage({ navigate, openOrderId, eventTick, keToanTick }:
           navigate={navigate}
           eventTick={eventTick}
           keToanTick={keToanTick}
+          moChang={changMo}
         />
       )}
     </main>
@@ -390,7 +398,6 @@ const COT_DH: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
   { key: "tt", label: "Trạng thái", w: 105, sx: "status" },
   { key: "hen", label: "Hẹn giao", w: 165, sx: "delivery_committed_date" },
   { key: "coc", label: "Cọc", w: 125 },
-  { key: "sx", label: "Sản xuất", w: 230 },
   { key: "giao", label: "Giao khách", w: 120 },
   { key: "nv", label: "Phụ trách" },
 ];
@@ -428,9 +435,7 @@ function conNgayGiao(o: OrderRow): number | null {
   return days < 0 ? null : days;
 }
 
-function ODon({ cot, o, mocNgay, onMoLenh, onMoDon }: {
-  cot: string; o: OrderRow; mocNgay: "tao" | "chot"; onMoLenh?: (lsxId: number) => void; onMoDon: () => void;
-}) {
+function ODon({ cot, o, mocNgay }: { cot: string; o: OrderRow; mocNgay: "tao" | "chot" }) {
   const mu = <span className="lds-mu3">—</span>;
   switch (cot) {
     case "ma":
@@ -470,7 +475,15 @@ function ODon({ cot, o, mocNgay, onMoLenh, onMoDon }: {
         </td>
       );
     }
-    case "coc":
+    case "coc": {
+      // Đơn huỷ: cọc còn giữ của khách là việc kế toán phải trả — nói thẳng ra, không "Đủ cọc".
+      if (o.status === "cancelled") {
+        const conGiu = o.deposit_received - o.deposit_refunded;
+        if (conGiu > 0) {
+          return <td title={`Đã thu ${vnd(o.deposit_received)}`}><ChipTT mau="cam" vuong>Còn giữ {soVN(conGiu)}</ChipTT></td>;
+        }
+        return <td>{o.deposit_received > 0 ? <span className="lds-mu3">Đã trả lại</span> : <span className="lds-mu3">Không cọc</span>}</td>;
+      }
       if (!o.deposit_required) return <td>{o.status === "draft" ? mu : <span className="lds-mu3">Không cọc</span>}</td>;
       return o.deposit_ok ? (
         <td title={`Đã thu ${vnd(o.deposit_received)}`}><ChipTT mau="la" vuong>Đủ cọc</ChipTT></td>
@@ -480,16 +493,7 @@ function ODon({ cot, o, mocNgay, onMoLenh, onMoDon }: {
           <span className="lds-u">/ {soVN(o.deposit_required)}</span>
         </td>
       );
-    case "sx":
-      return (
-        <td>
-          {o.status !== "ordered" ? mu : !o.san_xuat_released_at ? (
-            <span className="lds-mu">Chờ đủ cọc</span>
-          ) : (
-            <SanXuatO maDon={o.order_no} mons={o.san_xuat_mon} onMoLenh={onMoLenh} onMoDon={onMoDon} />
-          )}
-        </td>
-      );
+    }
     case "giao": {
       // Giao khách: suy từ số đã giao của từng mặt hàng (cùng nguồn với tiến độ đơn).
       if (o.status !== "ordered" || !o.san_xuat_released_at || o.san_xuat_mon.length === 0) return <td>{mu}</td>;
@@ -545,7 +549,7 @@ function ThanhKeoNgan() {
 
 function OrderDrawer({
   order, canUpdate, canRecordDeposit, canApproveException, onClose, onSaved, navigate,
-  eventTick, keToanTick,
+  eventTick, keToanTick, moChang,
 }: {
   order: OrderDetail;
   canUpdate: boolean;
@@ -556,38 +560,46 @@ function OrderDrawer({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
   eventTick?: number;
   keToanTick?: number;
+  /** Mở sẵn chặng này (liên kết từ Công nợ phải thu) thay cho chặng đang chạy. */
+  moChang?: "hoadon" | null;
 }) {
   const { token } = useAuth();
   const can = useCan();
   const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [showPrint, setShowPrint] = useState(false);
-  // In phiếu giao theo MỘT yêu cầu (19/09/2026) — bản in cả đơn vẫn ở nút "Xem bản in".
+  // In phiếu xuất kho bán hàng / 02-VT theo MỘT yêu cầu, sau khi kho ghi sổ (13/10/2026). Nút "Xem
+  // bản in" cả đơn ở đầu ngăn đã gỡ (13/10/2026) — giấy tờ in theo từng lần xuất.
   const [inYc, setInYc] = useState<DonTienDoYeuCau | null>(null);
   const [invoiceBook, setInvoiceBook] = useState<SalesInvoiceListOut | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const canCreateInvoice = can("phieu_thu", "create");
   const canCancelInvoice = can("phieu_thu", "cancel");
+  // Đơn đã huỷ còn cọc: "Trả lại cọc" = lập phiếu chi trả lại tiền cho khách (12/10/2026).
+  const [traCoc, setTraCoc] = useState(false);
+  const cocConGiu = order.deposit_received - order.deposit_refunded;
   const canCancel = (order.status === "draft" && canUpdate) || (order.status === "ordered" && canApproveException);
 
-  const loadInvoices = useCallback(async () => {
+  // `dungNapTruoc` chỉ ở lần nạp đầu của ngăn: lấy lại lời gọi đã bắn lúc bấm mở đơn.
+  const taiHoaDon = useCallback(async (dungNapTruoc: boolean) => {
     if (!token) return;
     setInvoiceLoading(true);
     setInvoiceError(null);
     try {
-      setInvoiceBook(await api.accounting.salesInvoices(token, order.id));
+      setInvoiceBook(await ((dungNapTruoc && layHoaDonNapTruoc(order.id))
+        || api.accounting.salesInvoices(token, order.id)));
     } catch (error) {
       setInvoiceError(error instanceof ApiError ? error.message : "Không tải được hóa đơn của đơn bán.");
     } finally {
       setInvoiceLoading(false);
     }
   }, [token, order.id]);
+  const loadInvoices = useCallback(() => taiHoaDon(false), [taiHoaDon]);
 
   useEffect(() => {
     setInvoiceBook(null);
-    void loadInvoices();
-  }, [loadInvoices]);
+    void taiHoaDon(true);
+  }, [taiHoaDon]);
 
   // Kế toán ghi/huỷ hoá đơn, thu tiền ⇒ nạp lại sổ hoá đơn. Đi theo tick nhóm kế toán của kênh SSE
   // CHUNG (AppShell) — trước đây drawer mở thêm một kênh riêng mỗi lần mở.
@@ -602,7 +614,7 @@ function OrderDrawer({
   async function delConsent(aid: number) { if (token) onSaved(await api.orders.deleteConsent(token, order.id, aid)); }
   const [acts, setActs] = useState<{ at: string; actor_name: string | null; action: string; detail: string }[]>([]);
   const isDraft = order.status === "draft";
-  const [drawerTab, setDrawerTab] = useState<"overview" | "commercial" | "history">("overview");
+  const [drawerTab, setDrawerTab] = useState<"overview" | "commercial" | "files" | "history">("overview");
 
   const isChotDone = order.status === "ordered" || order.ordered_at != null;
   // Vòng đời: CHỐT (thông tin) → CỌC (kế toán thu, SAU chốt) → SẢN XUẤT. Cọc 'xong' = đã chốt VÀ
@@ -620,7 +632,8 @@ function OrderDrawer({
       setLenhs([]);
       return;
     }
-    api.lsx.list(token, { order_id: order.id }).then((r) => setLenhs(r.items)).catch(() => setLenhs([]));
+    (layLenhNapTruoc(order.id) || api.lsx.list(token, { order_id: order.id }))
+      .then((r) => setLenhs(r.items)).catch(() => setLenhs([]));
   }, [token, order.id, order.status, order.san_xuat_released_at]);
   const sxReleased = !!order.san_xuat_released_at;
   // Tiến độ SX (gồm cả nhập kho) → Giao do máy chủ gộp theo sản phẩm (`/orders/{id}/tien-do`), tự tươi qua SSE.
@@ -652,8 +665,6 @@ function OrderDrawer({
     : sxState === "cho_kh" ? "chờ lệnh"
     : soMonDongThieu > 0 ? `đóng thiếu ${soMonDongThieu} món`
     : td ? `kho đủ ${tt.soMonDuHang}/${tt.soMon} món` : "…";
-  const giaoText = giaoDone ? "đã giao đủ" : td && tt.giaoPct > 0 ? `giao ${Math.round(tt.giaoPct)}%`
-    : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} yêu cầu mở` : "—";
   const soMonGiaoDu = (td?.cum ?? []).filter((c) => c.khach_nhan_du ?? c.da_giao >= c.dat).length;
   const ngayNgan = (v: string | null | undefined) => fmtDate(v ?? null).replace(/\/\d{4}$/, "");
   const giaoSub = !isChotDone ? "—"
@@ -701,7 +712,10 @@ function OrderDrawer({
   ];
 
   useEffect(() => {
-    if (token) api.orders.activity(token, order.id).then((r) => setActs(r.items)).catch(() => {});
+    if (token) {
+      (layNhatKyNapTruoc(order.id) || api.orders.activity(token, order.id))
+        .then((r) => setActs(r.items)).catch(() => {});
+    }
   }, [token, order.id]);
 
   useEffect(() => {
@@ -709,6 +723,7 @@ function OrderDrawer({
     // xuống bước sau như thể lệnh còn đang chờ xử lý.
     const defaultStep = order.status === "cancelled"
       ? "chot"
+      : moChang ? moChang
       : !isChotDone ? "chot" : !isCocDone ? "coc" : !sxDone ? "sanxuat"
       : !giaoDone ? "giao" : "hoadon";
     setActiveStep(defaultStep);
@@ -716,6 +731,18 @@ function OrderDrawer({
     // không được giật bước người dùng đang xem.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.id, order.status, isChotDone, isCocDone, td != null]);
+
+  // Ngăn đơn làm lại theo khuôn Shopify (12/10/2026, mockup docs/mockups/ngan-don-hang-ban-3-phuong-an.html,
+  // nút "A bản 3"): tab Tổng quan hai cột — trái thẻ Tiến độ + thẻ chặng đang chọn, phải ba thẻ thuộc
+  // tính đơn. Mỗi thẻ chặng CHỈ nói chuyện của chặng đó; mỗi thông tin nằm đúng một chỗ: hạn giao ở
+  // dòng việc tiếp theo, ngày chốt ở thẻ Chốt, người phụ trách ở đầu ngăn, báo giá nguồn ở thẻ Đơn hàng.
+  const soNgayHen = order.delivery_committed_date && order.ordered_at
+    ? Math.round((Date.parse(order.delivery_committed_date.slice(0, 10)) - Date.parse(order.ordered_at.slice(0, 10))) / 86_400_000)
+    : null;
+  const phieuCuoi = order.deposits.length > 0
+    ? order.deposits.reduce((a, d) => (d.created_at > a.created_at ? d : a))
+    : null;
+  const moBaoGia = () => navigate?.("bao-gia", { openQuoteId: order.quotation_id });
 
   return (
     <div
@@ -732,353 +759,200 @@ function OrderDrawer({
             <div className="dhb__drawer-headtop">
               <h2 className="dhb__drawer-title">{order.order_no}</h2>
               <StatusBadge status={order.status} />
-              {order.source_type === "bao_gia" && order.quotation_code && (
-                <Chip icon="fileText" label={order.quotation_code} tone="muted" />
-              )}
               <RowFlags o={order} />
             </div>
-            <div className="dhb__drawer-cust"><Icon name="users" size={13} /> {order.customer_name ?? "—"}</div>
+            <div className="dhb__drawer-cust">
+              <span className="dhb__drawer-khach">{order.customer_name ?? "—"}</span>
+              {order.sale_name && <span>{order.sale_name} phụ trách</span>}
+            </div>
           </div>
-          <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setShowPrint(true)}><Icon name="printer" size={14} /> Xem bản in</button>
           {isDraft && canUpdate && (
-            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setEditing(true)}><Icon name="pencil" size={14} /> Sửa</button>
+            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setEditing(true)}>Sửa</button>
           )}
           {canCancel && (
-            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setCancelling(true)}><Icon name="ban" size={14} /> Hủy</button>
+            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setCancelling(true)}>Hủy đơn</button>
           )}
           <button className="btn btn--ghost" style={{ height: 32 }} onClick={onClose} aria-label="Đóng"><Icon name="x" size={16} /></button>
         </header>
 
-        <div className="dhb__drawer-tabs">
-          <button
-            onClick={() => setDrawerTab("overview")}
-            className={`dhb__drawer-tab ${drawerTab === "overview" ? "is-active" : ""}`}
-          >
-            <Icon name="grid" size={13} /> Tổng quan & Vòng đời
-          </button>
-          <button
-            onClick={() => setDrawerTab("commercial")}
-            className={`dhb__drawer-tab ${drawerTab === "commercial" ? "is-active" : ""}`}
-          >
-            <Icon name="cart" size={13} /> Thương mại
-          </button>
-          <button
-            onClick={() => setDrawerTab("history")}
-            className={`dhb__drawer-tab ${drawerTab === "history" ? "is-active" : ""}`}
-          >
-            <Icon name="fileText" size={13} /> Đính kèm & Nhật ký
-          </button>
+        <div className="dhb__drawer-tabs" role="tablist">
+          {([
+            ["overview", "Tổng quan", null],
+            ["commercial", "Hàng hoá", order.lines.length],
+            ["files", "Tệp đính kèm", order.consent_attachments.length],
+            ["history", "Nhật ký", acts.length],
+          ] as const).map(([k, nhan, dem]) => (
+            <button key={k} role="tab" aria-selected={drawerTab === k} onClick={() => setDrawerTab(k)}
+              className={`dhb__drawer-tab ${drawerTab === k ? "is-active" : ""}`}>
+              {nhan}{dem != null && <span className="dhb__drawer-tab-dem">{dem}</span>}
+            </button>
+          ))}
         </div>
 
         <div className="dhb__drawer-body">
           {drawerTab === "overview" && (
-            <>
-              {/* ① Thông tin đơn hàng */}
-              <Section title="Thông tin đơn hàng">
-                {/* Nhóm 1: Thông tin đặt hàng & Hợp đồng */}
-                <div className="dhb__info-subgroup">
-                  <div className="dhb__info-subgroup-title">Thông tin đặt hàng</div>
-                  <div className="dhb__kv-inline-grid">
-                    <div className="dhb__kv-inline">
-                      <span className="dhb__kv-inline-key">Nguồn</span>
-                      <span className="dhb__kv-inline-val">{order.source_type === "bao_gia" ? "Từ báo giá" : "Nhập giá tay"}</span>
-                    </div>
-                    <div className="dhb__kv-inline">
-                      <span className="dhb__kv-inline-key">Loại đơn</span>
-                      <span className="dhb__kv-inline-val">{order.order_kind === "bo_sung" ? "Đơn bổ sung" : "Đơn mới"}</span>
-                    </div>
-                    <div className="dhb__kv-inline">
-                      <span className="dhb__kv-inline-key">NV phụ trách</span>
-                      <span className="dhb__kv-inline-val">{order.sale_name ?? "—"}</span>
-                    </div>
-                    <div className="dhb__kv-inline">
-                      <span className="dhb__kv-inline-key">Số PO khách</span>
-                      <span className="dhb__kv-inline-val">{order.customer_po_no ? <span className="dhb__mono">{order.customer_po_no}</span> : "—"}</span>
-                    </div>
-                    <div className="dhb__kv-inline">
-                      <span className="dhb__kv-inline-key">Ngày tạo</span>
-                      <span className="dhb__kv-inline-val dhb__mono">{fmtDate(order.created_at)}</span>
-                    </div>
-                    {order.ordered_at ? (
-                      <div className="dhb__kv-inline">
-                        <span className="dhb__kv-inline-key">Ngày chốt</span>
-                        <span className="dhb__kv-inline-val dhb__mono">{fmtDate(order.ordered_at)}</span>
-                      </div>
-                    ) : (
-                      <div className="dhb__kv-inline">
-                        <span className="dhb__kv-inline-key">% cọc quy định</span>
-                        <span className="dhb__kv-inline-val dhb__mono">{order.deposit_pct != null ? `${order.deposit_pct}%` : "—"}</span>
-                      </div>
-                    )}
-                    {order.ordered_at && (
-                      <div className="dhb__kv-inline">
-                        <span className="dhb__kv-inline-key">% cọc quy định</span>
-                        <span className="dhb__kv-inline-val dhb__mono">{order.deposit_pct != null ? `${order.deposit_pct}%` : "—"}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            <div className="dhb__tq">
+              <div className="dhb__tq-trai">
+                <section className="dhb__the">
+                  <div className="dhb__the-than dhb__the-than--tien-do">
+                    <CanhBaoTre td={order.status === "ordered" && !giaoDone ? td : null} />
 
-                {/* Nhóm 2: Thông tin giao nhận & Người nhận (Full-width card) */}
-                <div className="dhb__info-subgroup">
-                  <div className="dhb__info-subgroup-title">Giao hàng & Người nhận</div>
-                  <div className="dhb__delivery-card">
-                    <div className="dhb__delivery-row">
-                      <Icon name="calendar" size={15} className="dhb__delivery-icon" />
-                      <div className="dhb__delivery-body">
-                        <div className="dhb__delivery-label">Hạn giao cam kết</div>
-                        <div className="dhb__delivery-val dhb__mono" style={{ color: "var(--rust-deep)", fontSize: 13.5 }}>
-                          {fmtDate(order.delivery_committed_date)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="dhb__delivery-row">
-                      <Icon name="users" size={15} className="dhb__delivery-icon" />
-                      <div className="dhb__delivery-body">
-                        <div className="dhb__delivery-label">Người nhận hàng</div>
-                        <div className="dhb__delivery-val">
-                          {[order.delivery_contact_name, order.delivery_contact_phone].filter(Boolean).join(" · ") || "—"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="dhb__delivery-row">
-                      <Icon name="mapPin" size={15} className="dhb__delivery-icon" />
-                      <div className="dhb__delivery-body">
-                        <div className="dhb__delivery-label">Địa chỉ giao hàng</div>
-                        <div className="dhb__delivery-val" style={{ fontWeight: 500 }}>
-                          {order.delivery_address || "—"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {order.delivery_note && (
-                      <div className="dhb__delivery-note">
-                        <div className="dhb__delivery-note-tag">
-                          <Icon name="fileText" size={12} /> Lưu ý cho khâu giao hàng:
-                        </div>
-                        {order.delivery_note}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </Section>
-
-              {/* Lưu ý sản xuất — sửa được cả khi đã chốt (đường hẹp D3 → realtime bàn Kế hoạch) */}
-              {order.status === "ordered" && canUpdate && (
-                <ProductionHintEditor order={order} onSaved={onSaved} />
-              )}
-
-              {/* Vòng đời đơn */}
-              <Section title="Vòng đời đơn">
-                <CanhBaoTre td={order.status === "ordered" && !giaoDone ? td : null} />
-
-                {/* Thanh chặng (phương án 2, 10/10/2026 — khuôn Atlassian progress tracker): năm chấm
-                    trên một trục, đoạn đã đi tô xanh tới chặng đang chạy. Bấm chặng để xem khung bên
-                    dưới. Mockup: docs/mockups/vong-doi-don-phuong-an-2-du-5-chang.html. */}
-                <div className="dhb__path" role="tablist" aria-label="Các chặng của đơn">
-                  <span className="dhb__path-truc" aria-hidden="true">
-                    <i style={{ width: `${(buocDang == null ? (order.status === "cancelled" ? 0 : 1)
-                      : CHANG.findIndex((c) => c.k === buocDang) / (CHANG.length - 1)) * 100}%` }} />
-                  </span>
-                  {CHANG.map((c) => {
-                    const dang = c.k === buocDang;
-                    // Giao đã có phần trong lúc Sản xuất chưa xong ⇒ "dở dang song song".
-                    const doDang = !c.xong && !dang && c.k === "giao" && td != null && tt.giaoPct > 0;
-                    return (
-                      <button key={c.k} type="button" role="tab" aria-selected={activeStep === c.k}
-                        aria-label={`${c.nhan}: ${c.sub}`}
-                        className={`dhb__path-buoc${c.xong ? " is-done" : dang ? " is-dang" : doDang ? " is-do" : ""}${activeStep === c.k ? " is-selected" : ""}`}
-                        onClick={() => setActiveStep(c.k)}>
-                        <span className="dhb__path-cham">
-                          {c.xong && <Icon name="check" size={10} />}
-                        </span>
-                        <span className="dhb__path-o">
-                          <b>{c.nhan}</b>
-                          <small className={c.canhBao ? "is-warn" : undefined}>{c.sub}</small>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Thẻ tóm tắt: trái là đơn đang chờ AI làm gì, phải là hạn giao + số ngày còn lại —
-                    hạn giao chỉ nói một lần ở đây, khung Giao không lặp lại. */}
-                {viec && (() => {
-                  const theHan = viec.the.find((t) => t.loai === "han");
-                  const theKhac = viec.the.filter((t) => t.loai !== "han");
-                  const coHan = order.delivery_committed_date && order.status !== "cancelled";
-                  return (
-                    <div className="dhb__viec">
-                      <div className="dhb__viec-chu">
-                        <span className="dhb__viec-cau">{viec.cau}</span>
-                        {theKhac.length > 0 && (
-                          <span className="dhb__viec-the">
-                            {theKhac.map((t) => (
-                              <span key={t.nhan} className={`dhb__sx-tag${t.tone ? ` dhb__sx-tag--${t.tone}` : ""}`}>{t.nhan}</span>
-                            ))}
-                          </span>
-                        )}
-                        {viec.nut && (viec.nut.toi !== activeStep) && (
-                          <Button variant="secondary" className="dhb__viec-nut"
-                            onClick={() => {
-                              const toi = viec.nut!.toi;
-                              if (toi === "ke-hoach-sx") navigate?.("ke-hoach-sx", { openSxOrderId: order.id });
-                              else setActiveStep(toi);
-                            }}>
-                            {viec.nut.nhan}
-                          </Button>
-                        )}
-                      </div>
-                      {coHan && (
-                        <div className="dhb__viec-han">
-                          <small>Hạn giao cam kết</small>
-                          <span className="dhb__mono">{fmtDate(order.delivery_committed_date)}</span>
-                          {theHan
-                            ? <em className={theHan.tone ? `is-${theHan.tone}` : undefined}>{theHan.nhan.replace(" tới hạn giao", "")}</em>
-                            : giaoDone ? <em>đã giao đủ</em> : null}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Khung chi tiết từng chặng: chỉ khung đang chọn hiện, ô cao theo đúng chặng đó (xem
-                    `.dhb__chang-o` trong don-hang-ban.css vì sao bỏ kiểu chồng cao bằng chặng dài nhất). */}
-                <div className="dhb__chang-khung">
-                <div className={khungO("chot")}>
-                  <div className="dhb__lifecycle-box">
-                    <div className="dhb__lifecycle-box-header">
-                      <h4 className="dhb__lifecycle-box-title">Chốt đơn hàng</h4>
-                      <span className={`dhb__lifecycle-badge ${order.status === "cancelled" ? "dhb__lifecycle-badge--cancelled" : isChotDone ? "dhb__lifecycle-badge--done" : "dhb__lifecycle-badge--upcoming"}`}>
-                        {order.status === "draft" ? "Bản nháp" : (order.status === "ordered" ? "Đã chốt" : "Đã hủy")}
+                    {/* Thanh chặng (khuôn Atlassian progress tracker): năm chấm trên một trục, đoạn đã đi
+                        tô xanh tới chặng đang chạy. Bấm chặng để xem thẻ chặng bên dưới. */}
+                    <div className="dhb__path" role="tablist" aria-label="Các chặng của đơn">
+                      <span className="dhb__path-truc" aria-hidden="true">
+                        <i style={{ width: `${(buocDang == null ? (order.status === "cancelled" ? 0 : 1)
+                          : CHANG.findIndex((c) => c.k === buocDang) / (CHANG.length - 1)) * 100}%` }} />
                       </span>
+                      {CHANG.map((c) => {
+                        const dang = c.k === buocDang;
+                        // Giao đã có phần trong lúc Sản xuất chưa xong ⇒ "dở dang song song".
+                        const doDang = !c.xong && !dang && c.k === "giao" && td != null && tt.giaoPct > 0;
+                        return (
+                          <button key={c.k} type="button" role="tab" aria-selected={activeStep === c.k}
+                            aria-label={`${c.nhan}: ${c.sub}`}
+                            className={`dhb__path-buoc${c.xong ? " is-done" : dang ? " is-dang" : doDang ? " is-do" : ""}${activeStep === c.k ? " is-selected" : ""}`}
+                            onClick={() => setActiveStep(c.k)}>
+                            <span className="dhb__path-cham">
+                              {c.xong && <Icon name="check" size={10} />}
+                            </span>
+                            <span className="dhb__path-o">
+                              <b>{c.nhan}</b>
+                              <small className={c.canhBao ? "is-warn" : undefined}>{c.sub}</small>
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div>
-                      {/* Chốt đơn đi theo quyền SỬA đơn (05/10/2026) — không có ô quyền riêng, khớp máy chủ. */}
-                      {isDraft ? (
-                        <ConfirmPanel order={order} canManage={canUpdate} canExtend={canUpdate} onSaved={onSaved} />
-                      ) : order.status === "ordered" ? (
-                        <>
-                          <DaiSo o={[
-                            { nhan: "Chốt lúc", so: fmtDateTime(order.ordered_at), vua: true },
-                            ...(order.quotation_code ? [{
-                              nhan: "Theo báo giá", vua: true,
-                              so: (
-                                <button type="button" className="dhb__td-link"
-                                  onClick={() => navigate?.("bao-gia", { openQuoteId: order.quotation_id })}>
-                                  {order.quotation_code} ↗
-                                </button>
-                              ),
-                              phu: order.quotation_version != null ? `bản ${order.quotation_version}` : undefined,
-                            }] : []),
-                            { nhan: "Giá trị đơn, gồm thuế", so: vnd(order.total_with_vat), vua: true },
-                            { nhan: "Hẹn giao", so: fmtDate(order.delivery_committed_date), vua: true,
-                              phu: order.delivery_committed_date && order.ordered_at
-                                ? `${Math.round((Date.parse(order.delivery_committed_date.slice(0, 10)) - Date.parse(order.ordered_at.slice(0, 10))) / 86_400_000)} ngày sau chốt`
-                                : undefined },
-                          ]} />
-                        </>
-                      ) : order.status === "cancelled" ? (
-                        <div style={{ display: "grid", gap: 4 }}>
-                          <KV k="Lý do hủy" v={order.cancel_reason ?? "—"} />
-                          {order.cancel_fault && <KV k="Lỗi tại" v={order.cancel_fault === "khach" ? "Khách hàng" : "Xưởng in"} />}
-                          {order.deposit_received > 0 && (
-                            <KV k="Cọc" v={`Còn ${vnd(order.deposit_received)} chưa quyết toán — xử lý ngoài hệ thống`} />
+
+                    {/* Dòng việc tiếp theo: trái là đơn đang chờ ai làm gì, phải là hạn giao + số ngày còn
+                        lại — hạn giao chỉ nói ở đây. */}
+                    {viec && (() => {
+                      const theHan = viec.the.find((t) => t.loai === "han");
+                      const theKhac = viec.the.filter((t) => t.loai !== "han");
+                      const coHan = order.delivery_committed_date && order.status !== "cancelled";
+                      return (
+                        <div className="dhb__viec">
+                          <div className="dhb__viec-chu">
+                            <span className="dhb__viec-cau">{viec.cau}</span>
+                            {theKhac.length > 0 && (
+                              <span className="dhb__viec-the">
+                                {theKhac.map((t) => (
+                                  <span key={t.nhan} className={`dhb__sx-tag${t.tone ? ` dhb__sx-tag--${t.tone}` : ""}`}>{t.nhan}</span>
+                                ))}
+                              </span>
+                            )}
+                            {viec.nut && (viec.nut.toi !== activeStep) && (
+                              <Button variant="secondary" className="dhb__viec-nut"
+                                onClick={() => {
+                                  const toi = viec.nut!.toi;
+                                  if (toi === "ke-hoach-sx") navigate?.("ke-hoach-sx", { openSxOrderId: order.id });
+                                  else setActiveStep(toi);
+                                }}>
+                                {viec.nut.nhan}
+                              </Button>
+                            )}
+                          </div>
+                          {coHan && (
+                            <div className="dhb__viec-han">
+                              <small>Hạn giao cam kết</small>
+                              <span className="dhb__mono">{fmtDate(order.delivery_committed_date)}</span>
+                              {theHan
+                                ? <em className={theHan.tone ? `is-${theHan.tone}` : undefined}>{theHan.nhan.replace(" tới hạn giao", "")}</em>
+                                : giaoDone ? <em>đã giao đủ</em> : null}
+                            </div>
                           )}
                         </div>
-                      ) : null}
-                    </div>
+                      );
+                    })()}
                   </div>
-                </div>
- 
-                <div className={khungO("coc")}>
-                  <div className="dhb__lifecycle-box">
-                    <div className="dhb__lifecycle-box-header">
-                      <h4 className="dhb__lifecycle-box-title">Cọc &amp; thu tiền</h4>
-                      <span className={`dhb__lifecycle-badge ${isCocDone ? "dhb__lifecycle-badge--done" : !isChotDone ? "dhb__lifecycle-badge--upcoming" : "dhb__lifecycle-badge--vang"}`}>
-                        {!isChotDone ? "Chưa tới" : noDeposit ? "Không cần cọc" : isCocDone ? "Đủ cọc" : "Chờ cọc"}
-                      </span>
-                    </div>
-                    {isChotDone && noDeposit && order.deposits.length === 0 ? (
-                      <p className="dhb__td-note">Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt.</p>
-                    ) : (<>
-                    <DaiSo o={[
-                      { nhan: `Cần thu${order.deposit_pct != null ? `, ${order.deposit_pct}% giá trị đơn` : ""}`, so: vnd(order.deposit_required) },
-                      { nhan: "Đã thu", so: vnd(order.deposit_received),
-                        phu: order.deposits.length > 0 ? `${order.deposits.length} phiếu thu` : undefined,
-                        tone: isCocDone && order.deposit_required > 0 ? "ok" : undefined },
-                      { nhan: "Còn thiếu", so: vnd(remaining), tone: remaining > 0 && isChotDone ? "chu" : undefined,
-                        phu: remaining > 0 ? "thiếu là chưa xuống sản xuất" : undefined },
-                    ]} />
-                    {/* Thanh tiến độ cọc đã gỡ (11/10/2026): ba ô số trên nói đúng điều đó. */}
-                    {order.deposits.length > 0 && (
-                      <div className="dhb__coc-phieu">
-                        {order.deposits.map((d) => (
-                          <div key={d.id} className="dhb__receipt-row">
-                            <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
-                              <span className="dhb__mono" style={{ fontSize: 13, color: "var(--ink)" }}>{vnd(d.amount)}</span>
-                              <span style={{ color: "var(--ash-2)" }}>{RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method}</span>
-                              {d.status === "received" && (
-                                <span style={{ color: "var(--moss)", display: "inline-flex", gap: 2, alignItems: "center" }}><Icon name="check" size={12} /> đã thu</span>
-                              )}
-                              {d.receipt_date && <span style={{ color: "var(--ash-2)" }} className="dhb__mono">{fmtDate(d.receipt_date)}</span>}
-                              <div style={{ flex: 1 }} />
-                              <button type="button" className="link dhb__mono"
-                                style={{ color: "var(--rust)", background: "none", border: 0, padding: 0, cursor: "pointer" }}
-                                title="Mở phiếu thu này bên Kế toán"
-                                onClick={() => navigate?.("ke-toan-phieu-thu", { focusReceiptQuery: d.code })}>
-                                {d.doc_no ?? d.code} ↗
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                </section>
+
+                {/* Thẻ chặng: chỉ thẻ đang chọn hiện (ẩn bằng CSS để form đang gõ dở không mất khi đổi chặng). */}
+                <div className={khungO("chot")}>
+                  <TheChang tieuDe="Chốt đơn">
+                    {isDraft ? (
+                      // Chốt đơn đi theo quyền SỬA đơn (05/10/2026) — không có ô quyền riêng, khớp máy chủ.
+                      <div className="dhb__the-than">
+                        <ConfirmPanel order={order} canManage={canUpdate} canExtend={canUpdate} onSaved={onSaved} />
                       </div>
-                    )}
-                    {!isChotDone ? (
-                      <p style={{ color: "var(--ash)", fontSize: 12, margin: "4px 0 0" }}>
-                        Đơn phải CHỐT (đủ thông tin) trước — sau chốt kế toán thu cọc ở bước này.
-                      </p>
-                    ) : isCocDone ? null : canRecordDeposit ? (
-                      <DepositForm order={order} onSaved={onSaved} />
-                    ) : (
-                      <p style={{ color: "var(--ash)", fontSize: 12, margin: "4px 0 0" }}>Chờ kế toán thu cọc.</p>
-                    )}
-                    </>)}
-                  </div>
+                    ) : order.status === "ordered" ? (
+                      <>
+                        <TomTat d={[
+                          { nhan: "Chốt lúc", so: fmtDateTime(order.ordered_at) },
+                          ...(order.ordered_by_name ? [{ nhan: "Người chốt", so: order.ordered_by_name }] : []),
+                          { nhan: "Giá trị chốt", dien: "gồm VAT", so: soVN(order.total_with_vat) },
+                          ...(soNgayHen != null ? [{ nhan: "Thời gian giao đã hẹn", dien: "tính từ lúc chốt", so: `${soNgayHen} ngày` }] : []),
+                        ]} />
+                        <ChanKhung chu="Đã chốt nên hàng hoá và giá không sửa được nữa." />
+                      </>
+                    ) : order.status === "cancelled" ? (
+                      <>
+                        <TomTat d={[
+                          { nhan: "Lý do hủy", so: order.cancel_reason ?? "—" },
+                          ...(order.cancel_fault ? [{ nhan: "Lỗi tại", so: order.cancel_fault === "khach" ? "Khách hàng" : "Xưởng in" }] : []),
+                          ...(order.deposit_received > 0 ? [
+                            { nhan: "Cọc đã nhận", so: soVN(order.deposit_received) },
+                            ...(order.deposit_refunded > 0 ? [{ nhan: "Đã trả lại", so: soVN(order.deposit_refunded) }] : []),
+                            { nhan: "Cọc còn giữ", so: soVN(cocConGiu), tong: true, tone: cocConGiu > 0 ? "chu" as const : undefined },
+                          ] : []),
+                        ]} />
+                        {cocConGiu > 0 && order.customer_id != null && can("phieu_chi", "create") && (
+                          <ChanKhung chu="Đơn đã hủy nhưng còn giữ cọc của khách.">
+                            <button type="button" className="btn" onClick={() => setTraCoc(true)}>Trả lại cọc</button>
+                          </ChanKhung>
+                        )}
+                      </>
+                    ) : null}
+                  </TheChang>
                 </div>
- 
- 
+
+                <div className={khungO("coc")}>
+                  <TheChang tieuDe="Cọc">
+                    {!isChotDone ? (
+                      <ChanKhung chu="Đơn phải chốt trước, sau chốt kế toán thu cọc ở đây." />
+                    ) : noDeposit && order.deposits.length === 0 ? (
+                      <ChanKhung chu="Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt." />
+                    ) : (
+                      <>
+                        <TomTat d={[
+                          { nhan: "Cần thu", dien: order.deposit_pct != null ? `${order.deposit_pct}% giá trị đơn` : undefined,
+                            so: soVN(order.deposit_required) },
+                          ...order.deposits.map((d) => ({
+                            khoa: `pt-${d.id}`,
+                            nhan: (
+                              <button type="button" className="dhb__td-link" title="Mở phiếu thu này bên Kế toán"
+                                onClick={() => navigate?.("ke-toan-phieu-thu", { focusReceiptQuery: d.code })}>
+                                {d.doc_no ?? d.code}
+                              </button>
+                            ),
+                            dien: `${RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method} lúc ${fmtDateTime(d.created_at)}`,
+                            so: soVN(d.amount),
+                          })),
+                          { nhan: "Đã thu", dien: order.deposits.length > 0 ? `${order.deposits.length} phiếu thu` : undefined,
+                            so: soVN(order.deposit_received), tong: true },
+                          { nhan: "Còn thiếu", so: soVN(remaining), tone: remaining > 0 ? "chu" : undefined },
+                        ]} />
+                        <ChanKhung chu={isCocDone
+                          ? (phieuCuoi ? `Đủ cọc lúc ${fmtDateTime(phieuCuoi.created_at)}.` : "Đủ cọc.")
+                          : canRecordDeposit ? "Thiếu cọc thì đơn chưa xuống sản xuất." : "Chờ kế toán thu cọc."}>
+                          {!isCocDone && canRecordDeposit && <DepositForm order={order} onSaved={onSaved} />}
+                        </ChanKhung>
+                      </>
+                    )}
+                  </TheChang>
+                </div>
+
                 <div className={khungO("sanxuat")}>
-                  <div className="dhb__lifecycle-box">
-                    <div className="dhb__lifecycle-box-header">
-                      <h4 className="dhb__lifecycle-box-title">Sản xuất</h4>
-                      {sxReleased && order.status === "ordered" && (
-                        <span className={`dhb__lifecycle-badge ${sxDone ? "dhb__lifecycle-badge--done" : soMonDongThieu > 0 ? "dhb__lifecycle-badge--do" : sxState === "chay" ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--vang"}`}>
-                          {sxDone ? "Đủ hàng" : soMonDongThieu > 0 ? "Đóng thiếu" : sxState === "chay" ? "Đang chạy" : "Chờ lên lệnh"}
-                        </span>
-                      )}
-                      {sxReleased && order.status === "ordered" && (
-                        <button type="button" className="dhb__td-link dhb__khung-lien-ket"
-                          onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
-                          Mở bàn Kế hoạch sản xuất ↗
-                        </button>
-                      )}
-                    </div>
+                  <TheChang tieuDe="Sản xuất">
                     {order.status === "cancelled" ? (
-                      <p className="dhb__td-note">
-                        {sxReleased
-                          ? "Đơn đã hủy — trước đó đã chuyển xuống sản xuất nhưng chưa lên lệnh nào."
-                          : "Đơn đã hủy, chưa từng chuyển xuống sản xuất."}
-                      </p>
+                      <ChanKhung chu={sxReleased
+                        ? "Đơn đã hủy. Trước đó đã chuyển xuống sản xuất nhưng chưa lên lệnh nào."
+                        : "Đơn đã hủy, chưa từng chuyển xuống sản xuất."} />
                     ) : order.status !== "ordered" ? (
-                      <p className="dhb__td-note">Đơn phải chốt trước mới chuyển xuống sản xuất được.</p>
+                      <ChanKhung chu="Đơn phải chốt trước mới chuyển xuống sản xuất được." />
                     ) : !sxReleased ? (
-                      <p className="dhb__td-note">
-                        Chờ kế toán thu đủ cọc (chặng “Cọc”) — đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất.
-                      </p>
+                      <ChanKhung chu="Chờ kế toán thu đủ cọc. Đủ cọc là đơn tự xuống hàng chờ Kế hoạch sản xuất." />
                     ) : (
                       <>
                         {td && td.cum.length > 0 && (() => {
@@ -1087,168 +961,177 @@ function OrderDrawer({
                           const chay = lenhAll.filter((l) => !l.xong);
                           const dangLam = td.cum.reduce((a, c) => a + Math.max(0, c.dat - Math.min(c.dat, coHangCum(c))), 0);
                           const vuong = new Set(chay.flatMap((l) => l.canh_bao)).size;
+                          const dv = mot?.don_vi ? ` ${mot.don_vi}` : "";
                           return (
-                            <DaiSo o={[
-                              mot
-                                ? { nhan: "Kho đã nhận", so: `${soVN(Math.min(mot.dat, coHangCum(mot)))} / ${soVN(mot.dat)}`,
-                                    dv: mot.don_vi ?? undefined, tone: tt.khoXong ? "ok" : undefined }
-                                : { nhan: "Món đủ hàng", so: `${tt.soMonDuHang} / ${tt.soMon}`, tone: tt.khoXong ? "ok" : undefined },
+                            <TomTat d={[
                               mot
                                 ? mot.o === "dong_thieu"
                                   // Lệnh đã đóng: không ai "còn phải làm" nữa — đó là phần THIẾU.
-                                  ? { nhan: "Thiếu", so: soVN(dangLam), dv: mot.don_vi ?? undefined, tone: "chu", phu: "lệnh đã đóng" }
-                                  : { nhan: "Còn phải làm", so: soVN(dangLam), dv: mot.don_vi ?? undefined }
-                                : { nhan: "Món còn thiếu", so: String(tt.soMon - tt.soMonDuHang) },
-                              { nhan: "Lệnh sản xuất", so: String(lenhAll.length),
-                                phu: lenhAll.length === 0 ? "chưa lên lệnh"
-                                  : chay.length === 0 && soMonDongThieu > 0 ? "đã đóng hết"
-                                  : chay.length === 0 ? "đã xong hết"
-                                  : chay.every((l) => l.da_xuong_xuong) ? `${chay.length} đang chạy ở xưởng`
-                                  : `${chay.filter((l) => !l.da_xuong_xuong).length} chưa xuống xưởng` },
-                              { nhan: "Dự kiến xong", vua: true,
+                                  ? { nhan: "Thiếu", dien: "lệnh đã đóng", so: `${soVN(dangLam)}${dv}`, tone: "chu" }
+                                  : { nhan: "Còn phải làm", so: `${soVN(dangLam)}${dv}` }
+                                : { nhan: "Món đủ hàng", so: `${tt.soMonDuHang} / ${tt.soMon}`, tone: tt.khoXong ? "ok" : undefined },
+                              { nhan: "Dự kiến xong",
                                 so: td.du_kien_xong ? fmtDate(td.du_kien_xong) : soMonDongThieu > 0 ? "đã đóng" : tt.sxXong ? "đã xong" : "chưa ước được",
                                 tone: (td.tre_ngay ?? 0) > 0 || (!td.du_kien_xong && !tt.sxXong && lenhAll.length > 0) ? "chu" : undefined,
-                                phu: (td.tre_ngay ?? 0) > 0 ? `trễ ${td.tre_ngay} ngày so với hạn giao`
+                                dien: (td.tre_ngay ?? 0) > 0 ? `trễ ${td.tre_ngay} ngày so với hạn giao`
                                   : vuong > 0 ? `${vuong} vướng mắc đang mở`
                                   : td.du_kien_xong ? "kịp hạn giao" : undefined },
                             ]} />
                           );
                         })()}
-                        <BangSanXuatMon td={td}
-                          onMoLenh={navigate && can("san_xuat", "read") ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
+                        <div className="dhb__the-bang">
+                          <BangSanXuatMon td={td}
+                            onMoLenh={navigate && can("san_xuat", "read") ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
+                        </div>
+                        <ChanKhung chu="Theo dõi từng công đoạn của lệnh ở Kế hoạch sản xuất.">
+                          <button type="button" className="btn"
+                            onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
+                            Mở Kế hoạch sản xuất ↗
+                          </button>
+                        </ChanKhung>
                       </>
                     )}
-                  </div>
+                  </TheChang>
                 </div>
 
                 <div className={khungO("giao")}>
-                  <div className="dhb__lifecycle-box">
-                    <div className="dhb__lifecycle-box-header">
-                      <h4 className="dhb__lifecycle-box-title">Giao hàng</h4>
-                      <span className={`dhb__lifecycle-badge ${giaoDone ? "dhb__lifecycle-badge--done" : tt.giaoPct > 0 || tt.soYeuCauMo > 0 ? "dhb__lifecycle-badge--active" : "dhb__lifecycle-badge--upcoming"}`}>
-                        {giaoText === "—" ? "Chưa giao" : giaoText.charAt(0).toUpperCase() + giaoText.slice(1)}
-                      </span>
-                    </div>
-                    {/* Hạn giao cam kết nằm ở thẻ tóm tắt đầu Vòng đời đơn — không lặp ở đây (10/10/2026). */}
+                  <TheChang tieuDe="Giao hàng">
                     <BuocGiaoHang order={order} td={td} taiLai={taiTienDo} onIn={setInYc} navigate={navigate} />
-                  </div>
+                  </TheChang>
                 </div>
 
                 <div className={khungO("hoadon")}>
-                  <InvoicePanel
-                    order={order}
-                    book={invoiceBook}
-                    loading={invoiceLoading}
-                    error={invoiceError}
-                    canCreate={canCreateInvoice}
-                    canCancel={canCancelInvoice}
-                    onChanged={loadInvoices}
-                  />
+                  <TheChang tieuDe="Hóa đơn">
+                    <InvoicePanel
+                      order={order}
+                      book={invoiceBook}
+                      loading={invoiceLoading}
+                      error={invoiceError}
+                      canCreate={canCreateInvoice}
+                      canCancel={canCancelInvoice}
+                      onChanged={loadInvoices}
+                      navigate={navigate}
+                    />
+                  </TheChang>
                 </div>
-                </div>
-              </Section>
-              {/* Khối ⑤ "Duyệt đơn đặc thù" đã gỡ cùng luồng duyệt. */}
-            </>
+              </div>
+
+              <div className="dhb__tq-phai">
+                <TheBen tieuDe="Đơn hàng">
+                  <DongBen k="Nguồn" v={order.source_type === "bao_gia" && order.quotation_code ? (
+                    <>
+                      <button type="button" className="dhb__td-link" onClick={moBaoGia}>{order.quotation_code} ↗</button>
+                      {order.quotation_version != null && <span className="dhb__muted dhb__ben-phu">bản {order.quotation_version}</span>}
+                    </>
+                  ) : "Nhập giá tay"} />
+                  <DongBen k="Loại đơn" v={order.order_kind === "bo_sung" ? "Đơn bổ sung" : "Đơn mới"} />
+                  {order.parent_order_no && <DongBen k="Đơn gốc" v={order.parent_order_no} />}
+                  <DongBen k="Số PO khách" v={order.customer_po_no || "—"} />
+                  <DongBen k="Ngày tạo" v={<span className="dhb__mono">{fmtDate(order.created_at)}</span>} />
+                  <DongBen k="Cọc quy định" v={order.deposit_pct != null ? `${order.deposit_pct}%` : "—"} />
+                </TheBen>
+
+                {/* Lưu ý sản xuất — sửa được cả khi đã chốt (đường hẹp D3 → realtime bàn Kế hoạch). */}
+                <ProductionHintEditor order={order} canEdit={order.status === "ordered" && canUpdate} onSaved={onSaved} />
+
+                <TheBen tieuDe="Giao tới">
+                  <div className="dhb__ben-ic"><Icon name="users" size={14} /><span>{order.delivery_contact_name || "—"}</span></div>
+                  {order.delivery_contact_phone && (
+                    <div className="dhb__ben-ic"><Icon name="phone" size={14} /><span className="dhb__mono">{order.delivery_contact_phone}</span></div>
+                  )}
+                  <div className="dhb__ben-ic is-dau"><Icon name="mapPin" size={14} /><span className="dhb__muted">{order.delivery_address || "—"}</span></div>
+                  {order.delivery_note && (
+                    <div className="dhb__ben-nhom">
+                      <small>Lưu ý giao hàng</small>
+                      <div>{order.delivery_note}</div>
+                    </div>
+                  )}
+                </TheBen>
+              </div>
+            </div>
           )}
 
           {drawerTab === "commercial" && (
-            <>
-              {/* ② Thương mại */}
-              <Section title="Thương mại (khóa)">
-                <KV k="Khách hàng" v={order.customer_name ?? "—"} />
+            <div className="dhb__hh">
+              <section className="dhb__the">
                 {order.source_type === "bao_gia" && order.quotation_code && (
-                  <KV
-                    k="Báo giá"
-                    v={
-                      <button
-                        className="link dhb__mono"
-                        style={{ color: "var(--rust)", background: "none", border: 0, cursor: "pointer", padding: 0 }}
-                        onClick={() => navigate?.("bao-gia", { openQuoteId: order.quotation_id })}
-                      >
-                        {order.quotation_code} · v{order.quotation_version} ↗
-                      </button>
-                    }
-                  />
+                  <div className="dhb__the-dau dhb__hh-dau">
+                    <span className="dhb__muted">Theo báo giá</span>
+                    <button type="button" className="dhb__td-link" onClick={moBaoGia}>{order.quotation_code} ↗</button>
+                    {order.quotation_version != null && <span className="dhb__muted">bản {order.quotation_version}</span>}
+                  </div>
                 )}
-                <table className="dhb__comm-table">
-                  <thead>
-                    <tr>
-                      <th>Mô tả</th>
-                      <th className="dhb__text-right">SL</th>
-                      <th>ĐVT</th>
-                      <th className="dhb__text-right">Đơn giá</th>
-                      <th className="dhb__text-right">VAT</th>
-                      <th className="dhb__text-right">Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Khối THƯƠNG MẠI = mặt đối ngoại của đơn → gộp theo nhãn nhóm y như báo giá
-                        khách đã nhận (ruột + bìa = 1 quyển). Dòng thật vẫn nguyên ở dưới DB để
-                        sản xuất sinh lệnh riêng cho từng phần. */}
-                    {gopTheoNhom(order.lines, (l) => ({
-                      nhom: l.nhom,
-                      ten: l.description,
-                      soLuong: l.qty,
-                      donViTinh: l.don_vi_tinh || "",
-                      dvtNhom: l.dvt_nhom,
-                      thanhTien: l.line_total ?? 0,
-                      tienVat: 0,
-                      vatPct: l.vat_pct_estimate,
-                    })).flatMap((g) => {
-                      const dongLe = g.goc.length === 1;
-                      return [
-                        <tr key={g.key} className={dongLe ? undefined : "dhb__comm-nhom"}>
-                          <td>
-                            {g.ten}
-                            {!dongLe && (
-                              <span className="dhb__comm-nhomSub">{g.goc.length} phần</span>
-                            )}
-                          </td>
-                          <td className="dhb__mono dhb__text-right">{g.soLuong.toLocaleString("vi-VN")}</td>
-                          <td>{g.donViTinh || "—"}</td>
-                          <td className="dhb__mono dhb__text-right">{vnd(g.donGia)}</td>
-                          <td className="dhb__mono dhb__text-right">{g.vatPct === null ? "—" : `${g.vatPct}%`}</td>
-                          <td className="dhb__mono dhb__text-right">{vnd(g.thanhTien)}</td>
-                        </tr>,
-                        // Nhóm thì SỔ ra từng phần (ruột, bìa) — người trong nhà cần thấy đủ,
-                        // khách chỉ thấy dòng gộp trên bản in.
-                        ...(dongLe
-                          ? []
-                          : g.goc.map((l, k) => (
-                              <tr
-                                key={`${g.key}-${l.id}`}
-                                className={`dhb__comm-con${k === g.goc.length - 1 ? " dhb__comm-conCuoi" : ""}`}
-                              >
-                                <td>{l.description}</td>
-                                <td className="dhb__mono dhb__text-right">{l.qty.toLocaleString("vi-VN")}</td>
-                                <td>{l.don_vi_tinh || "—"}</td>
-                                <td className="dhb__mono dhb__text-right">{vnd(l.unit_price_snapshot)}</td>
-                                <td className="dhb__mono dhb__text-right">{l.vat_pct_estimate}%</td>
-                                <td className="dhb__mono dhb__text-right">{vnd(l.line_total)}</td>
-                              </tr>
-                            ))),
-                      ];
-                    })}
-                  </tbody>
-                </table>
-                <div className="dhb__summary-box">
-                  <KV k="Cộng trước VAT" v={<span className="dhb__mono">{vnd(order.total)}</span>} right />
-                  <KV k="Tổng gồm VAT" v={<strong className="dhb__mono" style={{ color: "var(--ink)", fontSize: 14 }}>{vnd(order.total_with_vat)}</strong>} right />
-                  {order.margin_pct != null ? (
-                    <KV k="Biên lợi nhuận" v={<span className="dhb__mono">{order.margin_pct}% (giá vốn {vnd(order.order_cost)})</span>} right />
-                  ) : (
-                    <KV k="Biên lợi nhuận" v={<em style={{ color: "var(--ash)" }}>không xác định (nhập tay)</em>} right />
-                  )}
+                <div className="dhb__the-bang">
+                  <table className="dhb__g">
+                    <thead>
+                      <tr>
+                        <th>Mặt hàng</th>
+                        <th className="dhb__text-right">Số lượng</th>
+                        <th>Đơn vị</th>
+                        <th className="dhb__text-right">Đơn giá</th>
+                        <th className="dhb__text-right">VAT</th>
+                        <th className="dhb__text-right">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Mặt đối ngoại của đơn → gộp theo nhãn nhóm y như báo giá khách đã nhận (ruột + bìa
+                          = 1 quyển). Nhóm thì SỔ ra từng phần cho người trong nhà xem đủ. */}
+                      {gopTheoNhom(order.lines, (l) => ({
+                        nhom: l.nhom,
+                        ten: l.description,
+                        soLuong: l.qty,
+                        donViTinh: l.don_vi_tinh || "",
+                        dvtNhom: l.dvt_nhom,
+                        thanhTien: l.line_total ?? 0,
+                        tienVat: 0,
+                        vatPct: l.vat_pct_estimate,
+                      })).flatMap((g) => {
+                        const dongLe = g.goc.length === 1;
+                        return [
+                          <tr key={g.key} className={dongLe ? undefined : "dhb__comm-nhom"}>
+                            <td>
+                              {g.ten}
+                              {!dongLe && <span className="dhb__comm-nhomSub">{g.goc.length} phần</span>}
+                            </td>
+                            <td className="dhb__mono dhb__text-right">{soVN(g.soLuong)}</td>
+                            <td>{g.donViTinh || "—"}</td>
+                            <td className="dhb__mono dhb__text-right">{g.donGia == null ? "—" : soVN(g.donGia)}</td>
+                            <td className="dhb__mono dhb__text-right">{g.vatPct === null ? "—" : `${g.vatPct}%`}</td>
+                            <td className="dhb__mono dhb__text-right">{soVN(g.thanhTien)}</td>
+                          </tr>,
+                          ...(dongLe ? [] : g.goc.map((l, k) => (
+                            <tr key={`${g.key}-${l.id}`}
+                              className={`dhb__comm-con${k === g.goc.length - 1 ? " dhb__comm-conCuoi" : ""}`}>
+                              <td>{l.description}</td>
+                              <td className="dhb__mono dhb__text-right">{soVN(l.qty)}</td>
+                              <td>{l.don_vi_tinh || "—"}</td>
+                              <td className="dhb__mono dhb__text-right">{l.unit_price_snapshot == null ? "—" : soVN(l.unit_price_snapshot)}</td>
+                              <td className="dhb__mono dhb__text-right">{l.vat_pct_estimate}%</td>
+                              <td className="dhb__mono dhb__text-right">{l.line_total == null ? "—" : soVN(l.line_total)}</td>
+                            </tr>
+                          ))),
+                        ];
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              </Section>
-            </>
+                <div className="dhb__hh-tong">
+                  <TomTat d={[
+                    { nhan: "Cộng trước VAT", so: order.total == null ? "—" : soVN(order.total) },
+                    { nhan: "Thuế VAT", so: order.total == null ? "—" : soVN(order.total_with_vat - order.total) },
+                    { nhan: "Tổng gồm VAT", so: soVN(order.total_with_vat), tong: true },
+                  ]} />
+                </div>
+              </section>
+              {/* Khối Lợi nhuận (giá vốn, lãi gộp, biên) đã gỡ 13/10/2026 theo yêu cầu người dùng. */}
+            </div>
           )}
 
-          {drawerTab === "history" && (
-            <>
-              <Section title="Tệp đính kèm">
+          {drawerTab === "files" && (
+            <section className="dhb__the">
+              <div className="dhb__the-than">
                 {order.consent_attachments.length === 0 && !(isDraft && canUpdate) && (
-                  <p style={{ color: "var(--ash)", fontSize: 13, margin: 0 }}>Chưa có tệp đính kèm.</p>
+                  <p className="dhb__muted" style={{ fontSize: 13, margin: 0 }}>Chưa có tệp đính kèm.</p>
                 )}
                 <DinhKemTep
                   items={order.consent_attachments.map((a) => ({
@@ -1268,19 +1151,23 @@ function OrderDrawer({
                   taiLen={upConsent}
                   xoa={(t) => delConsent(t.id)}
                 />
-              </Section>
+              </div>
+            </section>
+          )}
 
-              {/* ⑥ Nhật ký */}
-              <Section title="Nhật ký hoạt động">
-                {acts.length === 0 && <p style={{ color: "var(--ash)", fontSize: 13, margin: 0 }}>Chưa có.</p>}
+          {drawerTab === "history" && (
+            <section className="dhb__the">
+              <div className="dhb__the-than">
+                {acts.length === 0 && <p className="dhb__muted" style={{ fontSize: 13, margin: 0 }}>Chưa có.</p>}
                 {acts.map((a, i) => (
-                  <div key={i} style={{ display: "flex", gap: 8, fontSize: 13, padding: "6px 0", borderTop: i ? "1px solid var(--rule-hair)" : undefined }}>
-                    <span className="dhb__mono" style={{ color: "var(--ash-2)", minWidth: 92 }}>{new Date(a.at).toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
-                    <span><strong>{a.actor_name ?? "—"}</strong> · {a.detail || a.action}</span>
+                  <div key={i} className="dhb__nk">
+                    <span className="dhb__mono dhb__muted">{fmtDateTime(a.at)}</span>
+                    <span>{a.actor_name ?? "—"}</span>
+                    <span>{a.detail || a.action}</span>
                   </div>
                 ))}
-              </Section>
-            </>
+              </div>
+            </section>
           )}
         </div>
         {editing && (
@@ -1297,10 +1184,58 @@ function OrderDrawer({
             onSaved={(d) => { setCancelling(false); onSaved(d); }}
           />
         )}
-        {showPrint && <DeliveryNotePrint d={order} onClose={() => setShowPrint(false)} />}
-        {inYc && <DeliveryNotePrint d={order} yc={inYc} onClose={() => setInYc(null)} />}
+        {traCoc && order.customer_id != null && (
+          <TraLaiTienKhachModal
+            khachId={order.customer_id}
+            khachTen={order.customer_name ?? "Khách hàng"}
+            don={{ id: order.id, ma: order.order_no, daNhan: order.deposit_received, conLai: cocConGiu }}
+            onClose={() => setTraCoc(false)}
+            onDone={() => {
+              setTraCoc(false);
+              if (token) void api.orders.get(token, order.id).then(onSaved).catch(() => undefined);
+            }}
+          />
+        )}
+        {inYc && <PhieuXuatBanHangPrint d={order} yc={inYc} onClose={() => setInYc(null)} />}
       </aside>
     </div>
+  );
+}
+
+/** Thẻ chặng / thẻ nội dung bên trái: tiêu đề rồi thân (dòng tóm tắt, bảng, dải chân). */
+function TheChang({ tieuDe, children }: { tieuDe: string; children: React.ReactNode }) {
+  return (
+    <section className="dhb__the">
+      <div className="dhb__the-dau"><h4>{tieuDe}</h4></div>
+      {children}
+    </section>
+  );
+}
+
+/** Thẻ thuộc tính đơn ở cột phải. */
+function TheBen({ tieuDe, nut, children }: { tieuDe: string; nut?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="dhb__ben">
+      <div className="dhb__ben-dau"><h4>{tieuDe}</h4>{nut}</div>
+      {children}
+    </section>
+  );
+}
+
+function DongBen({ k, v }: { k: string; v: React.ReactNode }) {
+  return <div className="dhb__ben-kv"><span>{k}</span><span>{v}</span></div>;
+}
+
+/** Hai ô đầu nhóm của một lượt trong bảng hóa đơn — trải dọc hết các dòng hóa đơn của lượt. */
+function ODauLuot({ ma, ngay, giaTri, soDong }: { ma: string; ngay: string | null; giaTri: number; soDong: number }) {
+  return (
+    <>
+      <td rowSpan={soDong} className="dhb__g-hai dhb__hd-luot">
+        <span className="dhb__mono">{ma}</span>
+        {ngay && <small>giao {fmtDate(ngay)}</small>}
+      </td>
+      <td rowSpan={soDong} className="dhb__mono dhb__text-right dhb__hd-luot">{soVN(giaTri)}</td>
+    </>
   );
 }
 
@@ -1312,6 +1247,7 @@ function InvoicePanel({
   canCreate,
   canCancel,
   onChanged,
+  navigate,
 }: {
   order: OrderDetail;
   book: SalesInvoiceListOut | null;
@@ -1320,6 +1256,7 @@ function InvoicePanel({
   canCreate: boolean;
   canCancel: boolean;
   onChanged: () => Promise<void>;
+  navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
   const today = (() => {
@@ -1327,7 +1264,9 @@ function InvoicePanel({
     const offset = now.getTimezoneOffset() * 60_000;
     return new Date(now.getTime() - offset).toISOString().slice(0, 10);
   })();
-  const [showCreate, setShowCreate] = useState(false);
+  // Lượt đang ghi hóa đơn: hóa đơn lập theo từng lượt khách đã nhận, không vượt hàng của lượt.
+  const [luotGhi, setLuotGhi] = useState<LuotGiaoHoaDon | null>(null);
+  const showCreate = luotGhi !== null;
   const [symbol, setSymbol] = useState("");
   const [number, setNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(today);
@@ -1336,15 +1275,18 @@ function InvoicePanel({
   const [formError, setFormError] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [moHuy, setMoHuy] = useState(false);
 
   const issued = book?.items.filter((item) => item.status === "issued") ?? [];
   const outstanding = issued.reduce((sum, item) => sum + item.remaining_amount, 0);
-  const stage = !book || book.invoiced_amount <= 0
-    ? "none"
-    : book.uninvoiced_amount > 0
-      ? "partial"
-      : "full";
-  const stageLabel = stage === "full" ? "Đã ghi đủ" : stage === "partial" ? "Đã ghi một phần" : "Chưa ghi";
+  const truCoc = issued.reduce((sum, item) => sum + item.deposit_offset_amount, 0);
+  const daTra = issued.reduce((sum, item) => sum + item.direct_received_amount, 0);
+  const phieuThu = book?.phieu_thu ?? [];
+  // Số phiếu thu mở phiếu bên Kế toán — cùng cách chặng Cọc.
+  const linkPhieu = (code: string, docNo: string | null) => navigate ? (
+    <button type="button" className="dhb__td-link" title="Mở phiếu thu này bên Kế toán"
+      onClick={() => navigate("ke-toan-phieu-thu", { focusReceiptQuery: code })}>{docNo ?? code}</button>
+  ) : <span>{docNo ?? code}</span>;
   const depositAlreadyOffset = issued.reduce((sum, item) => sum + item.deposit_offset_amount, 0);
   const depositAvailable = Math.max(0, (book?.deposit_received ?? 0) - depositAlreadyOffset);
   const enteredAmount = Math.max(0, Number(amount || 0));
@@ -1355,19 +1297,23 @@ function InvoicePanel({
   const dueDate = termDays != null && /^\d{4}-\d{2}-\d{2}$/.test(invoiceDate)
     ? new Date(Date.parse(`${invoiceDate}T00:00:00Z`) + termDays * 86_400_000).toISOString().slice(0, 10)
     : null;
-  const remainingAfter = (book?.uninvoiced_amount ?? 0) - enteredAmount;
+  // Trần duy nhất là cả đơn: tổng hóa đơn không vượt tổng đơn gồm VAT — đúng luật máy chủ. Phần chưa
+  // ghi của lượt chỉ là số điền sẵn.
+  const tranDon = book?.uninvoiced_amount ?? 0;
+  const remainingAfter = tranDon - enteredAmount;
+  const luotGiao = book?.luot_giao ?? [];
 
   useEffect(() => {
-    if (!showCreate || !book) return;
-    setAmount(String(book.uninvoiced_amount));
+    if (!luotGhi || !book) return;
+    setAmount(String(Math.min(luotGhi.con_ghi, book.uninvoiced_amount) || book.uninvoiced_amount));
     setSymbol((prev) => prev || book.last_invoice_symbol || "");
     setInvoiceDate(today);
     setFormError(null);
-  }, [showCreate, book, today]);
+  }, [luotGhi, book, today]);
 
   async function createInvoice(event: React.FormEvent) {
     event.preventDefault();
-    if (!token || !book || saving) return;
+    if (!token || !book || !luotGhi || saving) return;
     if (!symbol.trim() || !number.trim() || !invoiceDate) {
       setFormError("Vui lòng nhập ký hiệu, số hóa đơn và ngày hóa đơn.");
       return;
@@ -1376,8 +1322,8 @@ function InvoicePanel({
       setFormError("Ngày hóa đơn không được nằm trong tương lai.");
       return;
     }
-    if (!Number.isFinite(enteredAmount) || enteredAmount <= 0 || enteredAmount > book.uninvoiced_amount) {
-      setFormError(`Giá trị hóa đơn phải từ 1 đến ${vnd(book.uninvoiced_amount)}.`);
+    if (!Number.isFinite(enteredAmount) || enteredAmount <= 0 || enteredAmount > tranDon) {
+      setFormError(`Giá trị hóa đơn phải từ 1 đến ${vnd(tranDon)}.`);
       return;
     }
     setSaving(true);
@@ -1388,9 +1334,10 @@ function InvoicePanel({
         invoice_symbol: symbol.trim(),
         invoice_number: number.trim(),
         invoice_date: invoiceDate,
+        delivery_trip_id: luotGhi.trip_id,
         amount_vnd: Math.round(enteredAmount),
       });
-      setShowCreate(false);
+      setLuotGhi(null);
       setSymbol("");
       setNumber("");
       await onChanged();
@@ -1422,52 +1369,212 @@ function InvoicePanel({
     }
   }
 
-  return (
-    <div className="dhb__lifecycle-box dhb__invoice-panel">
-      <div className="dhb__lifecycle-box-header">
-        <h4 className="dhb__lifecycle-box-title">Hóa đơn &amp; công nợ</h4>
-        <span className={`dhb__lifecycle-badge ${stage === "full" ? "dhb__lifecycle-badge--done" : stage === "partial" ? "dhb__lifecycle-badge--vang" : "dhb__lifecycle-badge--upcoming"}`}>
-          {stageLabel}
-        </span>
-      </div>
+  // Khung Hoá đơn (khuôn Shopify 12/10/2026): dòng tóm tắt, bảng hoá đơn, dải chân có nút ghi nhận.
+  const coTheGhi = order.status === "ordered" && canCreate && (book?.uninvoiced_amount ?? 0) > 0;
 
-      {error && <div className="banner banner--error" role="alert">{error}</div>}
-      {formError && !showCreate && <div className="banner banner--error" role="alert">{formError}</div>}
-      {loading && !book && <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải sổ hóa đơn…" />}
+  // Bảng hóa đơn theo lượt (phương án A 13/10/2026): mỗi lượt một nhóm dòng, hóa đơn của lượt nằm
+  // ngay trong nhóm; hóa đơn đã hủy gom ở chân bảng.
+  const idLuot = new Set(luotGiao.map((l) => l.trip_id));
+  const hdCuaLuot = (id: number) => issued.filter((i) => i.delivery_trip_id === id);
+  const hdChuaGan = issued.filter((i) => i.delivery_trip_id == null || !idLuot.has(i.delivery_trip_id));
+  const daHuy = book?.items.filter((i) => i.status === "cancelled") ?? [];
+  // Hóa đơn vượt hàng của lượt mình (hoặc hóa đơn cũ chưa gắn lượt) phủ sang lượt khác — máy chủ dồn
+  // theo thứ tự giao; ở đây chỉ gọi tên nguồn.
+  const nguonPhu = [
+    ...luotGiao
+      .filter((l) => hdCuaLuot(l.trip_id).reduce((s, i) => s + i.amount_vnd, 0) > l.gia_tri)
+      .map((l) => `lượt ${l.ma}`),
+    ...(hdChuaGan.length > 0 ? ["chưa gắn lượt"] : []),
+  ];
+  const tenNguon = nguonPhu.length === 1 ? `hóa đơn ${nguonPhu[0]}` : "hóa đơn khác";
+  const oHoaDon = (item: SalesInvoiceRow) => {
+    const huy = item.status === "cancelled";
+    const ghiChu = [
+      item.created_by_name && `${item.created_by_name} ghi`,
+      huy && item.cancel_reason && `Lý do hủy: ${item.cancel_reason}`,
+    ].filter(Boolean).join("\n");
+    return (
+      <>
+        <td className="dhb__g-hai dhb__hd-sohd" title={ghiChu}>
+          <span className="dhb__mono">{item.invoice_number}</span>
+          <small>{fmtDate(item.invoice_date)}</small>
+        </td>
+        <td className="dhb__mono dhb__muted">{item.invoice_symbol}</td>
+        <td className="dhb__mono dhb__text-right">{soVN(item.amount_vnd)}</td>
+        <td className={item.due_date && !huy ? "dhb__mono" : "dhb__muted"}>
+          {huy ? "" : item.due_date ? fmtDate(item.due_date) : "chưa đặt"}
+        </td>
+        <td className="dhb__text-right dhb__g-hai">
+          {huy
+            ? <ChipTT mau="xam">Đã hủy</ChipTT>
+            : item.remaining_amount > 0
+              ? <span className="dhb__mono">{soVN(item.remaining_amount)}</span>
+              : <span><ChipTT mau="la">Đã thu đủ</ChipTT></span>}
+          {/* Vì sao còn nợ nhỏ hơn giá trị: phần trừ cọc và phần khách đã trả của chính hóa đơn này. */}
+          {!huy && item.deposit_offset_amount > 0 && <small>trừ cọc {soVN(item.deposit_offset_amount)}</small>}
+          {!huy && item.direct_received_amount > 0 && <small>đã trả {soVN(item.direct_received_amount)}</small>}
+        </td>
+        <td className="dhb__text-right dhb__g-nut">
+          {/* ĐÃ CÓ PHIẾU THU thì KHÔNG bày nút hủy (chủ 22/08/2026) — máy chủ vốn đã chặn.
+              Dùng `direct_received_amount`: cọc cấn trừ gắn với ĐƠN, không chặn hủy. */}
+          {!huy && canCancel && item.direct_received_amount <= 0 && (
+            <button type="button" className="dhb__td-link dhb__td-link--do" title="Hủy hóa đơn"
+              onClick={() => { setCancelTarget(item); setCancelReason(""); setFormError(null); }}>
+              Hủy
+            </button>
+          )}
+        </td>
+      </>
+    );
+  };
+  return (
+    <>
+      {error && <div className="banner banner--error" role="alert" style={{ margin: "0 20px 8px" }}>{error}</div>}
+      {formError && !showCreate && <div className="banner banner--error" role="alert" style={{ margin: "0 20px 8px" }}>{formError}</div>}
+      {loading && !book && <div className="dhb__the-than"><EmptyState trangThai="dang-tai" gon nhanTai="Đang tải sổ hóa đơn…" /></div>}
 
       {book && (
         <>
-          <DaiSo o={[
-            { nhan: "Tổng đơn", so: vnd(book.order_total) },
-            { nhan: "Đã ghi hóa đơn", so: vnd(book.invoiced_amount),
-              phu: issued.length > 0 ? `${issued.length} hóa đơn` : undefined },
-            { nhan: "Chưa ghi hóa đơn", so: vnd(book.uninvoiced_amount),
-              tone: book.uninvoiced_amount > 0 ? (stage === "none" ? undefined : "chu") : "ok",
-              phu: book.uninvoiced_amount <= 0 ? "đã ghi đủ" : undefined },
-            { nhan: "Còn phải thu", so: vnd(outstanding), tone: outstanding > 0 ? "chu" : undefined },
+          {/* Đọc từ trên xuống ra đúng phép trừ: Đã ghi hóa đơn − Trừ cọc − Khách đã trả = Còn phải thu;
+              hai dòng trừ ghi số phiếu thu để biết tiền nằm ở chứng từ nào (13/10/2026). */}
+          <TomTat d={[
+            { nhan: "Tổng đơn", dien: "gồm VAT", so: soVN(book.order_total) },
+            { nhan: "Đã giao", dien: "gồm VAT", so: soVN(book.delivered_amount ?? 0) },
+            { nhan: "Đã giao chưa ghi", so: soVN(book.invoiceable_amount ?? 0),
+              tone: (book.invoiceable_amount ?? 0) > 0 ? "chu" : undefined },
+            { nhan: "Đã ghi hóa đơn", dien: issued.length > 0 ? `${issued.length} hóa đơn` : undefined, so: soVN(book.invoiced_amount) },
+            ...(truCoc > 0 ? [{
+              nhan: "Trừ cọc",
+              dien: <span className="dhb__g-cach">{order.deposits.map((d) => <span key={d.id}>{linkPhieu(d.code, d.doc_no)}</span>)}</span>,
+              so: `−${soVN(truCoc)}`,
+            }] : []),
+            ...(daTra > 0 ? [{
+              nhan: "Khách đã trả",
+              dien: <span className="dhb__g-cach">{phieuThu.map((p) => <span key={p.id}>{linkPhieu(p.code, p.doc_no)}</span>)}</span>,
+              so: `−${soVN(daTra)}`,
+            }] : []),
+            { nhan: "Còn phải thu", dien: "trên các hóa đơn đã ghi", so: soVN(outstanding), tong: true,
+              tone: outstanding > 0 ? "chu" : undefined },
           ]} />
 
-          <div className="dhb__invoice-toolbar">
-            <p>Chỉ hóa đơn đã ghi nhận mới phát sinh công nợ phải thu.</p>
-            {order.status === "ordered" && canCreate && book.uninvoiced_amount > 0 && (
-              <button type="button" className="btn btn--secondary" onClick={() => { setFormError(null); setShowCreate(true); }}>
-                <Icon name="fileText" size={14} /> Ghi nhận hóa đơn
-              </button>
-            )}
-          </div>
+          {(luotGiao.length > 0 || book.items.length > 0) && (
+            <div className="dhb__the-bang">
+              <table className="dhb__g dhb__hd">
+                <thead>
+                  <tr>
+                    <th>Lượt giao</th>
+                    <th className="dhb__text-right">Giá trị hàng</th>
+                    <th>Số hóa đơn</th>
+                    <th>Ký hiệu</th>
+                    <th className="dhb__text-right">Giá trị hóa đơn</th>
+                    <th>Hạn thu</th>
+                    <th className="dhb__text-right">Còn nợ</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {luotGiao.map((l) => {
+                    const hd = hdCuaLuot(l.trip_id);
+                    const rieng = Math.min(hd.reduce((s, i) => s + i.amount_vnd, 0), l.gia_tri);
+                    const phu = Math.max(0, l.da_ghi - rieng);
+                    const dongCon = l.con_ghi > 0 || hd.length === 0;
+                    const dau = <ODauLuot ma={l.ma} ngay={l.ngay_giao} giaTri={l.gia_tri} soDong={hd.length + (dongCon ? 1 : 0)} />;
+                    return (
+                      <Fragment key={l.trip_id}>
+                        {hd.map((item, k) => <tr key={item.id}>{k === 0 && dau}{oHoaDon(item)}</tr>)}
+                        {dongCon && (
+                          <tr>
+                            {hd.length === 0 && dau}
+                            {l.con_ghi > 0 ? (
+                              <>
+                                <td className="dhb__g-hai">
+                                  <span className="dhb__muted">chưa ghi</span>
+                                  {phu > 0 && <small>{soVN(phu)} đã gồm trong {tenNguon}</small>}
+                                </td>
+                                <td />
+                                <td className="dhb__mono dhb__text-right dhb__muted">
+                                  {l.con_ghi !== l.gia_tri ? `còn ${soVN(l.con_ghi)}` : ""}
+                                </td>
+                                <td />
+                                <td />
+                                <td className="dhb__text-right dhb__g-nut">
+                                  {coTheGhi && (
+                                    <button type="button" className="dhb__td-link" onClick={() => { setFormError(null); setLuotGhi(l); }}>Ghi hóa đơn</button>
+                                  )}
+                                </td>
+                              </>
+                            ) : (
+                              <td colSpan={6} className="dhb__muted">đã gồm trong {tenNguon}</td>
+                            )}
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                  {hdChuaGan.map((item, k) => (
+                    <tr key={item.id}>
+                      {k === 0 && (
+                        <>
+                          <td rowSpan={hdChuaGan.length} className="dhb__muted dhb__hd-luot">chưa gắn lượt</td>
+                          <td rowSpan={hdChuaGan.length} className="dhb__hd-luot" />
+                        </>
+                      )}
+                      {oHoaDon(item)}
+                    </tr>
+                  ))}
+                  {daHuy.length > 0 && (
+                    <tr className="dhb__hd-huy">
+                      <td colSpan={8}>
+                        <button type="button" className="dhb__hd-mo" aria-expanded={moHuy} onClick={() => setMoHuy((v) => !v)}>
+                          {daHuy.length} hóa đơn đã hủy
+                          <Icon name="chevron" size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                  {moHuy && daHuy.map((item) => (
+                    <tr key={item.id} className="is-cancelled">
+                      <td className={item.luot_giao_ma ? "dhb__mono" : ""}>{item.luot_giao_ma ?? "chưa gắn lượt"}</td>
+                      <td />
+                      {oHoaDon(item)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {/* Popup gắn vào body: khung chi tiết đơn có thể đang trượt (transform) làm `position: fixed`
-              bám theo khung chứ không theo màn hình. */}
-          {showCreate && createPortal(
-            <div className="dhb__modal-overlay" style={{ zIndex: 80 }} onClick={(event) => { event.stopPropagation(); if (!saving) setShowCreate(false); }}>
+          {cancelTarget && (
+            <form className="dhb__invoice-cancel-form" style={{ margin: "0 20px 12px" }} onSubmit={cancelInvoice}>
+              <div>
+                <span>Hủy hóa đơn {cancelTarget.invoice_number}</span>
+                <small>Hóa đơn đã có phiếu thu sẽ không thể hủy. Hãy hủy phiếu thu liên quan trước.</small>
+              </div>
+              <textarea className="dhb__input" rows={2} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Lý do hủy *" />
+              <div className="dhb__invoice-form-actions">
+                <button type="button" className="btn btn--secondary" onClick={() => setCancelTarget(null)} disabled={saving}>Đóng</button>
+                <button type="submit" className="btn btn--danger" disabled={saving}>{saving ? "Đang hủy..." : "Xác nhận hủy"}</button>
+              </div>
+            </form>
+          )}
+
+          <ChanKhung chu={luotGiao.length === 0 && order.status === "ordered"
+            ? "Hóa đơn ghi theo hàng khách đã nhận. Chưa có lượt nào giao xong."
+            : "Hóa đơn ghi theo từng lượt khách đã nhận. Chỉ hóa đơn đã ghi mới thành công nợ phải thu."} />
+        </>
+      )}
+      {/* Popup gắn vào body: khung chi tiết đơn có thể đang trượt (transform) làm `position: fixed`
+          bám theo khung chứ không theo màn hình. */}
+      {showCreate && book && createPortal(
+        <div className="dhb__modal-overlay" style={{ zIndex: 80 }} onClick={(event) => { event.stopPropagation(); if (!saving) setLuotGhi(null); }}>
             <form className="dhb__modal-content dhb__invoice-form dhb__invoice-form--popup" onSubmit={createInvoice}
               onClick={(event) => event.stopPropagation()}>
-              <h3 className="dhb__modal-title">Ghi nhận hóa đơn cho đơn {order.order_no}</h3>
+              <h3 className="dhb__modal-title">Ghi nhận hóa đơn cho lượt {luotGhi?.ma}</h3>
               <p className="dhb__invoice-lead">Xuất hóa đơn điện tử xong thì chép thông tin trên hóa đơn vào đây.</p>
               <div className="dhb__invoice-form-grid">
                 <label>
                   <span>Ký hiệu <b>*</b></span>
-                  <input className="dhb__input" value={symbol} maxLength={64} onChange={(event) => setSymbol(event.target.value)} placeholder="VD: 1C26TSV" autoFocus={!symbol} />
+                  <input className="dhb__input" value={symbol} maxLength={64} onChange={(event) => { setSymbol(event.target.value); setFormError(null); }} placeholder="VD: 1C26TSV" autoFocus={!symbol} />
                   <small className="dhb__invoice-hint">
                     {book.last_invoice_symbol && symbol === book.last_invoice_symbol
                       ? "Điền sẵn ký hiệu dùng lần trước, hóa đơn khác dãy thì sửa lại."
@@ -1476,26 +1583,26 @@ function InvoicePanel({
                 </label>
                 <label>
                   <span>Số hóa đơn <b>*</b></span>
-                  <input className="dhb__input" value={number} maxLength={64} onChange={(event) => setNumber(event.target.value)} placeholder="VD: 00001234" autoFocus={!!symbol} />
+                  <input className="dhb__input" value={number} maxLength={64} onChange={(event) => { setNumber(event.target.value); setFormError(null); }} placeholder="VD: 00001234" autoFocus={!!symbol} />
                 </label>
                 <label>
                   <span>Ngày hóa đơn <b>*</b></span>
-                  <ChonNgay className="dhb__input" aria-label="Ngày hóa đơn" min={order.ordered_at?.slice(0, 10)} max={today} value={invoiceDate} onChange={(v) => setInvoiceDate(v)} />
+                  <ChonNgay className="dhb__input" aria-label="Ngày hóa đơn" min={order.ordered_at?.slice(0, 10)} max={today} value={invoiceDate} onChange={(v) => { setInvoiceDate(v); setFormError(null); }} />
                 </label>
                 <label>
                   <span>Giá trị hóa đơn <b>*</b></span>
                   <span className="dhb__invoice-money-wrap">
                     <OGoDinhDang className="dhb__input dhb__invoice-money" inputMode="numeric"
                       value={amount ? Number(amount).toLocaleString("vi-VN") : ""}
-                      onChange={(event) => setAmount(event.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, ""))} />
+                      onChange={(event) => { setAmount(event.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "")); setFormError(null); }} />
                     <i>đ</i>
                   </span>
                   <small className={`dhb__invoice-hint${remainingAfter < 0 ? " is-loi" : ""}`}>
                     {remainingAfter < 0
-                      ? `Vượt phần chưa ghi của đơn (${vnd(book.uninvoiced_amount)}).`
+                      ? `Vượt phần đơn chưa ghi hóa đơn (${vnd(tranDon)}).`
                       : remainingAfter === 0
-                        ? "Cả phần chưa ghi của đơn. Xuất nhiều đợt thì sửa nhỏ lại."
-                        : `Còn ${vnd(remainingAfter)} chưa ghi, ghi ở hóa đơn sau.`}
+                        ? "Ghi xong là đủ tổng giá trị đơn."
+                        : `Đơn còn ${vnd(remainingAfter)} chưa ghi hóa đơn.`}
                   </small>
                 </label>
               </div>
@@ -1522,85 +1629,14 @@ function InvoicePanel({
               </div>
               {formError && <div className="banner banner--error" role="alert">{formError}</div>}
               <div className="dhb__invoice-form-actions">
-                <button type="button" className="btn btn--secondary" onClick={() => setShowCreate(false)} disabled={saving}>Hủy</button>
+                <button type="button" className="btn btn--secondary" onClick={() => setLuotGhi(null)} disabled={saving}>Hủy</button>
                 <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? "Đang lưu..." : "Ghi nhận"}</button>
               </div>
             </form>
             </div>,
-            document.body,
-          )}
-
-          <div className="dhb__invoice-tablewrap">
-            <table className="dhb__invoice-table">
-              <thead>
-                <tr>
-                  <th>Số HĐ</th>
-                  <th>Ngày / hạn thu</th>
-                  <th>Giá trị</th>
-                  <th>Cọc cấn</th>
-                  <th>Đã thu</th>
-                  <th>Còn nợ</th>
-                  <th>Trạng thái</th>
-                  {/* Nút Hủy ĐỨNG CỘT RIÊNG: nhét dưới chip trạng thái làm ô đó cao gấp đôi và
-                      chữ "Hủy" đỏ trông như một trạng thái thứ hai của hóa đơn. */}
-                  <th className="dhb__text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {book.items.length === 0 && <tr><td colSpan={8}>Chưa ghi nhận hóa đơn.</td></tr>}
-                {book.items.map((item) => (
-                  <tr key={item.id} className={item.status === "cancelled" ? "is-cancelled" : ""}>
-                    <td><span className="dhb__hd-so">{item.invoice_symbol && <span>{item.invoice_symbol}</span>}<span>{item.invoice_number}</span></span><small>{item.created_by_name ?? "—"}</small></td>
-                    <td>{fmtDate(item.invoice_date)}<small>Hạn {fmtDate(item.due_date)}</small></td>
-                    <td>{vnd(item.amount_vnd)}</td>
-                    <td>{vnd(item.deposit_offset_amount)}</td>
-                    <td>{vnd(item.direct_received_amount)}</td>
-                    <td>{vnd(item.remaining_amount)}</td>
-                    <td>
-                      <span className={`dhb__invoice-status ${item.status === "issued" ? "is-issued" : "is-cancelled"}`}>
-                        {item.status === "issued" ? "Đã ghi" : "Đã hủy"}
-                      </span>
-                    </td>
-                    <td className="dhb__text-right">
-                      {/* ĐÃ CÓ PHIẾU THU thì KHÔNG bày nút hủy (chủ 22/08/2026: "đã lập phiếu thu
-                          rồi sao lại cho phép hủy hóa đơn"). Máy chủ vốn đã chặn — "Hóa đơn đã có
-                          phiếu thu gắn vào; hãy hủy phiếu thu trước" — nên bày nút ở đây chỉ là
-                          mời người ta bấm vào một cái báo lỗi.
-                          Dùng `direct_received_amount` chứ không phải `received_amount`: cọc cấn
-                          trừ gắn với ĐƠN, không phải hóa đơn, nên nó không chặn hủy. */}
-                      {item.status === "issued" && canCancel && item.direct_received_amount <= 0 && (
-                        <button type="button" className="dhb__invoice-cancel" title="Hủy hóa đơn" onClick={() => { setCancelTarget(item); setCancelReason(""); setFormError(null); }}>
-                          Hủy
-                        </button>
-                      )}
-                      {item.status === "issued" && canCancel && item.direct_received_amount > 0 && (
-                        <small className="dhb__muted" title="Hủy phiếu thu trước rồi mới hủy được hóa đơn">
-                          đã thu — không hủy
-                        </small>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {cancelTarget && (
-            <form className="dhb__invoice-cancel-form" onSubmit={cancelInvoice}>
-              <div>
-                <strong>Hủy hóa đơn {cancelTarget.invoice_number}</strong>
-                <small>Hóa đơn đã có phiếu thu sẽ không thể hủy. Hãy hủy phiếu thu liên quan trước.</small>
-              </div>
-              <textarea className="dhb__input" rows={2} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Lý do hủy *" />
-              <div className="dhb__invoice-form-actions">
-                <button type="button" className="btn btn--secondary" onClick={() => setCancelTarget(null)} disabled={saving}>Đóng</button>
-                <button type="submit" className="btn btn--danger" disabled={saving}>{saving ? "Đang hủy..." : "Xác nhận hủy"}</button>
-              </div>
-            </form>
-          )}
-        </>
+        document.body,
       )}
-    </div>
+    </>
   );
 }
 
@@ -1631,7 +1667,7 @@ function CancelDialog({ order, onClose, onSaved }: { order: OrderDetail; onClose
         <h3 className="dhb__modal-title" style={{ fontSize: 18 }}>Hủy đơn {order.order_no}</h3>
         <p style={{ color: "var(--ash)", fontSize: 13, marginTop: 0, marginBottom: 12 }}>
           {isOrdered
-            ? "Đơn đã chốt — báo giá KHÔNG mở lại; cọc giữ nguyên, hoàn/quyết toán xử lý ngoài hệ thống."
+            ? "Đơn đã chốt — báo giá KHÔNG mở lại; cọc giữ nguyên, trả lại khách bằng nút Trả lại cọc trên đơn đã huỷ."
             : "Đơn nháp — hủy xong báo giá vẫn dùng lại được."}
         </p>
         {isOrdered && (
@@ -1655,18 +1691,9 @@ function CancelDialog({ order, onClose, onSaved }: { order: OrderDetail; onClose
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="dhb__section">
-      <h3 className="dhb__section-title">{title}</h3>
-      <div style={{ display: "grid", gap: 6 }}>{children}</div>
-    </section>
-  );
-}
-
 // D3: Sale đổi GẤP / lưu ý SX SAU khi đơn đã CHỐT (đơn khóa sửa) → đường hẹp production-hint →
 // backend broadcast → bàn Kế hoạch "ting" (badge nhảy). Chỉ 2 field, không đụng phần còn lại của đơn.
-function ProductionHintEditor({ order, onSaved }: { order: OrderDetail; onSaved: (d: OrderDetail) => void }) {
+function ProductionHintEditor({ order, canEdit, onSaved }: { order: OrderDetail; canEdit: boolean; onSaved: (d: OrderDetail) => void }) {
   const { token } = useAuth();
   const [open, setOpen] = useState(false);
   const [isRush, setIsRush] = useState(order.is_rush);
@@ -1696,32 +1723,23 @@ function ProductionHintEditor({ order, onSaved }: { order: OrderDetail; onSaved:
   }
 
   return (
-    <Section title="Lưu ý sản xuất (gửi xưởng)">
+    <TheBen tieuDe="Lưu ý sản xuất" nut={canEdit && !open ? (
+      <button type="button" className="dhb__ben-sua" title="Sửa lưu ý sản xuất" aria-label="Sửa lưu ý sản xuất"
+        onClick={() => { setIsRush(order.is_rush); setNote(order.production_note ?? ""); setSaved(false); setOpen(true); }}>
+        <Icon name="pencil" size={14} />
+      </button>
+    ) : undefined}>
       {!open ? (
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, flex: 1 }}>
-            <Icon name="clipboard" size={15} style={{ color: "var(--ash)", marginTop: 2, flexShrink: 0 }} />
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
-              {order.is_rush ? <Chip icon="bell" label="GẤP — ƯU TIÊN XƯỞNG" tone="rush" /> : null}
-              <span style={{ fontSize: 13, color: order.production_note ? "var(--ink)" : "var(--ash)", lineHeight: 1.45 }}>
-                {order.production_note || "Chưa có lưu ý gửi xưởng"}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn btn--secondary"
-            style={{ height: 28, padding: "2px 10px", fontSize: 12, flex: "none" }}
-            onClick={() => { setIsRush(order.is_rush); setNote(order.production_note ?? ""); setSaved(false); setOpen(true); }}
-          >
-            <Icon name="pencil" size={12} /> Sửa
-          </button>
-        </div>
+        <>
+          {order.is_rush && <div style={{ marginBottom: 4 }}><ChipTT mau="do">Gấp, ưu tiên xưởng</ChipTT></div>}
+          <div className={order.production_note ? undefined : "dhb__muted"}>{order.production_note || "Chưa có lưu ý gửi xưởng"}</div>
+          {saved && <small className="dhb__ben-xong">Đã cập nhật, bàn Kế hoạch nhận ngay.</small>}
+        </>
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
             <input type="checkbox" checked={isRush} onChange={(e) => setIsRush(e.target.checked)} />
-            <span>Đánh dấu <strong>GẤP</strong> — ưu tiên ở xưởng</span>
+            <span>Hàng gấp, ưu tiên ở xưởng</span>
           </label>
           <textarea
             value={note}
@@ -1734,26 +1752,12 @@ function ProductionHintEditor({ order, onSaved }: { order: OrderDetail; onSaved:
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button className="btn btn--ghost" onClick={() => setOpen(false)} disabled={saving}>Đóng</button>
             <button className="btn btn--primary" onClick={save} disabled={saving || !dirty}>
-              {saving ? "Đang lưu…" : "Lưu & báo xưởng"}
+              {saving ? "Đang lưu…" : "Lưu và báo xưởng"}
             </button>
           </div>
         </div>
       )}
-      {saved && !open ? (
-        <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--moss, #2f5d3a)" }}>
-          Đã cập nhật — bàn kế hoạch nhận ngay.
-        </p>
-      ) : null}
-    </Section>
-  );
-}
-
-function KV({ k, v, right }: { k: string; v: React.ReactNode; right?: boolean }) {
-  return (
-    <div className="dhb__kv" style={{ justifyContent: right ? "space-between" : undefined }}>
-      <span className="dhb__kv-key" style={{ minWidth: right ? undefined : 150 }}>{k}</span>
-      <span className="dhb__kv-val">{v}</span>
-    </div>
+    </TheBen>
   );
 }
 
@@ -1906,9 +1910,7 @@ function DepositForm({ order, onSaved }: { order: OrderDetail; onSaved: (d: Orde
   const [canhBao, setCanhBao] = useState<string | null>(null);
   return (
     <>
-      <button className="btn" style={{ marginTop: 8 }} onClick={() => { setCanhBao(null); setOpen(true); }}>
-        <Icon name="plus" size={14} /> Lập phiếu thu cọc
-      </button>
+      <Button variant="accent" onClick={() => { setCanhBao(null); setOpen(true); }}>Lập phiếu thu cọc</Button>
       {canhBao && <div className="banner banner--error" style={{ margin: "8px 0 0" }}>{canhBao}</div>}
       {open && (
         <DepositReceiptDialog

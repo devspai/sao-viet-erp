@@ -6,7 +6,7 @@ import {
   type WorkLocationInput,
 } from "../../../../api/client";
 import { Navigation } from "lucide-react";
-import { getPosition, geoErrText } from "../shared/helpers";
+import { GPS_DU_TOT_M, getPosition } from "../shared/helpers";
 import { LocationMapPicker } from "../components/LocationMapPicker";
 
 /** Tách cặp "vĩ độ, kinh độ" copy từ Google Maps ("21.047563, 105.784361"). Không phải cặp ⇒ null.
@@ -19,14 +19,30 @@ export function tachCapToaDo(s: string): [number, number] | null {
   return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lat, lon] : null;
 }
 
+// Đặt điểm thường làm ở máy bàn — không tự định vị được thì đừng bắt chờ lâu, chỉ sang bản đồ.
+const GPS_CHO_DAT_DIEM_MS = 8_000;
+
+/** Lỗi khi lấy GPS để đặt điểm. Không có mẫu nào (từ chối / không có nguồn / quá lâu) ⇒ chỉ thẳng
+ *  sang bản đồ và ô toạ độ ngay dưới, thay vì bắt HCNS đi chỉnh Windows. */
+export function loiGpsDatDiem(e: unknown): string {
+  const code = (e as { code?: number } | null)?.code;
+  if (code === 1 || code === 2 || code === 3)
+    return "Máy này không lấy được vị trí. Bấm lên bản đồ bên dưới, kéo ghim, hoặc dán toạ độ copy từ Google Maps.";
+  if (e instanceof Error) return e.message;
+  return "Không lấy được vị trí.";
+}
+
 export function LocationForm({
   token,
   location,
+  tamMacDinh,
   onClose,
   onSaved,
 }: {
   token: string;
   location: WorkLocation | null;
+  /** Điểm mới: bản đồ mở quanh chỗ này (một điểm đã có) thay vì giữa TP.HCM. */
+  tamMacDinh?: [number, number] | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -41,6 +57,7 @@ export function LocationForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
+  const [ghiChuGps, setGhiChuGps] = useState<string | null>(null);
 
   function set<K extends keyof WorkLocationInput>(
     k: K,
@@ -70,11 +87,20 @@ export function LocationForm({
   async function useMyLocation() {
     setLocating(true);
     setError(null);
+    setGhiChuGps(null);
     try {
-      const pos = await getPosition();
+      // Không chặn theo sai số: máy bàn chỉ định vị được theo mạng (vài chục – vài trăm mét) mà HCNS
+      // vẫn phải đặt được điểm. Điền toạ độ + cắm ghim, sai số lớn thì nhắc soát ghim trên bản đồ.
+      const pos = await getPosition(GPS_CHO_DAT_DIEM_MS);
       setCoordinates(pos.coords.latitude, pos.coords.longitude);
+      const saiSo = Math.round(pos.coords.accuracy);
+      setGhiChuGps(
+        saiSo > GPS_DU_TOT_M
+          ? `Đã điền vị trí, sai số khoảng ${saiSo} m. Xem ghim trên bản đồ, lệch thì kéo lại cho đúng chỗ.`
+          : null,
+      );
     } catch (e) {
-      setError(geoErrText(e));
+      setError(loiGpsDatDiem(e));
     } finally {
       setLocating(false);
     }
@@ -147,6 +173,11 @@ export function LocationForm({
                 {locating ? "Đang lấy vị trí…" : "Lấy vị trí GPS hiện tại của tôi"}
               </span>
             </button>
+            {ghiChuGps && (
+              <span className="cc-field-subtext" style={{ display: "block", marginTop: 6 }}>
+                {ghiChuGps}
+              </span>
+            )}
           </div>
 
           <div className="ns-grid" style={{ marginTop: 12 }}>
@@ -181,6 +212,7 @@ export function LocationForm({
             latitude={form.latitude}
             longitude={form.longitude}
             radiusM={form.radius_m}
+            tamMacDinh={tamMacDinh}
             onChange={setCoordinates}
           />
 

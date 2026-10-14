@@ -141,3 +141,152 @@ class TheoMayOut(BaseModel):
     nhom: list[TdsxNhomMayOut] = []
     may_trong: list[TdsxMayDongOut] = []
     bat_thuong: DemBatThuongOut
+
+
+# --- Theo đơn (12/10/2026, mockup theo-doi-don-san-xuat phương án A bản 3) ---------------------
+class MonTomTatOut(BaseModel):
+    """Mặt hàng đại diện của một đơn (món chậm nhất) — đủ để viết câu "Đang làm" một dòng.
+    `o` ∈ `don_hang_san_xuat.O_*`; `nhom` ∈ vuong/dang/chua/kho/giao."""
+
+    ten: str | None = None
+    o: str
+    nhom: str
+    dat: int = 0
+    don_vi: str | None = None
+    kho_da_nhan: float = 0.0
+    da_giao: int = 0
+    buoc: str | None = None
+    buoc_so: int | None = None
+    buoc_tong: int | None = None
+    pct: float | None = None
+    nha_gia_cong: str | None = None
+
+
+class DonVuongOut(BaseModel):
+    """`ly_do` ∈ tre / su_co / tam_dung / thieu_vat_tu / kcs_khong_dat / dong_thieu / chua_lenh —
+    cờ nặng nhất của đơn. `buoc` = bước đang dính cờ đó (khi có)."""
+
+    so_mon: int = 0
+    ly_do: str
+    buoc: str | None = None
+
+
+class DonDongOut(BaseModel):
+    """MỘT đơn. `chang` ∈ lenh/sx/kho/giao/xong (chặng của món chậm nhất); `nhom` ∈
+    dang_lam/cho_giao/da_giao; `can_de_y` cắt ngang. `du_kien_xong` giờ xưởng không nhãn múi."""
+
+    order_id: int
+    order_no: str
+    khach_hang: str | None = None
+    phu_trach: str | None = None
+    so_mon: int = 0
+    mon_dau: str | None = None
+    so_luong: int | None = None
+    don_vi: str | None = None
+    chang: str
+    chang_ket: bool = False
+    dai_dien: MonTomTatOut | None = None
+    so_mon_kho: int = 0
+    so_mon_giao: int = 0
+    han_giao: date | None = None
+    du_kien_xong: datetime | None = None
+    tre_ngay: int | None = None
+    con_ngay: int | None = None
+    vuong: DonVuongOut | None = None
+    nhom: str
+    can_de_y: bool = False
+
+
+class TheoDonOut(BaseModel):
+    """`dem` là FACET của tập đã lọc, không bị chính chip đang chọn lọc lại."""
+
+    items: list[DonDongOut] = []
+    total: int = 0
+    page: int = 1
+    page_size: int = 25
+    dem: dict[str, int] = {}
+
+
+class BuocDonOut(BaseModel):
+    """MỘT bước trong routing dọc. `trang_thai` ∈ xong/chay/dung/cho. `to` = tổ làm; bước thuê
+    ngoài có `ngoai=True` và `nha_cung_cap`."""
+
+    ten: str | None = None
+    to: str | None = None
+    ngoai: bool = False
+    nha_cung_cap: str | None = None
+    trang_thai: str
+    hien_tai: bool = False
+    hoan_thanh_luc: datetime | None = None
+    kcs_khong_dat: float = 0.0
+    # Số tốt đã ghi / số ra kế hoạch của bước, theo tên đơn vị ra (13/10/2026).
+    lam_ra: float = 0.0
+    ke_hoach_ra: float = 0.0
+    don_vi_ra: str | None = None
+
+
+class LenhCuaMonOut(BaseModel):
+    """MỘT lệnh của mặt hàng. `tron_goi` ⇒ không có `buoc_ds`, FE bày một bước "Gia công trọn gói".
+    `co` ⊆ su_co / tam_dung / thieu_vat_tu / kcs_khong_dat."""
+
+    id: int
+    ma: str
+    ten: str | None = None
+    o: str
+    xong: bool = False
+    co: list[str] = []
+    da_xuong: bool = False
+    tron_goi: bool = False
+    nha_gia_cong: str | None = None
+    buoc: str | None = None
+    buoc_so: int | None = None
+    buoc_tong: int | None = None
+    pct: float | None = None
+    buoc_ds: list[BuocDonOut] = []
+    # Bước CUỐI routing: số tốt / kế hoạch / đơn vị. None = lệnh chưa xuống xưởng hoặc trọn gói.
+    lam_ra: float | None = None
+    ke_hoach_ra: float | None = None
+    don_vi_ra: str | None = None
+
+
+class MonDonOut(BaseModel):
+    """MỘT mặt hàng của đơn trong ngăn. Xếp sẵn: vướng → đang → chưa có lệnh → đã nhập kho → đã giao."""
+
+    khoa: str
+    ten: str | None = None
+    dat: int = 0
+    don_vi: str | None = None
+    o: str
+    nhom: str
+    co: list[str] = []
+    kho_da_nhan: float = 0.0
+    da_giao: int = 0
+    buoc: str | None = None
+    buoc_so: int | None = None
+    buoc_tong: int | None = None
+    pct: float | None = None
+    nha_gia_cong: str | None = None
+    lenh: list[LenhCuaMonOut] = []
+    # 13/10/2026: làm ra (None khi các lệnh ra đơn vị khác món), hàng đã có kèm phần từ tồn của mã,
+    # phần đang giữ cho yêu cầu giao, còn phải giao — cùng nguồn với Đơn hàng bán.
+    lam_ra: float | None = None
+    co_hang: float = 0.0
+    co_tu_ton: float = 0.0
+    dang_giu: int = 0
+    con_phai_giao: int = 0
+
+
+class SuKienDonOut(BaseModel):
+    """MỘT dòng nhật ký cấp đơn. `luc` có múi giờ; `lenh` = mã lệnh gây ra (None = việc của đơn)."""
+
+    luc: datetime
+    loai: str
+    noi_dung: str
+    lenh: str | None = None
+
+
+class DonChiTietOut(BaseModel):
+    don: DonDongOut
+    mon: list[MonDonOut] = []
+    lich_su: list[SuKienDonOut] = []
+    giao_xuong_luc: datetime | None = None

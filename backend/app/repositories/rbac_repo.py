@@ -544,7 +544,6 @@ class RoleRepository:
         can_view_drivers: bool = False,
         can_approve_exception: bool = False,
         can_set_credit_terms: bool = False,
-        can_record_deposit: bool = False,
         can_assign_work: bool = False,
         can_record_output: bool = False,
         can_handover: bool = False,
@@ -617,7 +616,6 @@ class RoleRepository:
         perm.can_adjust = can_adjust
         perm.can_approve_exception = can_approve_exception
         perm.can_set_credit_terms = can_set_credit_terms
-        perm.can_record_deposit = can_record_deposit
         perm.can_assign_work = can_assign_work
         perm.can_record_output = can_record_output
         perm.can_handover = can_handover

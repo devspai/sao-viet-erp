@@ -287,6 +287,13 @@
 .kt-tha > div { display: grid; gap: 2px; flex: 1; }
 .kt-tha b { color: var(--ink); }
 .kt-tha small { color: var(--ash-2); font-size: var(--fs-xs); }
+/* Nút Chụp ảnh (điện thoại, chứng từ chuyến giao): mở thẳng camera sau. */
+.kt-chup { display: flex; align-items: center; justify-content: center; gap: 8px; height: 46px; margin-bottom: 10px;
+  border-radius: var(--r-5); background: var(--charcoal); color: #fff; font-size: var(--fs-md, 15px); cursor: pointer; }
+@container (max-width: 640px) {
+  .kt-cts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kt-ct__anh { height: 112px; }
+}
 .kt-cts { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
 .kt-ct { border: 1px solid var(--rule-soft); border-radius: var(--r-5); overflow: hidden; background: var(--canvas); }
 .kt-ct__anh { height: 132px; background: var(--rule-hair); display: grid; place-items: center; position: relative; overflow: hidden; }
@@ -485,6 +492,8 @@
 .kt-xt__than iframe { width: 100%; height: 100%; border: 0; }
 /* Dòng đợt giao trong form theo đơn mua: cột giữa là cụm mẩu, xuống hàng được */
 .kt-dots button > .kt-cum { min-width: 0; }
+/* Thẻ đợt: mỗi mẩu (Nhận hàng, Số hoá đơn, Ký hiệu, Ngày hoá đơn) xuống dòng nguyên khối, không gãy giữa nhãn và ngày. */
+.kt-dots button > .kt-cum > * { white-space: nowrap; }
 .kt-dots button:disabled .kt-vong-chon { border-color: var(--rule-soft); }
 
 /* ---------- Điện thoại (dưới 640px) ---------- */
@@ -694,3 +703,9 @@
 .lds .lds-g tbody tr.kt-da-huy td { color: var(--lds-mo); }
 /* Ghi chú đầu bảng "Gia công chờ chi". */
 .kt-gc-ghi { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; color: var(--ash-2); }
+
+/* Tên đối tác kèm dấu (phải thu: "Còn giữ cọc …"): tên co lại cắt ba chấm, dấu giữ nguyên. */
+.kt-ten-dau { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.kt-ten-dau > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.kt-ten-dau > :last-child { flex: none; }
+.kt-coc-huy { margin-bottom: 12px; }

@@ -7,8 +7,8 @@
 // Hàng đầu: "Nhóm theo đơn bán" + nhóm nút "Đơn bán | Hạn thu".
 // - Đơn bán: dòng nhóm (mã đơn mở Đơn hàng bán, "N hoá đơn" mờ, 4 ô tổng) rồi các hoá đơn của đơn.
 // - Hạn thu: bỏ dòng nhóm, xếp hoá đơn theo hạn thu tăng dần, hoá đơn chưa có hạn ở cuối; mã đơn bán
-//   đứng sau số hoá đơn.
-// Cột: Hoá đơn (số + ký hiệu) | Ngày | Hạn thu | Giá trị | Trừ cọc | Đã thu | Còn nợ | nút. Trừ cọc
+//   có cột riêng sau Ký hiệu.
+// Cột: Số hoá đơn | Ký hiệu (tách cột 13/10/2026) | [Đơn bán khi xếp theo hạn] | Ngày | Hạn thu | Giá trị | Trừ cọc | Đã thu | Còn nợ | nút. Trừ cọc
 // (`deposit_offset_amount`) và Đã thu (`direct_received_amount`) là HAI cột — cọc không phải tiền thu
 // trong đợt này. Khách chưa đặt cho nợ thì Hạn thu là gạch mờ: cột thuộc tính đã nói "chưa đặt", không
 // lặp chữ ở từng dòng. Dòng Cộng cuối bảng.
@@ -23,7 +23,7 @@ import { ChuHan, chuHanDu, HangXep, OTien } from "../../shared/NganCongNo";
 
 type Xep = "don" | "han";
 
-const CO_GIAN = 84;
+const CO_GIAN = 96;
 
 const cong = (ds: ReceivableItemRow[], k: "amount" | "deposit_offset_amount" | "direct_received_amount" | "remaining_amount") =>
   ds.reduce((s, r) => s + r[k], 0);
@@ -72,19 +72,19 @@ export function HoaDonConNoBlock({
 
   // Đo 08/10 với đệm ô 9px: ngày 82px ⇒ 102; nút Thu 62 ⇒ 64; Hạn thu gọn ("còn 14") 152; Trừ cọc 92 (đủ
   // 99 triệu), Giá trị / Đã thu 100 (đủ trăm triệu), Còn nợ 112. Lưới lds-g đệm ô 10px ⇒ mỗi cột +2px (nút
-  // Thu giữ 64: ô nút đệm 8px). Hoá đơn co giãn: số đứng trước nên ký hiệu bị "…" trước (chữ đủ ở title).
-  const rong: (number | null)[] = [null, 104, 154, 102, 94, 102, 114, ...(coThu ? [64] : [])];
+  // Thu giữ 64: ô nút đệm 8px). Số hoá đơn co giãn; Ký hiệu 7 ký tự ("1C26TSV") 92; mã đơn 96.
+  const theoHan = xep === "han";
+  const rong: (number | null)[] = [null, 92, ...(theoHan ? [96] : []), 104, 154, 102, 94, 102, 114, ...(coThu ? [64] : [])];
+  // Ô nhãn của dòng nhóm / dòng Cộng trải hết các cột trước Giá trị: Số, Ký hiệu, [Đơn bán], Ngày, Hạn thu.
+  const cotDau = theoHan ? 5 : 4;
   const toiThieu = rong.reduce<number>((t, w) => t + (w ?? CO_GIAN), 0);
 
-  // Xếp theo hạn thì không còn dòng nhóm: mã đơn bán đứng sau số hoá đơn (thay ký hiệu — ký hiệu vẫn ở title).
+  // Xếp theo hạn thì không còn dòng nhóm: mã đơn bán có cột riêng.
   const dong = (row: ReceivableItemRow) => (
     <tr key={row.invoice_id}>
-      <td title={[row.invoice_symbol, row.invoice_number, xep === "han" ? `đơn ${row.order_code}` : null].filter(Boolean).join(" ")}>
-        <span>{row.invoice_number}</span>
-        {xep === "han"
-          ? <span className="lds-mu kt-ncn-ben">{row.order_code}</span>
-          : row.invoice_symbol && <span className="lds-mu kt-ncn-ben">{row.invoice_symbol}</span>}
-      </td>
+      <td title={row.invoice_number}>{row.invoice_number}</td>
+      <td className="lds-mu">{row.invoice_symbol}</td>
+      {theoHan && <td>{row.order_code}</td>}
       <td>{ngay(row.invoice_date)}</td>
       <td title={row.due_date && !row.chua_dat_han ? chuHanDu(row.due_date, homNay) : undefined}>
         <OHanThu row={row} homNay={homNay} khachChuaDatHan={khachChuaDatHan} />
@@ -107,7 +107,7 @@ export function HoaDonConNoBlock({
   );
 
   let than: ReactNode;
-  if (xep === "han") {
+  if (theoHan) {
     const ds = [...items].sort((a, b) =>
       a.due_date === b.due_date ? 0 : a.due_date == null ? 1 : b.due_date == null ? -1 : a.due_date < b.due_date ? -1 : 1);
     than = ds.map(dong);
@@ -122,7 +122,7 @@ export function HoaDonConNoBlock({
     than = [...nhom.entries()].map(([orderId, g]) => (
       <Fragment key={orderId}>
         <tr className="lds-cong lds-nhom">
-          <td colSpan={3} title={`${g.code} ${vietSo(g.ds.length)} hoá đơn`}>
+          <td colSpan={cotDau} title={`${g.code} ${vietSo(g.ds.length)} hoá đơn`}>
             <span className="lds-dinh-trai">
               {onMoDon ? (
                 <button type="button" className="kt-lk" onClick={() => onMoDon(orderId)}>{g.code}</button>
@@ -158,7 +158,9 @@ export function HoaDonConNoBlock({
           </colgroup>
           <thead>
             <tr>
-              <th>Hoá đơn</th>
+              <th>Số hoá đơn</th>
+              <th>Ký hiệu</th>
+              {theoHan && <th>Đơn bán</th>}
               <th>Ngày</th>
               <th>Hạn thu</th>
               <th className="n">Giá trị</th>
@@ -171,7 +173,7 @@ export function HoaDonConNoBlock({
           <tbody>
             {than}
             <tr className="lds-cong">
-              <td colSpan={3}>{`Cộng ${vietSo(items.length)} hoá đơn`}</td>
+              <td colSpan={cotDau}>{`Cộng ${vietSo(items.length)} hoá đơn`}</td>
               <td className="n">{vietSo(cong(items, "amount"))}</td>
               <td className="n"><OTien so={cong(items, "deposit_offset_amount")} /></td>
               <td className="n"><OTien so={cong(items, "direct_received_amount")} /></td>

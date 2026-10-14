@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models.customer import Customer
-from ..models.delivery import DeliveryRequest, DeliveryTrip
+from ..models.delivery import DeliveryRequest, DeliveryTrip, LuotXe, LuotXeDiem
 from ..models.department import Department
 from ..models.gia_cong_ngoai import GiaCongNgoai
 from ..models.lsx import Lsx
@@ -90,3 +90,28 @@ class NguonPhieuKhoRepository:
         if nguoi_ids:
             n.nguoi = dict(db.execute(select(User.id, User.name).where(User.id.in_(nguoi_ids))).all())
         return n
+
+    def giao_theo_chuyen(self, trip_ids: set[int]) -> dict[int, tuple]:
+        """`{chuyến: (mã lượt xe, mã yêu cầu giao, số đơn, tên khách, biển số xe, tên tài xế)}` — ô
+        "Nguồn" và khối "Giao hàng" của yêu cầu kho do Giao hàng lập (đề nghị xuất giao khách, đề
+        nghị nhập trả hàng). MỘT câu cho cả trang (12/10/2026). Chuyến ngoài lượt (dữ liệu trước
+        lượt xe) thì mã lượt None."""
+        from ..models.employee import Employee
+        from ..models.xe import Xe
+
+        ids = {i for i in trip_ids if i}
+        if not ids:
+            return {}
+        q = (
+            select(DeliveryTrip.id, LuotXe.code, DeliveryRequest.code, Order.order_no,
+                   Customer.name, Xe.ma, Employee.full_name)
+            .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+            .outerjoin(Order, Order.id == DeliveryRequest.order_id)
+            .outerjoin(Customer, Customer.id == DeliveryRequest.customer_id)
+            .outerjoin(Xe, Xe.id == DeliveryTrip.vehicle_id)
+            .outerjoin(Employee, Employee.id == DeliveryTrip.employee_id)
+            .outerjoin(LuotXeDiem, LuotXeDiem.delivery_trip_id == DeliveryTrip.id)
+            .outerjoin(LuotXe, LuotXe.id == LuotXeDiem.luot_xe_id)
+            .where(DeliveryTrip.id.in_(ids))
+        )
+        return {int(r[0]): tuple(r[1:]) for r in self.db.execute(q).all()}

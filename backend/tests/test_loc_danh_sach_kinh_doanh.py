@@ -158,6 +158,30 @@ def test_bao_gia_dong_kem_don_hang_va_so_luong(client):
     assert (it["don_hang_ma"], it["don_hang_trang_thai"]) == ("DH-DK1", "ordered")
 
 
+def test_bao_gia_ruot_bia_cung_nhom_hien_ten_nhom(client):
+    """Cột Sản phẩm của lưới Báo giá: ruột + bìa cùng nhóm, cùng SL là MỘT sản phẩm mang tên nhóm
+    (13/10/2026) — trước đó hiện "Ruột sách +1"."""
+    from app.models.quotation import QuoteItem
+    t = _token(client)
+    db = SessionLocal()
+    try:
+        q = Quote(quote_number="BG-NHOM1", status="draft")
+        db.add(q)
+        db.flush()
+        v = QuoteVersion(quote_id=q.id, version_number=1, final_amount=1_000_000)
+        db.add(v)
+        db.flush()
+        q.current_version_id = v.id
+        for i, (ten, nhom) in enumerate([("Ruột sách", "Sách A5"), ("Bìa sách", "Sách A5"), ("Tờ rơi", None)]):
+            db.add(QuoteItem(quote_version_id=v.id, line_no=i + 1, product_type="khac", product_name=ten,
+                             quantity=1000, unit="cuốn", nhom=nhom))
+        db.commit()
+    finally:
+        db.close()
+    it = client.get("/api/quotations", params={"q": "BG-NHOM1"}, headers=_h(t)).json()["items"][0]
+    assert (it["san_pham"], it["so_sp_khac"]) == ("Sách A5", 1)
+
+
 # --- Đơn hàng bán -------------------------------------------------------------------------------
 
 def test_don_hang_tab_san_sang_chot_va_cho_coc_dem_o_may_chu(client, monkeypatch):

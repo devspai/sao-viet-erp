@@ -15,6 +15,7 @@ vi.mock("../../../auth/permissions", async (goc) => ({
 vi.mock("../../../api/client", async (goc) => ({
   ...(await goc<typeof import("../../../api/client")>()),
   api: {
+    mucThuChi: { list: vi.fn().mockResolvedValue({ items: [] }) },
     accounting: {
       vouchers: (...a: unknown[]) => vouchers(...a),
       companyAccounts: vi.fn().mockResolvedValue([]),
@@ -40,14 +41,14 @@ describe("PaymentVouchersPage — nối dây", () => {
   it("mở từ link có lọc + kỳ: lời gọi chính mang đúng tham số (kỳ theo Ngày tạo mặc định)", async () => {
     window.history.replaceState(
       null, "",
-      "/?man=ke-toan-phieu-chi&ky=nam&the=thieu&q=UNC&nguon=po&tien_tu=5000000",
+      "/?man=ke-toan-phieu-chi&ky=nam&the=thieu&q=UNC&muc=5&tien_tu=5000000",
     );
     render(<PaymentVouchersPage navigate={() => {}} />);
     await waitFor(() => expect(vouchers).toHaveBeenCalled());
     const p = vouchers.mock.calls[0][1];
     const nam = khoangSo({ loai: "nam", moc: "tao" });
     expect(p).toMatchObject({
-      status: "paid", chung_tu: "thieu", q: "UNC", nguon: ["purchase_request"],
+      status: "paid", chung_tu: "thieu", q: "UNC", muc: [5],
       tien_tu: 5_000_000, tu_ngay: nam.tu, den_ngay: nam.den, moc: "tao", page: 1,
     });
     expect(p.nhan).toBeUndefined();

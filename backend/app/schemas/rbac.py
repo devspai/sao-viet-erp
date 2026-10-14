@@ -437,7 +437,6 @@ class PermissionRow(BaseModel):
     can_view_drivers: bool = False            # giao_hang — tab Nhân viên giao hàng
     can_approve_exception: bool = False
     can_set_credit_terms: bool = False
-    can_record_deposit: bool = False   # don_hang_ban — Kế toán ghi phiếu thu cọc
     can_assign_work: bool = False      # san_xuat — tổ trưởng gán thợ vào công đoạn
     can_record_output: bool = False    # san_xuat — tổ trưởng ghi sản lượng đạt/hỏng (Lát 2)
     can_handover: bool = False         # san_xuat — tổ trưởng bàn giao + xác nhận nhận (Lát 2)

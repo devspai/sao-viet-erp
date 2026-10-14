@@ -1,4 +1,4 @@
-"""Chấm đỏ Đơn hàng bán + Kế hoạch SX: đơn chờ cọc → người ghi cọc; đủ cọc → Sale;
+"""Chấm đỏ Đơn hàng bán + Kế hoạch SX: đơn chờ cọc → người ghi cọc (Phiếu thu → Tạo); đủ cọc → Sale;
 chuyển xuống sản xuất → người Xem Kế hoạch SX (một lần mỗi đơn)."""
 from datetime import date
 
@@ -24,8 +24,8 @@ def _bao_gia_da_chot() -> int:
 
 def test_cho_coc_du_coc_va_chuyen_san_xuat(client):
     ha = admin(client)
-    tao_nguoi("ke_toan_coc", {"don_hang_ban": dict(can_read=True, can_record_deposit=True,
-                                                   scope=SCOPE_ALL)})
+    tao_nguoi("ke_toan_coc", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL),
+                         "phieu_thu": dict(can_read=True, can_create=True, scope=SCOPE_ALL)})
     tao_nguoi("chi_xem_don", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL)})
     tao_nguoi("ke_hoach", {"san_xuat": dict(can_read=True, scope=SCOPE_ALL)})
     hk = dang_nhap(client, "ke_toan_coc")
@@ -62,8 +62,8 @@ def test_cho_coc_du_coc_va_chuyen_san_xuat(client):
 
 def test_chot_truoc_thu_coc_sau_thi_du_coc_tu_xuong_san_xuat(client):
     ha = admin(client)
-    tao_nguoi("ke_toan_coc3", {"don_hang_ban": dict(can_read=True, can_record_deposit=True,
-                                                    scope=SCOPE_ALL)})
+    tao_nguoi("ke_toan_coc3", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL),
+                         "phieu_thu": dict(can_read=True, can_create=True, scope=SCOPE_ALL)})
     tao_nguoi("ke_hoach3", {"san_xuat": dict(can_read=True, scope=SCOPE_ALL)})
     hk = dang_nhap(client, "ke_toan_coc3")
     r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
@@ -98,8 +98,8 @@ def test_don_khong_coc_chot_la_xuong_san_xuat(client):
 
 def test_don_khong_coc_thi_khong_cham(client):
     ha = admin(client)
-    tao_nguoi("ke_toan_coc2", {"don_hang_ban": dict(can_read=True, can_record_deposit=True,
-                                                    scope=SCOPE_ALL)})
+    tao_nguoi("ke_toan_coc2", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL),
+                         "phieu_thu": dict(can_read=True, can_create=True, scope=SCOPE_ALL)})
     r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
                                          "deposit_pct": 0}, headers=ha)
     assert r.status_code == 201, r.text

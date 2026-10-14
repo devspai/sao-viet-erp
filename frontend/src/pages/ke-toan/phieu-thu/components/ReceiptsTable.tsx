@@ -27,6 +27,7 @@ export const COT_PHIEU_THU: CotPhieuThu[] = [
   { key: "ngay_thu", label: "Ngày thu", w: 104 },
   { key: "nguoi_nop", label: "Người nộp tiền", w: 170 },
   { key: "ly_do", label: "Lý do nộp", w: 220 },
+  { key: "muc", label: "Mục thu", w: 160 },
   { key: "thu_theo", label: "Thu theo", w: 190 },
   { key: "hinh_thuc", label: "Hình thức", w: 112 },
   { key: "so_tien", label: "Số tiền", n: true, w: 136 },
@@ -52,7 +53,13 @@ function OPhieuThu({ cot, row, moNguon }: {
       return <td title={row.payer_name || undefined}>{row.payer_name || "—"}</td>;
     case "ly_do":
       return <td title={row.content || undefined}>{row.content}</td>;
+    case "muc":
+      return row.muc_thu_chi_ten
+        ? <td title={row.muc_thu_chi_ten}>{row.muc_thu_chi_ten}</td>
+        : <td><span className="lds-mu">Chưa phân loại</span></td>;
     case "thu_theo": {
+      // Phiếu thu lập tay không có chứng từ nguồn — cột Mục đã nói nó là khoản gì, khỏi chữ "Khác".
+      if (row.source_type === "other") return <td />;
       const ma = sourceCode(row);
       const mo = ma ? moNguon?.(row) : undefined;
       // Ô hẹp: mã dài bị "…" cắt thì chữ nổi giữ đủ nhãn + mã.

@@ -12,6 +12,10 @@ vai đó không bán đơn nào nên màn sẽ luôn rỗng, một mục menu ch
     - có cả hai vế → lấy scope RỘNG HƠN (thứ tự own < department < all).
     - CHỈ đủ điều kiện nhờ `san_xuat` ở scope `own` → KHÔNG cấp.
     - không đọc được khoá nào trong hai khoá gốc → không cấp gì.
+
+Từ 14/10/2026 cả ba màn (Kế hoạch SX, Hồ sơ lệnh, Theo dõi SX) xét phạm vi theo CHỦ ĐƠN; vai
+xưởng (Tổ trưởng SX/Thợ SX) được seed thẳng Tất cả ở cả ba ô (mg 0408 kéo `san_xuat` lên all
+cho vai không đọc đơn bán).
 """
 from __future__ import annotations
 
@@ -102,13 +106,11 @@ def test_moi_vai_duoc_cap_hoac_khong_cap_dung_luat(client, seed_credentials):
     assert so_khong_cap >= 5
 
 
-def test_vai_chi_co_san_xuat_scope_own_khong_duoc_cap(client, seed_credentials):
-    """Khoá lại ĐÚNG lỗi đã xảy ra một lần trong quá trình làm task này: bản luật đầu tiên
-    ("scope rộng hơn giữa don_hang_ban/san_xuat", không loại trừ `own`) đã lỡ cấp cho 'Tổ trưởng
-    SX' và 'Thợ SX' — hai vai chỉ đọc `san_xuat` ở scope `own`, không đọc `don_hang_ban`. Scope
-    `own` trên HAI MÀN MỚI nghĩa là "lệnh của đơn CHÍNH TÔI bán": hai vai này không bán đơn nào
-    nên màn sẽ luôn rỗng — một mục menu chết. Nếu ai cấp lại (kể cả vô tình, kiểu "sửa cho nhất
-    quán với các vai khác"), test này phải đỏ ngay."""
+def test_vai_xuong_san_xuat_tat_ca_duoc_cap_tat_ca(client, seed_credentials):
+    """14/10/2026: phạm vi Kế hoạch SX đi theo chủ đơn ⇒ 'Tổ trưởng SX' và 'Thợ SX' (không bán đơn
+    nào, không đọc `don_hang_ban`) giữ `san_xuat` ở Tất cả, và theo luật cấp quyền được hai màn
+    chỉ-đọc ở Tất cả. Trước đó hai vai ở `own` và không được cấp (own = "đơn chính tôi bán" ⇒ màn
+    luôn rỗng)."""
     token = _dang_nhap(client, seed_credentials)
     depts = client.get("/api/departments", headers=_auth(token))
     assert depts.status_code == 200, depts.text
@@ -131,16 +133,13 @@ def test_vai_chi_co_san_xuat_scope_own_khong_duoc_cap(client, seed_credentials):
         assert perm_resp.status_code == 200, perm_resp.text
         quyen = {p["module_key"]: p for p in perm_resp.json()}
 
-        # Xác nhận đúng tiền đề của lỗi: san_xuat=own, không đọc don_hang_ban.
         assert quyen["san_xuat"]["can_read"] is True
-        assert quyen["san_xuat"]["scope"] == SCOPE_OWN
+        assert quyen["san_xuat"]["scope"] == SCOPE_ALL
         assert quyen.get("don_hang_ban", {}).get("can_read", False) is False
 
         for khoa in ("lenh_san_xuat", "theo_doi_san_xuat"):
-            assert quyen.get(khoa, {}).get("can_read", False) is False, (
-                f"vai '{vai['name']}' được cấp '{khoa}' dù san_xuat chỉ ở scope own "
-                "-> màn sẽ luôn rỗng (đơn CHÍNH TÔI bán, mà vai này không bán đơn nào)"
-            )
+            assert quyen[khoa]["can_read"] is True and quyen[khoa]["scope"] == SCOPE_ALL, (
+                f"vai '{vai['name']}': '{khoa}' phải được cấp Tất cả")
     assert da_kiem == ten_can_kiem, f"thiếu vai để kiểm: {ten_can_kiem - da_kiem}"
 
 

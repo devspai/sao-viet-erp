@@ -141,6 +141,8 @@ class MonSanXuatOut(BaseModel):
     don_vi: str | None = None
     dat: float
     co_hang: float
+    #: Phần của `co_hang` lấy từ tồn có sẵn của mã, không phải từ lệnh của chính đơn.
+    co_tu_ton: float = 0
     du_hang: bool
     o: str
     co_lenh: bool
@@ -173,6 +175,9 @@ class OrderRow(BaseModel):
     deposit_required: int               # deposit_pct% × total_with_vat
     deposit_received: int               # Σ phiếu thu cọc received (V5)
     deposit_ok: bool
+    # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.
+    # Lên dòng danh sách từ 13/10/2026 để cột Cọc của đơn huỷ nói "Còn giữ … / Đã trả lại".
+    deposit_refunded: int = 0
     delivery_committed_date: date | None
     sale_user_id: int | None
     sale_name: str | None
@@ -245,6 +250,8 @@ class OrderDetailOut(OrderRow):
     # Chỉ có trong response của POST deposit-receipts: phiếu thu cọc vừa lập — FE tải chứng từ gốc
     # lên phiếu này ngay sau khi lập.
     phieu_vua_lap_id: int | None = None
+    # Người bấm Chốt (khung Chốt của ngăn đơn, 12/10/2026).
+    ordered_by_name: str | None = None
 
 
 class OrderActivityItem(BaseModel):

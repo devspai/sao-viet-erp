@@ -9,6 +9,8 @@
 //   NGĂN CHỒNG thu tiền — chưa tick nhiều hoá đơn vì máy chủ chưa có thu nhiều hoá đơn một lượt.
 // - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
 // - "Lịch sử": dòng thời gian mọi chứng từ với khách + các hoá đơn đã trễ.
+// Nút "Trả lại tiền" trên đầu ngăn (12/10/2026) mở ngăn chồng phiếu chi trả lại tiền cho khách, số tiền
+// điền sẵn bằng số khách đang dư.
 //
 // Ngăn chồng tự giữ nháp: Esc / Đóng của nó hỏi trước khi bỏ; phím chỉ thuộc lớp trên cùng nên ↑ ↓ và
 // đổi tab của ngăn khách không chạm được nháp đang gõ.
@@ -18,6 +20,7 @@ import {
   api,
   type KyXem,
   type PaymentReceiptRow,
+  type PaymentVoucherRow,
   type ReceivableItemRow,
   type ReceivableReceiptRow,
   type ReceivablesDetail,
@@ -31,14 +34,18 @@ import { RayThuocTinh } from "../../shared/LuoiGon";
 import { NganCongNo, oRayCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
 import { TabSaoKe } from "../../shared/TabSaoKe";
+import { TraLaiTienKhachModal, type DonTraCoc } from "../../phieu-chi/modals/TraLaiTienKhachModal";
 import { PAID_PAGE } from "../shared/constants";
 import type { Bucket, TuoiDangLoc } from "../shared/types";
+import { CocDonHuyBlock } from "./CocDonHuyBlock";
 import { HoaDonConNoBlock } from "./HoaDonConNoBlock";
 import { ThuTienHoaDon } from "./ThuTienHoaDon";
 
 export type QuyenCongNoThu = {
   /** Lập phiếu thu (`phieu_thu.create`) — nút "Thu". */
   thu: boolean;
+  /** Lập phiếu chi (`phieu_chi.create`) — nút "Trả lại tiền". */
+  traLai?: boolean;
   xemPhieuThu: boolean;
   xemKhach: boolean;
   xemDonBan: boolean;
@@ -96,7 +103,9 @@ export function ReceivablesDrawer({
   );
   const [loc, setLoc] = useState<string | null>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : null);
   const [dangThu, setDangThu] = useState<ReceivableItemRow | null>(null);
-  const [daLap, setDaLap] = useState<PaymentReceiptRow | null>(null);
+  const [daLap, setDaLap] = useState<PaymentReceiptRow | PaymentVoucherRow | null>(null);
+  // Trả lại tiền: `don` vắng = trả chung; có = trả lại cọc của đúng đơn đã huỷ đó.
+  const [moTraLai, setMoTraLai] = useState<{ don: DonTraCoc | null } | null>(null);
   const [dangIn, setDangIn] = useState(false);
   const [soLanLap, setSoLanLap] = useState(0);
 
@@ -177,7 +186,8 @@ export function ReceivablesDrawer({
   const moDon = quyen.xemDonBan
     ? (orderId: number) => {
         onClose();
-        navigate("don-hang-ban", { openOrderId: orderId });
+        // Từ công nợ thì cái cần xem là hoá đơn của đơn ⇒ mở thẳng chặng Hóa đơn.
+        navigate("don-hang-ban", { openOrderId: orderId, openOrderChang: "hoadon" });
       }
     : undefined;
   const moPhieu = quyen.xemPhieuThu
@@ -206,6 +216,7 @@ export function ReceivablesDrawer({
         ma={ma}
         coSo={hopLe}
         nutHoSo={moHoSo ? { nhan: "Hồ sơ khách hàng", onMo: moHoSo } : undefined}
+        nutTraLai={quyen.traLai ? { nhan: "Trả lại tiền", onMo: () => setMoTraLai({ don: null }) } : undefined}
         onInSaoKe={() => {
           setTab("sk");
           setDangIn(true);
@@ -252,6 +263,12 @@ export function ReceivablesDrawer({
                 <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => setLoc(null)} />
               </div>
             )}
+            {(detail!.coc_don_huy?.length ?? 0) > 0 && (
+              <CocDonHuyBlock ds={detail!.coc_don_huy!} onMoDon={moDon}
+                onTraLai={quyen.traLai
+                  ? (d) => setMoTraLai({ don: { id: d.order_id, ma: d.order_code, daNhan: d.da_nhan, conLai: d.con_lai } })
+                  : undefined} />
+            )}
             <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} khachChuaDatHan={detail!.payment_term_days == null}
               dangLoc={loc != null} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon} />
           </>
@@ -259,7 +276,7 @@ export function ReceivablesDrawer({
 
         {hopLe && tab === "sk" && (
           <TabSaoKe ben="receivables" id={customerId} ten={ten} ma={ma} kyTrang={ky} lan={lan}
-            dangIn={dangIn} onDongIn={() => setDangIn(false)} onMoPhieu={moPhieu} />
+            dangIn={dangIn} onDongIn={() => setDangIn(false)} onMoPhieu={moPhieu} onMoDon={moDon} />
         )}
 
         {hopLe && tab === "ls" && (
@@ -270,7 +287,16 @@ export function ReceivablesDrawer({
         {daLap && (
           <div className="kt-bao" role="status">
             <span>{`Đã lập ${daLap.code}`}</span>
-            {moPhieu && (
+            {"voucher_type" in daLap ? (
+              <button type="button"
+                onClick={() => {
+                  // Phiếu chi trả lại tiền đứng đầu dòng thời gian của tab Lịch sử.
+                  setTab("ls");
+                  setDaLap(null);
+                }}>
+                Xem phiếu
+              </button>
+            ) : moPhieu && (
               <button type="button" onClick={() => moPhieu(daLap.code)}>
                 Xem phiếu
               </button>
@@ -292,6 +318,26 @@ export function ReceivablesDrawer({
           onMoTaiKhoan={() => {
             onClose();
             navigate("ke-toan-tai-khoan-ngan-hang");
+          }}
+        />
+      )}
+
+      {moTraLai && (
+        <TraLaiTienKhachModal
+          khachId={customerId}
+          khachTen={ten}
+          don={moTraLai.don}
+          onClose={() => setMoTraLai(null)}
+          onMoTaiKhoan={() => {
+            onClose();
+            navigate("ke-toan-tai-khoan-ngan-hang");
+          }}
+          onDone={(pc) => {
+            setMoTraLai(null);
+            setDaLap(pc);
+            setSoLanLap((n) => n + 1);
+            reload();
+            onChanged();
           }}
         />
       )}

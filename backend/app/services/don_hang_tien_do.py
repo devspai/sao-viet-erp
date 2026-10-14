@@ -194,6 +194,7 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
     tra_theo = rp.yeu_cau_kho_cua_nhieu_chuyen(tids, "NHAP")
     xuat_theo = rp.yeu_cau_kho_cua_nhieu_chuyen(tids, "XUAT")
     co_phieu = rp.yeu_cau_kho_da_co_phieu([y.id for y in xuat_theo.values()])
+    da_ghi_so = rp.yeu_cau_kho_da_ghi_so([y.id for y in xuat_theo.values()])
     so_anh = rp.so_dinh_kem_theo_trip(tids)
     for r in reqs:
         trips = trips_theo_yc[r.id]
@@ -215,13 +216,12 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
             tx = nv.get(t.employee_id) if t.employee_id else None
             tra = tra_theo.get(t.id)
             x = xes.get(t.vehicle_id) if t.vehicle_id else None
-            xe = f"{x.ma} · {x.ten}" if x is not None else None
+            # Chỉ biển số: ghép "biển số · tên xe" thành một mẩu nối bằng dấu chấm (cấm ở UI).
+            xe = x.ma if x is not None else None
             xuat = xuat_theo.get(t.id)
             chuyen = {
                 "id": t.id,
                 "trang_thai": t.trang_thai,
-                "gio_lay_hang": t.gio_lay_hang,
-                "gio_du_kien_giao": t.gio_du_kien_giao,
                 "tai_xe": getattr(tx, "full_name", None),
                 "xe": xe,
                 "thoi_gian_ket_thuc": t.thoi_gian_ket_thuc,
@@ -230,6 +230,8 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
                 "tra_hang_ma": getattr(tra, "ma", None),
                 "tra_hang_xong": tra is not None and tra.trang_thai == "done",
                 "kho_da_lap_phieu": xuat is not None and xuat.id in co_phieu,
+                # Hàng đã thực ra khỏi kho (có phiếu ghi sổ) ⇒ mở nút in phiếu xuất bán hàng / 02-VT.
+                "kho_da_xuat": xuat is not None and xuat.id in da_ghi_so,
                 "so_anh": so_anh.get(t.id, 0),
             }
         ra.append({

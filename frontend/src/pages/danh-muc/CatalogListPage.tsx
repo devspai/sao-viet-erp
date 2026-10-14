@@ -16,7 +16,7 @@ import { useNapTenDonVi } from "../tenDonVi";
 import { CatalogDrawer } from "./CatalogDrawer";
 import { ImportExcelDialog } from "../../components/ImportExcelDialog";
 import { XoaDanhMucDialog } from "./XoaDanhMucDialog";
-import { CopyIcon, DownloadIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
+import { CopyIcon, DownloadIcon, LockIcon, PlusIcon, TrashIcon, UndoIcon, UploadIcon } from "./icons";
 import type { CatalogConfig, DieuKienDanhMuc, Option } from "./types";
 import type { DemGiaTri } from "../../api/rebuildCatalog";
 import { ThanhLoc } from "../thanh-loc/ThanhLoc";
@@ -259,7 +259,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const cotDuLieu: CotDM[] = [
     { key: "ma", label: "Mã", coDinh: true, w: config.widthMa ?? RONG_MA },
     { key: "ten", label: "Tên", coDinh: true, w: config.widthTen ?? RONG_TEN },
-    { key: "ngay", label: "Ngày tạo", w: COT_NGAY_RONG },
+    ...(config.anNgayTao ? [] : [{ key: "ngay", label: "Ngày tạo", w: COT_NGAY_RONG }]),
     ...config.columns.map((c) => ({ key: c.key, label: c.label, w: c.w, n: c.n })),
   ];
   const cotTatCa: CotDM[] = coCotNut
@@ -322,6 +322,10 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     }
   }
 
+  const khoaCua = (r: Row) => config.dongKhoa?.(r) ?? null;
+  /** Dòng khoá mà KHÔNG mở form (mục cố định Mục thu chi); `dongKhoaMoDuoc` thì vẫn mở. */
+  const chanMo = (r: Row) => !!khoaCua(r) && !config.dongKhoaMoDuoc;
+
   /** Một ô của dòng `r` ở cột `cot`. Chữ dài cắt "…", đủ chữ ở `title`. */
   function oDong(cot: CotDM, r: Row) {
     switch (cot.key) {
@@ -333,6 +337,11 @@ export function CatalogListPage({ config, onMutate, navigate }: {
             {/* Tên cắt "…" khi dài, nhãn "Đã ngừng" luôn còn (xem `.dm-ten` ở rebuild-catalog.css). */}
             <div className="dm-ten">
               <span className="dm-ten__chu">{String(r.ten)}</span>
+              {khoaCua(r) && (
+                <span className="dm-ten__khoa" title={khoaCua(r) ?? undefined} aria-label={khoaCua(r) ?? undefined}>
+                  <LockIcon size={13} />
+                </span>
+              )}
               {r.active === false && (
                 <span className="lds-tag" title="Đã ngừng dùng — không hiện ở ô chọn khi tạo mới, nhưng chứng từ cũ vẫn giữ nguyên">
                   Đã ngừng
@@ -348,6 +357,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
         // hover lại tìm cách bật nó lên. Xóa vẫn qua hộp xác nhận nên bấm nhầm không mất dòng ngay.
         // Nhãn đọc màn hình kèm TÊN dòng: cả cột đều là "Xóa", nghe một chuỗi "Xóa, Xóa, Xóa" là
         // không biết đang đứng ở dòng nào.
+        if (khoaCua(r)) return <td key={cot.key} className="lds-nut" />;
         return (
           <td key={cot.key} className="lds-nut" onClick={(e) => e.stopPropagation()}>
             <div className="rc__acts">
@@ -502,11 +512,12 @@ export function CatalogListPage({ config, onMutate, navigate }: {
                 // Cả dòng bấm được bằng chuột; bàn phím thì Tab tới dòng rồi Enter / Space — dòng là
                 // `<tr tabIndex>` chứ không gán `role="button"` (gán vai nút cho hàng là mất vai
                 // "row", trình đọc màn hình hết đọc được tên cột đi kèm ô).
-                <tr key={r.id} tabIndex={0}
-                  className={`lds-dong${r.active === false ? " is-ngung" : ""}${r.id === dangMo ? " is-chon" : ""}`}
-                  onClick={() => setEditing(r)}
+                // Dòng khoá (chỉ đọc) không mở form: không tab tới, không con trỏ tay.
+                <tr key={r.id} tabIndex={chanMo(r) ? undefined : 0}
+                  className={`lds-dong${r.active === false ? " is-ngung" : ""}${r.id === dangMo ? " is-chon" : ""}${chanMo(r) ? " is-khoa" : ""}`}
+                  onClick={() => { if (!chanMo(r)) setEditing(r); }}
                   onKeyDown={(e) => {
-                    if (e.target !== e.currentTarget) return;   // Enter trên nút trong dòng là việc của nút
+                    if (e.target !== e.currentTarget || chanMo(r)) return;   // Enter trên nút trong dòng là việc của nút
                     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(r); }
                   }}>
                   {cotHien.map((c) => oDong(c, r))}

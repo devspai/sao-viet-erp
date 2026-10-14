@@ -3,12 +3,12 @@
 // prop tới tay component thì đúng lệnh phải tự mở, KỂ CẢ khi lệnh đó không nằm trong trang bảng
 // đang tải (người quét QR ở xưởng không quan tâm trang mấy, tab nào). Khúc đầu dây chuyền (hash
 // sống sót qua đăng nhập) nằm ở `LoginPage.test.tsx`; khúc phân tích hash nằm ở
-// `appShellDeepLink.test.ts`; khúc băng cảnh báo phiên bản nằm ở `LenhSxHoSoView.test.tsx`.
+// `appShellDeepLink.test.ts`. Ngăn lệnh mới (`LenhSxNgan`, 12/10/2026) nạp `GET /{id}/ngan`.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LenhSxHoSoOut, LenhSxListOut, LuaChonLoc } from "../api/client";
+import type { LenhSxListOut, LenhSxNganOut, LuaChonLoc } from "../api/client";
 import { AuthContext, type AuthState } from "../auth/AuthContext";
 import { PermissionsProvider, buildCapabilities } from "../auth/permissions";
 import type { ModuleCapability } from "../api/client";
@@ -35,15 +35,18 @@ const LIST: LenhSxListOut = {
     khach_hang: "Công ty Sao", order_id: 3, order_no: "DH-0003",
     han_hoan_thanh_sx: "2026-10-20", is_rush: true,
     khau: "sau_sx", khau_chi_tiet: "cho_nhap_kho", da_dong: true,
+    han_giao_khach: "2026-10-25", tron_goi: false, nha_gia_cong: null,
+    chang: [
+      { ten: "In", nhom: null, trang_thai: "xong", hien_tai: false },
+      { ten: "Cán màng", nhom: null, trang_thai: "chay", hien_tai: true, ngoai: true },
+    ],
   }],
   total: 1, page: 1, page_size: 25,
   dem_theo_tab: { tat_ca: 1, dang_sx: 0, sau_sx: 1, da_giao: 0 },
 };
 
-/** Hồ sơ TỐI GIẢN — chỉ đủ mọi trường bắt buộc của `LenhSxHoSoOut`, không cần đủ 13 khối như bài
- *  canh của `LenhSxHoSoView.test.tsx` (chỗ đó soi NỘI DUNG hồ sơ; chỗ này chỉ soi ĐÚNG LỆNH nào mở
- *  ra, nên `ma` là trường duy nhất thật sự cần khác biệt). */
-const HOSO_77: LenhSxHoSoOut = {
+/** Ngăn TỐI GIẢN — đủ mọi trường bắt buộc của `LenhSxNganOut`; bài chủ yếu soi ĐÚNG LỆNH nào mở. */
+const HOSO_77: LenhSxNganOut = {
   thong_tin: {
     id: 77, ma: "LSX26-0077", ten: "Lệnh quét QR", loai: null,
     order_id: null, order_no: null, order_line_id: null,
@@ -68,18 +71,13 @@ const HOSO_77: LenhSxHoSoOut = {
     so_con: 0, so_to_ke_hoach: 0, so_to_nguyen: 0, don_vi_tinh: null,
   },
   routing: { nodes: [], canh: [] },
-  vat_tu: { hien_tai: { du: true, dong: [] }, canh_bao_sau: [], da_cap: [] },
-  nhan_luc: { hien_tai: [], lich_su: [] },
-  san_luong: { batch: [] },
-  su_co: [],
   kcs: { tong_nhan: 0, tong_dat: 0, tong_khong_dat: 0, ty_le_dat: null, batch: [] },
   kho: { so_lenh_trong_nhom: 0, yeu_cau: [] },
-  giao_hang: {
-    nhom_id: null, order_id: null, order_line_ids: [], so_lenh_trong_nhom: 0,
-    hang: [], da_nhap_kho: 0, da_giao: 0, co_the_giao: false, don_vi_lech: false,
-  },
-  timeline: [],
   phien_ban: 3,
+  tron_goi: null,
+  kcs_cuoi: { so_lan: 0, nhan: 0, dat: 0, khong_dat: 0 },
+  su_co: [],
+  timeline: [],
 };
 
 /** Hồ sơ của LỆNH KHÁC (#5 — chính là dòng có sẵn trong `LIST`), dùng để (a) sửa vòng 1 P4: chứng
@@ -87,13 +85,13 @@ const HOSO_77: LenhSxHoSoOut = {
  *  đích của lượt "mở tay" sau khi đã mở một hồ sơ khác qua QR — `phien_ban: 5` CỐ Ý lớn hơn mọi
  *  `pv` dùng trong file này (1/3), để nếu `moHoSoTay` có bug quên xoá `pv` cũ thì điều kiện băng
  *  cảnh báo (`pv < phien_ban`) vẫn đúng và băng LẠI HIỆN — bài test bắt được đúng ca đó. */
-const HOSO_5: LenhSxHoSoOut = {
+const HOSO_5: LenhSxNganOut = {
   ...HOSO_77,
   thong_tin: { ...HOSO_77.thong_tin, id: 5, ma: "LSX26-0005", ten: "Lệnh khác" },
   phien_ban: 5,
 };
 
-const HOSO_BY_ID: Record<number, LenhSxHoSoOut> = { 77: HOSO_77, 5: HOSO_5 };
+const HOSO_BY_ID: Record<number, LenhSxNganOut> = { 77: HOSO_77, 5: HOSO_5 };
 
 /** Fetch giả PHÂN BIỆT ĐƯỜNG DẪN — hai nguồn `LenhSanXuatPage` gọi lúc mount (danh sách, bộ lọc
  *  khách) cộng nguồn `LenhSxHoSoView` gọi khi hồ sơ mở (hồ sơ một lệnh, danh mục đơn vị). Thứ tự
@@ -114,7 +112,7 @@ function stubApi(list: LenhSxListOut = LIST): string[] {
     goi.push(url);
     let data: unknown;
     let status = 200;
-    const mHoSo = /\/api\/lenh-san-xuat\/(\d+)$/.exec(url);
+    const mHoSo = /\/api\/lenh-san-xuat\/(\d+)\/ngan$/.exec(url);
     if (url.includes("/api/don-vi")) data = { items: DON_VI };
     else if (url.includes("/api/lenh-san-xuat/khach-loc")) data = KHACH_LOC;
     else if (url.includes("/api/lenh-san-xuat/don-loc")) data = DON_LOC;
@@ -215,7 +213,7 @@ describe("LenhSanXuatPage · đường `pv` (Task 14, sửa vòng 1 P5)", () => 
     expect(screen.getByText(/Phiếu giấy v1/)).toBeInTheDocument();
 
     // Đóng hồ sơ QR — nút DUY NHẤT rõ vai "đóng" của màn (xem LenhSxHoSoView.tsx).
-    await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách" }));
+    await userEvent.click(screen.getByRole("button", { name: "Đóng" }));
     expect(screen.queryByRole("heading", { name: "LSX26-0077" })).not.toBeInTheDocument();
 
     // Mở tay lệnh #5 bằng cách bấm dòng trong bảng — không qua QR nên không có `pv`.
@@ -238,7 +236,7 @@ describe("LenhSanXuatPage · đường `pv` (Task 14, sửa vòng 1 P5)", () => 
   // Đường thật của kịch bản này (mở tay lệnh khác trong khi hồ sơ #77 còn che màn) KHÔNG PHẢI chuột:
   // lớp phủ hồ sơ vẽ ĐÈ, chặn hit-test chuột lên dòng bảng phía sau trong trình duyệt thật — jsdom
   // không hit-test nên chuột "click qua" được, còn đời thật thì không. Đường thật là BÀN PHÍM:
-  // Shift+Tab từ "Quay lại danh sách" lọt xuống dòng bị che (`tr.lds-dong`, tabIndex=0) rồi Enter.
+  // Shift+Tab từ nút Đóng lọt xuống dòng bị che (`tr.lds-dong`, tabIndex=0) rồi Enter.
   // Bài này đi đúng đường đó: lấy tiêu điểm vào dòng rồi bấm Enter. Sau đó đóng hồ sơ và canh
   // `dongHoSo` trả tiêu điểm về đúng dòng vừa mở (`tr[data-lsx]`), đặt trong `requestAnimationFrame`.
   //
@@ -265,7 +263,7 @@ describe("LenhSanXuatPage · đường `pv` (Task 14, sửa vòng 1 P5)", () => 
     expect(screen.queryByText(/^Phiếu giấy v/)).not.toBeInTheDocument();
 
     // Đóng hồ sơ: tiêu điểm phải về đúng dòng vừa mở (trả trong requestAnimationFrame).
-    await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách" }));
+    await userEvent.click(screen.getByRole("button", { name: "Đóng" }));
     await waitFor(() => expect(document.activeElement).toBe(dong));
   });
 });
@@ -285,7 +283,7 @@ describe("LenhSanXuatPage · quét LẠI đúng lệnh vừa đóng vẫn phải
     await screen.findByRole("heading", { name: "LSX26-0077" });
 
     // Lỡ tay đóng ngăn kéo — như tổ trưởng thật sự làm giữa hai lượt quét.
-    await userEvent.click(screen.getByRole("button", { name: "Quay lại danh sách" }));
+    await userEvent.click(screen.getByRole("button", { name: "Đóng" }));
     expect(screen.queryByRole("heading", { name: "LSX26-0077" })).not.toBeInTheDocument();
 
     // Quét LẠI CHÍNH mã đó: `openHoSoId`/`openHoSoPv` giống hệt lượt trước (`77`, `1`) — đúng cặp
@@ -298,7 +296,7 @@ describe("LenhSanXuatPage · quét LẠI đúng lệnh vừa đóng vẫn phải
   });
 });
 
-// Làm gọn 05/10/2026: 4 tab theo khâu, 7 cột tĩnh, lọc khách + một ô khoảng Hạn SX.
+// 4 tab theo khâu; phương án A 12/10/2026: tám cột, có tuyến bước ngang và hạn giao khách.
 describe("LenhSanXuatPage · danh sách tra cứu", () => {
   it("⭐ bốn tab lấy số nguyên từ `dem_theo_tab`; dòng có pill khâu, thẻ Đã đóng lệnh, GẤP", async () => {
     stubApi();
@@ -314,11 +312,13 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     expect(screen.getByText("Đã đóng lệnh")).toBeInTheDocument();
     expect(screen.getByText("GẤP")).toBeInTheDocument();
     expect(screen.getByText("DH-0003")).toBeInTheDocument();
-    // Tám cột tĩnh, không còn cột tiến độ hay cảnh báo; thứ tự theo nhóm nghĩa của lưới chung
-    // (Mã, hai cột ngày liền nhau, Khách, Đơn, Hàng, Số lượng, Trạng thái).
+    // Tám cột theo phương án A.
     expect(screen.getAllByRole("columnheader").map((c) => c.textContent)).toEqual([
-      "Lệnh", "Ngày tạo", "Hạn SX", "Khách", "Đơn", "Sản phẩm", "Số lượng", "Trạng thái",
+      "Lệnh", "Đơn", "Khách hàng", "Mặt hàng", "Số lượng", "Các bước", "Trạng thái", "Hạn giao",
     ]);
+    // Tuyến bước ngang trong dòng: tên bước dưới chấm, bước đang chạy có vòng.
+    expect(screen.getByRole("img", { name: "In xong; Cán màng đang chạy" })).toBeInTheDocument();
+    expect(screen.getByText("25/10/2026")).toBeInTheDocument();
   });
 
   it("⭐ đổi tab gửi `tab=`; thanh lọc chọn khách gửi `khach_hang_id=`; kỳ gửi `tu_ngay=` + `moc=`", async () => {

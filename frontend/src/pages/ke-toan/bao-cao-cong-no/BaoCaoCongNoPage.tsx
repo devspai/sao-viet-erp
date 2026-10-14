@@ -9,6 +9,9 @@
 // số trả trước (dư bên kia) nằm ở cột Ghi chú. File Excel xuất ra vẫn đúng mẫu MISA.
 //
 // Bấm dòng mở ngăn Sổ chi tiết; bấm số quá hạn mở ngăn ở tab Đợt còn nợ / Hoá đơn còn nợ.
+//
+// Nút Bảng | Biểu đồ (12/10/2026, phương án A của docs/mockups/bao-cao-cong-no-bieu-do-3-phuong-an.html):
+// dạng biểu đồ tải trang đầu 10 dòng xếp theo còn nợ giảm dần, cùng bộ lọc với bảng — xem BieuDoCongNo.
 import { CalendarDays, ChevronDown, Hourglass } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -39,7 +42,10 @@ import { LopNoi, ThanhLoc, useDongKhiRaNgoai } from "../../thanh-loc/ThanhLoc";
 import { dkTheoTab, type DieuKien } from "../../thanh-loc/thanh-loc";
 import { diChuyen } from "../shared/BangPhieu";
 import { nhanMoc } from "../shared/locCongNo";
+import { NhomNut } from "../shared/NhomNut";
+import { BieuDoCongNo } from "./BieuDoCongNo";
 import { SoChiTietDrawer, type TabSo } from "./SoChiTietDrawer";
+import { chieuDong } from "./shared/chieu";
 import { nhanKy, type Ky } from "./shared/ky";
 import "../ke-toan.css";
 import "./bao-cao-cong-no.css";
@@ -66,16 +72,23 @@ const THE: { key: CongNoThe; nhan: string; mau?: MauTT }[] = [
 
 const CO_MAC_DINH = 50;
 
-/** Một dòng sổ (hoặc dòng Cộng) quy về chiều "còn nợ": 331 dư bên Có, 131 dư bên Nợ. */
-function chieuDong(ben: "receivables" | "payables", d: Omit<CongNoDong, "doi_tuong_id" | "ma" | "ten" | "tk" | "aging">) {
-  return ben === "payables"
-    ? { dau: d.dau_co, dauTruoc: d.dau_no, tang: d.ps_co, giam: d.ps_no, cuoi: d.cuoi_co, truoc: d.cuoi_no }
-    : { dau: d.dau_no, dauTruoc: d.dau_co, tang: d.ps_no, giam: d.ps_co, cuoi: d.cuoi_no, truoc: d.cuoi_co };
+/** Dạng xem nhớ theo máy (chung hai bên phải trả, phải thu). */
+type Dang = "bang" | "bieu";
+const KHOA_XEM = "bccn-cach-xem";
+function docDang(): Dang {
+  try {
+    return localStorage.getItem(KHOA_XEM) === "bieu" ? "bieu" : "bang";
+  } catch {
+    return "bang";
+  }
 }
+/** Biểu đồ vẽ ngần này đối tượng nợ nhiều nhất, còn lại gộp "khác". */
+const SO_BIEU = 10;
 
-/** Ô số: 0 thành gạch mờ. */
+/** Ô số: 0 thành gạch mờ. Âm chỉ gặp ở Đã thu / Đã trả khi kỳ có hoàn tiền mà không có thu / trả. */
 function oSo(n: number): ReactNode {
-  return n > 0 ? soVN(n) : <span className="lds-mu3">–</span>;
+  if (n === 0) return <span className="lds-mu3">–</span>;
+  return n < 0 ? `−${soVN(-n)}` : soVN(n);
 }
 
 /** Hôm nay `YYYY-MM-DD` giờ máy — trần của ô ngày chốt (sổ chỉ chốt việc đã xảy ra). */
@@ -178,6 +191,18 @@ export function BaoCaoCongNoPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dangXuat, setDangXuat] = useState<"tong_hop" | "chi_tiet" | null>(null);
+  const [dang, setDang] = useState<Dang>(docDang);
+  const doiDang = (v: Dang) => {
+    if (v === dang) return;
+    // Hai dạng tải khác trang/cỡ/thứ tự: bỏ số của dạng cũ để không vẽ nhầm trong lúc tải.
+    setData(null);
+    setDang(v);
+    try {
+      localStorage.setItem(KHOA_XEM, v);
+    } catch {
+      /* không nhớ được thì thôi */
+    }
+  };
 
   // Bộ lọc — đổi bên (phải trả ↔ phải thu) thì về mặc định: hai sổ khác đối tượng.
   const [the, setThe] = useState<CongNoThe>("all");
@@ -186,6 +211,8 @@ export function BaoCaoCongNoPage({
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(CO_MAC_DINH);
   useEffect(() => {
+    // Số của bên kia không được hiện dưới nhãn bên này trong lúc tải.
+    setData(null);
     setThe("all");
     setTuoi(null);
     setQ("");
@@ -246,8 +273,12 @@ export function BaoCaoCongNoPage({
     const l = ++luot.current;
     setLoading(true);
     setError(null);
+    const bieu = dang === "bieu";
     api.accounting
-      .baoCaoCongNo(token, ben, { tuNgay: ky.tu, denNgay: ky.den, q: qTre, roTuoi: tuoi, the, page, size })
+      .baoCaoCongNo(token, ben, {
+        tuNgay: ky.tu, denNgay: ky.den, q: qTre, roTuoi: tuoi, the,
+        page: bieu ? 1 : page, size: bieu ? SO_BIEU : size, sapXep: bieu ? "con_no" : undefined,
+      })
       .then((d) => {
         if (l === luot.current) setData(d);
       })
@@ -259,7 +290,7 @@ export function BaoCaoCongNoPage({
       .finally(() => {
         if (l === luot.current) setLoading(false);
       });
-  }, [token, ben, ky.tu, ky.den, qTre, tuoi, the, page, size]);
+  }, [token, ben, ky.tu, ky.den, qTre, tuoi, the, page, size, dang]);
   useEffect(load, [load]);
 
   async function xuatExcel(chiTiet = false) {
@@ -338,7 +369,11 @@ export function BaoCaoCongNoPage({
 
   // ---------- lưới ----------
   const luoi = useCauHinhLuoi(`bao-cao-cong-no:${ben}`);
-  const aging = data?.aging ?? [];
+  // Dải mốc giữ lại qua lúc đang tải (đổi Bảng ↔ Biểu đồ bỏ số cũ) để cột và chip lọc tuổi không
+  // chớp thành mã thô.
+  const agingNho = useRef(data?.aging ?? []);
+  if (data?.aging?.length) agingNho.current = data.aging;
+  const aging = agingNho.current;
   const cotDay: CotBC[] = [
     { key: "ma", label: "Mã", coDinh: true, w: 84 },
     { key: "ten", label: c.doiTac, coDinh: true, w: 250 },
@@ -507,10 +542,44 @@ export function BaoCaoCongNoPage({
             <ChipTT mau="xanh" title="Kỳ đang mở, chưa chốt sổ">Chưa chốt</ChipTT>
           )}
           <ThanhLoc dieuKien={dieuKien} loc={{ tuoi }} onLoc={(l) => setTuoi(l.tuoi)} onXoaHet={xoaLoc} />
-          <ChonCot cot={cotDay} {...luoi.chonCot} />
+          <div className="lds-loc__phai">
+            <NhomNut giaTri={dang} luaChon={[["bang", "Bảng"], ["bieu", "Biểu đồ"]]} onDoi={doiDang} />
+            {dang === "bang" && <ChonCot cot={cotDay} {...luoi.chonCot} />}
+          </div>
         </div>
       </section>
 
+      {dang === "bieu" ? (
+        <div className={loading ? "bccn-dang-tai" : undefined} aria-busy={loading || undefined}>
+          {data && rows.length > 0 ? (
+            <BieuDoCongNo key={ben} ben={ben} data={data} chu={c} coLoc={coLoc} onMo={mo}
+              onMoc={(k) => {
+                setTuoi(k);
+                doiDang("bang");
+              }}
+              onCoQuaHan={() => setThe("qua_han")} />
+          ) : (
+            <p className="lds-sheet lds-trong bccn-bd__rong">
+              {loading && !error ? "Đang tải…" : error ? (
+                <span role="alert">
+                  <span className="lds-do">{error}</span>{" "}
+                  <button type="button" className="lds-lk" onClick={load}>Thử lại</button>
+                </span>
+              ) : coLoc ? (
+                <>
+                  {`Không có ${c.donVi} nào khớp điều kiện đang lọc.`}{" "}
+                  <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button>
+                </>
+              ) : "Kỳ này không có phát sinh nào."}
+            </p>
+          )}
+          {data && rows.length > 0 && (
+            <p className="bccn-chan lds-mu">
+              {`Đơn vị biểu đồ: triệu đồng. Còn nợ chia theo hạn tính tại ngày cuối kỳ ${fmtDate(data.den_ngay)}.`}
+            </p>
+          )}
+        </div>
+      ) : (
       <div className="lds-sheet" aria-busy={loading || undefined}>
         <CuonLuoi ghim={luoi.soGhim(cotHien)}>
           <table className="lds-g" style={{ minWidth: rongLuoi(cotHien, 200) }}>
@@ -578,6 +647,7 @@ export function BaoCaoCongNoPage({
           </p>
         )}
       </div>
+      )}
 
       <ConfirmDialog
         open={khoaOpen}

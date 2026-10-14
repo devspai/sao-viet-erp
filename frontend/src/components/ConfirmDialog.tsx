@@ -22,6 +22,9 @@ interface ConfirmDialogProps {
   countdownSeconds?: number;
   /** Ẩn hẳn nút xác nhận — dùng khi dialog mở ở chế độ chỉ xem. */
   hideConfirm?: boolean;
+  /** false = bấm ra nền mờ KHÔNG đóng hộp. Hộp có ô nhập (gõ số đồng hồ, kết quả giao) thì lỡ tay
+   *  bấm ra ngoài là mất hết chữ đã gõ — chỉ đóng bằng nút Thôi, dấu X hoặc Esc. */
+  closeOnBackdrop?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   children?: ReactNode;
@@ -41,6 +44,7 @@ export function ConfirmDialog({
   confirmDisabled = false,
   countdownSeconds = 0,
   hideConfirm = false,
+  closeOnBackdrop = true,
   onConfirm,
   onCancel,
   children,
@@ -81,7 +85,7 @@ export function ConfirmDialog({
   const shownLabel = counting ? `${confirmLabel} (${remaining}s)` : confirmLabel;
 
   return (
-    <div className="cdlg-overlay" onMouseDown={() => !busy && onCancel()}>
+    <div className="cdlg-overlay" onMouseDown={() => closeOnBackdrop && !busy && onCancel()}>
       <div
         className={`cdlg${wide ? " cdlg--wide" : ""}`}
         role="dialog"

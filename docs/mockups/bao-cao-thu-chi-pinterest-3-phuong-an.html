@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo thu chi: bảng và biểu đồ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--charcoal:#0f172a;
+  --thu:#3b82f6;--thu-bg:#dbeafe;--thu-fg:#1d4ed8;
+  --chi:#f97316;--chi-bg:#ffedd5;--chi-fg:#c2410c;
+  --duong:#16a34a;--am:#dc2626;--vang-fg:#b45309;--vang-bg:#fef3c7;--do-bg:#fee2e2;--do-fg:#b91c1c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+.doc{max-width:1500px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1120px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.refs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;height:300px;object-fit:contain;background:#f8fafc;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink)}
+
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.sw .lb{font-size:12.5px;color:var(--ash-2);margin-right:4px}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill:hover{background:var(--rule-hair)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.pill .k{color:var(--ash-3);margin-right:6px}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash);font-size:13.5px}
+
+/* khung app */
+.frame{width:1440px;height:860px;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden;position:relative;display:grid;grid-template-columns:60px 1fr}
+.rail{background:var(--charcoal);display:flex;flex-direction:column;align-items:center;gap:12px;padding-top:16px}
+.rail i{width:28px;height:28px;border-radius:7px;background:#1e293b;display:block}
+.rail i.on{background:#334155}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:48px;background:#fff;border-bottom:1px solid var(--rule-soft);display:flex;align-items:center;justify-content:flex-end;padding:0 24px;gap:10px;color:var(--ash);font-size:13px;flex:none}
+.top .av{width:26px;height:26px;border-radius:50%;background:var(--rust);color:#fff;display:grid;place-items:center;font-size:12px}
+.body{padding:14px 24px 16px;flex:1;display:flex;flex-direction:column;min-height:0;overflow:auto}
+
+.tool{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex:none}
+.tool h2{font-size:18px;font-weight:500;margin:0 8px 0 0;white-space:nowrap}
+.tool .sp{flex:1}
+.ky-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 10px;font-size:13px;white-space:nowrap}
+.ky-btn .lb{color:var(--ash-2)}
+.search{display:flex;align-items:center;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 9px;width:200px;color:var(--ash-3);font-size:13px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:#fff;border-radius:7px;padding:4px 11px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.btn:hover{background:var(--rule-hair)}
+.seg{display:inline-flex;background:var(--rule-hair);border-radius:8px;padding:2px;gap:2px}
+.seg button{border:1px solid transparent;background:transparent;padding:3px 10px;border-radius:6px;font-size:12.5px;color:var(--ash);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;border-color:var(--rule);color:var(--ink)}
+
+/* thẻ lọc nhanh (khuôn LocNhanhTrangThai) */
+.ln{display:flex;gap:6px;flex:none;margin-bottom:10px;flex-wrap:wrap}
+.ln button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule-soft);background:#fff;border-radius:999px;padding:2px 10px;font-size:12.5px;cursor:pointer;color:var(--ash)}
+.ln button.on{border-color:var(--ink);color:var(--ink)}
+.ln button i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.ln button .d{color:var(--ash-3)}
+
+/* lưới */
+.wrap{min-height:0;overflow:auto;background:#fff;border:1px solid var(--rule-soft);border-radius:8px;flex:1}
+table.g{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:13px}
+.g th,.g td{height:32px;padding:0 10px;border-bottom:1px solid var(--rule-hair);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.g thead th{position:sticky;top:0;z-index:2;background:#f8fafc;color:var(--ash-2);font-weight:400;font-size:12px;text-align:left;border-bottom:1px solid var(--rule-soft);height:30px}
+.g .n{text-align:right;font-variant-numeric:tabular-nums}
+.g .mu{color:var(--ash-3)}
+.g tbody tr:hover td{background:var(--rule-hair)}
+.g tr.nhom td{background:#f8fafc}
+.g tr.muc td:first-child{padding-left:26px;cursor:pointer}
+.g tr.cl td{background:#f8fafc}
+.g td.o{cursor:pointer}
+.g td.o:hover{box-shadow:inset 0 0 0 1px var(--rule)}
+.g td.am{color:var(--am)}
+.g th.hl,.g td.hl{background:#eff6ff !important}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px 1px 7px;font-size:12px;white-space:nowrap;margin-left:6px}
+.chip i{width:6px;height:6px;border-radius:50%;display:inline-block}
+.chip.chua{background:var(--vang-bg);color:var(--vang-fg)}.chip.chua i{background:#f59e0b}
+
+/* khối biểu đồ */
+.khoi{background:#fff;border:1px solid var(--rule-soft);border-radius:8px;padding:10px 14px;min-width:0;display:flex;flex-direction:column}
+.khoi .dau{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex:none}
+.khoi .dau .t{font-size:13.5px}
+.khoi .dau .sp{flex:1}
+.khoi .dau .ph{color:var(--ash-2);font-size:12px}
+.chu-giai{display:flex;gap:12px;color:var(--ash-2);font-size:12px}
+.chu-giai span{display:inline-flex;align-items:center;gap:5px}
+.chu-giai i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.chu-giai i.ln2{height:2px;border-radius:0}
+svg{display:block}
+svg text{font-family:"Be Vietnam Pro",system-ui,sans-serif}
+.bam{cursor:pointer}
+.bam:hover{opacity:.82}
+
+/* hàng số (B) */
+.so{display:flex;gap:28px;padding:2px 2px 10px;flex:none}
+.so .c{display:flex;flex-direction:column}
+.so .l{font-size:12px;color:var(--ash-2)}
+.so .v{font-size:16px;font-variant-numeric:tabular-nums}
+
+/* thanh ngang theo mục */
+.hb .r{display:grid;grid-template-columns:170px 1fr 104px;gap:10px;align-items:center;height:28px;padding:0 6px;border-radius:6px;cursor:pointer;font-size:12.5px}
+.hb .r:hover{background:var(--rule-hair)}
+.hb .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hb .r .tr{height:12px;border-radius:3px;background:var(--rule-hair);position:relative;overflow:hidden}
+.hb .r .tr b{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.hb .r .n{text-align:right;font-variant-numeric:tabular-nums}
+
+/* bảng kết quả kỳ (C) */
+.kq .r{display:flex;justify-content:space-between;align-items:center;height:30px;padding:0 6px;border-radius:6px;font-size:13px;cursor:pointer}
+.kq .r:hover{background:var(--rule-hair)}
+.kq .r .n{font-variant-numeric:tabular-nums}
+.kq .r.con{color:var(--ash-2);padding-left:20px;font-size:12.5px}
+.kq .r.tong{background:#f8fafc;cursor:default;margin-top:6px}
+.kq .gach{height:1px;background:var(--rule-soft);margin:6px 0}
+
+/* chú giải donut */
+.tabk{display:flex;gap:20px;border-bottom:1px solid var(--rule-soft);margin:-2px 0 10px}
+.tabk span{padding:4px 0 7px;font-size:13.5px;color:var(--ash-2);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer}
+.tabk span.on{color:var(--ink);border-bottom-color:var(--ink)}
+.dn{display:grid;grid-template-columns:200px 1fr;gap:14px;align-items:center}
+.dn .lg .r{display:grid;grid-template-columns:12px 1fr 48px 104px;gap:8px;align-items:center;height:26px;font-size:12.5px;cursor:pointer;padding:0 6px;border-radius:6px}
+.dn .lg .r:hover{background:var(--rule-hair)}
+.dn .lg .r i{width:10px;height:10px;border-radius:2px}
+.dn .lg .r .n,.dn .lg .r .p{text-align:right;font-variant-numeric:tabular-nums}
+.dn .lg .r .p{color:var(--ash-2)}
+.dn .lg .r .ten{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ngăn (giữ ngăn đang chạy) */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.28);display:none;z-index:30}
+.frame.dw .scrim{display:block}
+.ngan{position:absolute;top:0;right:0;bottom:0;width:860px;background:#fff;z-index:31;display:none;flex-direction:column;box-shadow:-12px 0 30px rgba(15,23,42,.14);padding:16px 24px}
+.frame.dw .ngan{display:flex}
+.ngan .r1{display:flex;align-items:center;gap:10px}
+.ngan .r1 .ten{font-size:18px;font-weight:500}
+.ngan .r1 .sp{flex:1}
+.ngan .dai{display:flex;gap:10px;align-items:flex-end;padding:14px 0 10px;flex-wrap:wrap}
+.ngan .dai .c{display:flex;flex-direction:column;border:1px solid var(--rule-soft);border-radius:8px;padding:4px 10px}
+.ngan .dai .c.on{border-color:var(--ink)}
+.ngan .dai .l{font-size:12px;color:var(--ash-2)}
+.ngan .dai .v{font-variant-numeric:tabular-nums}
+.ngan .dai .op{color:var(--ash-3);padding-bottom:6px}
+.ngan .ghi{color:var(--ash-2);font-size:13px;border:1px dashed var(--rule);border-radius:8px;padding:14px;margin-top:6px}
+
+#tip{position:fixed;pointer-events:none;z-index:99;background:#0f172a;color:#fff;font-size:12px;border-radius:6px;padding:6px 9px;display:none;white-space:nowrap;line-height:1.5}
+.gia{color:var(--vang-fg)}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<div class="doc">
+<h1>Báo cáo thu chi: xem dạng bảng và dạng biểu đồ</h1>
+<p>Ba phương án, mỗi phương án bám một ảnh tham khảo trên Pinterest. Dạng bảng giữ đúng lưới đang chạy (mục × tháng, dòng Chênh lệch thu − chi ở đầu, nhóm Thu rồi Chi, Cộng kỳ); ba phương án khác nhau ở dạng biểu đồ và cách chuyển giữa hai dạng.</p>
+<p>Số liệu là số thật trong DB dev: 47 phiếu đã thu, đã chi từ 01/08 đến 12/10/2026 (27 phiếu chi, 20 phiếu thu), cộng theo đúng luật của <code>bao_cao_thu_chi.py</code> (ngày thực chi, phiếu không có mục vào "Chưa phân loại"). Không có số nào giả định. Tháng 10 mới tới ngày 12 nên cột tháng 10 là nửa tháng.</p>
+
+<p>Sửa theo góp ý 12/10/2026: bỏ hẳn "Chi tiền mặt từ 5 triệu" (cột của bảng, thẻ lọc nhanh, khối thanh ở B; khi code sẽ bỏ cả ở máy chủ và file Excel). Khối cơ cấu ở C có hai tab Cơ cấu mục chi | Cơ cấu mục thu, mỗi mục một màu.</p>
+
+<h2>Đã đọc trước khi vẽ</h2>
+<ul>
+<li>Giao diện: <code>frontend/src/pages/bao-cao-thu-chi/BaoCaoThuChiPage.tsx</code> (lưới, 5 thẻ lọc nhanh, Lọc Hình thức và Mục, Theo mục | Theo người nhận, nộp, Xuất Excel) và <code>NganThuChi.tsx</code> (dải số từng tháng, tab Phiếu, tab Người nhận, chuyển mục).</li>
+<li>Máy chủ: <code>backend/app/services/bao_cao_thu_chi.py</code> (cột kỳ theo tháng hoặc quý, gom dòng, đếm thẻ lọc, chênh lệch) và <code>repositories/bao_cao_thu_chi_repo.py</code>.</li>
+<li>Mockup cũ: <code>bao-cao-thu-chi-khuon-cong-no.html</code> (bản đang chạy), <code>bao-cao-thu-chi-lam-lai-3-phuong-an.html</code> (lần trước anh chọn phần Bảng của B), <code>bao-cao-thu-chi-bang-nang-cap.html</code>, <code>bao-cao-thu-chi-3-phuong-an.html</code>.</li>
+</ul>
+
+<h2>Logic chung cho cả ba (nói bằng lời)</h2>
+<ol>
+<li>Nút <b>Bảng | Biểu đồ</b> nằm trên thanh công cụ, cạnh Theo mục | Theo người. Hai dạng dùng chung kỳ, ô tìm, Lọc và thẻ lọc nhanh; bấm thẻ "Chi" thì cả bảng lẫn biểu đồ chỉ còn bên chi. Màn nhớ dạng đang xem trên đường dẫn, mở lại vẫn đúng dạng.</li>
+<li>Biểu đồ vẽ từ <b>chính số liệu bảng</b> (cùng một lần gọi <code>/api/bao-cao-thu-chi</code>), không thêm phép tính mới ở máy chủ. Riêng dạng biểu đồ lấy đủ mọi dòng, không cắt trang.</li>
+<li>Bấm vào biểu đồ:
+  <ul>
+    <li>Bấm một mục (thanh ngang, lát tròn, dòng chú giải) thì mở ngăn phiếu của mục đó, đúng ngăn đang có.</li>
+    <li>Bấm một tháng thì chuyển sang dạng bảng và tô cột tháng đó.</li>
+  </ul>
+  Không thêm ngăn mới.</li>
+<li>Xem theo người nhận, nộp thì biểu đồ theo mục đổi thành theo người (10 người lớn nhất, còn lại gộp "Người khác").</li>
+<li>Xuất Excel luôn ra bảng, dạng nào cũng vậy.</li>
+</ol>
+
+<h2>Ảnh tham khảo (Pinterest, đã mở và chụp lại)</h2>
+<div class="refs">
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi-pinterest/a-cash-flow-analysis.jpg" alt=""><p><span class="t">A. Cash Flow Analysis (mẫu Excel).</span> Ba biểu đồ nhỏ xếp một hàng nằm ngay trên bảng tháng. Bảng gồm nhóm tiền vào có dòng cộng, nhóm tiền ra có dòng cộng, dòng chênh lệch ở đáy. Học được: biểu đồ là phần tóm tắt đặt trên bảng, không thay bảng.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi-pinterest/b-ytd-dashboard.jpg" alt=""><p><span class="t">B. YTD Dashboard.</span> Một biểu đồ lớn ghép cột thu, cột chi theo tháng với đường chênh lệch, có ghi số trên từng cột. Phía dưới là ba khối nhỏ, mỗi khối là các thanh xếp từ lớn xuống nhỏ. Học được: một biểu đồ chính đọc ra cả ba con số mỗi tháng.</p></div>
+  <div class="ref"><img src="tham-khao-bao-cao-thu-chi-pinterest/c-finance-dashboard.jpg" alt=""><p><span class="t">C. Finance Dashboard.</span> Lưới 2 × 2: đường thu chi có ô số khi rê chuột, danh sách lãi lỗ, vòng cơ cấu chi có tỷ lệ phần trăm, cột thu so với chi. Học được: đặt danh sách kết quả kỳ cạnh biểu đồ để đọc số mà khỏi rê chuột.</p></div>
+</div>
+<p style="font-size:12.5px">Đã xem khoảng 45 ghim với ba từ khoá: finance dashboard, cash flow report dashboard table, financial report table. Phần lớn là bảng điều khiển tài chính cá nhân có thẻ số to. Ba ảnh trên là ba ảnh gần nhất với báo cáo thu chi theo mục × tháng.</p>
+
+<div class="sw">
+  <span class="lb">Phương án</span>
+  <button class="pill on" data-pa="A"><span class="k">A</span>Dải 3 biểu đồ nhỏ trên bảng</button>
+  <button class="pill" data-pa="B"><span class="k">B</span>Một biểu đồ lớn thu chi chênh lệch</button>
+  <button class="pill" data-pa="C"><span class="k">C</span>Lưới 2 × 2 có vòng cơ cấu mục chi, mục thu</button>
+</div>
+
+<div class="desc" id="desc"></div>
+
+<div class="frame" id="fr">
+  <div class="rail"><i></i><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="main">
+    <div class="top">Admin<span class="av">A</span></div>
+    <div class="body">
+      <div class="tool">
+        <h2>Báo cáo thu chi</h2>
+        <span class="ky-btn"><span class="lb">Kỳ</span>01/08/2026 – 12/10/2026</span>
+        <span class="search">Tìm mục</span>
+        <button class="btn">Lọc</button>
+        <div class="seg"><button class="on">Theo mục</button><button>Theo người nhận, nộp</button></div>
+        <span class="sp"></span>
+        <div class="seg" id="dang"><button data-v="bang">Bảng</button><button data-v="bieu">Biểu đồ</button></div>
+        <button class="btn">Cột</button>
+        <button class="btn">Xuất Excel</button>
+      </div>
+      <div class="ln" id="ln"></div>
+      <div id="noi" style="display:flex;flex-direction:column;flex:1;min-height:0;gap:12px"></div>
+    </div>
+    <div class="scrim" id="scrim"></div>
+    <div class="ngan" id="ngan"></div>
+  </div>
+</div>
+</div>
+
+<script>
+// ── Số liệu thật, DB dev svn_erp_trong, 01/08 – 12/10/2026 ───────────────────────────────────
+const COT = [
+  {k:"T8", nhan:"Tháng 8", ngan:"T8"},
+  {k:"T9", nhan:"Tháng 9", ngan:"T9"},
+  {k:"T10", nhan:"Tháng 10 (1 – 12/10)", ngan:"T10"},
+];
+const DONG = [
+  {ben:"thu", ten:"Khách trả tiền hàng",     o:[0,0,20032420]},
+  {ben:"thu", ten:"Bán phế liệu",            o:[0,0,3200000]},
+  {ben:"thu", ten:"Khách đặt cọc",           o:[0,0,2997667]},
+  {ben:"thu", ten:"Nhà cung cấp hoàn tiền",  o:[0,0,30000]},
+  {ben:"thu", ten:"Chưa phân loại", chua:true, o:[4750000,17906500,6730000]},
+  {ben:"chi", ten:"Trả nhà cung cấp",        o:[2484000,26842000,373438200]},
+  {ben:"chi", ten:"Tiền điện",               o:[0,21340000,1850000]},
+  {ben:"chi", ten:"Trả lại tiền cho khách",  o:[0,0,6050000]},
+  {ben:"chi", ten:"Thuê gia công ngoài",     o:[0,0,6000000]},
+  {ben:"chi", ten:"Chưa phân loại", chua:true, o:[18750000,17700000,12230000]},
+];
+DONG.forEach(d => { d.cong = d.o.reduce((a,b)=>a+b,0); });
+
+const THE = [
+  {k:"all", nhan:"Tất cả"},
+  {k:"thu", nhan:"Thu", mau:"var(--thu)"},
+  {k:"chi", nhan:"Chi", mau:"var(--chi)"},
+  {k:"chua", nhan:"Chưa phân loại", mau:"#f59e0b"},
+];
+const hop = (d,t) => t==="all" || (t==="thu"&&d.ben==="thu") || (t==="chi"&&d.ben==="chi") || (t==="chua"&&d.chua);
+
+// Mỗi mục một màu riêng, không dùng các sắc đậm nhạt của cùng một màu. "Chưa phân loại" luôn vàng.
+const MAU_MUC = ["#2563eb","#10b981","#8b5cf6","#ec4899","#14b8a6","#ef4444","#6366f1","#0ea5e9"];
+const MAU_CHUA = "#f59e0b";
+const mauMuc = (d,i) => d.chua ? MAU_CHUA : MAU_MUC[i%MAU_MUC.length];
+
+let PA = "A", DANG = "bieu", THE_ON = "all", HL = null, CC = "chi";
+
+// ── tiện ích ─────────────────────────────────────────────────────────────────────────────
+const vn = n => (n<0?"−":"") + Math.abs(Math.round(n)).toLocaleString("vi-VN");
+const tr = n => { const v=Math.abs(n)/1e6; const s=(v>=100?Math.round(v):Math.round(v*10)/10).toLocaleString("vi-VN"); return (n<0?"−":"")+s+" tr"; };
+const tip = document.getElementById("tip");
+document.addEventListener("mousemove", e => {
+  const t = e.target.closest && e.target.closest("[data-tip]");
+  if (!t) { tip.style.display="none"; return; }
+  tip.innerHTML = t.getAttribute("data-tip"); tip.style.display="block";
+  tip.style.left = (e.clientX+14)+"px"; tip.style.top = (e.clientY+12)+"px";
+});
+function locDong(){ return DONG.filter(d => hop(d, THE_ON)); }
+function tong(ds, ben){ const r = ds.filter(d=>d.ben===ben); return {o: COT.map((_,i)=>r.reduce((a,d)=>a+d.o[i],0)), cong:r.reduce((a,d)=>a+d.cong,0)}; }
+function nice(mx){ if(mx<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(mx))); const f=mx/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
+
+// ── biểu đồ trục x = tháng: cột nhóm + đường ─────────────────────────────────────────────
+function xy({w,h,series,nhanSo=false,vung=false,diem=true}){
+  const L=56,R=12,T=24,B=26, W=w-L-R, H=h-T-B;
+  let vals = series.flatMap(s=>s.ds); let mx=Math.max(0,...vals), mn=Math.min(0,...vals);
+  const buoc = nice((mx-mn)/4||1); mx=Math.ceil(mx/buoc)*buoc; mn=Math.floor(mn/buoc)*buoc; if(mx===mn) mx=mn+buoc;
+  const y = v => T + H*(mx-v)/(mx-mn);
+  const n = COT.length, cw = W/n;
+  let s = `<svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px">`;
+  for(let v=mn; v<=mx+1; v+=buoc){ s+=`<line x1="${L}" x2="${w-R}" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#94a3b8':'#eef2f6'}"/><text x="${L-6}" y="${y(v)+4}" font-size="11" fill="#64748b" text-anchor="end">${tr(v).replace(' tr','')}</text>`; }
+  s+=`<text x="${L-6}" y="10" font-size="10.5" fill="#94a3b8" text-anchor="end">triệu</text>`;
+  COT.forEach((c,i)=>{ s+=`<text x="${L+cw*i+cw/2}" y="${h-8}" font-size="11.5" fill="#475569" text-anchor="middle">${c.nhan}</text>`; });
+  const cot = series.filter(x=>x.kieu==="cot"), bw = Math.min(46, cw*0.62/Math.max(1,cot.length));
+  cot.forEach((se,j)=>{ se.ds.forEach((v,i)=>{
+    const x = L+cw*i+cw/2 - bw*cot.length/2 + bw*j + 1, y0=y(Math.max(0,v)), hh=Math.abs(y(v)-y(0));
+    const mau = typeof se.mau==="function"? se.mau(v): se.mau;
+    s+=`<rect class="bam" data-thang="${i}" data-tip="${se.ten}, ${COT[i].nhan}<br>${vn(v)} đ" x="${x}" y="${y0}" width="${bw-2}" height="${Math.max(hh,v?1:0)}" rx="2" fill="${mau}"/>`;
+    if(nhanSo && v) s+=`<text x="${x+(bw-2)/2}" y="${v>=0?y0-4:y0+hh+12}" font-size="10.5" fill="#475569" text-anchor="middle">${tr(v).replace(' tr','')}</text>`;
+  });});
+  series.filter(x=>x.kieu!=="cot").forEach(se=>{
+    const pts = se.ds.map((v,i)=>[L+cw*i+cw/2, y(v)]);
+    if(vung) s+=`<path d="M${pts[0][0]},${y(0)} L${pts.map(p=>p.join(',')).join(' L')} L${pts[pts.length-1][0]},${y(0)} Z" fill="${se.mau}" opacity=".12"/>`;
+    s+=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${se.mau}" stroke-width="2.2"${se.net?` stroke-dasharray="${se.net}"`:''}/>`;
+    if(diem) pts.forEach((p,i)=>{ s+=`<circle class="bam" data-thang="${i}" data-tip="${se.ten}, ${COT[i].nhan}<br>${vn(se.ds[i])} đ" cx="${p[0]}" cy="${p[1]}" r="4.5" fill="#fff" stroke="${se.mau}" stroke-width="2"/>`;
+      if(nhanSo) s+=`<text x="${p[0]+8}" y="${p[1]-7}" font-size="10.5" fill="${se.mau}">${tr(se.ds[i]).replace(' tr','')}</text>`; });
+  });
+  return s+`</svg>`;
+}
+function hbar(ds, mau){
+  const mx = Math.max(1,...ds.map(d=>d.cong));
+  return `<div class="hb">` + ds.map(d=>`<div class="r" data-mo="${DONG.indexOf(d)}" data-tip="${d.ten}<br>${vn(d.cong)} đ"><span class="ten">${d.ten}</span><span class="tr"><b style="width:${100*d.cong/mx}%;background:${d.chua?'#f59e0b':mau}"></b></span><span class="n">${vn(d.cong)}</span></div>`).join("") + `</div>`;
+}
+function donut(ds, size, nhan){
+  const tg = ds.reduce((a,d)=>a+d.cong,0)||1, r=size/2-6, r0=r-26, c=size/2; let a=-Math.PI/2, s=`<svg width="${size}" height="${size}">`;
+  ds.forEach((d,i)=>{ const g = 2*Math.PI*d.cong/tg; if(g<=0) return; const a2=a+Math.min(g, 2*Math.PI-1e-4), lg=g>Math.PI?1:0;
+    const P=(rr,aa)=>[c+rr*Math.cos(aa), c+rr*Math.sin(aa)];
+    const [x1,y1]=P(r,a),[x2,y2]=P(r,a2),[x3,y3]=P(r0,a2),[x4,y4]=P(r0,a);
+    s+=`<path class="bam" data-mo="${DONG.indexOf(d)}" data-tip="${d.ten}<br>${vn(d.cong)} đ" d="M${x1},${y1} A${r},${r} 0 ${lg} 1 ${x2},${y2} L${x3},${y3} A${r0},${r0} 0 ${lg} 0 ${x4},${y4} Z" fill="${mauMuc(d,i)}" stroke="#fff" stroke-width="1.5"/>`; a=a2; });
+  s+=`<text x="${c}" y="${c-2}" text-anchor="middle" font-size="15">${tr(tg)}</text><text x="${c}" y="${c+16}" text-anchor="middle" font-size="11.5" fill="#64748b">${nhan}</text>`;
+  return s+`</svg>`;
+}
+
+// ── bảng (giữ lưới đang chạy) ─────────────────────────────────────────────────────────────
+function bang(){
+  const ds = locDong(), t = {thu:tong(ds,"thu"), chi:tong(ds,"chi")};
+  const hl = i => HL===i ? " hl" : "";
+  let s = `<div class="wrap"><table class="g"><colgroup><col style="width:300px">${COT.map(()=>'<col style="width:170px">').join('')}<col style="width:160px"><col></colgroup><thead><tr><th>Mục</th>${COT.map((c,i)=>`<th class="n${hl(i)}">${c.nhan}</th>`).join('')}<th class="n">Cộng kỳ</th><th></th></tr></thead><tbody>`;
+  const cl = COT.map((_,i)=>t.thu.o[i]-t.chi.o[i]), clc = t.thu.cong-t.chi.cong;
+  s += `<tr class="cl"><td>Chênh lệch thu − chi</td>${cl.map((v,i)=>`<td class="n${v<0?' am':''}${hl(i)}">${vn(v)}</td>`).join('')}<td class="n${clc<0?' am':''}">${vn(clc)}</td><td></td></tr>`;
+  for (const ben of ["thu","chi"]) {
+    const r = ds.filter(d=>d.ben===ben); if(!r.length) continue;
+    s += `<tr class="nhom"><td>${ben==="thu"?"Thu":"Chi"} <span class="mu">${r.length} mục</span></td>${t[ben].o.map((v,i)=>`<td class="n${hl(i)}">${vn(v)}</td>`).join('')}<td class="n">${vn(t[ben].cong)}</td><td></td></tr>`;
+    r.forEach(d => { const k = DONG.indexOf(d);
+      s += `<tr class="muc"><td data-mo="${k}">${d.ten}${d.chua?'<span class="chip chua"><i></i>Cần gán mục</span>':''}</td>${d.o.map((v,i)=>`<td class="n o${hl(i)}" data-mo="${k}" data-cot="${i}">${v?vn(v):'<span class="mu">0</span>'}</td>`).join('')}<td class="n o" data-mo="${k}">${vn(d.cong)}</td><td></td></tr>`;
+    });
+  }
+  return s + `</tbody></table></div>`;
+}
+
+// ── A: dải 3 biểu đồ nhỏ trên bảng ────────────────────────────────────────────────────────
+function A(){
+  const ds = locDong(), t = {thu:tong(ds,"thu"), chi:tong(ds,"chi")};
+  const cl = COT.map((_,i)=>t.thu.o[i]-t.chi.o[i]); let cd=0; const don = cl.map(v=>cd+=v);
+  const w = 430, h = 200; let s = "";
+  if (DANG==="bieu") s += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;flex:none">
+    <div class="khoi"><div class="dau"><span class="t">Thu và chi theo tháng</span><span class="sp"></span><div class="chu-giai"><span><i class="ln2" style="background:var(--thu)"></i>Thu</span><span><i class="ln2" style="background:var(--chi)"></i>Chi</span></div></div>${xy({w,h,series:[{ten:"Thu",kieu:"duong",mau:"#3b82f6",ds:t.thu.o},{ten:"Chi",kieu:"duong",mau:"#f97316",ds:t.chi.o}]})}</div>
+    <div class="khoi"><div class="dau"><span class="t">Chênh lệch thu − chi theo tháng</span></div>${xy({w,h,nhanSo:true,series:[{ten:"Chênh lệch",kieu:"cot",mau:v=>v<0?"#dc2626":"#16a34a",ds:cl}]})}</div>
+    <div class="khoi"><div class="dau"><span class="t">Chênh lệch cộng dồn từ đầu kỳ</span></div>${xy({w,h,nhanSo:true,series:[{ten:"Cộng dồn",kieu:"duong",mau:"#0f172a",ds:don}]})}</div>
+  </div>`;
+  return s + bang();
+}
+
+// ── B: một biểu đồ lớn + ba khối thanh ────────────────────────────────────────────────────
+function B(){
+  if (DANG==="bang") return bang();
+  const ds = locDong(), t = {thu:tong(ds,"thu"), chi:tong(ds,"chi")};
+  const cl = COT.map((_,i)=>t.thu.o[i]-t.chi.o[i]);
+  const ser = [];
+  if (t.thu.cong) ser.push({ten:"Thu",kieu:"cot",mau:"#3b82f6",ds:t.thu.o});
+  if (t.chi.cong) ser.push({ten:"Chi",kieu:"cot",mau:"#f97316",ds:t.chi.o});
+  if (t.thu.cong && t.chi.cong) ser.push({ten:"Chênh lệch",kieu:"duong",mau:"#0f172a",ds:cl});
+  const chi = ds.filter(d=>d.ben==="chi"), thu = ds.filter(d=>d.ben==="thu");
+  return `<div class="so"><div class="c"><span class="l">Thu cả kỳ</span><span class="v">${vn(t.thu.cong)}</span></div><div class="c"><span class="l">Chi cả kỳ</span><span class="v">${vn(t.chi.cong)}</span></div><div class="c"><span class="l">Chênh lệch</span><span class="v" style="color:${t.thu.cong-t.chi.cong<0?'var(--am)':'inherit'}">${vn(t.thu.cong-t.chi.cong)}</span></div></div>
+  <div class="khoi" style="flex:none"><div class="dau"><span class="t">Thu, chi và chênh lệch theo tháng</span><span class="ph">bấm cột để xem tháng đó ở dạng bảng</span><span class="sp"></span><div class="chu-giai"><span><i style="background:var(--thu)"></i>Thu</span><span><i style="background:var(--chi)"></i>Chi</span><span><i class="ln2" style="background:#0f172a"></i>Chênh lệch</span></div></div>${xy({w:1300,h:290,nhanSo:true,series:ser})}</div>
+  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;flex:none">
+    <div class="khoi"><div class="dau"><span class="t">Chi theo mục</span></div>${chi.length?hbar(chi.filter(d=>!d.chua).concat(chi.filter(d=>d.chua)),"#f97316"):'<span class="mu">Không có</span>'}</div>
+    <div class="khoi"><div class="dau"><span class="t">Thu theo mục</span></div>${thu.length?hbar(thu.filter(d=>!d.chua).concat(thu.filter(d=>d.chua)),"#3b82f6"):'<span class="mu">Không có</span>'}</div>
+  </div>`;
+}
+
+// ── C: lưới 2 × 2 ─────────────────────────────────────────────────────────────────────────
+function C(){
+  if (DANG==="bang") return bang();
+  const ds = locDong(), t = {thu:tong(ds,"thu"), chi:tong(ds,"chi")};
+  const chi = ds.filter(d=>d.ben==="chi"), thu = ds.filter(d=>d.ben==="thu");
+  const cc = CC==="chi" ? chi : thu, tg = cc.reduce((a,d)=>a+d.cong,0)||1;
+  const kq = r => r.map(d=>`<div class="r con" data-mo="${DONG.indexOf(d)}"><span>${d.ten}</span><span class="n">${vn(d.cong)}</span></div>`).join("");
+  const w = 650;
+  return `<div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px;flex:none">
+    <div class="khoi"><div class="dau"><span class="t">Thu và chi theo tháng</span><span class="ph">rê chuột lên điểm để xem số</span><span class="sp"></span><div class="chu-giai"><span><i style="background:var(--thu)"></i>Thu</span><span><i style="background:var(--chi)"></i>Chi</span></div></div>${xy({w:780,h:250,vung:true,series:[{ten:"Thu",kieu:"duong",mau:"#3b82f6",ds:t.thu.o},{ten:"Chi",kieu:"duong",mau:"#f97316",ds:t.chi.o}]})}</div>
+    <div class="khoi" style="overflow:auto;max-height:296px"><div class="dau"><span class="t">Kết quả kỳ</span><span class="ph">01/08 – 12/10/2026</span></div><div class="kq">
+      ${thu.length?`<div class="r" style="cursor:default"><span>Thu</span><span class="n">${vn(t.thu.cong)}</span></div>${kq(thu)}`:''}
+      ${thu.length&&chi.length?'<div class="gach"></div>':''}
+      ${chi.length?`<div class="r" style="cursor:default"><span>Chi</span><span class="n">${vn(t.chi.cong)}</span></div>${kq(chi)}`:''}
+      <div class="r tong"><span>Chênh lệch thu − chi</span><span class="n" style="color:${t.thu.cong-t.chi.cong<0?'var(--am)':'inherit'}">${vn(t.thu.cong-t.chi.cong)}</span></div>
+    </div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:none">
+    <div class="khoi"><div class="tabk"><span data-cc="chi" class="${CC==='chi'?'on':''}">Cơ cấu mục chi</span><span data-cc="thu" class="${CC==='thu'?'on':''}">Cơ cấu mục thu</span></div>${cc.length?`<div class="dn">${donut(cc,190,CC==="chi"?"tổng chi":"tổng thu")}<div class="lg">${cc.map((d,i)=>`<div class="r" data-mo="${DONG.indexOf(d)}"><i style="background:${mauMuc(d,i)}"></i><span class="ten">${d.ten}</span><span class="p">${(Math.round(1000*d.cong/tg)/10).toLocaleString('vi-VN')}%</span><span class="n">${vn(d.cong)}</span></div>`).join('')}</div></div>`:`<span class="mu">Không có phiếu ${CC}</span>`}</div>
+    <div class="khoi"><div class="dau"><span class="t">Thu so với chi</span><span class="ph">bấm cột để xem tháng đó ở dạng bảng</span><span class="sp"></span><div class="chu-giai"><span><i style="background:var(--thu)"></i>Thu</span><span><i style="background:var(--chi)"></i>Chi</span></div></div>${xy({w,h:220,series:[{ten:"Thu",kieu:"cot",mau:"#3b82f6",ds:t.thu.o},{ten:"Chi",kieu:"cot",mau:"#f97316",ds:t.chi.o}]})}</div>
+  </div>`;
+}
+
+// ── mô tả từng phương án ──────────────────────────────────────────────────────────────────
+const MO_TA = {
+  A: `<h3>A. Dải 3 biểu đồ nhỏ nằm trên bảng (theo ảnh Cash Flow Analysis)</h3>
+      <p>Dạng biểu đồ không thay bảng mà chèn ba biểu đồ nhỏ lên trên bảng: thu và chi theo tháng, chênh lệch từng tháng (cột xanh lá khi dương, đỏ khi âm), chênh lệch cộng dồn từ đầu kỳ. Dạng bảng thì cất dải biểu đồ đi, bảng chiếm hết chiều cao.</p>
+      <p>Được: không mất bảng, đọc số và nhìn xu hướng cùng lúc. Kém: không có biểu đồ theo mục, muốn so mục với nhau vẫn phải đọc cột Cộng kỳ.</p>`,
+  B: `<h3>B. Một biểu đồ lớn thu, chi, chênh lệch theo tháng, dưới là hai khối thanh (theo ảnh YTD Dashboard)</h3>
+      <p>Dạng biểu đồ thay hẳn bảng. Trên cùng có một hàng ba số nhỏ: thu, chi, chênh lệch cả kỳ. Ảnh gốc dùng năm thẻ số to; phương án này đổi thành một hàng chữ vừa để giữ khuôn lưới gọn. Biểu đồ chính có cột thu và cột chi cạnh nhau, đường chênh lệch đè lên, số ghi sẵn trên cột (đơn vị triệu). Dưới là hai khối thanh xếp từ lớn xuống nhỏ: chi theo mục, thu theo mục. "Chưa phân loại" luôn đứng cuối và tô vàng.</p>
+      <p>Được: một biểu đồ đọc đủ ba số mỗi tháng. Kém: Trả nhà cung cấp chiếm 83% tiền chi nên thanh các mục khác rất ngắn (số vẫn ghi bên phải).</p>`,
+  C: `<h3>C. Lưới 2 × 2: đường thu chi, kết quả kỳ, vòng cơ cấu mục chi và mục thu, cột thu so với chi (theo ảnh Finance Dashboard)</h3>
+      <p>Dạng biểu đồ thay hẳn bảng. Khối Kết quả kỳ liệt kê từng mục kèm số, bấm một dòng thì mở ngăn phiếu. Khối cơ cấu có hai tab Cơ cấu mục chi | Cơ cấu mục thu, bấm để đổi. Mỗi mục một màu riêng, "Chưa phân loại" luôn vàng; chú giải ghi tỷ lệ và số tiền, bấm một mục (lát hay dòng chú giải) thì mở ngăn phiếu của mục đó.</p>
+      <p>Được: đọc số khỏi rê chuột nhờ khối Kết quả kỳ. Kém: bản trước đã ghi "không dùng bánh tròn vì mục nhỏ thành lát mỏng". Ở số thật, Trả nhà cung cấp chiếm 82,8% tiền chi nên các lát còn lại rất mỏng, phải đọc ở chú giải. Đường và cột ở đây nói cùng một chuyện (thu chi theo tháng), lặp ý.</p>`,
+};
+
+// ── vẽ ────────────────────────────────────────────────────────────────────────────────────
+function ve(){
+  document.getElementById("desc").innerHTML = MO_TA[PA];
+  document.querySelectorAll("#dang button").forEach(b=>b.classList.toggle("on", b.dataset.v===DANG));
+  const nen = DONG.filter(d=>hop(d,"all"));
+  document.getElementById("ln").innerHTML = THE.map(t=>`<button data-the="${t.k}" class="${THE_ON===t.k?'on':''}">${t.mau?`<i style="background:${t.mau}"></i>`:''}${t.nhan} <span class="d">${nen.filter(d=>hop(d,t.k)).length}</span></button>`).join("");
+  document.getElementById("noi").innerHTML = ({A,B,C})[PA]();
+}
+document.querySelectorAll(".sw .pill").forEach(b=>b.onclick=()=>{ document.querySelectorAll(".sw .pill").forEach(x=>x.classList.toggle("on",x===b)); PA=b.dataset.pa; HL=null; ve(); });
+document.getElementById("dang").onclick = e => { const b=e.target.closest("button"); if(!b) return; DANG=b.dataset.v; HL=null; ve(); };
+document.getElementById("ln").onclick = e => { const b=e.target.closest("button"); if(!b) return; THE_ON=b.dataset.the; ve(); };
+const fr = document.getElementById("fr");
+document.getElementById("noi").onclick = e => {
+  const cc = e.target.closest("[data-cc]");
+  if (cc) { CC = cc.dataset.cc; ve(); return; }
+  const th = e.target.closest("[data-thang]");
+  if (th) { HL = +th.dataset.thang; DANG="bang"; ve(); return; }
+  const m = e.target.closest("[data-mo]"); if (!m) return;
+  const d = DONG[+m.dataset.mo], cot = m.dataset.cot!=null ? +m.dataset.cot : null;
+  document.getElementById("ngan").innerHTML = `<div class="r1"><span class="ten">${d.ten}</span><span class="chip" style="background:${d.ben==='thu'?'var(--thu-bg)':'var(--chi-bg)'};color:${d.ben==='thu'?'var(--thu-fg)':'var(--chi-fg)'}"><i style="background:${d.ben==='thu'?'var(--thu)':'var(--chi)'}"></i>${d.ben==='thu'?'Thu':'Chi'}</span><span class="sp"></span><button class="btn" id="dong">Đóng</button></div>
+    <div class="dai">${COT.map((c,i)=>`<div class="c${cot===i?' on':''}"><span class="l">${c.nhan}</span><span class="v">${vn(d.o[i])}</span></div>${i<COT.length-1?'<span class="op">+</span>':''}`).join('')}<span class="op">=</span><div class="c${cot==null?' on':''}"><span class="l">Cả kỳ</span><span class="v">${vn(d.cong)}</span></div></div>
+    <div class="ghi">Phần dưới giữ nguyên ngăn đang chạy: tab Phiếu (từng phiếu, bấm số phiếu sang phiếu gốc), tab Người nhận, chuyển mục cho phiếu đã tích. Mockup không vẽ lại phần này.</div>`;
+  fr.classList.add("dw");
+  document.getElementById("dong").onclick = () => fr.classList.remove("dw");
+};
+document.getElementById("scrim").onclick = () => fr.classList.remove("dw");
+ve();
+</script>
+</body>
+</html>

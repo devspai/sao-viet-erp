@@ -7,7 +7,7 @@
  *  thuộc tính (`oRayCongNo`), mỗi số nói một lần. Thân: khối lỗi kèm "Tải lại", câu đang tải, câu báo
  *  máy chủ cũ hơn giao diện, rồi tới nội dung tab của màn.
  */
-import { ChevronRight, ExternalLink, Printer } from "lucide-react";
+import { ChevronRight, ExternalLink, Printer, Undo2 } from "lucide-react";
 import type { ComponentProps, ReactNode } from "react";
 
 import { soNgay } from "../../../utils/ky";
@@ -185,6 +185,7 @@ export function NganCongNo({
   ma,
   coSo,
   nutHoSo,
+  nutTraLai,
   onInSaoKe,
   loi,
   loading,
@@ -205,6 +206,8 @@ export function NganCongNo({
   coSo: boolean;
   /** Nút "Hồ sơ …"; không có = không có quyền xem hồ sơ. */
   nutHoSo?: { nhan: string; onMo: () => void };
+  /** Nút trả lại tiền ("Trả lại tiền" cho khách / "Nhà cung cấp hoàn tiền"); không có = không có quyền lập phiếu. */
+  nutTraLai?: { nhan: string; onMo: () => void };
   onInSaoKe: () => void;
   loi: string | null;
   loading: boolean;
@@ -228,6 +231,12 @@ export function NganCongNo({
       phuDe={ma ? <TheNho>{ma}</TheNho> : undefined}
       hanhDong={
         <>
+          {nutTraLai && (
+            <button type="button" className="kt-btn kt-btn--nho" onClick={nutTraLai.onMo}>
+              <Undo2 size={14} aria-hidden="true" />
+              {nutTraLai.nhan}
+            </button>
+          )}
           <button type="button" className="kt-btn kt-btn--nho" onClick={onInSaoKe} disabled={!coSo}>
             <Printer size={14} aria-hidden="true" />
             In sao kê

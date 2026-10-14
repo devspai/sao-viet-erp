@@ -82,6 +82,24 @@ _STATUS_LABELS = {
 }
 # Đơn mới chỉ có MỘT nguồn, nhưng nhãn giữ cả `nhap_tay` để đơn cũ trong DB còn đọc ra chữ đúng.
 _SOURCE_LABELS = {SOURCE_BAO_GIA: "Từ báo giá", "nhap_tay": "Nhập giá tay"}
+_HINH_THUC_THU = {"cash": "tiền mặt", "bank_transfer": "chuyển khoản"}
+_LOI_TAI = {"khach": "khách hàng", "xuong": "xưởng in"}
+
+
+def _tien_vn(v) -> str:
+    return f"{int(v):,}".replace(",", ".")
+
+
+def _chu_nhat_ky(detail: str | None) -> str | None:
+    """Vết cũ ghi mã máy ("(bank_transfer)", "500,000đ", "(lỗi khach)") — dịch lúc trả về cho ngăn đơn."""
+    if not detail:
+        return detail
+    import re
+
+    m = re.fullmatch(r"Thu cọc ([\d,]+)đ \((\w+)\)(?: — đơn \S+)?", detail)
+    if m:
+        return f"Thu cọc {m.group(1).replace(',', '.')} bằng {_HINH_THUC_THU.get(m.group(2), m.group(2))}"
+    return re.sub(r"\(lỗi (khach|xuong)\)", lambda x: f"(lỗi tại {_LOI_TAI[x.group(1)]})", detail)
 
 
 def _i(x) -> int:
@@ -259,7 +277,7 @@ class OrderService:
     def _row(self, order: Order, customer_name: str | None, sale_name: str | None,
              quotation_code: str | None = None, *, agg: dict | None = None,
              received: int | None = None,
-             line_sum: tuple[str, int] | None = None) -> OrderRow:
+             line_sum: tuple[str, int] | None = None, refunded: int = 0) -> OrderRow:
         m = self._money(order, agg=agg, received=received)
         return OrderRow(
             id=order.id,
@@ -278,6 +296,7 @@ class OrderService:
             deposit_required=m["deposit_required"],
             deposit_received=m["deposit_received"],
             deposit_ok=m["deposit_ok"],
+            deposit_refunded=refunded,
             delivery_committed_date=order.delivery_committed_date,
             is_rush=order.is_rush,
             sale_user_id=order.sale_user_id,
@@ -297,7 +316,7 @@ class OrderService:
 
             c = self.db.get(Customer, order.customer_id)
             cust_name = c.name if c else None
-        names = self._user_names([order.sale_user_id])
+        names = self._user_names([order.sale_user_id, order.ordered_by])
         m = self._money(order)
         # V5: danh sách phiếu thu cọc (PaymentReceipt nguồn đơn) — thay bản ghi OrderDeposit cũ.
         deposits = [
@@ -317,6 +336,8 @@ class OrderService:
             for a in atts
         ]
         can_confirm, blockers = self._confirm_gate(order)
+        da_tra_lai = (self.accounting_repo.coc_da_tra_lai(order.id)
+                      if order.status == STATUS_CANCELLED else 0)
         q_code = None
         quote_expired = False
         if order.quotation_id:
@@ -332,7 +353,11 @@ class OrderService:
                 and qq.valid_until and qq.valid_until < date.today()
             )
         return OrderDetailOut(
-            **self._row(order, cust_name, names.get(order.sale_user_id), q_code).model_dump(),
+            # Truyền số tiền ĐÃ TÍNH ở trên: để trống thì `_row` gọi `_money` lần nữa ⇒ bốn câu SUM
+            # chạy hai lần mỗi lần mở ngăn đơn (13/10/2026).
+            **self._row(order, cust_name, names.get(order.sale_user_id), q_code,
+                        agg={k: m[k] for k in ("total", "total_with_vat", "order_cost")},
+                        received=m["deposit_received"], refunded=da_tra_lai).model_dump(),
             quotation_version=order.quotation_version,
             quotation_effective_from=order.quotation_effective_from,
             parent_order_id=order.parent_order_id,
@@ -352,6 +377,7 @@ class OrderService:
             can_confirm=can_confirm,
             confirm_blockers=blockers,
             quote_expired=quote_expired,
+            ordered_by_name=names.get(order.ordered_by) if order.ordered_by else None,
         )
 
     # --- reads --------------------------------------------------------------
@@ -364,7 +390,12 @@ class OrderService:
             return loc
         from dataclasses import replace
 
-        from .don_hang_san_xuat import tom_tat_nhieu_don
+        from .don_hang_san_xuat import CHO_TRA_COC, tom_tat_nhieu_don
+
+        if loc.dang_cho == CHO_TRA_COC:
+            huy = self.repo.don_huy_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
+                                         nguoi=nguoi, loc=loc)
+            return replace(loc, chi_id=self._con_giu_coc(huy))
 
         ung_vien = self.repo.don_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
                                               nguoi=nguoi, loc=loc)
@@ -373,10 +404,22 @@ class OrderService:
 
     def dem_dang_cho(self, *, actor, scope: str) -> dict[str, int]:
         """Số đơn theo từng giá trị "Đang chờ" trong tầm nhìn — số đếm của menu lọc."""
-        from .don_hang_san_xuat import CHO_TAT_CA, tom_tat_nhieu_don
+        from .don_hang_san_xuat import CHO_TAT_CA, CHO_TRA_COC, tom_tat_nhieu_don
 
         tom = tom_tat_nhieu_don(self.db, self.repo.don_da_chot_khop(scope=scope, actor=actor))
-        return {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in CHO_TAT_CA}
+        dem = {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in CHO_TAT_CA}
+        dem[CHO_TRA_COC] = len(self._con_giu_coc(self.repo.don_huy_khop(scope=scope, actor=actor)))
+        return dem
+
+    def _con_giu_coc(self, order_ids: list[int]) -> list[int]:
+        """Trong các đơn (đã huỷ) cho vào, đơn nào còn giữ cọc của khách: đã thu − đã trả lại > 0.
+        Hai câu gộp cho cả tập. Không có ca "chuyển cọc sang đơn khác" (chủ chốt 13/10/2026) nên
+        tiền còn giữ chỉ có một lối ra là phiếu chi trả lại."""
+        if not order_ids:
+            return []
+        thu = self.accounting_repo.received_deposit_sums(order_ids)
+        tra = self.accounting_repo.coc_da_tra_lai_nhieu(order_ids)
+        return sorted(i for i in order_ids if thu.get(i, 0) - tra.get(i, 0) > 0)
 
     def list(
         self, *, actor, scope: str, q: str | None, status: str | None,
@@ -398,16 +441,23 @@ class OrderService:
         from .don_hang_san_xuat import tom_tat_nhieu_don
 
         sx = tom_tat_nhieu_don(self.db, rows)
-        items = [
-            self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
-                      q_codes.get(o.quotation_id),
-                      agg=sums.get(o.id, {}), received=received.get(o.id, 0),
-                      line_sum=line_sums.get(o.id)).model_copy(update={
-                          "san_xuat_mon": [MonSanXuatOut(**m) for m in sx.get(o.id, {}).get("mon", [])],
-                          "dang_cho": sx.get(o.id, {}).get("dang_cho", []),
-                      })
-            for o in rows
-        ]
+        # Đơn huỷ: đã trả lại cọc bao nhiêu (một câu cho cả trang); còn giữ thì đơn "chờ trả lại cọc".
+        from .don_hang_san_xuat import CHO_TRA_COC
+
+        tra = self.accounting_repo.coc_da_tra_lai_nhieu(
+            [o.id for o in rows if o.status == STATUS_CANCELLED])
+        items = []
+        for o in rows:
+            dang_cho = sx.get(o.id, {}).get("dang_cho", [])
+            if o.status == STATUS_CANCELLED and received.get(o.id, 0) - tra.get(o.id, 0) > 0:
+                dang_cho = [CHO_TRA_COC]
+            items.append(self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
+                                   q_codes.get(o.quotation_id),
+                                   agg=sums.get(o.id, {}), received=received.get(o.id, 0),
+                                   line_sum=line_sums.get(o.id), refunded=tra.get(o.id, 0)).model_copy(update={
+                "san_xuat_mon": [MonSanXuatOut(**m) for m in sx.get(o.id, {}).get("mon", [])],
+                "dang_cho": dang_cho,
+            }))
         ids = self.repo.ids_khop_cuoi
         return OrderListOut(items=items, total=total, page=page, size=size,
                             tong_gia_tri=self.repo.tong_gia_tri(ids) if total else 0,
@@ -466,16 +516,29 @@ class OrderService:
             raise OrderNotFound("Không tìm thấy đơn hàng")  # ngoài vùng = 404
         return tien_do_don(self.db, order)
 
+    def phieu_xuat_in(self, *, order_id: int, yeu_cau_id: int, actor, scope: str) -> dict:
+        """Dữ liệu in phiếu xuất kho bán hàng / 02-VT của một yêu cầu giao — cùng cổng đọc + phạm vi
+        với chi tiết đơn (ai thấy giá bán của đơn thì in được tờ có giá)."""
+        from .phieu_xuat_ban_hang import du_lieu_in_phieu_xuat
+
+        order = self.repo.get_by_id(order_id)
+        if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
+            raise OrderNotFound("Không tìm thấy đơn hàng")
+        return du_lieu_in_phieu_xuat(self.db, order, yeu_cau_id)
+
     def activity(self, *, order_id: int, actor, scope: str) -> OrderActivityOut:
         order = self.repo.get_by_id(order_id)
         if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
             raise OrderNotFound("Không tìm thấy đơn hàng")
-        logs = self.audit.list_by_target(f"order:{order_id}", limit=200)
+        # Vết "push_production" cũ (ghi lúc chốt, kể cả khi còn chờ cọc) trùng với vết chuyển xuống sản
+        # xuất thật ⇒ không bày ra nhật ký của đơn nữa.
+        logs = [lg for lg in self.audit.list_by_target(f"order:{order_id}", limit=200)
+                if lg.action != "push_production"]
         names = self._user_names([lg.actor_user_id for lg in logs])
         items = [
             OrderActivityItem(
                 at=lg.created_at, actor_id=lg.actor_user_id,
-                actor_name=names.get(lg.actor_user_id), action=lg.action, detail=lg.detail,
+                actor_name=names.get(lg.actor_user_id), action=lg.action, detail=_chu_nhat_ky(lg.detail),
             )
             for lg in logs
         ]
@@ -719,7 +782,7 @@ class OrderService:
     def add_deposit_receipt(self, *, order_id: int, actor, scope: str, payload) -> OrderDetailOut:
         """Kế toán tạo PaymentReceipt(source='don_hang_ban', received) gắn đơn. THU CỌC = BƯỚC 2 SAU
         chốt (chốt = chốt thông tin; kế toán nhận SSE khi đơn chốt → thu cọc). Cho ghi khi đơn đã CHỐT;
-        chặn hủy. Quyền gate ở router = record_deposit."""
+        chặn hủy. Quyền gate ở router = Phiếu thu → Tạo."""
         order = self.repo.get_by_id(order_id)
         if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
             raise OrderNotFound("Không tìm thấy đơn hàng")
@@ -745,7 +808,7 @@ class OrderService:
             raise OrderValidationError(str(exc)) from exc
         self.audit.create(
             actor_user_id=actor.id, action="record_deposit", target=f"order:{order.id}",
-            detail=f"Thu cọc {int(payload.amount):,}đ ({payload.receipt_method}) — đơn {order.order_no}",
+            detail=f"Thu cọc {_tien_vn(payload.amount)} bằng {_HINH_THUC_THU.get(payload.receipt_method, payload.receipt_method)}",
         )
         self._tu_chuyen_sx(order, actor)
         d = self._detail(self.repo.get_with_lines(order_id))
@@ -819,9 +882,8 @@ class OrderService:
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="confirm_order",
             target=f"order:{order.id}", detail=f"Chốt đơn {order.order_no}")
-        # push Sản xuất (SEAM-01) — Sản xuất chưa build → ghi vết idempotent theo order_id
-        self.audit.create(actor_user_id=actor.id, action="push_production",
-            target=f"order:{order.id}", detail=f"Đẩy đơn {order.order_no} xuống Sản xuất (seam)")
+        # Vết "Đẩy đơn xuống Sản xuất (seam)" lúc chốt đã gỡ (12/10/2026): đơn chỉ thật sự xuống sản
+        # xuất ở `_tu_chuyen_sx` (đủ cọc), vết đó đã ghi riêng — ghi thêm ở đây là báo sai khi còn chờ cọc.
         # Đơn không cần cọc (hoặc cọc đã đủ từ trước) → xuống SX ngay lúc chốt.
         # `order` đọc TRƯỚC câu UPDATE compare-and-set (synchronize_session=False) → nạp lại.
         self.db.refresh(order)
@@ -867,7 +929,7 @@ class OrderService:
         order.cancel_at = datetime.now(timezone.utc)
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="cancel_order", target=f"order:{order.id}",
-            detail=f"Hủy đơn {order.order_no}" + (f" (lỗi {fault})" if fault else "") + f" — {reason}")
+            detail=f"Hủy đơn {order.order_no}" + (f" (lỗi tại {_LOI_TAI.get(fault, fault)})" if fault else "") + f" — {reason}")
         return self._detail(self.repo.get_with_lines(order_id))
 
     # --- Tệp đính kèm của đơn (chỉ thêm/xoá khi nháp) ----

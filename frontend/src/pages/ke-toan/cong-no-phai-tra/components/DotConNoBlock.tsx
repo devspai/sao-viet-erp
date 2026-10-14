@@ -6,7 +6,9 @@
 //   phần; mã đơn mở Đơn mua; "N đợt" mờ; "cọc còn X" mờ khi cọc của đơn còn dư) + 4 ô tổng của đơn, rồi
 //   các dòng đợt.
 // - Hạn trả: bỏ dòng nhóm, xếp đợt theo hạn trả tăng dần, đợt chưa có hạn ở cuối; ô Đợt mang cả mã đơn.
-// Cột: ☐ | Đợt | Hoá đơn | Hạn trả | Giá trị | Trừ cọc | Đã trả | Còn nợ. Trừ cọc là cột RIÊNG (chủ chốt
+// Cột: ☐ | Đợt | Ngày nhận hàng | Số hoá đơn | Ký hiệu | Ngày hoá đơn | Hạn trả | Giá trị | Trừ cọc |
+// Đã trả | Còn nợ — số, ký hiệu, ngày hoá đơn tách cột riêng như bên phải thu, ngày hoá đơn KHÔNG lẫn
+// với ngày nhận hàng (13/10/2026; hạn trả tính từ ngày hoá đơn). Trừ cọc là cột RIÊNG (chủ chốt
 // 27/08/2026): cầm sao kê nhà cung cấp dò không ra giao dịch nào cho phần cọc chiếu xuống. Bấm dòng đợt
 // mở khối "Hàng của đợt" gấp ngay dưới (dòng con trải hết bảng). Dòng Cộng cuối bảng.
 //
@@ -23,7 +25,9 @@ import { HangCuaDot } from "./HangCuaDot";
 
 type Xep = "don" | "han";
 
-/** Bề rộng cột; null = cột co giãn (Hoá đơn), số kèm là chỗ tối thiểu tính vào bề rộng bảng. Tổng tối
+/** Bề rộng cột; null = cột co giãn (Số hoá đơn), số kèm là chỗ tối thiểu tính vào bề rộng bảng.
+ *  Từ 13/10/2026 thêm Ngày nhận hàng, Ký hiệu, Ngày hoá đơn ⇒ bảng rộng hơn cột trái mặc định và
+ *  cuộn ngang (kéo rộng ngăn để thấy hết), giống bên phải thu. Ghi chú cũ: tổng tối
  *  thiểu ≤818px: vừa cột trái của ngăn ở độ rộng mặc định (~840px, trừ thanh cuộn dọc) — không cuộn ngang;
  *  hẹp hơn (dưới 760px) thì khung cuộn. Cột tiền 114px (đủ 9,99 tỷ), Còn nợ 122px (tổng ở dòng Cộng),
  *  Hạn trả 154px (vừa "22/10/2026 còn 14", chữ đủ ở title). Số đã tính đệm ô 10px của lds-g. */
@@ -36,8 +40,9 @@ function cacCot(coChon: boolean, xep: Xep): { rong: (number | null)[]; toiThieu:
   // Lưới lds-g đệm ô 10px (kt-g 9px) ⇒ mọi cột cố định +2px so với số đo trên; chỗ tối thiểu của cột co
   // giãn bớt 6px để tổng "Đơn mua" vẫn 816 ≤ 820.
   const dot = xep === "don" ? 58 : 194;
-  const coGian = xep === "don" ? 110 : 100;
-  const rong = [...(coChon ? [38] : []), dot, null, 154, 114, 106, 114, 122];
+  // Tiêu đề "Ngày nhận hàng" / "Ngày hoá đơn" đo ~100px + đệm ⇒ 120 / 114; số hoá đơn co giãn, tối thiểu 112.
+  const coGian = 112;
+  const rong = [...(coChon ? [38] : []), dot, 120, null, 88, 114, 154, 114, 106, 114, 122];
   return { rong, toiThieu: rong.reduce<number>((t, w) => t + (w ?? coGian), 0) };
 }
 
@@ -67,7 +72,8 @@ function OHanTra({ row, homNay }: { row: PayableItemRow; homNay: string }) {
   );
 }
 
-/** Số hoá đơn của đợt + tệp hoá đơn đính lúc ghi đợt giao bên Thu mua (chỉ đọc, mở tab mới). */
+/** Số hoá đơn của đợt (ký hiệu đứng cột riêng) + tệp hoá đơn đính lúc ghi đợt giao bên Thu mua
+ *  (chỉ đọc, mở tab mới). */
 function OHoaDon({ row }: { row: PayableItemRow }) {
   const tep = row.hoa_don_files ?? [];
   return (
@@ -187,9 +193,12 @@ export function DotConNoBlock({
           ) : (
             <td>{tenKhoan(row)}</td>
           )}
+          <td>{row.delivery_date ? ngay(row.delivery_date) : ""}</td>
           <td title={row.invoice_number ?? undefined}>
             <OHoaDon row={row} />
           </td>
+          <td className="lds-mu">{row.invoice_symbol ?? ""}</td>
+          <td>{row.invoice_date ? ngay(row.invoice_date) : ""}</td>
           <td title={!row.da_tat_toan && !row.chua_dat_han && row.due_date ? chuHanDu(row.due_date, detail.as_of) : undefined}>
             <OHanTra row={row} homNay={detail.as_of} />
           </td>
@@ -226,7 +235,7 @@ export function DotConNoBlock({
                   onDoi={(bat) => dao(idChon, bat)} />
               </td>
             )}
-            <td colSpan={3} title={tenNhom}>
+            <td colSpan={6} title={tenNhom}>
               <span className="lds-dinh-trai">
                 {onMoDon ? (
                   <button type="button" className="kt-lk" onClick={() => onMoDon(don.code)}>{don.code}</button>
@@ -268,7 +277,10 @@ export function DotConNoBlock({
             <tr>
               {coChon && <th aria-label="Chọn" />}
               <th>{xep === "don" ? "Đợt" : "Đơn mua và đợt"}</th>
-              <th>Hoá đơn</th>
+              <th>Ngày nhận hàng</th>
+              <th>Số hoá đơn</th>
+              <th>Ký hiệu</th>
+              <th>Ngày hoá đơn</th>
               <th>Hạn trả</th>
               <th className="n">Giá trị</th>
               <th className="n">Trừ cọc</th>
@@ -280,7 +292,7 @@ export function DotConNoBlock({
             {than}
             <tr className="lds-cong">
               {coChon && <td />}
-              <td colSpan={3}>{`Cộng ${vietSo(khoanNo.length)} đợt`}</td>
+              <td colSpan={6}>{`Cộng ${vietSo(khoanNo.length)} đợt`}</td>
               <td className="n">{vietSo(cong(khoanNo, "amount"))}</td>
               <td className="n"><OTien so={cong(khoanNo, "coc_bu")} /></td>
               <td className="n"><OTien so={cong(khoanNo, "paid")} /></td>

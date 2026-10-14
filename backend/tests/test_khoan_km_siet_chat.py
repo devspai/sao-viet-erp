@@ -85,7 +85,7 @@ def test_TAT_CO_giao_hang_khi_con_chuyen_dang_chay_bi_chan_va_noi_dung_so_chuyen
     pb = _bat_khoi_giao_hang()
     h = _admin(client)
     xe = _tao_xe(client, h, "51S-00001", "Xe siết", 3.5, _muc_co_gia(client, h))
-    # Hai TÀI XẾ: một người không được xếp hai chuyến trùng giờ (luật lịch kíp xe).
+    # Hai TÀI XẾ: mỗi chuyến một kíp cho rõ ai cầm chuyến nào.
     tx = _tai_xe("TX tat co", phong=PHONG_GH)
     tx2 = _tai_xe("TX tat co hai", phong=PHONG_GH)
     dang_giao = _chuyen_dang_giao(client, h, suffix="tc1", tai_xe=tx, xe_id=xe)

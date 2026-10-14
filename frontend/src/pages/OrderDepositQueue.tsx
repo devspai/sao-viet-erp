@@ -1,5 +1,5 @@
 // B3 — Cọc đơn hàng trong module Phiếu thu (spec luồng Đơn→Cọc→SX).
-// Kế toán (quyền `don_hang_ban:record_deposit`) thấy hàng chờ ghi cọc + LẬP phiếu thu cọc NGAY tại đây.
+// Kế toán (quyền Phiếu thu → Tạo) thấy hàng chờ ghi cọc + LẬP phiếu thu cọc NGAY tại đây.
 // Real-time: chốt đơn → SSE `order_deposit_needed` → popup + hàng chờ nhảy; đủ cọc → đơn rời hàng chờ.
 // Component tự chứa, MOUNT có điều kiện quyền ở PaymentReceiptsPage → "chỉ ai có quyền mới nghe/thấy".
 // 26/08/2026 — vỏ hộp Lập phiếu thu cọc chuyển từ `acct-modal` nền trắng giữa màn sang KHUÔN

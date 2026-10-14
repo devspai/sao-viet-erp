@@ -28,6 +28,7 @@ const NHAN_LOAI: Record<string, string> = {
   dot_giao: "Nhận hàng",
   phieu_chi: "Phiếu chi",
   hoan_tien: "NCC hoàn tiền",
+  hoan_tien_khach: "Trả lại tiền khách",
 };
 
 const CHU = {
@@ -44,7 +45,7 @@ const CHU = {
 } as const;
 
 /** Diễn giải máy chủ tự điền khi chứng từ không có nội dung — nói lại đúng cột Loại nên để trống. */
-const DIEN_GIAI_MAC_DINH = new Set(["Hoá đơn bán hàng", "Khách trả tiền", "Hàng đã nhận", "Chi trả nhà cung cấp", "Nhà cung cấp hoàn tiền"]);
+const DIEN_GIAI_MAC_DINH = new Set(["Hoá đơn bán hàng", "Khách trả tiền", "Hàng đã nhận", "Chi trả nhà cung cấp", "Nhà cung cấp hoàn tiền", "Hoàn tiền cho khách"]);
 
 const CO_TRANG = 50;
 
@@ -63,8 +64,12 @@ function gioPhut(iso: string | null): string {
 }
 
 function oSo(n: number): ReactNode {
-  return n > 0 ? soVN(n) : <span className="lds-mu3">–</span>;
+  if (n === 0) return <span className="lds-mu3">–</span>;
+  return n < 0 ? `−${soVN(-n)}` : soVN(n);
 }
+
+/** Chứng từ hoàn tiền: sổ ghi cùng phía hoá đơn / hàng về, ở đây hiện là thu âm / trả âm. */
+const LOAI_HOAN = new Set(["hoan_tien", "hoan_tien_khach"]);
 
 /** Số dư sau chứng từ: âm là bên kia (trả trước) — nói bằng chữ, không in số âm. */
 function oDu(du: number, chuTruoc: string): ReactNode {
@@ -182,8 +187,9 @@ export function SoChiTietDrawer({
   const chieu = (no: number, co: number) => (ben === "payables" ? co - no : no - co);
   const dau = so ? chieu(so.dau_no, so.dau_co) : 0;
   const cuoi = so ? chieu(so.cuoi_no, so.cuoi_co) : 0;
-  const tang = so ? (ben === "payables" ? so.ps_co : so.ps_no) : 0;
-  const giam = so ? (ben === "payables" ? so.ps_no : so.ps_co) : 0;
+  // Tiền hoàn không phải bán ra / nhận hàng: trừ khỏi cột tăng, tính là thu âm / trả âm.
+  const tang = so ? (ben === "payables" ? so.ps_co : so.ps_no) - so.hoan : 0;
+  const giam = so ? (ben === "payables" ? so.ps_no : so.ps_co) - so.hoan : 0;
   const quaHan = (khoan?.items ?? []).reduce((t, k) => t + ((k.tre_ngay ?? 0) > 0 ? k.con_no : 0), 0);
   const soKhoan = khoan?.items.length ?? 0;
 
@@ -202,7 +208,7 @@ export function SoChiTietDrawer({
       <span className="bccn-pt__dau" aria-hidden="true">+</span>
       {o(c.tang, soVN(tang))}
       <span className="bccn-pt__dau" aria-hidden="true">−</span>
-      {o(c.giam, soVN(giam))}
+      {o(c.giam, giam < 0 ? `−${soVN(-giam)}` : soVN(giam))}
       <span className="bccn-pt__dau" aria-hidden="true">=</span>
       {cuoi >= 0 ? o("Còn nợ cuối kỳ", soVN(cuoi), "bccn-pt__o--cuoi") : o(c.traTruoc, soVN(-cuoi), "bccn-pt__o--cuoi")}
       {quaHan > 0 && o("Trong đó quá hạn", <span className="lds-do">{soVN(quaHan)}</span>, "bccn-pt__o--tach")}
@@ -291,8 +297,11 @@ export function SoChiTietDrawer({
                     </tr>
                   ) : (
                     so.dong.map((d, i) => {
-                      const t = ben === "payables" ? d.co : d.no;
-                      const g = ben === "payables" ? d.no : d.co;
+                      const hoan = LOAI_HOAN.has(d.loai);
+                      const t0 = ben === "payables" ? d.co : d.no;
+                      const g0 = ben === "payables" ? d.no : d.co;
+                      const t = hoan ? 0 : t0;
+                      const g = hoan ? -t0 : g0;
                       const nhan = NHAN_LOAI[d.loai] ?? d.loai;
                       return (
                         <tr key={`${d.so_ct}-${d.ngay}-${i}`}>
@@ -313,7 +322,7 @@ export function SoChiTietDrawer({
                       Còn nợ cuối kỳ <span className="lds-mu">{`hết ngày ${ngay(denNgay)}`}</span>
                     </td>
                     <td className="n">{soVN(tang)}</td>
-                    <td className="n">{soVN(giam)}</td>
+                    <td className="n">{giam < 0 ? `−${soVN(-giam)}` : soVN(giam)}</td>
                     <td className="n">{oDu(cuoi, c.traTruoc)}</td>
                   </tr>
                 </tbody>

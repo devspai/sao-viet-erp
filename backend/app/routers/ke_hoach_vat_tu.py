@@ -146,7 +146,7 @@ def luoi(
     _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
     xem: Literal["lenh", "hang"] = Query(default="lenh", description="Nhóm theo lệnh / mặt hàng"),
     q: str | None = Query(default=None, description="Mã lệnh, sản phẩm, mặt hàng, mã phiếu"),
-    tinh_trang: Literal["chua_tinh", "can_mua", "dang_mua", "chua_giu", "cho_ve", "co_kho",
+    tinh_trang: Literal["chua_tinh", "can_mua", "nen_nha", "dang_mua", "chua_giu", "cho_ve", "co_kho",
                         "da_xuat", "co_ghi_chu"] | None = Query(default=None),
     hang_loai: Literal["giay", "vat_tu"] | None = Query(default=None),
     page: int = Query(default=1, ge=1),
@@ -163,7 +163,7 @@ def luoi_xuat(
     _user: Annotated[object, Depends(require_permission(MODULE, "read"))],
     xem: Literal["lenh", "hang"] = Query(default="lenh"),
     q: str | None = Query(default=None),
-    tinh_trang: Literal["chua_tinh", "can_mua", "dang_mua", "chua_giu", "cho_ve", "co_kho",
+    tinh_trang: Literal["chua_tinh", "can_mua", "nen_nha", "dang_mua", "chua_giu", "cho_ve", "co_kho",
                         "da_xuat", "co_ghi_chu"] | None = Query(default=None),
     hang_loai: Literal["giay", "vat_tu"] | None = Query(default=None),
 ) -> Response:

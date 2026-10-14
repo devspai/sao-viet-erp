@@ -23,7 +23,11 @@
 .dga-nut { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
 .dga-anh { cursor: pointer; border: 0; font: inherit; }
 .dga-chan { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.dgd-hd { display: grid; grid-template-columns: 1fr 140px; gap: 6px; }
+/* Hoá đơn của đợt: Ký hiệu | Số hoá đơn một hàng, Ngày hoá đơn hàng dưới — mỗi ô một nhãn nhỏ để
+   không lẫn ngày hoá đơn với ngày nhận hàng (13/10/2026). */
+.dgd-hd { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 8px; }
+.dgd-hd__o { display: block; min-width: 0; }
+.dgd-hd__o > span { display: block; font-size: 12px; color: var(--ash-2); margin-bottom: 4px; }
 /* Hộp Ghi đợt giao: chọn nhanh hoá đơn cách ô số một nhịp; vùng thả tệp giãn đủ bề ngang khối
    (là <button> nên mặc định co theo chữ); ô ảnh CHƯA LƯU phân biệt bằng viền đứt xám + nhãn tối
    nằm gọn trong ảnh, không dùng màu cam nhấn. */

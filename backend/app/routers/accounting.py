@@ -520,12 +520,16 @@ def bao_cao_tong_hop_phai_thu(
     page: int = Query(default=1, ge=1),
     #: Bỏ trống = trả hết dòng (người gọi cũ).
     size: int | None = Query(default=None, ge=1, le=200),
+    #: `con_no` = còn nợ cuối kỳ giảm dần (dạng biểu đồ); bỏ trống = theo tên.
+    sap_xep: str | None = Query(default=None, pattern="^(ten|con_no)$"),
 ) -> BaoCaoCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
     bc = _loc_tim_so(
         _loc_ro(svc.bao_cao_phai_thu(tu_ngay=tu_ngay, den_ngay=den_ngay), aging_bucket), q
     )
-    return BaoCaoCongNoOut(**bao_cao_cong_no.loc_the_va_cat_trang(bc, the=the, page=page, size=size))
+    return BaoCaoCongNoOut(
+        **bao_cao_cong_no.loc_the_va_cat_trang(bc, the=the, page=page, size=size, sap_xep=sap_xep)
+    )
 
 
 @router.get("/api/accounting/reports/payables", response_model=BaoCaoCongNoOut)
@@ -544,12 +548,16 @@ def bao_cao_tong_hop_phai_tra(
     page: int = Query(default=1, ge=1),
     #: Bỏ trống = trả hết dòng (người gọi cũ).
     size: int | None = Query(default=None, ge=1, le=200),
+    #: `con_no` = còn nợ cuối kỳ giảm dần (dạng biểu đồ); bỏ trống = theo tên.
+    sap_xep: str | None = Query(default=None, pattern="^(ten|con_no)$"),
 ) -> BaoCaoCongNoOut:
     _khoang_ngay(tu_ngay, den_ngay)
     bc = _loc_tim_so(
         _loc_ro(svc.bao_cao_phai_tra(tu_ngay=tu_ngay, den_ngay=den_ngay), aging_bucket), q
     )
-    return BaoCaoCongNoOut(**bao_cao_cong_no.loc_the_va_cat_trang(bc, the=the, page=page, size=size))
+    return BaoCaoCongNoOut(
+        **bao_cao_cong_no.loc_the_va_cat_trang(bc, the=the, page=page, size=size, sap_xep=sap_xep)
+    )
 
 
 # SỔ CHI TIẾT của MỘT đối tượng (PRD §5.1) — mở ra khi bấm một dòng ở sổ tổng hợp.
@@ -1046,6 +1054,8 @@ def list_payment_vouchers(
     tien_den: int | None = Query(default=None, ge=0),
     hinh_thuc: str | None = Query(default=None, pattern="^(cash|bank_transfer)$"),
     nguon: list[str] = Query(default=[]),
+    # Lọc theo mục thu chi — id mục; 0 = phiếu chưa phân loại.
+    muc: list[int] = Query(default=[]),
     tai_khoan_id: int | None = Query(default=None),
     nguoi_lap_id: int | None = Query(default=None),
     chung_tu: str | None = Query(default=None, pattern="^(co|thieu)$"),
@@ -1073,6 +1083,7 @@ def list_payment_vouchers(
         tien_den=tien_den,
         hinh_thuc=hinh_thuc,
         nguon=nguon,
+        muc=muc,
         tai_khoan_id=tai_khoan_id,
         nguoi_lap_id=nguoi_lap_id,
         chung_tu=chung_tu,
@@ -1354,6 +1365,8 @@ def list_payment_receipts(
     tien_den: int | None = Query(default=None, ge=0),
     hinh_thuc: str | None = Query(default=None, pattern="^(cash|bank_transfer)$"),
     nguon: list[str] = Query(default=[]),
+    # Lọc theo mục thu chi — id mục; 0 = phiếu chưa phân loại.
+    muc: list[int] = Query(default=[]),
     tai_khoan_id: int | None = Query(default=None),
     nguoi_lap_id: int | None = Query(default=None),
     chung_tu: str | None = Query(default=None, pattern="^(co|thieu)$"),
@@ -1379,6 +1392,7 @@ def list_payment_receipts(
         tien_den=tien_den,
         hinh_thuc=hinh_thuc,
         nguon=nguon,
+        muc=muc,
         tai_khoan_id=tai_khoan_id,
         nguoi_lap_id=nguoi_lap_id,
         chung_tu=chung_tu,
@@ -1416,6 +1430,26 @@ def create_other_payment_receipt(
 ):
     try:
         row = svc.create_other_receipt(actor=user, **payload.model_dump())
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+    _notify_accounting_changed(row.get("code"))
+    return PaymentReceiptOut(**row)
+
+
+@router.post(
+    "/api/accounting/payables/{supplier_id}/refund-receipts",
+    response_model=PaymentReceiptOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_supplier_refund_receipt(
+    supplier_id: int,
+    payload: PaymentReceiptIn,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PT, "create"))],
+):
+    """Nhà cung cấp hoàn tiền — nút ở ngăn Công nợ phải trả (12/10/2026)."""
+    try:
+        row = svc.create_supplier_refund_receipt(supplier_id, actor=user, **payload.model_dump())
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
     _notify_accounting_changed(row.get("code"))

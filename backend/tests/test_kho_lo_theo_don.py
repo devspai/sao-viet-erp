@@ -102,9 +102,8 @@ def _dung(db, orders, lsx_svc, admin, customer):
                            ngay_can_giao=hom_nay)
     db.add(ycgh)
     db.flush()
-    bay_gio = datetime.now(timezone.utc)
-    trip = DeliveryTrip(request_id=ycgh.id, lan_thu=1, employee_id=emp.id, gio_lay_hang=bay_gio,
-                        gio_du_kien_giao=bay_gio + timedelta(hours=2), trang_thai=LG_DA_LEN_KE_HOACH)
+    trip = DeliveryTrip(request_id=ycgh.id, lan_thu=1, employee_id=emp.id,
+                        trang_thai=LG_DA_LEN_KE_HOACH)
     db.add(trip)
     db.commit()
     xuat = _req_service(db, _hang_service(db)).create(

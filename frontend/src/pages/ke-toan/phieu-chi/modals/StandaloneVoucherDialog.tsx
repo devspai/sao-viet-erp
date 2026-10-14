@@ -16,6 +16,7 @@ import {
 import { useAuth } from "../../../../auth/useAuth";
 import { THU_TU_O_MOI } from "../components/KhoiPhieuChi";
 import { KhungFormPhieu, loiNgayChi, nhayToiLoi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
+import { useMucThuChi } from "../../shared/OChonMuc";
 import { BanXemPhieuChi, ThanPhieuChiRoi } from "../components/ThanPhieuChiRoi";
 import { taiChungTuSauKhiLap } from "../components/VoucherAttachSection";
 import { loiChuyenKhoan } from "../components/VoucherRecipientSection";
@@ -55,7 +56,11 @@ export function StandaloneVoucherDialog({
     debit_account: null,
     credit_account: null,
     note: null,
+    muc_thu_chi_id: null,
+    customer_id: null,
   }));
+  const muc = useMucThuChi("chi");
+  const mucChon = muc.ds.find((m) => m.id === form.muc_thu_chi_id) ?? null;
   const goc = useRef(JSON.stringify(form));
   const [companyAccounts, setCompanyAccounts] = useState<CompanyBankAccountRow[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
@@ -101,6 +106,7 @@ export function StandaloneVoucherDialog({
     const l: LoiForm = {};
     if (!form.cash_recipient_name?.trim()) l.cash_recipient_name = "Ghi người hoặc đơn vị nhận tiền.";
     if (!Number.isFinite(form.amount) || form.amount <= 0) l.amount = "Số tiền chi phải lớn hơn 0.";
+    if (!form.muc_thu_chi_id) l.muc_thu_chi_id = "Chọn mục chi.";
     if (!form.content.trim()) l.content = "Ghi lý do chi.";
     const loiNgay = loiNgayChi(form.voucher_date);
     if (loiNgay) l.voucher_date = loiNgay;
@@ -148,6 +154,8 @@ export function StandaloneVoucherDialog({
       invoice_date: optional(form.invoice_number) ? optional(form.invoice_date) : null,
       contract_number: optional(form.contract_number),
       note: optional(form.note),
+      muc_thu_chi_id: form.muc_thu_chi_id ?? null,
+      customer_id: null,
     };
     setSaving(true);
     setError(null);
@@ -180,11 +188,11 @@ export function StandaloneVoucherDialog({
       chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0)}
       onSubmit={() => void submit()}
       nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
-      banXem={<BanXemPhieuChi form={form} taiKhoan={companyAccounts} soChungTu={files.length} nguon="other" />}
+      banXem={<BanXemPhieuChi form={form} taiKhoan={companyAccounts} soChungTu={files.length} nguon="other" tenMuc={mucChon?.ten} />}
     >
       <ThanPhieuChiRoi form={form} set={set} loi={loi} onDoiCach={chonCach} taiKhoan={companyAccounts}
         dangTai={loadingAccounts} loiTai={loiTaiKhoan} onMoTaiKhoan={onMoTaiKhoan}
-        files={files} setFiles={setFiles} loiTep={loiTep} setLoiTep={setLoiTep} />
+        files={files} setFiles={setFiles} loiTep={loiTep} setLoiTep={setLoiTep} muc={muc} />
     </KhungFormPhieu>
   );
 }

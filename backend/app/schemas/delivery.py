@@ -102,9 +102,6 @@ class PlanIn(BaseModel):
     #: (chủ chốt 12/09/2026). Nullable ở schema chứ không ở luật: máy chủ chặn bằng `_doi_xe` để
     #: câu báo lỗi nói được LÝ DO, thay vì 422 "field required" trống trơn.
     vehicle_id: int | None = None
-    gio_lay_hang: datetime
-    gio_du_kien_giao: datetime
-    kho_id: int | None = None
     ghi_chu_phan_cong: str | None = None
     #: LƯỢT XE (PRD khoán km §14): `"moi"` = lượt mới · id = ghép vào lượt đang mở của CÙNG xe ·
     #: bỏ trống = không vào lượt (đường cũ: một ô km cho cả chuyến).
@@ -118,8 +115,6 @@ class PlanUpdate(BaseModel):
     phu_xe_employee_id: int | None = None
     #: Gửi `null` = GỠ xe; KHÔNG gửi = giữ nguyên — cùng cơ chế `exclude_unset` như phụ xe.
     vehicle_id: int | None = None
-    gio_lay_hang: datetime | None = None
-    gio_du_kien_giao: datetime | None = None
     ghi_chu_phan_cong: str | None = None
 
 
@@ -159,6 +154,8 @@ class TripLineOut(BaseModel):
 class PhieuKhoOut(BaseModel):
     """Phiếu kho THẬT (không phải yêu cầu) của một chuyến — tab Chứng từ của ngăn lượt xe."""
 
+    #: id phiếu — bấm mã ở tab Chứng từ mở ngăn phiếu của màn Kho.
+    id: int | None = None
     ma: str
     #: `draft` = kho đã lập, chưa ghi sổ · `posted` = đã ghi sổ.
     trang_thai: str
@@ -194,8 +191,6 @@ class TripOut(BaseModel):
     #: Biển số + tên xe để bảng chuyến đọc được ngay, khỏi tra danh mục cho từng dòng.
     xe_bien_so: str | None = None
     xe_ten: str | None = None
-    gio_lay_hang: datetime
-    gio_du_kien_giao: datetime
     ghi_chu_phan_cong: str | None = None
     trang_thai: str
     km: int | None = None
@@ -214,6 +209,11 @@ class TripOut(BaseModel):
     # Giao hàng). None = chưa gửi.
     yeu_cau_kho_ma: str | None = None
     yeu_cau_kho_trang_thai: str | None = None
+    #: Giờ hẹn kho soạn xong (wall-clock giờ nhà máy, như đề nghị của xưởng) và ngày cần — thay
+    #: cho giờ lấy hàng đã gỡ (mg 0400). Không có giờ thì chỉ có ngày.
+    yeu_cau_kho_id: int | None = None
+    yeu_cau_kho_can_luc: datetime | None = None
+    yeu_cau_kho_ngay_can: date | None = None
     #: Kho đã LẬP PHIẾU chưa ⇒ hiện "Kho đã chuẩn bị xong". Suy ra từ `stock_vouchers`, không
     #: phải cột lưu — kho thao tác trên màn của họ, cột lưu ở đây sớm muộn lệch với sổ kho.
     kho_da_lap_phieu: bool = False
@@ -221,6 +221,7 @@ class TripOut(BaseModel):
     #: KHO nhận bằng phiếu nhập; `done` = kho đã nhận lại đủ (19/09/2026).
     tra_hang_ma: str | None = None
     tra_hang_trang_thai: str | None = None
+    tra_hang_id: int | None = None
     #: Lượt xe của chuyến (PRD khoán km §14). None = chuyến ngoài lượt (đường cũ, một ô km).
     luot: "LuotXeTrongChuyenOut | None" = None
     #: Cảnh báo KHÔNG chặn của thao tác vừa làm (vd "xe chạy ngoài sổ N km").
@@ -285,13 +286,24 @@ class LuotXeMoPage(BaseModel):
 class BatDauGiaoIn(BaseModel):
     #: Chỉ chuyến ĐẦU của một lượt xe mới cần — số đồng hồ lúc xe rời kho.
     so_dong_ho_xuat_phat: int | None = Field(default=None, ge=0)
-    #: Số nhỏ hơn số cuối của xe hoặc vượt > KM_CANH_BAO km bị chặn cho tới khi xác nhận.
+    #: Số nhỏ hơn số cuối của xe bị chặn cho tới khi xác nhận.
     xac_nhan_km_lon: bool = False
 
 
 class VeKhoIn(BaseModel):
     so_dong_ho: int = Field(ge=0)
-    xac_nhan_km_lon: bool = False
+
+
+class GoiYXuatPhatOut(BaseModel):
+    """Số cuối của xe mà hộp Bắt đầu giao lấy sẵn, kèm nơi nó được ghi."""
+
+    so: int
+    #: `ve_kho` · `toi_khach` (lượt đó chưa ghi về kho) · `xuat_phat`.
+    loai: str
+    luot_code: str
+    ngay: date
+    #: Giờ về kho — chỉ có khi `loai = ve_kho`.
+    luc: datetime | None = None
 
 
 class VeKhoOut(BaseModel):
@@ -312,8 +324,6 @@ class LenLuotIn(BaseModel):
     phu_xe_employee_id: int | None = None
     #: Lượt là vòng chạy của MỘT chiếc xe ⇒ bắt buộc (service chặn để câu lỗi nói được lý do).
     vehicle_id: int | None = None
-    gio_lay_hang: datetime
-    gio_du_kien_giao: datetime
     ghi_chu_phan_cong: str | None = None
     #: `"moi"` = lượt mới · id = ghép vào lượt đang mở của cùng xe.
     luot_xe_id: int | Literal["moi"] = "moi"
@@ -324,6 +334,51 @@ class LenLuotOut(BaseModel):
     code: str
     trips: list[TripOut]
     canh_bao: list[str] = []
+    #: Mã đề nghị xuất kho vừa gửi kèm lên đơn — mỗi chuyến một phiếu.
+    phieu: list[str] = []
+
+
+class DeNghiKhoHangOut(BaseModel):
+    ten: str | None = None
+    ma: str | None = None
+    so_luong: float
+    dvt: str | None = None
+
+
+class DeNghiKhoOut(BaseModel):
+    """Đề nghị xuất kho của một chuyến — bước "gửi kho" ngay sau Lên đơn / Lên lượt (12/10/2026):
+    người lên đơn hẹn giờ cho kho và dặn kho ở đây, hàng thì khoá theo yêu cầu giao."""
+
+    id: int
+    ma: str
+    trip_id: int
+    request_code: str | None = None
+    customer_name: str | None = None
+    order_code: str | None = None
+    ngay_can_giao: date | None = None
+    ngay_can: date | None = None
+    #: Wall-clock giờ nhà máy (không múi), cùng khuôn `can_luc` bên kho.
+    can_luc: datetime | None = None
+    ghi_chu: str | None = None
+    kho_ten: str | None = None
+    #: Kho chưa lập phiếu và đề nghị chưa đóng ⇒ còn hẹn lại / dặn lại được.
+    sua_duoc: bool = False
+    hang: list[DeNghiKhoHangOut] = []
+
+
+class DeNghiKhoDong(BaseModel):
+    trip_id: int
+    ghi_chu: str | None = Field(default=None, max_length=500)
+
+
+class DeNghiKhoIn(BaseModel):
+    """Một ngày + giờ (tuỳ chọn) CHUNG cho mọi đề nghị gửi lên — một lượt là một xe tới lấy một
+    lần; ghi chú thì riêng từng đề nghị."""
+
+    ngay_can: date
+    #: "HH:MM" giờ nhà máy; bỏ trống = kho chỉ thấy ngày.
+    gio_can: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    dong: list[DeNghiKhoDong] = Field(min_length=1)
 
 
 class LuotXeChiTietOut(BaseModel):
@@ -340,6 +395,8 @@ class LuotXeChiTietOut(BaseModel):
     ve_kho_luc: datetime | None = None
     km_ve_kho: int | None = None
     goi_y_xuat_phat: int | None = None
+    #: Lượt + lúc ghi của `goi_y_xuat_phat` — hộp Bắt đầu giao nói số lấy sẵn từ đâu ra.
+    goi_y_nguon: GoiYXuatPhatOut | None = None
     #: Số lớn nhất đã ghi trong lượt (hoặc số xuất phát) — xem trước chặng về kho.
     so_dong_ho_gan_nhat: int | None = None
     #: Mọi điểm đã có kết quả, lượt chưa về kho ⇒ bày nút "Về kho".
@@ -347,7 +404,7 @@ class LuotXeChiTietOut(BaseModel):
     tong_km: int = 0
     #: Các điểm theo THỨ TỰ CHẶNG (số đồng hồ tăng dần; chưa có số thì xếp cuối).
     diem: list[TripOut] = []
-    so_cho_gui_kho: int = 0
+    #: Chuyến đang chờ kho xuất hàng (lên đơn đã gửi kho; kho ghi sổ thì tự sang đã lấy hàng).
     so_cho_lay_hang: int = 0
     so_cho_bat_dau: int = 0
     so_dang_giao: int = 0
@@ -372,10 +429,6 @@ class BangGiaoPage(BaseModel):
     dem_tinh_trang: dict[str, int] = {}
 
 
-class GuiXuatKhoCaLuotIn(BaseModel):
-    ghi_chu: str | None = None
-
-
 class CaLuotOut(BaseModel):
     """Kết quả một thao tác cả lượt: bao nhiêu chuyến vừa đi tiếp + cảnh báo không chặn."""
 
@@ -392,6 +445,8 @@ class TripPage(BaseModel):
 class PlanOut(BaseModel):
     trip: TripOut
     canh_bao: list[str] = []
+    #: Mã đề nghị xuất kho vừa gửi kèm lên đơn.
+    phieu: list[str] = []
 
 
 class HistoryOut(BaseModel):
@@ -409,36 +464,6 @@ class RequestDetailOut(BaseModel):
     request: DeliveryRequestOut
     trips: list[TripOut] = []
     lich_su: list[HistoryOut] = []
-
-
-# --- Yêu cầu xuất kho (dùng CHỨNG TỪ CỦA KHO, không dựng loại riêng) --------------------------
-class HangCanXuatOut(BaseModel):
-    """Một dòng SẼ gửi kho — máy suy ra, người dùng chỉ xem."""
-
-    hang_loai: str
-    hang_id: int
-    hang_ten: str | None = None
-    dvt: str
-    sl_de_nghi: float
-
-
-class YeuCauXuatKhoIn(BaseModel):
-    """Chỉ gửi xuống kho. Dòng hàng suy ra từ chính yêu cầu giao — không nhận từ ngoài.
-
-    `kho_id` để TRỐNG (chủ 21/08/2026: "gửi phiếu xuống kho để họ duyệt, mà họ xuất kho nào kệ
-    họ chứ"). Người gửi không biết hàng đang nằm kho nào — thủ kho biết. Màn Hộp yêu cầu bên kho
-    vốn đã tự chọn được (`request.kho_id ?? initialKhoId`), nên để trống không kẹt ai.
-    """
-
-    kho_id: int | None = None
-    ngay_can: date | None = None
-    ghi_chu: str | None = None
-
-
-class YeuCauKhoOut(BaseModel):
-    id: int
-    ma: str
-    trang_thai: str
 
 
 # --- Tab Nhân viên giao hàng -------------------------------------------------------------

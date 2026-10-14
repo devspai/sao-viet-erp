@@ -269,6 +269,18 @@ export function mayChonDuoc<T extends { id: number; nhom?: string | null; active
   return con.filter((m) => (m.nhom != null && nhom.includes(m.nhom)) || m.id === mayDangGan);
 }
 
+/** MÁY MẶC ĐỊNH của công đoạn = máy còn dùng đứng ĐẦU bảng "Máy chạy được công đoạn này" — cùng luật
+ *  server (`LsxService._may_mac_dinh`), cùng ý tổ đầu = tổ mặc định. Chưa khai máy ⇒ không có. */
+export function mayMacDinh<T extends { id: number; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null } | null | undefined,
+): number | null {
+  for (const id of cd?.mayChoPhep ?? []) {
+    if (mayRefs.some((m) => m.id === id && m.active !== false)) return id;
+  }
+  return null;
+}
+
 export function emptyRow(): EditRow {
   return {
     key: newKey(), id: null, cong_doan_id: null, ten: "", nhom: null, loai_buoc: "may",
@@ -562,8 +574,9 @@ export function thoiLuongLive(r: ThoiLuongInput, may?: MayTinhGio | null): Recor
       theoMay && r.may_id === null
         ? "Bước chưa gán máy nên chưa biết chạy trên máy nào — chọn máy ở tab Phân công & Thiết bị. "
           + "Cách đo giờ chạy và tốc độ đều khai theo cặp (công đoạn × máy)."
-        : "Chưa quy đổi được số lượng vào sang đơn vị của tốc độ nên không tính được thời gian chạy. "
-          + "Khai cầu quy đổi (hoặc công thức cho đơn vị đó) ở Cấu hình danh mục → Đơn vị & quy đổi."
+        // Cùng câu với server — xem chú thích ở `thoi_luong_buoc` vì sao không chỉ về Đơn vị & quy đổi.
+        : "Chưa đổi được số lượng vào sang đơn vị tốc độ của máy nên không tính được thời gian chạy. "
+          + "Khai ô \"Cách đo giờ chạy\" của máy này ở Cấu hình danh mục → Công đoạn → bảng máy của công đoạn."
     );
   } else if (phuongPhap === "thieu_nang_suat") {
     canhBao.push("Máy đang gán chưa khai tốc độ (hoặc bước chưa gán máy) nên không tính được thời gian chạy.");

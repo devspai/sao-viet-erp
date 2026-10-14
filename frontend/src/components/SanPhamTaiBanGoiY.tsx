@@ -1,50 +1,63 @@
-// Ô TÌM Sản phẩm tái bản — thành phẩm CỦA KHÁCH đầu phiếu (11/10/2026). Mở ô là thấy danh sách hàng
-// của khách, gõ để lọc theo tên hoặc mã. Chọn một kết quả là gắn mã + nạp NGUYÊN cấu hình kỹ thuật đã
-// từng chốt đơn. Chưa chọn khách thì ô khoá — mã thuộc về khách. Ô này là một Ô RIÊNG (khác ô "Tên sản phẩm" bên
-// cạnh): gõ xong CHỌN là kích hoạt hành động nạp (không tự giữ giá trị) — nên input tự trở về
-// rỗng sau khi chọn, sẵn sàng cho lượt tìm tiếp theo.
+// Ô TÊN SẢN PHẨM có gợi ý hàng khách đã đặt (11/10/2026). Một ô gánh cả hai việc: gõ tên rồi đi tiếp
+// = sản phẩm mới; chọn một dòng gợi ý = tái bản mã đó (gắn mã + nạp NGUYÊN cấu hình kỹ thuật đã từng
+// chốt đơn). Trước đây tách hai ô "Tên sản phẩm" + "Sản phẩm tái bản" kèm câu nhắc trùng tên — người
+// lập phiếu phải tự hiểu ba thứ liên quan nhau thế nào. Gợi ý chỉ lấy mã CỦA KHÁCH đầu phiếu; chưa
+// chọn khách thì ô là ô gõ tên thường, không có danh sách.
 //
 // Tái dùng nguyên bộ CSS `.kho-combo*` sẵn có trong repo (global, xem `cssKhongCuop.test.ts`) —
 // cùng một ngôn ngữ thị giác cho "gõ tên, chọn gợi ý".
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { api, ApiError, type SanPhamTaiBanGoiY as GoiY } from "../api/client";
+import { api, type SanPhamTaiBanGoiY as GoiY } from "../api/client";
+import { boDau } from "../utils/timGanDung";
 
 export function SanPhamTaiBanGoiY({
   token,
   customerId,
+  value,
+  onChange,
   onChon,
-  placeholder = "Chọn hoặc gõ tên, mã sản phẩm của khách",
-  ariaLabel = "Tìm sản phẩm tái bản",
+  placeholder,
+  ariaLabel = "Tên sản phẩm",
 }: {
   token: string;
-  /** Khách đầu phiếu. Null = chưa chọn khách ⇒ ô khoá. */
+  /** Khách đầu phiếu. Null = chưa chọn khách ⇒ không gợi ý. */
   customerId: number | null;
+  value: string;
+  onChange: (ten: string) => void;
+  /** Chọn một hàng cũ của khách ⇒ tái bản mã đó. */
   onChon: (id: number) => void;
   placeholder?: string;
   ariaLabel?: string;
 }) {
-  const [value, setValue] = useState("");
   const [opts, setOpts] = useState<GoiY[]>([]);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  // Đang chờ kết quả lượt gõ hiện tại — chưa có kết quả thì KHÔNG được nói "khách chưa đặt hàng nào".
+  const [dangTim, setDangTim] = useState(false);
+  const [active, setActive] = useState(-1);
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const coGoiY = customerId != null;
 
   useEffect(() => {
     if (!open || customerId == null) return;
     let huy = false;
+    setDangTim(true);
     const t = setTimeout(() => {
       api.phieuTinhGia
         .timSanPhamTaiBan(token, customerId, value.trim(), 20)
         .then((items) => {
           if (huy) return;
-          setOpts(items);
-          setActive(0);
+          // Tên gõ trùng hệt một hàng cũ ⇒ đẩy dòng đó lên đầu để thấy ngay lúc gõ.
+          const k = boDau(value.trim());
+          const xep = k ? [...items].sort((a, b) => Number(boDau(b.ten) === k) - Number(boDau(a.ten) === k)) : items;
+          setOpts(xep);
+          setActive(-1);
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => !huy && setDangTim(false));
     }, 200);
     return () => {
       huy = true;
@@ -80,7 +93,6 @@ export function SanPhamTaiBanGoiY({
 
   function chon(o: GoiY) {
     onChon(o.id);
-    setValue("");
     setOpen(false);
   }
 
@@ -90,6 +102,15 @@ export function SanPhamTaiBanGoiY({
       role="listbox"
       style={rect ? { top: rect.top, left: rect.left, width: rect.width } : undefined}
     >
+      <li className="kho-combo__empty" role="presentation">
+        {dangTim && opts.length === 0
+          ? "Đang tìm…"
+          : opts.length > 0
+          ? "Hàng khách đã đặt, chọn để tái bản"
+          : value.trim()
+            ? "Khách chưa đặt hàng nào tên như vậy, đây là sản phẩm mới."
+            : "Khách chưa đặt hàng nào."}
+      </li>
       {opts.map((o, i) => (
         <li
           key={o.id}
@@ -108,11 +129,6 @@ export function SanPhamTaiBanGoiY({
           </span>
         </li>
       ))}
-      {opts.length === 0 && (
-        <li className="kho-combo__empty" role="presentation">
-          {value.trim() ? "Khách chưa có sản phẩm nào tên hoặc mã như vậy." : "Khách chưa có sản phẩm nào."}
-        </li>
-      )}
     </ul>
   );
 
@@ -123,37 +139,35 @@ export function SanPhamTaiBanGoiY({
         className="tg-input"
         type="text"
         value={value}
-        placeholder={customerId == null ? "Chọn khách hàng ở đầu phiếu trước" : placeholder}
-        disabled={customerId == null}
+        placeholder={placeholder ?? (coGoiY ? "Gõ tên mới hoặc chọn hàng khách đã đặt" : "VD Thân hộp / Ruột / Bìa")}
         aria-label={ariaLabel}
         autoComplete="off"
         onChange={(e) => {
-          setValue(e.target.value);
-          setOpen(true);
+          onChange(e.target.value);
+          if (coGoiY) setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => coGoiY && setOpen(true)}
         onKeyDown={(e) => {
+          if (!coGoiY) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setOpen(true);
-            setActive((a) => Math.min(a + 1, Math.max(0, opts.length - 1)));
+            setActive((a) => Math.min(a + 1, opts.length - 1));
           } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            setActive((a) => Math.max(a - 1, 0));
+            setActive((a) => Math.max(a - 1, -1));
           } else if (e.key === "Enter") {
-            if (!open || active >= opts.length) return;
+            // Chưa chủ động chọn dòng nào (active = -1) thì Enter KHÔNG tự gắn tái bản — gõ tên mới
+            // rồi Enter không được biến thành in lại hàng cũ.
+            if (!open || active < 0 || active >= opts.length) return;
             e.preventDefault();
             chon(opts[active]);
-          } else if (e.key === "Escape") {
+          } else if (e.key === "Escape" || e.key === "Tab") {
             setOpen(false);
           }
         }}
       />
-      {open && createPortal(list, document.body)}
+      {open && coGoiY && createPortal(list, document.body)}
     </div>
   );
 }
-
-// Re-export type để tránh import trùng `ApiError` không dùng gây lỗi lint ở nơi khác — giữ tối
-// giản, module này chỉ cần `api`.
-export type { ApiError };

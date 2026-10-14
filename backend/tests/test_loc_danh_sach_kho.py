@@ -236,3 +236,36 @@ def test_yeu_cau_loc_phong_ban_nguoi_yeu_cau_va_kho(client):
                      params={"loai": "NHAP", "kho": kho_b}).json()
     assert sum(dem.values()) == 1
     assert c["ma"] not in _ma(client.get(URL_YC, headers=h, params={"loai": "NHAP", "kho": kho_b}))
+
+
+def test_yeu_cau_loc_theo_nguon_va_dem_tab(client):
+    """Điều kiện Nguồn (12/10/2026): các nguồn LOẠI TRỪ nhau theo thứ tự ô Nguồn trên danh sách;
+    `/loc-nguon` đếm đúng tầm nhìn, và số tab theo trạng thái cũng áp nguồn."""
+    kho_id, mat = _setup(client)
+    h = _admin(client)
+    mua, giao, kcs, gc, tay, xuat_cv = (
+        _approved_request(client, kho_id=kho_id, loai=loai, mat_id=mat, qty=i + 1)
+        for i, loai in enumerate(["NHAP", "XUAT", "NHAP", "NHAP", "NHAP", "XUAT"]))
+    _sua_yc(mua["id"], purchase_delivery_id=901)
+    _sua_yc(giao["id"], delivery_trip_id=902)
+    _sua_yc(kcs["id"], san_xuat_cong_viec_id=903, gia_cong_ngoai_id=904)   # KCS đứng trước gia công
+    _sua_yc(gc["id"], gia_cong_ngoai_id=905)
+    _sua_yc(xuat_cv["id"], san_xuat_cong_viec_id=906)    # XUẤT có công việc ≠ KCS ⇒ không nguồn
+
+    so = {d["id"]: d["so"] for d in client.get(f"{URL_YC}/loc-nguon", headers=h).json()}
+    assert so == {"mua_hang": 1, "giao_hang": 1, "kcs": 1, "gia_cong": 1, "khong": 2}
+
+    def ma(*nguon):
+        return set(_ma(client.get(URL_YC, headers=h, params={"nguon": list(nguon)})))
+
+    assert ma("kcs") == {kcs["ma"]}
+    assert ma("gia_cong") == {gc["ma"]}
+    assert ma("khong") == {tay["ma"], xuat_cv["ma"]}
+    assert ma("mua_hang", "giao_hang") == {mua["ma"], giao["ma"]}
+    assert ma("san_xuat") == set()
+    assert len(ma("khong", "la_ma_khong_co")) == 2          # giá trị lạ bị bỏ qua
+    dem = client.get(f"{URL_YC}/counts-by-status", headers=h, params={"nguon": ["kcs", "gia_cong"]}).json()
+    assert sum(dem.values()) == 2
+    xuat = client.get(f"{URL_YC}/loc-nguon", headers=h, params={"loai": "XUAT"}).json()
+    assert {d["id"]: d["so"] for d in xuat} == {"giao_hang": 1, "khong": 1}
+    assert next(d for d in xuat if d["id"] == "giao_hang")["ten"] == "Giao hàng"

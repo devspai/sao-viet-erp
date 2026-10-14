@@ -13,6 +13,8 @@ export function PrintSheet({
   onClose,
   children,
   footer,
+  chonMau,
+  boDauTrang,
 }: {
   title: string;
   docNo?: string;
@@ -21,18 +23,23 @@ export function PrintSheet({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Ô chọn mẫu in (nằm ở đầu khung xem trước, KHÔNG ra giấy). */
+  chonMau?: ReactNode;
+  /** Mẫu tự dựng đầu trang (chứng từ theo mẫu MISA / Bộ Tài chính) ⇒ bỏ đầu trang logo mặc định. */
+  boDauTrang?: boolean;
 }) {
   return (
     <div className="ps-ov" onClick={onClose}>
       <div className="ps-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="ps-dialog-head">
           <h2>Xem trước bản in</h2>
+          {chonMau}
           <button onClick={onClose} aria-label="Đóng">
             ✕
           </button>
         </div>
         <div className="psheet">
-          <header className="ps-mh">
+          {!boDauTrang && <header className="ps-mh">
             <div className="ps-logo">
               <img src={svnLogoUrl} alt="SVN" />
             </div>
@@ -53,7 +60,7 @@ export function PrintSheet({
                 </div>
               )}
             </div>
-          </header>
+          </header>}
           {children}
           {/* Không có chân trang mặc định: tên công ty đã nằm ngay dưới tiêu đề, còn "In lúc…"
               là dấu vết hệ thống — chứng từ gửi khách không cần. Màn nào cần thì tự truyền `footer`. */}

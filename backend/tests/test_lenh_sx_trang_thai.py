@@ -243,7 +243,6 @@ def _chuyen(db, line: DeliveryRequestLine, qty, *, ket_qua=LG_THANH_CONG, lan=1)
     """
     trip = DeliveryTrip(
         request_id=line.request_id, lan_thu=lan, employee_id=_tai_xe(db).id,
-        gio_lay_hang=BAY_GIO - timedelta(hours=6), gio_du_kien_giao=BAY_GIO - timedelta(hours=4),
         trang_thai=ket_qua,
     )
     db.add(trip)

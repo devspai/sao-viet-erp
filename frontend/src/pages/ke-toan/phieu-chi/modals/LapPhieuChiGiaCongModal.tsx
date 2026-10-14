@@ -18,6 +18,7 @@ import { Cum, TheNho } from "../../shared/Cum";
 import { HangDoiChieu, KhoiForm } from "../../shared/KhungFormPhieu";
 import { THU_TU_O_MOI } from "../components/KhoiPhieuChi";
 import { KhungFormPhieu, loiNgayChi, nhayToiLoi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
+import { mucCoDinh, useMucThuChi } from "../../shared/OChonMuc";
 import { BanXemPhieuChi, ThanPhieuChiRoi } from "../components/ThanPhieuChiRoi";
 import { taiChungTuSauKhiLap } from "../components/VoucherAttachSection";
 import { loiChuyenKhoan } from "../components/VoucherRecipientSection";
@@ -59,6 +60,9 @@ export function LapPhieuChiGiaCongModal({
     beneficiary_bank_branch: null,
     bank_fee_bearer: "payer",
   }));
+  const muc = useMucThuChi("chi");
+  // Phiếu gia công thuộc mục CỐ ĐỊNH "Thuê gia công ngoài" — không có ô Mục, tờ xem trước ghi tên.
+  const tenMuc = mucCoDinh(muc.ds, "gia_cong_ngoai")?.ten;
   const goc = useRef(JSON.stringify(form));
   const [tkList, setTkList] = useState<CompanyBankAccountRow[]>([]);
   const [tkDangTai, setTkDangTai] = useState(false);
@@ -191,7 +195,7 @@ export function LapPhieuChiGiaCongModal({
       chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0)}
       onSubmit={() => void save()}
       nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
-      banXem={<BanXemPhieuChi form={form} taiKhoan={tkList} soChungTu={files.length} nguon="gia_cong_ngoai" />}
+      banXem={<BanXemPhieuChi form={form} taiKhoan={tkList} soChungTu={files.length} nguon="gia_cong_ngoai" tenMuc={tenMuc} />}
     >
       <KhoiForm tieu="Việc gia công">
         <HangDoiChieu

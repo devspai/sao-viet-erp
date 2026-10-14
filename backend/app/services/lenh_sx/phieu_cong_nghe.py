@@ -53,18 +53,29 @@ tên — mã lạ trả CHÍNH MÃ ĐÓ, không bịa không nuốt. Bản trư�
 chép, tức cùng một lệnh mà nhật ký hiện một kiểu còn phiếu in một kiểu. Gạch ngang cho ô trống là
 việc của chỗ HIỂN THỊ (`gia_tri()` bên dưới), không phải của hàm tra tên.
 
+--- BỐ CỤC: PHIẾU ĐI THEO HÀNG (13/10/2026, phương án B) -----------------------------------------
+Mockup `docs/mockups/phieu-cong-nghe-3-phuong-an.html`. Tờ giấy đi theo hàng qua từng tổ nên phần
+lớn trang là bảng các bước có Ô TRỐNG để ghi tay: giờ bắt đầu, giờ xong, số đạt, số hỏng, người làm
+ký, bước sau nhận ký (bước thuê ngoài: "Giao đi" / "Nhận về"). Thông số dồn vào lưới 4 cột không
+khung. Không chữ đậm, không dấu "·" hay dấu phẩy nối mẩu dữ liệu, ngày dạng 06/11/2026, ô chưa khai
+thì KHÔNG in (không còn "Định lượng —", "Ưu tiên gấp: Không"). In máy laser đen trắng vẫn đọc được.
+
+Cột "Lớp" GỠ: tổ trưởng không đọc được 0 1 2 3. Thứ tự thi công nói bằng lời ở dòng phụ của bước
+("Làm sau bước 2 và 3") — và CHỈ khi routing có nhánh; chuỗi đi thẳng một mạch thì thứ tự dòng đã
+nói đủ (`_lam_sau`). Cột "Nhóm" và "Loại bước" cũng gỡ: dòng phụ ghi thẳng máy và tổ, hoặc
+"Thuê ngoài: <nhà gia công>".
+
 --- KHOÁ MÁY: DỊCH SANG TIẾNG VIỆT TRƯỚC KHI IN -------------------------------------------------
-Ba cột của phiếu mang khoá máy đọc: `quy_cach_in` (`mot_mat`…), `nhom` (`print`…), `loai_buoc`
-(`may`…). Cùng một loại lỗi với "480 to", trên cùng tờ giấy.
+Phiếu mang hai khoá máy đọc: `quy_cach_in` (`mot_mat`…) và `loai_buoc` (`thue_ngoai`…). Cùng một
+loại lỗi với "480 to", trên cùng tờ giấy.
 
 ĐÃ KIỂM từng nhóm là ENUM KHAI CỨNG TRONG CODE chứ không phải dòng danh mục — `models/lsx.py:67-70`
-(`LB_MAY`/`LB_TO`/`LB_THUE_NGOAI` + `LOAI_BUOC`), `models/cong_doan.py:25` (`NHOM`),
-`models/phieu_tinh_gia.py:124` (cột `quy_cach_in`, chú thích `mot_mat|hai_mat(AB)|tu_tro|tro_nhip`;
+(`LB_MAY`/`LB_TO`/`LB_THUE_NGOAI` + `LOAI_BUOC`), `models/phieu_tinh_gia.py:124` (cột `quy_cach_in`, chú thích `mot_mat|hai_mat(AB)|tu_tro|tro_nhip`;
 `thanh_phan_engine.py:139` và `_may_fit.py:53` so thẳng bằng chuỗi). Luật "danh mục là ĐỘNG, cấm
 hardcode tên" áp cho DÒNG DANH MỤC — enum trong code thì bảng nhãn khai cạnh nơi in là đúng chỗ.
 
 Nhãn chép đúng chữ MÀN HÌNH đang hiện cho cùng dữ liệu (`LenhSxHoSoView.CACH_IN`,
-`keHoachSxShared.NHOM_CONG_DOAN`, `client.LSX_LOAI_BUOC_META`), để giấy và màn không nói hai kiểu.
+`client.LSX_LOAI_BUOC_META`), để giấy và màn không nói hai kiểu.
 KHÔNG import từ `quotation_service._QUY_CACH_IN_NHAN`: bảng đó viết cho câu văn giữa dòng của báo
 giá gửi khách ("In 4 màu trở nhíp" — chữ thường, không có "(AB)"), khác chữ trên màn hồ sơ, mà
 import còn kéo cả chuỗi module báo giá vào đường in của xưởng.
@@ -105,7 +116,7 @@ from sqlalchemy.orm import Session
 from ...config import settings
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..gio_xuong import gio_xuong
-from ..pdf_font import DAM, THUONG, cat_vua, dang_ky_font as _dang_ky_font
+from ..pdf_font import THUONG, cat_vua, dang_ky_font as _dang_ky_font
 from . import ho_so
 
 # Khổ A4 dùng lề 15mm hai bên ⇒ khung nội dung rộng 180mm. Mọi bảng bên dưới cộng KHÔNG vượt số
@@ -113,8 +124,11 @@ from . import ho_so
 _LE_MM = 15.0
 
 #: Cỡ chữ chân trang. Khai thành hằng vì phép CẮT chân trang phải đo bằng đúng cỡ đang vẽ — đổi
-#: một chỗ mà quên chỗ kia là chuỗi cắt theo cỡ này rồi vẽ bằng cỡ khác, tức lại đè "Trang N".
-_CO_CHAN_TRANG = 8
+#: một chỗ mà quên chỗ kia là chuỗi cắt theo cỡ này rồi vẽ bằng cỡ khác, tức lại đè "Trang N/M".
+_CO_CHAN_TRANG = 7.5
+
+#: Chuỗi DÀI NHẤT mà ô số trang có thể chiếm — chân trang trái cắt để chừa đúng chỗ này.
+_TRANG_DAI_NHAT = "Trang 999/999"
 
 #: Bốn khối phiếu thật sự in ra giấy. Truyền vào `ho_so.ho_so(chi_khoi=...)` để nút In không kéo
 #: theo engine cân đối vật tư + giao hàng + KCS + timeline — xem docstring `ho_so.ho_so`.
@@ -127,13 +141,6 @@ _NHAN_QUY_CACH_IN = {
     "hai_mat": "2 mặt (AB)",
     "tu_tro": "Tự trở",
     "tro_nhip": "Trở nhíp",
-}
-#: `cong_doan.NHOM` — chữ y hệt ô lọc Nhóm công đoạn (`keHoachSxShared.NHOM_CONG_DOAN`).
-_NHAN_NHOM = {
-    "prepress": "Trước In",
-    "print": "In",
-    "finishing": "Gia công sau in",
-    "other": "Dịch vụ khác",
 }
 #: `lsx.LOAI_BUOC` — chữ y hệt chip loại bước trên màn hồ sơ (`client.LSX_LOAI_BUOC_META`).
 _NHAN_LOAI_BUOC = {
@@ -218,14 +225,53 @@ def _qr_drawing(value: str, size_mm: float = 20.0):
 
 
 def _ngay(v) -> str:
-    return v.isoformat() if v else "—"
+    """`date`/`datetime`/chuỗi ISO ⇒ `06/11/2026`. Rỗng ⇒ `""` (chưa khai thì không in)."""
+    if not v:
+        return ""
+    if hasattr(v, "strftime"):
+        return v.strftime("%d/%m/%Y")
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", str(v))
+    return f"{m.group(3)}/{m.group(2)}/{m.group(1)}" if m else str(v)
 
 
 def _so(v) -> str:
-    """`137.0` -> `"137"`, `137.5` -> `"137.5"` — cùng khuôn `_f(x):g` của `ho_so.py`."""
+    """Số kiểu Việt: `2075.0` ⇒ `2.075`, `137.5` ⇒ `137,5`. `None` ⇒ `""`."""
     if v is None:
-        return "—"
-    return f"{float(v):g}"
+        return ""
+    f = float(v)
+    if f.is_integer():
+        return f"{int(f):,}".replace(",", ".")
+    return f"{f:g}".replace(".", ",")
+
+
+def _noi_loi(ds: list[str]) -> str:
+    """`["2"]` ⇒ `2`, `["2", "3"]` ⇒ `2 và 3`, `["2", "3", "4"]` ⇒ `2, 3 và 4` — câu nói, không
+    phải chuỗi dữ liệu nối dấu."""
+    return ds[0] if len(ds) == 1 else f"{', '.join(ds[:-1])} và {ds[-1]}"
+
+
+def _lam_sau(nodes: list[dict]) -> dict[int, str]:
+    """`{id bước: "Làm sau bước 2 và 3"}` — CHỈ khi routing có nhánh, chuỗi thẳng ⇒ `{}`.
+
+    Chuỗi thẳng (mỗi bước chỉ chờ đúng bước ngay trên nó) thì thứ tự dòng trên giấy đã nói đủ, ghi
+    thêm là mực thừa. Có nhánh (bìa và ruột chạy song song rồi gặp nhau ở bước bắt cuốn) thì thứ tự
+    dòng NÓI SAI: bước 3 không phải đợi bước 2. Khi đó MỌI bước ghi rõ nó chờ ai, kể cả bước không
+    chờ ai ("Không chờ bước nào") — im lặng ở bước đó là để thợ đọc thành "đợi dòng trên".
+    """
+    thang = all(
+        (n.get("phu_thuoc") or []) == ([nodes[i - 1]["id"]] if i else [])
+        for i, n in enumerate(nodes)
+    )
+    if thang:
+        return {}
+    stt = {n["id"]: i for i, n in enumerate(nodes, start=1)}
+    ra: dict[int, str] = {}
+    for n in nodes:
+        truoc = sorted(stt[t] for t in (n.get("phu_thuoc") or []) if t in stt)
+        ra[n["id"]] = (
+            f"Làm sau bước {_noi_loi([str(x) for x in truoc])}" if truoc else "Không chờ bước nào"
+        )
+    return ra
 
 
 def render_pdf(
@@ -242,12 +288,16 @@ def render_pdf(
     """
     _dang_ky_font()
 
+    from reportlab.graphics import renderPDF
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.graphics import renderPDF
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.pdfbase.pdfmetrics import stringWidth
+    from reportlab.pdfgen.canvas import Canvas
+    from reportlab.platypus import (
+        BaseDocTemplate, Frame, KeepTogether, PageTemplate, Paragraph, Spacer, Table, TableStyle,
+    )
 
     ho_so_dict = ho_so.ho_so(db, lsx_id, sale_ids=sale_ids, chi_khoi=_KHOI_CAN)
     tt = ho_so_dict["thong_tin"]
@@ -256,169 +306,218 @@ def render_pdf(
     phien_ban = ho_so_dict["phien_ban"]
     bang_dv = DonViDoRepository(db).ten_theo_ma()
 
-    nhan_style = ParagraphStyle("plc_nhan", fontName=DAM, fontSize=9, leading=12)
-    gia_tri_style = ParagraphStyle("plc_gia_tri", fontName=THUONG, fontSize=9, leading=12)
-    khoi_style = ParagraphStyle("plc_khoi", fontName=DAM, fontSize=12, leading=15)
-    tieu_de_style = ParagraphStyle("plc_tieu_de", fontName=DAM, fontSize=16, leading=20)
+    rong_a4, cao_a4 = A4
+    le = _LE_MM * mm
+    xam = colors.HexColor("#666666")
+    vien = colors.HexColor("#444444")
 
-    def nhan(s) -> Paragraph:
-        return Paragraph(_xml_escape(str(s)), nhan_style)
+    def kieu(ten: str, co: float, mau=colors.black) -> ParagraphStyle:
+        return ParagraphStyle(ten, fontName=THUONG, fontSize=co, leading=co * 1.3, textColor=mau)
 
-    def gia_tri(s) -> Paragraph:
-        txt = str(s) if s not in (None, "") else "—"
-        return Paragraph(_xml_escape(txt), gia_tri_style)
+    s_nhan = kieu("pcn_nhan", 7.5, xam)
+    s_gt = kieu("pcn_gt", 9.5)
+    s_phu = kieu("pcn_phu", 7.5, colors.HexColor("#555555"))
+    s_go = kieu("pcn_go", 6.5, colors.HexColor("#999999"))
+    s_th = kieu("pcn_th", 7.5, vien)
+    s_kh = kieu("pcn_kh", 9)
 
-    khoi_table_style = TableStyle([
+    def p(txt, kieu_chu: ParagraphStyle) -> Paragraph:
+        return Paragraph(_xml_escape(str(txt)), kieu_chu)
+
+    def dv(ma_dv) -> str:
+        return nhan_don_vi(bang_dv, ma_dv) if ma_dv else ""
+
+    def so_dv(v, ma_dv) -> str:
+        """`2.075 tờ nguyên`. Số rỗng ⇒ `""`, đơn vị rỗng ⇒ chỉ số."""
+        if v is None:
+            return ""
+        return f"{_so(v)} {dv(ma_dv)}".strip()
+
+    # --- Dòng thông tin lệnh (ngay dưới đầu trang) -------------------------------------------
+    # Mỗi cặp nhãn + giá trị dính liền bằng dấu cách không ngắt, giữa các cặp là dấu cách thường
+    # ⇒ xuống dòng chỉ xảy ra GIỮA hai cặp, không bao giờ tách nhãn khỏi giá trị của nó.
+    def cap(nhan_: str, gia_tri) -> str | None:
+        txt = str(gia_tri or "").strip()
+        if not txt:
+            return None
+        nbsp = lambda x: x.replace(" ", "&nbsp;")  # noqa: E731
+        return f'<font color="#666666">{nbsp(nhan_)}</font>&nbsp;{nbsp(_xml_escape(txt))}'
+
+    so_luong = so_dv(tt.get("so_luong_dat"), tt.get("don_vi_tinh")) if tt.get("so_luong_dat") else ""
+    cap_tt = [c for c in (
+        cap("Khách", tt.get("khach_hang")),
+        cap("Đặt", so_luong),
+        cap("Hạn SX", _ngay(tt.get("han_hoan_thanh_sx"))),
+        cap("Hạn giao", _ngay(tt.get("han_giao_khach"))),
+        cap("Đơn", tt.get("order_no")),
+        cap("Kinh doanh", tt.get("sale")),
+    ) if c]
+    story: list = []
+    if cap_tt:
+        story.append(Paragraph(("&nbsp;" * 6 + " ").join(cap_tt), kieu("pcn_tt", 8.5)))
+    if (tt.get("ghi_chu") or "").strip():
+        story += [Spacer(1, 1.5 * mm), Paragraph(cap("Ghi chú", tt["ghi_chu"]) or "", kieu("pcn_gc", 8.5))]
+
+    # --- Lưới thông số (KHAI TỪNG TRƯỜNG như `ho_so._thong_so` — không đổ dict) ---------------
+    def kho(dai, rong) -> str:
+        """`790 × 1090 mm`. ĐƠN VỊ là bắt buộc: màn hồ sơ (`LenhSxHoSoView.khoMm`) cảnh báo thẳng
+        rằng bỏ `mm` là ra "một tờ giấy nguyên 860 × 650 cm — to bằng gian phòng". Khổ nhập bằng mm
+        ở cả phiếu tính giá lẫn màn Kế hoạch SX, hồ sơ chỉ chép lại ảnh chụp đó."""
+        if dai is None and rong is None:
+            return ""
+        # Không chấm hàng nghìn ở khổ: "1.090 mm" dễ đọc thành một mét chín.
+        mm_ = lambda v: "?" if v is None else f"{float(v):g}".replace(".", ",")  # noqa: E731
+        return f"{mm_(dai)} × {mm_(rong)} mm"
+
+    def mau_muc(so_mau, muc: list[str]):
+        """`4 màu` + ô vuông C M Y K (thay chuỗi nối dấu phẩy). Không màu không mực ⇒ None."""
+        muc = [str(m) for m in (muc or []) if str(m).strip()]
+        if not so_mau and not muc:
+            return None
+        chu = f"{_so(so_mau)} màu" if so_mau else ""
+        o = 4.6 * mm
+        bang = Table(
+            [[chu, *muc]],
+            colWidths=[stringWidth(chu, THUONG, 9.5) + 2 * mm, *([o] * len(muc))],
+            rowHeights=[o],
+            hAlign="LEFT",
+        )
+        kieu_bang = [
+            ("FONT", (0, 0), (0, 0), THUONG, 9.5),
+            ("FONT", (1, 0), (-1, 0), THUONG, 7),
+            ("ALIGN", (1, 0), (-1, 0), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ]
+        if muc:
+            kieu_bang += [("BOX", (1, 0), (-1, 0), 0.6, vien), ("INNERGRID", (1, 0), (-1, 0), 0.6, vien)]
+        bang.setStyle(TableStyle(kieu_bang))
+        return bang
+
+    so_trang = ts.get("so_trang")
+    nhieu_trang = bool(so_trang) and float(so_trang) > 1
+    o_ts = [
+        ("Giấy", ts.get("giay_ten")),
+        ("Định lượng", f"{_so(ts['dinh_luong'])} g/m²" if ts.get("dinh_luong") else ""),
+        ("Khổ nguyên", kho(ts.get("kho_nguyen_dai"), ts.get("kho_nguyen_rong"))),
+        ("Khổ in", kho(ts.get("kho_in_dai"), ts.get("kho_in_rong"))),
+        ("Thành phẩm", kho(ts.get("dai_thanh_pham"), ts.get("rong_thanh_pham"))),
+        ("Xả", f"{_so(ts['so_manh_xa'])} tờ in một tờ nguyên" if ts.get("so_manh_xa") else ""),
+        ("Con", f"{_so(ts['so_con'])} con một tờ in" if ts.get("so_con") else ""),
+        ("Xuất kho", so_dv(ts.get("so_to_nguyen"), "to_nguyen") if ts.get("so_to_nguyen") else ""),
+        ("Tờ in", so_dv(ts.get("so_to_ke_hoach"), "to") if ts.get("so_to_ke_hoach") else ""),
+        ("Quy cách in", _nhan_khoa(_NHAN_QUY_CACH_IN, ts.get("quy_cach_in"))),
+        ("Mặt A", mau_muc(ts.get("so_mau_a"), ts.get("muc_a"))),
+        ("Mặt B", mau_muc(ts.get("so_mau_b"), ts.get("muc_b"))),
+        # "kẽm" (bản in offset), KHÔNG phải "kèm" — cả hệ gọi nó là "Số kẽm".
+        ("Số kẽm", _so(ts.get("so_kem")) if ts.get("so_kem") else ""),
+        ("Số trang", f"{_so(so_trang)} trang" if nhieu_trang else ""),
+        ("Trang một tay", f"{_so(ts['trang_moi_tay'])} trang" if nhieu_trang and ts.get("trang_moi_tay") else ""),
+    ]
+    o_ts = [(n, v) for n, v in o_ts if v not in (None, "")]
+    if o_ts:
+        o_luoi = [[p(n, s_nhan), v if isinstance(v, Table) else p(v, s_gt)] for n, v in o_ts]
+        o_luoi += [""] * (-len(o_luoi) % 4)
+        luoi = Table(
+            [o_luoi[i:i + 4] for i in range(0, len(o_luoi), 4)],
+            colWidths=[45 * mm] * 4,
+            hAlign="LEFT",
+        )
+        luoi.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story += [Spacer(1, 3.5 * mm), luoi]
+    if (ts.get("ghi_chu_ky_thuat") or "").strip():
+        story += [Spacer(1, 0.5 * mm), Paragraph(cap("Ghi chú kỹ thuật", ts["ghi_chu_ky_thuat"]) or "", s_gt)]
+
+    # --- Bảng các bước — bảng DÀI, chỗ cần tự chia trang -------------------------------------
+    cho = _lam_sau(nodes)
+    dong_bang = [[p(t, s_th) for t in (
+        "#", "Công đoạn", "Kế hoạch", "Bắt đầu", "Xong",
+        "Số đạt", "Số hỏng", "Người làm ký", "Bước sau nhận ký",
+    )]]
+    for i, node in enumerate(nodes, start=1):
+        # Dòng phụ của ô Công đoạn: AI làm, lấy dao ở đâu, chờ bước nào — thợ đọc một ô là đủ.
+        ncc = (node.get("nha_cung_cap") or "").strip()
+        ngoai = bool(ncc) or node.get("loai_buoc") == "thue_ngoai"
+        if ngoai:
+            nhan_ngoai = _nhan_khoa(_NHAN_LOAI_BUOC, "thue_ngoai")
+            # Bước thuê ngoài mà không ghi tên nhà gia công thì tổ không biết giao hàng cho ai.
+            phu = [f"{nhan_ngoai}: {ncc}" if ncc else nhan_ngoai]
+        else:
+            phu = [x for x in ((node.get("may") or "").strip(), (node.get("to") or "").strip()) if x]
+        # Dao chưa về thì nói THẲNG — im lặng ở đây là để thợ đi tìm một con dao không có trong kho.
+        k_ma = (node.get("khuon_be_ma") or "").strip()
+        if k_ma:
+            ke = (node.get("khuon_be_so_ke") or "").strip()
+            if node.get("khuon_be_tinh_trang") == "dang_dat_lam":
+                phu.append(f"Khuôn {k_ma} chưa về")
+            else:
+                phu.append(f"Khuôn {k_ma} ở {ke}" if ke else f"Khuôn {k_ma}")
+        if node["id"] in cho:
+            phu.append(cho[node["id"]])
+
+        vao = so_dv(node.get("so_luong_vao"), node.get("don_vi_vao"))
+        ra = so_dv(node.get("so_luong_ra"), node.get("don_vi_ra"))
+        dv_ra = dv(node.get("don_vi_ra") or node.get("don_vi_vao"))
+        # Ô STT kèm một khoảng trống để MỌI dòng cao tối thiểu ~17 mm — đủ chỗ viết tay, kể cả dòng
+        # chỉ có một chữ. Dòng nhiều chữ hơn thì tự cao thêm.
+        dong_bang.append([
+            [p(i, s_gt), Spacer(1, 12 * mm)],
+            [p(node.get("ten") or "", s_gt), *(p(x, s_phu) for x in phu)],
+            [p(x, s_kh) for x in (vao, f"ra {ra}" if ra else "") if x],
+            p("Giao đi", s_go) if ngoai else "",
+            p("Nhận về", s_go) if ngoai else "",
+            p(dv_ra, s_go) if dv_ra else "",
+            p(dv_ra, s_go) if dv_ra else "",
+            "",
+            "",
+        ])
+    bang_buoc = Table(
+        dong_bang,
+        colWidths=[mm * w for w in (7, 43, 32, 14, 14, 14, 14, 21, 21)],
+        repeatRows=1,
+    )
+    bang_buoc.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-        ("BACKGROUND", (0, 0), (0, -1), colors.whitesmoke),
+        ("VALIGN", (0, 0), (-1, 0), "BOTTOM"),
+        ("GRID", (0, 0), (-1, -1), 0.8, vien),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
         ("LEFTPADDING", (0, 0), (-1, -1), 4),
         ("RIGHTPADDING", (0, 0), (-1, -1), 4),
         ("TOPPADDING", (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-    ])
+    ]))
+    story += [Spacer(1, 3 * mm), bang_buoc]
 
-    # --- Khối "Thông tin lệnh" --------------------------------------------------------------
-    so_luong = f"{tt.get('so_luong_dat') or 0:,}".replace(",", ".")
-    dvt_luong = nhan_don_vi(bang_dv, tt.get("don_vi_tinh"))
-    if dvt_luong:
-        so_luong = f"{so_luong} {dvt_luong}"
-    thong_tin_rows = [
-        [nhan("Mã LSX"), gia_tri(tt.get("ma"))],
-        [nhan("Tên sản phẩm"), gia_tri(tt.get("ten"))],
-        [nhan("Khách hàng"), gia_tri(tt.get("khach_hang"))],
-        [nhan("Số lượng đặt"), gia_tri(so_luong)],
-        [nhan("Hạn hoàn thành SX"), gia_tri(_ngay(tt.get("han_hoan_thanh_sx")))],
-        [nhan("Ưu tiên gấp"), gia_tri("Có" if tt.get("is_rush") else "Không")],
-        [nhan("Ghi chú"), gia_tri(tt.get("ghi_chu"))],
-    ]
-    thong_tin_table = Table(thong_tin_rows, colWidths=[40 * mm, 130 * mm])
-    thong_tin_table.setStyle(khoi_table_style)
-
-    # --- Khối "Thông số kỹ thuật" (KHAI TỪNG TRƯỜNG như `ho_so._thong_so` — không đổ dict) ----
-    def kho(dai, rong) -> str:
-        """`790 × 1090 mm`. Đi qua `_so()` để `790.0` không lên giấy thành `790.0`, và ĐƠN VỊ là
-        bắt buộc: màn hồ sơ (`LenhSxHoSoView.khoMm`) cảnh báo thẳng rằng bỏ `mm` là ra "một tờ
-        giấy nguyên 860 × 650 cm — to bằng gian phòng". Khổ nhập bằng mm ở cả phiếu tính giá lẫn
-        màn Kế hoạch SX, hồ sơ chỉ chép lại ảnh chụp đó."""
-        if dai is None and rong is None:
-            return "—"
-        d = _so(dai) if dai is not None else "?"
-        r = _so(rong) if rong is not None else "?"
-        return f"{d} × {r} mm"
-
-    thong_so_rows = [
-        [nhan("Giấy"), gia_tri(ts.get("giay_ten"))],
-        [nhan("Định lượng"), gia_tri(_so(ts.get("dinh_luong")))],
-        [nhan("Khổ nguyên (dài x rộng)"), gia_tri(kho(ts.get("kho_nguyen_dai"), ts.get("kho_nguyen_rong")))],
-        [nhan("Khổ in (dài x rộng)"), gia_tri(kho(ts.get("kho_in_dai"), ts.get("kho_in_rong")))],
-        [nhan("Khổ thành phẩm (dài x rộng)"),
-         gia_tri(kho(ts.get("dai_thanh_pham"), ts.get("rong_thanh_pham")))],
-        [nhan("Quy cách in"), gia_tri(_nhan_khoa(_NHAN_QUY_CACH_IN, ts.get("quy_cach_in")))],
-        [nhan("Số màu (mặt A / mặt B)"),
-         gia_tri(f"{_so(ts.get('so_mau_a'))} / {_so(ts.get('so_mau_b'))}")],
-        [nhan("Mực mặt A"), gia_tri(", ".join(ts.get("muc_a") or []))],
-        [nhan("Mực mặt B"), gia_tri(", ".join(ts.get("muc_b") or []))],
-        [nhan("Số trang / số trang mỗi tay"),
-         gia_tri(f"{_so(ts.get('so_trang'))} / {_so(ts.get('trang_moi_tay'))}")],
-        # "kẽm" (bản in offset), KHÔNG phải "kèm" — cả hệ gọi nó là "Số kẽm"
-        # (`LenhSxHoSoView.tsx:801`, `BaiGhep2Page.tsx:872`, `LsxDetailView.tsx:1352`), và bảng
-        # routing ngay bên dưới in đơn vị "bản kẽm". Sai một dấu là tờ giấy nói khác cả hệ.
-        [nhan("Số kẽm"), gia_tri(_so(ts.get("so_kem")))],
-        [nhan("Số mảnh xả"), gia_tri(_so(ts.get("so_manh_xa")))],
-        [nhan("Ghi chú kỹ thuật"), gia_tri(ts.get("ghi_chu_ky_thuat"))],
-    ]
-    thong_so_table = Table(thong_so_rows, colWidths=[40 * mm, 130 * mm])
-    thong_so_table.setStyle(khoi_table_style)
-
-    # --- Khối "Routing công đoạn" — bảng DÀI, chỗ cần tự chia trang -------------------------
-    routing_style = TableStyle([
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("LEFTPADDING", (0, 0), (-1, -1), 3),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-        ("TOPPADDING", (0, 0), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-    ])
-    # Cột LỚP, không phải chỉ một cột STT chạy 1→N. `ho_so._lop_topo` sinh `lop` = đường DÀI NHẤT
-    # từ một bước không tiền nhiệm tới nó, và `ho_so.py:209-219` nói rõ vì sao: bìa và ruột chạy
-    # SONG SONG nhưng `thu_tu` của chúng vẫn là 1 và 2. Một tờ giấy đánh số 1→40 nói với tổ trưởng
-    # rằng bước 12 xong mới tới bước 13 — sai với routing có nhánh. Hai bước CÙNG lớp = làm được
-    # song song; lớp lớn hơn = phải đợi.
-    #
-    # Vẫn giữ STT vì đó là cách người ta gọi nhau qua tờ giấy ("dòng 12"), chỉ thôi để nó một mình
-    # gánh nghĩa thứ tự thi công.
-    #
-    # Cột "Bắt buộc" GỠ 07/09/2026: bước đã có trong routing thì PHẢI làm (`bat_buoc` luôn TRUE,
-    # migration 0275), nên cột chỉ in chữ "Có" trên mọi dòng — mực chết trên tờ giấy thợ đọc.
-    routing_rows = [[
-        nhan("STT"), nhan("Lớp"), nhan("Công đoạn"), nhan("Nhóm"), nhan("Loại bước"),
-        nhan("SL vào"), nhan("SL ra"), nhan("ĐVT"), nhan("Tổ"),
-    ]]
-    for i, node in enumerate(nodes, start=1):
-        ma_dv = node.get("don_vi_ra") or node.get("don_vi_vao")
-        # Nhà gia công đi CHUNG ô "Loại bước" chứ không thành cột riêng: chỉ bước `thue_ngoai` mới
-        # có, thêm hẳn một cột là để trống ở gần hết số dòng và ăn mất bề ngang của cột Công đoạn.
-        # Bước thuê ngoài mà không ghi tên nhà gia công thì tổ không biết giao hàng cho ai.
-        loai_buoc = _nhan_khoa(_NHAN_LOAI_BUOC, node.get("loai_buoc"))
-        ncc = (node.get("nha_cung_cap") or "").strip()
-        if ncc:
-            loai_buoc = f"{loai_buoc}: {ncc}" if loai_buoc else ncc
-        # KHUÔN/KHUNG đi cùng ô đó, cùng lý do: chỉ một phần nhỏ số dòng có dao. Thợ đọc một chỗ
-        # là biết "bước này ai làm, lấy dao ở đâu". Dao chưa về thì nói THẲNG — im lặng ở đây là để
-        # thợ đi tìm một con dao không có trong kho. Không còn ngày dự kiến (mg `0293` gỡ cột).
-        k_ma = (node.get("khuon_be_ma") or "").strip()
-        if k_ma:
-            if node.get("khuon_be_tinh_trang") == "dang_dat_lam":
-                dao = f"{k_ma} — chưa về"
-            else:
-                ke = (node.get("khuon_be_so_ke") or "").strip()
-                dao = f"{k_ma} — {ke}" if ke else k_ma
-            loai_buoc = f"{loai_buoc} · {dao}" if loai_buoc else dao
-        routing_rows.append([
-            gia_tri(i),
-            gia_tri(node.get("lop")),
-            gia_tri(node.get("ten")),
-            gia_tri(_nhan_khoa(_NHAN_NHOM, node.get("nhom"))),
-            gia_tri(loai_buoc),
-            gia_tri(_so(node.get("so_luong_vao"))),
-            gia_tri(_so(node.get("so_luong_ra"))),
-            gia_tri(nhan_don_vi(bang_dv, ma_dv)),
-            gia_tri(node.get("to")),
-        ])
-    # Cộng đúng 176mm, khung nội dung rộng 180mm (xem `_LE_MM`). 14mm của cột "Bắt buộc" vừa gỡ
-    # trả về hai cột từng bị bóp nhất: Công đoạn (34→42, tên dài tự xuống dòng trong `Paragraph`)
-    # và Tổ (24→30, tên tổ đầy đủ kiểu "Tổ Chế bản · Máy bế tự động Yawa").
-    routing_table = Table(
-        routing_rows,
-        colWidths=[
-            9 * mm, 10 * mm, 42 * mm, 19 * mm, 26 * mm,
-            14 * mm, 14 * mm, 12 * mm, 30 * mm,
-        ],
-        repeatRows=1,
+    # Ô ghi chú xưởng + ô KCS cuối ký: dính liền nhau, sang trang thì sang cả cặp.
+    o_cuoi = Table(
+        [[p("Xưởng ghi chú", s_nhan), "", p("KCS cuối ký, ghi ngày", s_nhan)]],
+        colWidths=[116 * mm, 4 * mm, 60 * mm],
+        rowHeights=[28 * mm],
+        hAlign="LEFT",
     )
-    routing_table.setStyle(routing_style)
-
-    story = [
-        Paragraph("PHIẾU CÔNG NGHỆ", tieu_de_style),
-        Spacer(1, 4 * mm),
-        Paragraph("Thông tin lệnh", khoi_style),
-        Spacer(1, 2 * mm),
-        thong_tin_table,
-        Spacer(1, 6 * mm),
-        Paragraph("Thông số kỹ thuật", khoi_style),
-        Spacer(1, 2 * mm),
-        thong_so_table,
-        Spacer(1, 6 * mm),
-        Paragraph(_xml_escape(f"Routing công đoạn ({len(nodes)} bước)"), khoi_style),
-        Spacer(1, 2 * mm),
-        routing_table,
-    ]
+    o_cuoi.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOX", (0, 0), (0, 0), 0.8, vien),
+        ("BOX", (2, 0), (2, 0), 0.8, vien),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    story.append(KeepTogether([Spacer(1, 4 * mm), o_cuoi]))
 
     ma = tt.get("ma") or f"LSX-{lsx_id}"
-    phien_ban_text = str(phien_ban) if phien_ban is not None else "—"
-    qr_drawing = _qr_drawing(noi_dung_qr(lsx_id, phien_ban))
+    ten_sp = (tt.get("ten") or "").strip()
+    gap = bool(tt.get("is_rush"))
+    phien_ban_text = f"Phiên bản {phien_ban if phien_ban is not None else '—'}"
+    qr_drawing = _qr_drawing(noi_dung_qr(lsx_id, phien_ban), 22.0)
 
     # MỐC IN + NGƯỜI IN ở chân trang. `pv` trong QR có mặt để một màn hồ sơ sau này so được "tờ
     # giấy này là bản cũ" — nhưng một tờ giấy đi khắp xưởng mà không ghi in LÚC NÀO thì người đang
@@ -426,64 +525,89 @@ def render_pdf(
     # màn hình nói khác nhau.
     #
     # Lấy `gio_xuong()` — đồng hồ XƯỞNG (giờ tường máy chủ), cùng quy ước với mọi mốc mà tổ đọc
-    # trên màn. Dùng `datetime.now(timezone.utc)` là in ra một giờ lệch 7 tiếng so với đồng hồ treo
-    # tường của xưởng. Tính MỘT lần ngoài `_dau_trang`: mọi trang của cùng một tờ phiếu phải mang
-    # cùng một mốc, không phải mốc lúc ReportLab vẽ tới trang ấy.
+    # trên màn. Tính MỘT lần: mọi trang của cùng một tờ phiếu phải mang cùng một mốc.
     chan_trang = f"In lúc {gio_xuong().strftime('%d/%m/%Y %H:%M')}"
     if (nguoi_in or "").strip():
-        chan_trang += f" · Người in: {nguoi_in.strip()}"
+        chan_trang += f" bởi {nguoi_in.strip()}"
 
-    # CẮT THEO BỀ RỘNG THẬT, không theo số ký tự. Bản trước cắt cứng 28 ký tự và ĐÈ lên ô
-    # "Trang N": đo bằng `stringWidth` của chính font đang vẽ thì một tên 28 ký tự chạy tới
-    # 108,4 mm trong khi "Trang 1" bắt đầu ở 99,6 mm — đè 8,8 mm. Mà 28 cũng không phải mức an
-    # toàn nào cả: tên đầy đủ tiếng Việt 22 ký tự ("Nguyễn Thị Thanh Hương") đã sát mép, còn
-    # cùng 28 ký tự toàn chữ "l" thì vẫn thừa chỗ. Đếm ký tự không nói được gì về bề rộng.
-    #
-    # Cắt CẢ chuỗi chứ không riêng phần tên: một luật, và vì `cat_vua` cắt từ ĐUÔI nên thứ mất
-    # trước là tên người in, mốc giờ ở đầu chuỗi sống lâu nhất — đúng thứ tự ưu tiên (không biết
-    # in cho ai thì còn đoán được, không biết in lúc nào thì `pv` trên QR hết đối chiếu được).
-    # Dấu "…" báo cho người cầm giấy biết có chữ đã bị cắt.
-    #
-    # Chừa chỗ cho ô "Trang N" canh giữa trang: lấy bề rộng của `Trang 999` (dài hơn mọi số
-    # trang thật) rồi trừ nửa sang trái, cộng 3 mm khe.
-    from reportlab.pdfbase.pdfmetrics import stringWidth
-
+    # CẮT THEO BỀ RỘNG THẬT, không theo số ký tự (bản cắt cứng 28 ký tự từng đè lên ô số trang).
+    # `cat_vua` cắt từ ĐUÔI nên thứ mất trước là tên người in, mốc giờ sống lâu nhất — không biết
+    # in lúc nào thì `pv` trên QR hết đối chiếu được. Dấu "…" báo có chữ đã bị cắt. Chừa chỗ cho
+    # ô "Trang N/M" canh phải: bề rộng `_TRANG_DAI_NHAT` cộng 3 mm khe.
     rong_chan_trang = (
-        A4[0] / 2 - stringWidth("Trang 999", THUONG, _CO_CHAN_TRANG) / 2 - _LE_MM * mm - 3 * mm
+        rong_a4 - 2 * le - stringWidth(_TRANG_DAI_NHAT, THUONG, _CO_CHAN_TRANG) - 3 * mm
     )
     chan_trang = cat_vua(chan_trang, rong_chan_trang, THUONG, _CO_CHAN_TRANG)
+    rong_ten = rong_a4 - 2 * le - 22 * mm - 6 * mm
 
-    # `onFirstPage`/`onLaterPages` CÙNG một hàm ⇒ mã LSX + phiên bản + QR lặp lại trên MỌI trang
-    # (luật 3), vẽ thẳng lên canvas nên KHÔNG choán chỗ của luồng nội dung (`story`) đang tự chia
-    # trang bên dưới nó. Bài canh: `test_moi_trang_deu_co_ma_va_phien_ban` (bỏ `onLaterPages` là
-    # bài đó đỏ).
-    def _dau_trang(canvas_obj, _doc) -> None:
-        canvas_obj.saveState()
-        canvas_obj.setFont(DAM, 11)
-        canvas_obj.drawString(_LE_MM * mm, A4[1] - 15 * mm, f"Mã LSX: {ma}")
-        canvas_obj.setFont(THUONG, 10)
-        canvas_obj.drawString(
-            _LE_MM * mm, A4[1] - 21 * mm, f"Phiên bản phát hành: {phien_ban_text}"
-        )
-        renderPDF.draw(
-            qr_drawing, canvas_obj, A4[0] - _LE_MM * mm - 20 * mm, A4[1] - 32 * mm
-        )
-        canvas_obj.setFont(THUONG, _CO_CHAN_TRANG)
-        canvas_obj.drawString(_LE_MM * mm, 10 * mm, chan_trang)
-        canvas_obj.drawCentredString(
-            A4[0] / 2, 10 * mm, f"Trang {canvas_obj.getPageNumber()}"
-        )
-        canvas_obj.restoreState()
+    # Vẽ ĐẦU trang lúc ReportLab dựng từng trang (`onFirstPage` = `onLaterPages` ⇒ mã LSX + phiên
+    # bản + QR có trên MỌI trang — bài canh `test_moi_trang_deu_co_ma_va_phien_ban`). Vẽ thẳng lên
+    # canvas nên KHÔNG choán chỗ của luồng nội dung đang tự chia trang bên dưới.
+    def _dau_trang(c, _doc) -> None:
+        c.saveState()
+        c.setFillColor(xam)
+        c.setFont(THUONG, 7.5)
+        c.drawString(le, cao_a4 - 14 * mm, "PHIẾU CÔNG NGHỆ")
+        c.setFillColor(colors.black)
+        c.setFont(THUONG, 17)
+        c.drawString(le, cao_a4 - 21.5 * mm, ma)
+        if gap:
+            # Lệnh gấp: ô viền chữ "GẤP" ngay cạnh mã — đen trắng vẫn nổi, không dựa vào màu.
+            x = le + stringWidth(ma, THUONG, 17) + 4 * mm
+            c.setLineWidth(1)
+            c.rect(x, cao_a4 - 22.4 * mm, stringWidth("GẤP", THUONG, 9) + 3 * mm, 6 * mm)
+            c.setFont(THUONG, 9)
+            c.drawString(x + 1.5 * mm, cao_a4 - 20.6 * mm, "GẤP")
+        if ten_sp:
+            c.setFont(THUONG, 11)
+            c.drawString(le, cao_a4 - 27.5 * mm, cat_vua(ten_sp, rong_ten, THUONG, 11))
+        renderPDF.draw(qr_drawing, c, rong_a4 - le - 22 * mm, cao_a4 - 34 * mm)
+        c.setFillColor(xam)
+        c.setFont(THUONG, 7.5)
+        c.drawCentredString(rong_a4 - le - 11 * mm, cao_a4 - 37 * mm, phien_ban_text)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(1)
+        c.line(le, cao_a4 - 40 * mm, rong_a4 - le, cao_a4 - 40 * mm)
+        c.restoreState()
+
+    # CHÂN trang cần TỔNG số trang ("Trang 1/2") mà lúc dựng trang 1 chưa ai biết có mấy trang ⇒
+    # hoãn: giữ trạng thái từng trang, tới `save()` mới vẽ chân trang rồi xuất. Mẫu "NumberedCanvas"
+    # quen thuộc của ReportLab — dựng một lượt, không phải dựng hai lần để đếm.
+    def _chan(c, tong: int) -> None:
+        c.saveState()
+        c.setStrokeColor(colors.HexColor("#dddddd"))
+        c.setLineWidth(0.8)
+        c.line(le, 11.5 * mm, rong_a4 - le, 11.5 * mm)
+        c.setFillColor(xam)
+        c.setFont(THUONG, _CO_CHAN_TRANG)
+        c.drawString(le, 8 * mm, chan_trang)
+        c.drawRightString(rong_a4 - le, 8 * mm, f"Trang {c.getPageNumber()}/{tong}")
+        c.restoreState()
+
+    class _CanvasDemTrang(Canvas):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k)
+            self._trang_cho: list[dict] = []
+
+        def showPage(self):  # noqa: N802 (tên của ReportLab)
+            self._trang_cho.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            tong = len(self._trang_cho)
+            for trang in self._trang_cho:
+                self.__dict__.update(trang)
+                _chan(self, tong)
+                Canvas.showPage(self)
+            Canvas.save(self)
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf,
-        pagesize=A4,
-        leftMargin=_LE_MM * mm,
-        rightMargin=_LE_MM * mm,
-        topMargin=36 * mm,
-        bottomMargin=16 * mm,
-        title=f"Phiếu công nghệ {ma}",
-    )
-    doc.build(story, onFirstPage=_dau_trang, onLaterPages=_dau_trang)
+    # Khung nội dung KHÔNG đệm (Frame mặc định đệm 6pt mỗi cạnh): mép trái của dòng thông tin,
+    # lưới thông số và bảng các bước phải thẳng hàng với mã LSX và vạch đầu trang vẽ ở `le`.
+    tren, duoi = 44 * mm, 16 * mm
+    khung = Frame(le, duoi, rong_a4 - 2 * le, cao_a4 - tren - duoi,
+                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc = BaseDocTemplate(buf, pagesize=A4, title=f"Phiếu công nghệ {ma}",
+                          pageTemplates=[PageTemplate("phieu", [khung], onPage=_dau_trang)])
+    doc.build(story, canvasmaker=_CanvasDemTrang)
     return PhieuPdf(ten_file=_ten_file(ma), noi_dung=buf.getvalue())

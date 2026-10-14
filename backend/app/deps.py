@@ -607,6 +607,8 @@ O_CHET_DA_XAC_MINH: set[tuple[str, str]] = {
     # (`POST /api/accounting/khoa-so`) — CẢ HAI đều sống. Chỉ Thêm/Xoá chết (màn không có "tạo
     # mới báo cáo" hay "xoá báo cáo").
     ("bao_cao_cong_no", "create"), ("bao_cao_cong_no", "delete"),
+    # `bao_cao_thu_chi` (11/10/2026): Xem = xem/xuất Excel, Thao tác = chuyển phiếu sang mục.
+    ("bao_cao_thu_chi", "create"), ("bao_cao_thu_chi", "delete"),
     # `bao_cao_kinh_doanh` (24/09/2026): chỉ Xem (= xem + xuất Excel). Không có gì để thêm/sửa/xoá.
     ("bao_cao_kinh_doanh", "create"), ("bao_cao_kinh_doanh", "update"),
     ("bao_cao_kinh_doanh", "delete"),

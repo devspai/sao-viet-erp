@@ -27,7 +27,7 @@ from app.routers.kho_voucher import _serialize as _serialize_phieu
 from app.routers.kho_voucher import get_service as voucher_service
 from app.services import kho_gia_goc_service as gg
 from tests.test_kho_de_nghi import _login, _mk_user
-from tests.test_kho_lo_goc import _kho
+from tests.test_kho_lo_goc import _kho, thanh_pham_nhieu_kho  # noqa: F401
 from tests.test_san_xuat_kcs import (  # noqa: F401
     _batch,
     admin,
@@ -65,7 +65,7 @@ def _mon(rows, ma_lo):
     return [x for x in rows["items"] if x["ma_lo"] == ma_lo]
 
 
-def test_sua_gia_goc_lan_xuong_lo_dieu_chuyen_va_bao_cao(db, orders, lsx_svc, admin, customer):
+def test_sua_gia_goc_lan_xuong_lo_dieu_chuyen_va_bao_cao(db, orders, lsx_svc, admin, customer, thanh_pham_nhieu_kho):
     goc, o_b, px, a, b = _dung(db, orders, lsx_svc, admin, customer)
     assert goc.don_gia_nhap == 0 and o_b.lo_goc_id == goc.id
     svc = voucher_service(db)
@@ -88,7 +88,7 @@ def test_sua_gia_goc_lan_xuong_lo_dieu_chuyen_va_bao_cao(db, orders, lsx_svc, ad
 
     [dong] = _mon(gg.ds_chua_gia_goc(db, q=goc.ma_lo, chi_chua_gia=True, page=1, size=20), goc.ma_lo)
     assert dong["don_gia"] == 0 and dong["don_gia_ban"] == 500 and dong["so_lo"] == 2
-    assert dong["sl_con_lai"] == 90 and dong["kho_ten"] == "Kho KHO-TP"
+    assert dong["sl_con_lai"] == 90 and dong["kho_ten"] == "Kho thành phẩm"
     # Chỉ lô GỐC lên danh sách — lô ở KHO-B không thành dòng riêng.
     assert _mon(gg.ds_chua_gia_goc(db, q=o_b.ma_lo, chi_chua_gia=False, page=1, size=20), o_b.ma_lo) == []
 
@@ -118,7 +118,7 @@ def test_sua_gia_goc_lan_xuong_lo_dieu_chuyen_va_bao_cao(db, orders, lsx_svc, ad
     assert vet.target == f"stock_lot:{goc.id}" and "0 → 12.000" in vet.detail and "2 lô" in vet.detail
 
 
-def test_loc_nang_cao_theo_ngay_nhap_kho_khach(db, orders, lsx_svc, admin, customer):
+def test_loc_nang_cao_theo_ngay_nhap_kho_khach(db, orders, lsx_svc, admin, customer, thanh_pham_nhieu_kho):
     """Lọc nâng cao của tab Giá gốc thành phẩm: khoảng ngày NHẬP (hai đầu tính), kho nhập, khách hàng —
     ghép VÀ với nhau. Lựa chọn kho/khách chỉ gồm nơi có lô GỐC (kho chỉ nhận lô điều chuyển không có)."""
     goc, _o_b, _px, a, b = _dung(db, orders, lsx_svc, admin, customer)
@@ -127,7 +127,7 @@ def test_loc_nang_cao_theo_ngay_nhap_kho_khach(db, orders, lsx_svc, admin, custo
         return gg.ds_chua_gia_goc(db, q=None, chi_chua_gia=False, page=1, size=20, **loc)
 
     tat_ca = _ds()
-    assert tat_ca["cac_kho"] == [{"id": a.id, "ten": "Kho KHO-TP"}]
+    assert tat_ca["cac_kho"] == [{"id": a.id, "ten": "Kho thành phẩm"}]
     [khach] = tat_ca["cac_khach"]
     [dong] = _mon(tat_ca, goc.ma_lo)
     assert khach["ten"] == dong["khach_hang"]
@@ -241,7 +241,7 @@ def test_dong_phieu_nhap_kcs_mang_don_va_gia_ban_ca_luc_nhap(db, orders, lsx_svc
     assert nhap.chua_gia_goc and nhap.don_gia_ban == 500
 
 
-def test_ky_khoa_o_kho_dich_chan_ca_lan_sua(db, orders, lsx_svc, admin, customer):
+def test_ky_khoa_o_kho_dich_chan_ca_lan_sua(db, orders, lsx_svc, admin, customer, thanh_pham_nhieu_kho):
     goc, o_b, _px, _a, b = _dung(db, orders, lsx_svc, admin, customer)
     hom_nay = date.today()
     KhoKhoaSoRepository(db).add(kho_id=b.id, tu_ngay=hom_nay - timedelta(days=1),
@@ -303,3 +303,34 @@ def test_thieu_quyen_xem_gia_von_bi_403(client):
     r = client.get("/api/kho/bao-cao/thanh-pham-chua-gia-goc", headers=kt,
                    params={"tu": "2026-09-10", "den": "2026-09-01"})
     assert r.status_code == 400
+
+
+def test_con_thanh_pham_chua_gia_goc_thi_KHONG_chot_ky(db, orders, lsx_svc, admin, customer, thanh_pham_nhieu_kho):
+    """Chủ chốt 12/10/2026: còn lô thành phẩm giá gốc 0 thì không khoá sổ, không tính giá kỳ. Giá vốn
+    phiếu xuất đọc thẳng giá lô — chốt lúc còn 0 đ là số đã chốt lệch với số sau khi kế toán gõ giá."""
+    from fastapi import HTTPException
+
+    from app.routers.kho_baocao import set_khoa_so, tinh_gia_ky
+    from app.schemas.stock import KhoKhoaSoIn, TinhGiaKyIn
+
+    goc, o_b, _px, a, b = _dung(db, orders, lsx_svc, admin, customer)
+    hom_nay = date.today()
+
+    # Cả lô điều chuyển ở KHO-B (cùng họ lô gốc, cùng giá 0) cũng chặn kỳ của KHO-B.
+    for kho_id, lo in ((None, goc), (a.id, goc), (b.id, o_b)):
+        with pytest.raises(HTTPException) as e:
+            set_khoa_so(KhoKhoaSoIn(kho_id=kho_id, tu_ngay=hom_nay, den_ngay=hom_nay, hanh_dong="khoa"),
+                        db, admin)
+        assert e.value.status_code == 400 and lo.ma_lo in e.value.detail and "khoá sổ" in e.value.detail
+    with pytest.raises(HTTPException) as e:
+        tinh_gia_ky(TinhGiaKyIn(tu=hom_nay, den=hom_nay), db, admin)
+    assert e.value.status_code == 400 and "tính giá kỳ" in e.value.detail
+    # Kỳ kết thúc TRƯỚC ngày nhập lô thì lô đó không dính.
+    hom_qua = hom_nay - timedelta(days=1)
+    gg.chan_chot_khi_chua_gia(db, tu_ngay=hom_qua, den_ngay=hom_qua)
+
+    gg.sua_gia_goc(db, user=admin, lot_id=goc.id, don_gia=12_000)
+    gg.chan_chot_khi_chua_gia(db, tu_ngay=hom_nay, den_ngay=hom_nay)
+    row = set_khoa_so(KhoKhoaSoIn(kho_id=None, tu_ngay=hom_nay, den_ngay=hom_nay, hanh_dong="khoa"),
+                      db, admin)
+    assert row.hanh_dong == "khoa"

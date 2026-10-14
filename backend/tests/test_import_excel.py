@@ -849,13 +849,14 @@ def test_xem_truoc_khong_bao_gio_ghi(client, seed_credentials):
     noi_dung = _wb_tu(["Mã", "Tên"], [["KHO-XT", "Kho xem trước"]],
                       ten_sheet=SPECS["kho_hang"].tieu_de[:31], loai="kho_hang")
 
+    # DB nào cũng có sẵn Kho thành phẩm (mg 0398) ⇒ mốc đếm là 1.
     kq = _nhap(client, h, "/api/kho", noi_dung).json()
     assert kq["hop_le"] and kq["tao_moi"] == 1 and kq["da_ghi"] is False
-    assert client.get("/api/kho", headers=h).json()["total"] == 0
+    assert client.get("/api/kho", headers=h).json()["total"] == 1
 
     kq = _nhap(client, h, "/api/kho", noi_dung, mode="commit").json()
     assert kq["da_ghi"] and kq["tao_moi"] == 1
-    assert client.get("/api/kho", headers=h).json()["total"] == 1
+    assert client.get("/api/kho", headers=h).json()["total"] == 2
 
 
 # ======================================================================================

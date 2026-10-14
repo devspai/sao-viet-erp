@@ -174,11 +174,8 @@ class RolePermission(Base):
     can_set_credit_terms: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    # don_hang_ban: GHI PHIẾU THU CỌC (Kế toán) — tách khỏi CRUD đơn. NV KD lập đơn nhưng
-    # KHÔNG tự ghi cọc (tiền vào két là việc Kế toán). Mặc định tắt.
-    can_record_deposit: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
+    # `can_record_deposit` (ghi phiếu thu cọc) ĐÃ GỠ 13/10/2026 (mg 0407): thu cọc trên đơn hỏi thẳng
+    # Phiếu thu → Tạo. Cột còn nằm trong DB (NOT NULL DEFAULT FALSE) nhưng không ai đọc nữa.
     # san_xuat: GÁN VIỆC — tổ trưởng gán thợ vào công đoạn (routing_step) của lệnh đã phát. Tách
     # khỏi read: người được gán mới HỨNG việc + chỉ vai có bit này (full-tổ) mới thấy nút gán.
     can_assign_work: Mapped[bool] = mapped_column(

@@ -40,7 +40,8 @@ CT_GIA = "dinh_luong_support * dai_support * rong_support"
 
 
 def _khai_don_vi(client, h):
-    for ma, ten in (("zzgm2", "g/m²"), ("zzmm", "mm")):
+    # Tên riêng: nền đã có "g/m²" / "mm", mà danh mục cấm trùng TÊN.
+    for ma, ten in (("zzgm2", "zz g/m²"), ("zzmm", "zz mm")):
         r = client.post("/api/don-vi", json={"ma": ma, "ten": ten}, headers=h)
         assert r.status_code in (200, 201, 409, 422), r.text
 
@@ -116,7 +117,7 @@ def test_don_vi_chip_khong_co_trong_danh_muc_bi_chan_nen_ten_chip(client):
 
 def test_don_vi_chip_rong_van_cho_phep_va_go_ten_thi_doi_ra_ma(client):
     h = _admin(client)
-    r = _tao(client, h, chips=[{"ten": "Dài support", "don_vi": ""}, {"ten": "Rộng support", "don_vi": "g/m²"}])
+    r = _tao(client, h, chips=[{"ten": "Dài support", "don_vi": ""}, {"ten": "Rộng support", "don_vi": "zz g/m²"}])
     assert r.status_code in (200, 201), r.text
     assert [c["don_vi"] for c in r.json()["chips"]] == [None, "zzgm2"]
 

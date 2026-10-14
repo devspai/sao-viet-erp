@@ -51,6 +51,7 @@ from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.stock_lot_repo import StockLotRepository
 from ...repositories.stock_request_repo import StockRequestRepository
 from ..dong_giay import TRAM_MAC_DINH, tram_cua
+from ..kho_thanh_pham import id_kho_thanh_pham, ton_o_kho_thanh_pham
 from ..stock_request_service import StockRequestError, StockRequestService
 from ..thanh_pham_khai_bao import CumBan, cum_ban, gia_ban_cum, khai_cum, thanh_pham_cua_cum
 from ..vat_lieu_kho_service import VatLieuKhoError
@@ -359,6 +360,8 @@ def lap_yeu_cau_nhap_tp(
             # Bộ phận = của NGƯỜI bấm gửi (người KCS), không phải tổ làm công đoạn — cùng luật với
             # đề nghị cấp vật tư và nhập lại (11/10/2026; trước đó ghi tổ Cắt dưới tên Admin).
             bo_phan_id=user.department_id,
+            # Thành phẩm chỉ vào Kho thành phẩm (12/10/2026) — đề nghị gắn sẵn kho, kho khỏi chọn.
+            kho_id=id_kho_thanh_pham(db),
             san_xuat_cong_viec_id=cv.id,
             ghi_chu=f"Nhập thành phẩm từ {nguon_ghi} · {nguon.than_chinh.ma} · {ten}"[:1000],
             **them,
@@ -459,7 +462,8 @@ def phat_su_kien_kho(req, *, bao_nguoi_tao: bool) -> None:
 
 # --- Giao hàng: tồn thành phẩm của nhóm ------------------------------------------------------------
 def ton_thanh_pham_cua_nhom(db: Session, nhom_id: int) -> dict:
-    """Khối Giao hàng của Hồ sơ lệnh: mỗi cụm bán của nhóm = một món `TP-…`, tách theo KHO.
+    """Khối Giao hàng của Hồ sơ lệnh: mỗi cụm bán của nhóm = một món `TP-…`, tồn ở Kho thành phẩm
+    (12/10/2026: thành phẩm chỉ vào / ra kho này — `kho_thanh_pham`).
 
     Hai con số trên mỗi dòng (cùng hai số Giao hàng và kho tự kiểm, nên ba bên không vênh):
       · `so_luong` — tồn THẬT của món ở kho đó (lô khả dụng, `on_hand_by_kho`);
@@ -486,7 +490,7 @@ def ton_thanh_pham_cua_nhom(db: Session, nhom_id: int) -> dict:
     dong = [d for ds in dong_nhap_kho_cua_cong_viec(db, cv_ids).values() for d in ds]
 
     tp_theo_cum = [(cum, tp) for cum in nguon.cums if (tp := thanh_pham_cua_cum(db, order, cum)) is not None]
-    ton = StockLotRepository(db).on_hand_by_kho(list({("vat_tu", tp.id) for _, tp in tp_theo_cum}))
+    ton = ton_o_kho_thanh_pham(db, {("vat_tu", tp.id) for _, tp in tp_theo_cum})
     ten_kho = KhoHangRepository(db).ten_theo_ids({k for per in ton.values() for k in per})
     con_giao = DeliveryService(DeliveryRepository(db), OrderRepository(db), None, None, None) \
         .con_phai_giao(order.id)

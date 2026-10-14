@@ -38,7 +38,7 @@ export const SOURCE_LABELS: Record<PaymentVoucherSource, string> = {
   salary_advance: "Tạm ứng lương",
   gia_cong_ngoai: "Gia công",
   internal_expense: "Khác",
-  customer_refund: "Khác",
+  customer_refund: "Trả lại tiền khách",
   other: "Khác",
 };
 

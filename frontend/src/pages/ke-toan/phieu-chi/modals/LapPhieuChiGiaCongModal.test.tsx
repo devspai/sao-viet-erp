@@ -1,6 +1,6 @@
 /** Nút "Lập phiếu chi" ở hàng gia công mở CÙNG giao diện với nút trên đầu màn (`ThanPhieuChiRoi`):
  *  cùng ô, cùng tờ phiếu xem trước; thêm dải tóm tắt việc, số tiền gõ theo hoá đơn nhà gia công. */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GiaCongChoChi } from "../../../../api/client";
@@ -8,7 +8,7 @@ import type { GiaCongChoChi } from "../../../../api/client";
 vi.mock("../../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
 vi.mock("../../../../api/client", async (goc) => ({
   ...(await goc<typeof import("../../../../api/client")>()),
-  api: { accounting: { companyAccounts: vi.fn().mockResolvedValue([]), createVoucher: vi.fn() } },
+  api: { mucThuChi: { list: vi.fn().mockResolvedValue({ items: [{ id: -2, ma: "HT-02", ten: "Thuê gia công ngoài", loai: "chi", co_dinh: true, nguon: "gia_cong_ngoai", ghi_chu: "Phiếu chi gia công ngoài", active: true }] }) }, accounting: { companyAccounts: vi.fn().mockResolvedValue([]), createVoucher: vi.fn() } },
 }));
 
 import { LapPhieuChiGiaCongModal } from "./LapPhieuChiGiaCongModal";
@@ -28,6 +28,13 @@ const ROW = {
 } as GiaCongChoChi;
 
 describe("Lập phiếu chi gia công", () => {
+  it("phiếu gia công thuộc mục cố định: không có ô Mục, tờ xem trước ghi tên mục", async () => {
+    render(<LapPhieuChiGiaCongModal row={ROW} onClose={() => {}} onDone={() => {}} />);
+    expect(screen.queryByLabelText(/Mục chi/)).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Xem trước phiếu chi")).toHaveTextContent("Mục chi:Thuê gia công ngoài"));
+  });
+
   it("cùng giao diện với phiếu chi rời, điền sẵn người nhận và lý do", () => {
     render(<LapPhieuChiGiaCongModal row={ROW} onClose={() => {}} onDone={() => {}} />);
     expect(screen.getByRole("dialog", { name: "Lập phiếu chi" })).toBeInTheDocument();

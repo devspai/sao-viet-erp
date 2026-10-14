@@ -383,6 +383,14 @@ def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[in
             # Tổ đã tích "đã nhận khuôn" chưa — chip đổi màu theo, hồ sơ nói được dao đang ở đâu
             # mà không phải mở bàn tổ ra xem.
             "khuon_da_nhan": cv is not None and cv.khuon_nhan_luc is not None,
+            # Số không đạt KCS ghi trên chính bước này — routing dọc của hai màn theo dõi đánh dấu
+            # bước có lô lỗi mà không phải mở bảng KCS.
+            "kcs_khong_dat": sum(
+                _f(k.so_luong_khong_dat) for k in bc.kcs.get(cv.id, ()) if k.ket_luan == trang_thai.KCS_KHONG_DAT
+            ) if cv is not None else 0.0,
+            # Số TỐT tổ đã ghi ở bước này (13/10/2026) — ngăn so với `so_luong_ra` kế hoạch để thấy
+            # bước "xong" ở 250/4.150 tờ. Bước ghép là số của CẢ CA (`la_buoc_ghep` nói rõ).
+            "lam_ra": sum(_f(x.tot) for x in bc.batch.get(cv.id, ())) if cv is not None else 0.0,
             **khuon.get(b.khuon_be_id or 0, {}),
         })
     return {"nodes": nodes, "canh": [[a, b] for a, b in sorted(canh)]}
@@ -842,7 +850,7 @@ def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
                 "nguoi_id": b.created_by,
                 "cong_viec_id": cv.id,
                 "ten_viec": ten,
-                "noi_dung": (f"Ghi sản lượng {ten}: {_f(b.tot):g} tốt · "
+                "noi_dung": (f"Ghi sản lượng {ten}: {_f(b.tot):g} tốt và "
                              f"{_f(b.hong):g} hỏng {nhan_don_vi(dv_ten, b.don_vi)}"),
             })
         for k in bc.kcs[cv.id]:
@@ -853,7 +861,7 @@ def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
                 "cong_viec_id": cv.id,
                 "ten_viec": ten,
                 "noi_dung": (
-                    f"KCS {ten}: {_f(k.so_luong_dat):g} đạt · "
+                    f"KCS {ten}: {_f(k.so_luong_dat):g} đạt và "
                     f"{_f(k.so_luong_khong_dat):g} không đạt "
                     f"({_KCS_KET_LUAN_NHAN.get(k.ket_luan or '', 'chưa rõ kết luận')})"
                 ),
@@ -1049,6 +1057,10 @@ def ho_so(
         ra["routing"] = _routing(
             bc, lsx_id, buocs, ten_to, _khuon_buoc(db, buocs), _buoc_can_khuon(db, buocs), chung
         )
+        # Tên đơn vị đầu ra ("tờ", không phải mã "to") — một lượt đọc cho cả routing.
+        dv_ten = DonViDoRepository(db).ten_theo_ma()
+        for n in ra["routing"]["nodes"]:
+            n["don_vi_ra_ten"] = nhan_don_vi(dv_ten, n["don_vi_ra"]) if n["don_vi_ra"] else None
     if "vat_tu" in can:
         ra["vat_tu"] = _vat_tu(
             bc, lsx_id, bang=bang,
@@ -1073,4 +1085,61 @@ def ho_so(
     if "phien_ban" in can:
         # ĐỌC TỪ GÓI, không phải cột trên `lsx` (không có cột nào như thế, và đừng thêm).
         ra["phien_ban"] = goi.version_hien_tai if goi is not None else None
+    return ra
+
+
+def _kcs_cuoi_nhom(db: Session, lsx_id: int, kcs_batch: list[dict]) -> dict:
+    """KCS cuối của THÀNH PHẨM mà lệnh góp vào — cấp NHÓM, cùng mức với khối `kho` (12/10/2026).
+
+    Chỉ công đoạn cuối của THÂN CHÍNH mang `la_kcs_cuoi`: Ruột + Bìa thì bước KCS cuối nằm ở lệnh
+    Ruột, lệnh Bìa không có bước nào như thế. Đọc theo từng lệnh (như `_kcs`) thì Bìa mãi "Chưa
+    kiểm" trong khi dòng Nhập kho ngay dưới đã báo hàng vào kho "chung 2 lệnh". Gộp hai nguồn: bước
+    KCS cuối của chính lệnh (kể cả bước chung bài ghép, đã nằm sẵn trong `kcs_batch`) và của nhóm.
+    `so_lan = 0` ⇒ chưa kiểm lần nào.
+    """
+    from ...models.san_xuat import SanXuatCongViec, SanXuatNhomLsx
+    from ...models.san_xuat_kcs import SanXuatKcsBatch
+
+    cv_ids = {b["cong_viec_id"] for b in kcs_batch if b["la_kcs_cuoi"]}
+    nhom_ids = select(SanXuatNhomLsx.nhom_id).where(SanXuatNhomLsx.lsx_id == lsx_id)
+    cv_ids |= set(db.execute(
+        select(SanXuatCongViec.id).where(
+            SanXuatCongViec.la_kcs_cuoi.is_(True), SanXuatCongViec.nhom_id.in_(nhom_ids),
+        )
+    ).scalars())
+    rows = db.execute(
+        select(SanXuatKcsBatch.so_luong_nhan, SanXuatKcsBatch.so_luong_dat, SanXuatKcsBatch.so_luong_khong_dat)
+        .where(SanXuatKcsBatch.cong_viec_id.in_(cv_ids))
+    ).all() if cv_ids else []
+    return {
+        "so_lan": len(rows),
+        "nhan": sum(_f(r[0]) for r in rows),
+        "dat": sum(_f(r[1]) for r in rows),
+        "khong_dat": sum(_f(r[2]) for r in rows),
+    }
+
+
+# Khối của ngăn gọn (12/10/2026): bỏ vật tư, nhân lực, sản lượng, giao hàng. Sự cố và nhật ký trở lại
+# ngày 13/10/2026 (ngăn hai cột phương án A: thẻ Đang vướng + tab Lịch sử).
+KHOI_NGAN = frozenset({
+    "thong_tin", "tien_do", "thong_so", "routing", "kcs", "kho", "phien_ban", "su_co", "timeline",
+})
+
+
+def ngan(db: Session, lsx_id: int, *, sale_ids: set[int] | None, bay_gio: datetime | None = None) -> dict:
+    """Ngăn hồ sơ gọn: đúng cửa quyền của `ho_so` (gọi thẳng nó với `chi_khoi`), cộng thông tin
+    lệnh gia công trọn gói để ngăn bày MỘT bước thay routing mẫu không ai ghi."""
+    from ...models.lsx import TT_DA_DONG as _DONG
+    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+
+    ra = ho_so(db, lsx_id, sale_ids=sale_ids, bay_gio=bay_gio, chi_khoi=set(KHOI_NGAN))
+    ra["kcs_cuoi"] = _kcs_cuoi_nhom(db, lsx_id, ra["kcs"]["batch"])
+    tron = next((g for _i, g, _bg in GiaCongNgoaiRepository(db).cua_nhieu_lenh([lsx_id])
+                 if g.kieu == "tron_goi"), None)
+    if tron is not None:
+        lsx = db.get(Lsx, lsx_id)
+        ra["tron_goi"] = {
+            "nha_cung_cap": tron.nha_cung_cap_ten,
+            "xong": lsx.trang_thai == _DONG or ra["tien_do"]["khau"] != trang_thai.KHAU_DANG_SX,
+        }
     return ra

@@ -466,14 +466,14 @@ export function BaoGiaPage({
 }
 
 // --- Lưới danh sách (phương án A, 07/10/2026) --------------------------------------------------
-// Thứ tự: Mã, Ngày, Khách, Sản phẩm, Số lượng, Giá bán, Lãi, Trạng thái, Người duyệt, Hiệu lực,
-// Đơn hàng (chứng từ kế tiếp), Người lập.
+// Thứ tự: Mã, Ngày, Khách, Sản phẩm, Giá bán, Lãi, Trạng thái, Người duyệt, Hiệu lực,
+// Đơn hàng (chứng từ kế tiếp), Người lập. Cột Số lượng ĐÃ GỠ (13/10/2026): báo giá nhiều sản phẩm
+// khác loại thì một con số SL của dòng đầu không nói lên gì — SL từng dòng xem trong báo giá.
 const COT_BG: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
   { key: "ma", label: "Mã báo giá", coDinh: true, w: 140, sx: "code" },
   { key: "ngay", label: "Ngày tạo", w: 110, sx: "created_at" },
   { key: "khach", label: "Khách hàng", w: 200 },
   { key: "sp", label: "Sản phẩm", w: 195 },
-  { key: "sl", label: "Số lượng", w: 105, n: true },
   { key: "gia", label: "Giá bán gồm VAT", w: 130, n: true, sx: "total" },
   { key: "lai", label: "Lãi", w: 60, n: true },
   { key: "tt", label: "Trạng thái", w: 150, sx: "status" },
@@ -541,19 +541,6 @@ function OBaoGia({
         </td>
       );
     }
-    case "sl":
-      return (
-        <td className="n">
-          {r.so_luong != null ? (
-            <>
-              {soVN(r.so_luong)}
-              {r.don_vi ? <span className="lds-u">{r.don_vi}</span> : null}
-            </>
-          ) : (
-            <span className="lds-mu3">—</span>
-          )}
-        </td>
-      );
     case "gia":
       return <td className="n">{r.total != null ? soVN(r.total) : <span className="lds-mu3">—</span>}</td>;
     case "lai":

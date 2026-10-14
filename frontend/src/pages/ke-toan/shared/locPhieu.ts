@@ -1,8 +1,8 @@
 /** Điều kiện lọc DÙNG CHUNG của hai sổ phiếu — Phiếu chi và Phiếu thu (đặc tả PC-1, PT-1, A.18),
  *  đặt trên thanh lọc chung `ThanhLoc` (06/10/2026).
  *
- *  Hai màn có cùng năm điều kiện: Số tiền (khoảng), Hình thức, Nguồn (nhiều), Tài khoản công ty và
- *  Chứng từ. Chỉ khác danh sách nguồn và chữ — phần đó do từng màn khai. Tên người nhận / người nộp
+ *  Hai màn có cùng năm điều kiện: Số tiền (khoảng), Hình thức, Mục (nhiều), Tài khoản công ty và
+ *  Chứng từ. Lọc Mục thay lọc Nguồn từ 11/10/2026 — danh sách mục nạp từ danh mục Mục thu chi. Tên người nhận / người nộp
  *  tìm bằng ô tìm (máy chủ so cả tên người trong `q`). File này là hàm thuần, không React.
  */
 import { ArrowLeftRight, Banknote, Landmark, Layers, Paperclip } from "lucide-react";
@@ -10,29 +10,27 @@ import { ArrowLeftRight, Banknote, Landmark, Layers, Paperclip } from "lucide-re
 import type { CompanyBankAccountRow, LocPhieu, TheLoc as SoTheLoc } from "../../../api/client";
 import { dkTheoTab, type DieuKien, type GiaTriDK } from "../../thanh-loc/thanh-loc";
 
-/** Bộ lọc ĐÃ ÁP. `nguon` là khoá GIAO DIỆN — một khoá có thể gom nhiều `source_type` (xem `nguonGui`
- *  của từng màn). */
+/** Bộ lọc ĐÃ ÁP. `muc` = id mục thu chi; `0` = phiếu chưa phân loại. */
 export type LocNangCao = {
   tien_tu?: number;
   tien_den?: number;
   hinh_thuc?: "cash" | "bank_transfer";
-  nguon: string[];
+  muc: number[];
   tai_khoan_id?: number;
   chung_tu?: "co" | "thieu";
 };
 
-export const LOC_TRONG: LocNangCao = { nguon: [] };
+export const LOC_TRONG: LocNangCao = { muc: [] };
 
 /** Phần tham số máy chủ do bộ lọc quyết định (không gồm thẻ, kỳ, ô tìm). */
 export function thamSoNangCao(
   loc: LocNangCao,
-  nguonGui: (nguon: string[]) => string[] = (n) => n,
-): Pick<LocPhieu, "tien_tu" | "tien_den" | "hinh_thuc" | "nguon" | "tai_khoan_id"> {
+): Pick<LocPhieu, "tien_tu" | "tien_den" | "hinh_thuc" | "muc" | "tai_khoan_id"> {
   return {
     tien_tu: loc.tien_tu,
     tien_den: loc.tien_den,
     hinh_thuc: loc.hinh_thuc,
-    nguon: nguonGui(loc.nguon),
+    muc: loc.muc,
     tai_khoan_id: loc.tai_khoan_id,
   };
 }
@@ -41,7 +39,7 @@ export function soDieuKien(loc: LocNangCao): number {
   let n = 0;
   if (loc.tien_tu != null || loc.tien_den != null) n++;
   if (loc.hinh_thuc) n++;
-  if (loc.nguon.length) n++;
+  if (loc.muc.length) n++;
   if (loc.tai_khoan_id != null) n++;
   if (loc.chung_tu) n++;
   return n;
@@ -60,9 +58,8 @@ const CHUNG_TU: GiaTriDK[] = [
 
 /** Chữ riêng của từng sổ. */
 export type CauHinhLocPhieu = {
-  /** "Nguồn chi" / "Nguồn thu". */
-  nhanNguon: string;
-  nguonLuaChon: [string, string][];
+  /** "Mục chi" / "Mục thu". */
+  nhanMuc: string;
   /** "Trả từ tài khoản" / "Vào tài khoản". */
   nhanTaiKhoan: string;
 };
@@ -71,9 +68,16 @@ export function tenTaiKhoan(tk: Pick<CompanyBankAccountRow, "bank_name" | "accou
   return `${tk.bank_name} ${tk.account_number}`;
 }
 
+/** Lựa chọn "Chưa phân loại" của điều kiện Mục — phiếu chưa gắn mục nào. */
+export const MUC_CHUA_PHAN_LOAI = "Chưa phân loại";
+
 /** Điều kiện của một sổ phiếu. `taiKhoan` null = không có quyền xem Tài khoản ngân hàng ⇒ không có
- *  điều kiện tài khoản. */
-export function dieuKienPhieu(ch: CauHinhLocPhieu, taiKhoan: CompanyBankAccountRow[] | null): DieuKien<LocNangCao>[] {
+ *  điều kiện tài khoản. `muc` = mục cùng loại của danh mục (kể cả mục đã ngừng — phiếu cũ vẫn mang). */
+export function dieuKienPhieu(
+  ch: CauHinhLocPhieu,
+  taiKhoan: CompanyBankAccountRow[] | null,
+  muc: { id: number; ten: string }[] = [],
+): DieuKien<LocNangCao>[] {
   const ds: DieuKien<LocNangCao>[] = [
     {
       khoa: "tien", nhan: "Số tiền", icon: Banknote, kieu: "khoang", donVi: "đ",
@@ -86,10 +90,10 @@ export function dieuKienPhieu(ch: CauHinhLocPhieu, taiKhoan: CompanyBankAccountR
       ghi: (l, v) => ({ ...l, hinh_thuc: v as LocNangCao["hinh_thuc"] }),
     },
     {
-      khoa: "nguon", nhan: ch.nhanNguon, icon: Layers, kieu: "nhieu",
-      giaTri: ch.nguonLuaChon.map(([value, nhan]) => ({ value, nhan })),
-      doc: (l) => l.nguon,
-      ghi: (l, v) => ({ ...l, nguon: v }),
+      khoa: "muc", nhan: ch.nhanMuc, icon: Layers, kieu: "nhieu", tim: true,
+      giaTri: [{ value: "0", nhan: MUC_CHUA_PHAN_LOAI }, ...muc.map((m) => ({ value: String(m.id), nhan: m.ten }))],
+      doc: (l) => l.muc.map(String),
+      ghi: (l, v) => ({ ...l, muc: v.map(Number) }),
     },
   ];
   if (taiKhoan) {
@@ -143,35 +147,31 @@ export function soDuong(v: string | null): number | undefined {
   return Number.isSafeInteger(n) ? n : undefined;
 }
 
-/** Bộ lọc → khoá URL. `nguonUrl` = cặp [khoá giao diện, mã ngắn trên URL] của màn.
- *  Giá trị mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
-export function locNangCaoLenUrl(loc: LocNangCao, nguonUrl: [string, string][]): Record<string, string | undefined> {
-  const nguon = loc.nguon
-    .map((n) => nguonUrl.find(([k]) => k === n)?.[1])
-    .filter((n): n is string => !!n);
+/** Bộ lọc → khoá URL (`muc=3,0`). Giá trị mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
+export function locNangCaoLenUrl(loc: LocNangCao): Record<string, string | undefined> {
   return {
     tien_tu: loc.tien_tu != null ? String(loc.tien_tu) : undefined,
     tien_den: loc.tien_den != null ? String(loc.tien_den) : undefined,
     hinh_thuc: loc.hinh_thuc,
-    nguon: nguon.length ? nguon.join(",") : undefined,
+    muc: loc.muc.length ? loc.muc.join(",") : undefined,
     tk: loc.tai_khoan_id != null ? String(loc.tai_khoan_id) : undefined,
     chung_tu: loc.chung_tu,
   };
 }
 
 /** Khoá URL → bộ lọc. Giá trị rác thì bỏ qua từng khoá (không làm hỏng cả bộ lọc). */
-export function locNangCaoTuUrl(p: URLSearchParams, nguonUrl: [string, string][]): LocNangCao {
-  const loc: LocNangCao = { nguon: [] };
+export function locNangCaoTuUrl(p: URLSearchParams): LocNangCao {
+  const loc: LocNangCao = { muc: [] };
   const tienTu = soDuong(p.get("tien_tu"));
   const tienDen = soDuong(p.get("tien_den"));
   if (tienTu != null) loc.tien_tu = tienTu;
   if (tienDen != null) loc.tien_den = tienDen;
   const ht = p.get("hinh_thuc");
   if (ht === "cash" || ht === "bank_transfer") loc.hinh_thuc = ht;
-  loc.nguon = (p.get("nguon") ?? "")
-    .split(",")
-    .map((m) => nguonUrl.find(([, ngan]) => ngan === m)?.[0])
-    .filter((n): n is string => !!n);
+  // Id âm = mục cố định theo nguồn phiếu (Trả nhà cung cấp…), 0 = chưa phân loại.
+  loc.muc = [...new Set((p.get("muc") ?? "").split(",")
+    .map((v) => (/^-?\d+$/.test(v) ? Number(v) : NaN))
+    .filter((n) => Number.isSafeInteger(n)))];
   const tk = soDuong(p.get("tk"));
   if (tk != null && tk > 0) loc.tai_khoan_id = tk;
   const ct = p.get("chung_tu");

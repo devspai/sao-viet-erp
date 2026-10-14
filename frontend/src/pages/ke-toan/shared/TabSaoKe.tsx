@@ -71,32 +71,77 @@ export function useSoCongNo(ben: BenCongNo, id: number, ky: KyXem | null, lan = 
 
 type ChonKy = "trang" | LoaiKy;
 
-function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTietCongNo; onMoPhieu?: (code: string) => void; inAn?: boolean }) {
+/** Chứng từ hoàn tiền: sổ ghi cùng phía hoá đơn / hàng về, sao kê hiện là thu âm / trả âm. */
+const LOAI_HOAN = new Set(["hoan_tien", "hoan_tien_khach"]);
+const amDuong = (n: number) => (n < 0 ? `−${vietSo(-n)}` : vietSo(n));
+
+/** Số hoá đơn không kèm ký hiệu — ký hiệu đứng cột riêng (13/10/2026). */
+const soKhongKyHieu = (d: SoChiTietDong) =>
+  d.ky_hieu && d.so_ct.startsWith(`${d.ky_hieu} `) ? d.so_ct.slice(d.ky_hieu.length + 1) : d.so_ct;
+
+function BangSaoKe({ ben, so, onMoPhieu, onMoDon, onMoDonMua, inAn }: {
+  ben: BenCongNo; so: SoChiTietCongNo; onMoPhieu?: (code: string) => void; onMoDon?: (orderId: number) => void;
+  onMoDonMua?: (code: string) => void; inAn?: boolean;
+}) {
   const c = CHU[ben];
+  // Phải thu: chứng từ là hoá đơn bán ⇒ thêm cột Ký hiệu. Phải trả (13/10/2026): chứng từ là đợt
+  // nhận hàng (ngày của dòng = ngày nhận hàng) ⇒ thêm Số hoá đơn, Ký hiệu, Ngày hoá đơn của đợt.
+  const coKyHieu = ben === "receivables";
+  const coHdMua = ben === "payables";
+  const soCot = coKyHieu ? 7 : 9;
+  const cotTrong = coKyHieu ? 2 : 4;
   const dau = ben === "receivables" ? so.dau_no - so.dau_co : so.dau_co - so.dau_no;
   const cuoi = ben === "receivables" ? so.cuoi_no - so.cuoi_co : so.cuoi_co - so.cuoi_no;
-  const tongTang = ben === "receivables" ? so.ps_no : so.ps_co;
-  const tongGiam = ben === "receivables" ? so.ps_co : so.ps_no;
-  const soTien = (n: number) => (n ? vietSo(n) : "");
+  // Tiền hoàn không phải bán ra / nhận hàng: trừ khỏi cột tăng, tính là thu âm / trả âm.
+  const tongTang = (ben === "receivables" ? so.ps_no : so.ps_co) - so.hoan;
+  const tongGiam = (ben === "receivables" ? so.ps_co : so.ps_no) - so.hoan;
+  const soTien = (n: number) => (n ? amDuong(n) : "");
   // Bản xem trên ngăn dùng lưới lds-g (lớp căn `n`, dòng mốc `lds-cong`); bản in giữ bảng `ps-tbl` cũ (lớp `r`).
   const lopSo = inAn ? "r" : "n";
   const lopMoc = inAn ? "kt-sk__moc" : "lds-cong";
   return (
-    <table className={inAn ? "ps-tbl kt-sk-in" : "lds-g"}>
+    // Bề rộng tối thiểu trên ngăn = tổng cột cố định + 160 cho Diễn giải: ngăn hẹp thì khung cuộn ngang,
+    // không ép Diễn giải về 0px (phải trả có thêm ba cột hoá đơn từ 13/10/2026).
+    <table className={inAn ? "ps-tbl kt-sk-in" : "lds-g"}
+      style={inAn ? undefined : { minWidth: (coKyHieu ? 102 + 150 + 92 : 102 + 190 + 112 + 88 + 114) + 3 * 116 + 160 }}>
       {inAn ? (
-        <colgroup>
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "20%" }} />
-          <col style={{ width: "24%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "14%" }} />
-        </colgroup>
+        coKyHieu ? (
+          <colgroup>
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "21%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "13%" }} />
+          </colgroup>
+        ) : (
+          <colgroup>
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "11%" }} />
+          </colgroup>
+        )
       ) : (
-        // Chứng từ rộng 190: "DMH-261007-VBF4 đợt 1" đo 189px khi xếp công nợ phải trả. Diễn giải co giãn.
+        // Chứng từ rộng 190: "DMH-261007-VBF4 đợt 1" đo 189px khi xếp công nợ phải trả. Phải thu dài
+        // nhất là số phiếu thu "PT-261006-MUNO" ⇒ 150, Ký hiệu "1C26TSV" 92. Diễn giải co giãn.
         <colgroup>
           <col style={{ width: 102 }} />
-          <col style={{ width: 190 }} />
+          <col style={{ width: coKyHieu ? 150 : 190 }} />
+          {coKyHieu && <col style={{ width: 92 }} />}
+          {coHdMua && (
+            <>
+              <col style={{ width: 112 }} />
+              <col style={{ width: 88 }} />
+              <col style={{ width: 114 }} />
+            </>
+          )}
           <col />
           <col style={{ width: 116 }} />
           <col style={{ width: 116 }} />
@@ -107,6 +152,14 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
         <tr>
           <th>Ngày</th>
           <th>Chứng từ</th>
+          {coKyHieu && <th>Ký hiệu</th>}
+          {coHdMua && (
+            <>
+              <th>Số hoá đơn</th>
+              <th>Ký hiệu</th>
+              <th>Ngày hoá đơn</th>
+            </>
+          )}
           <th>Diễn giải</th>
           <th className={lopSo}>{c.tang}</th>
           <th className={lopSo}>{c.giam}</th>
@@ -116,7 +169,7 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
       <tbody>
         <tr className={lopMoc}>
           <td>{ngay(so.tu_ngay)}</td>
-          <td />
+          <td colSpan={cotTrong} />
           <td>Số dư đầu kỳ</td>
           <td />
           <td />
@@ -124,22 +177,40 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
         </tr>
         {so.dong.length === 0 && (
           <tr>
-            <td colSpan={6} className={inAn ? "kt-mo" : "lds-trong"}>Không có chứng từ nào trong kỳ.</td>
+            <td colSpan={soCot} className={inAn ? "kt-mo" : "lds-trong"}>Không có chứng từ nào trong kỳ.</td>
           </tr>
         )}
         {so.dong.map((d, i) => {
-          const s = chieuCongNo(ben, d);
+          const s0 = chieuCongNo(ben, d);
+          const s = LOAI_HOAN.has(d.loai) ? { ...s0, tang: 0, giam: -s0.tang } : s0;
           const laPhieu = d.loai === c.loaiPhieu;
+          const soCt = coKyHieu ? soKhongKyHieu(d) : d.so_ct;
+          // Hoá đơn bán không có màn riêng: bấm số mở đơn bán của nó (khối Hoá đơn trong đơn).
+          const donHd = d.loai === "hoa_don" && d.don_id != null ? d.don_id : null;
+          // Đợt nhận hàng (phải trả): bấm "DMH-… đợt N" mở đơn mua.
+          const donMua = d.loai === "dot_giao" && d.don_ma ? d.don_ma : null;
           return (
             <tr key={`${d.so_ct}-${i}`}>
               <td>{ngay(d.ngay)}</td>
               <td>
-                {laPhieu && onMoPhieu && !inAn ? (
-                  <button type="button" className="kt-lk" onClick={() => onMoPhieu(d.so_ct)}>{d.so_ct}</button>
+                {inAn ? soCt : laPhieu && onMoPhieu ? (
+                  <button type="button" className="kt-lk" onClick={() => onMoPhieu(d.so_ct)}>{soCt}</button>
+                ) : donHd != null && onMoDon ? (
+                  <button type="button" className="kt-lk" title="Mở đơn bán của hoá đơn" onClick={() => onMoDon(donHd)}>{soCt}</button>
+                ) : donMua != null && onMoDonMua ? (
+                  <button type="button" className="kt-lk" title="Mở đơn mua" onClick={() => onMoDonMua(donMua)}>{soCt}</button>
                 ) : (
-                  d.so_ct
+                  soCt
                 )}
               </td>
+              {coKyHieu && <td className={inAn ? undefined : "lds-mu"}>{d.ky_hieu ?? ""}</td>}
+              {coHdMua && (
+                <>
+                  <td>{d.so_hoa_don ?? ""}</td>
+                  <td className={inAn ? undefined : "lds-mu"}>{d.ky_hieu ?? ""}</td>
+                  <td>{d.ngay_hoa_don ? ngay(d.ngay_hoa_don) : ""}</td>
+                </>
+              )}
               <td>{d.dien_giai}</td>
               <td className={lopSo}>{soTien(s.tang)}</td>
               <td className={lopSo}>{soTien(s.giam)}</td>
@@ -151,10 +222,10 @@ function BangSaoKe({ ben, so, onMoPhieu, inAn }: { ben: BenCongNo; so: SoChiTiet
         })}
         <tr className={inAn ? "kt-sk__moc kt-sk__moc--cuoi" : "lds-cong"}>
           <td>{ngay(so.den_ngay)}</td>
-          <td />
+          <td colSpan={cotTrong} />
           <td>Số dư cuối kỳ</td>
           <td className={lopSo}>{vietSo(tongTang)}</td>
-          <td className={lopSo}>{vietSo(tongGiam)}</td>
+          <td className={lopSo}>{amDuong(tongGiam)}</td>
           <td className={lopSo}>{vietSo(cuoi)}</td>
         </tr>
       </tbody>
@@ -172,6 +243,8 @@ export function TabSaoKe({
   dangIn,
   onDongIn,
   onMoPhieu,
+  onMoDon,
+  onMoDonMua,
 }: {
   ben: BenCongNo;
   id: number;
@@ -186,6 +259,10 @@ export function TabSaoKe({
   onDongIn: () => void;
   /** Mở phiếu thu / phiếu chi; không có = không có quyền xem phiếu ⇒ số phiếu là chữ thường. */
   onMoPhieu?: (code: string) => void;
+  /** Mở đơn bán (bấm số hoá đơn ở sao kê phải thu); không có = không có quyền xem đơn. */
+  onMoDon?: (orderId: number) => void;
+  /** Mở đơn mua (bấm "DMH-… đợt N" ở sao kê phải trả); không có = không có quyền xem đơn mua. */
+  onMoDonMua?: (code: string) => void;
 }) {
   const homNay = homNayVN();
   const [chon, setChon] = useState<ChonKy>("trang");
@@ -221,7 +298,7 @@ export function TabSaoKe({
       {!so && dangTai && <p className="kt-mo">Đang tải sao kê…</p>}
       {so && (
         <div className={`lds-bang kt-sk-khung${dangTai ? " kt-sk-khung--tai" : ""}`} aria-busy={dangTai}>
-          <BangSaoKe ben={ben} so={so} onMoPhieu={onMoPhieu} />
+          <BangSaoKe ben={ben} so={so} onMoPhieu={onMoPhieu} onMoDon={onMoDon} onMoDonMua={onMoDonMua} />
         </div>
       )}
 

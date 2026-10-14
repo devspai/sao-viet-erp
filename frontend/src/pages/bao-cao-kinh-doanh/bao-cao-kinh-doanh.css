@@ -5,7 +5,7 @@
  *
  * Bố cục: đầu trang (tên + Xuất Excel) → khối [Tìm][Kỳ][Lọc]…[Bảng|Biểu đồ][Cột] + dải ghi chú "đầu
  * báo cáo" liền mép trên lưới → lưới khách / đơn / mặt hàng có ô gộp dọc → Tổng cộng → chú thích.
- * Cách xem Biểu đồ (phương án C, 11/10/2026) dùng tiền tố `bckd-bd__` — xem BieuDoTienDo.tsx. */
+ * Cách xem Biểu đồ (phương án A, 12/10/2026) dùng tiền tố `bckd-bd` — xem BieuDoKinhDoanh.tsx. */
 
 .bckd {
   max-width: var(--page-max-w);
@@ -137,8 +137,7 @@
   color: var(--ink);
 }
 
-.bckd__chu-thich,
-.bckd-bd__chu-thich {
+.bckd__chu-thich {
   margin: 0;
   padding: 8px 12px;
   border-top: 1px solid var(--rule-hair);
@@ -153,172 +152,42 @@
   color: var(--ash-2);
 }
 
-/* --- cách xem Biểu đồ (phương án C) ------------------------------------------------------ */
+/* --- cách xem Biểu đồ (phương án A, 12/10/2026) --------------------------------------------
+   Mảnh vẽ dùng chung ở components/bieu-do.css; ở đây chỉ bố cục hàng và dòng được tô ở dạng bảng. */
 .bckd-bd {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
   margin-top: 12px;
-  --bckd-dam: var(--tt-xanh-fg, #1d4ed8);
-  --bckd-nhat: var(--tt-xanh-dot, #3b82f6);
 }
 
-.bckd-bd__to {
-  background: var(--canvas, #fff);
-  border: 1px solid var(--rule-soft);
-  border-radius: 10px;
-  overflow: hidden;
+.bckd-bd__hang--2 {
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
 }
 
-.bckd-bd__dau {
-  padding: 18px 16px 10px;
-  text-align: center;
+.bckd-bd__hang--3 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.bckd-bd__cty {
-  font-size: 12px;
-  color: var(--ash-2);
-  letter-spacing: 0.02em;
+.bckd-bd__cg {
+  margin-top: 8px;
 }
 
-.bckd-bd__dau h2 {
-  margin: 4px 0 2px;
-  font-size: 18px;
-  font-weight: 500;
-  color: var(--ink);
-}
-
-.bckd-bd__dau p {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--ash-2);
-}
-
-/* Ống tiến độ: bốn thanh chung một thước, chữ số tiền và % bên phải. */
-.bckd-bd__ong {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 4px 24px 16px;
-}
-
-.bckd-bd__ong-hang {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr) 150px 56px;
-  align-items: center;
-  gap: 14px;
-  min-height: 26px;
-}
-
-.bckd-bd__ong-ten {
-  color: var(--ash);
-  font-size: 13px;
-}
-
-.bckd-bd__ong-ray {
-  position: relative;
-  height: 22px;
-  background: var(--rule-hair);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.bckd-bd__ong-ray > i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--bckd-nhat);
-  border-radius: 4px;
-}
-
-.bckd-bd__ong-ray > i.is-dam {
-  background: var(--bckd-dam);
-}
-
-.bckd-bd__ong-so,
-.bckd-bd__ong-pt {
-  text-align: right;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-.bckd-bd__ong-pt {
-  color: var(--ash-2);
-}
-
-.bckd-bd__nhom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-  color: var(--ash-2);
-}
-
-.bckd-bd__cuon {
-  overflow-x: auto;
-}
-
-/* Cột đầu (khách / sale) co giãn; bề rộng tối thiểu = các cột đặt sẵn (946px) + 200px cho nó, kẻo
-   `table-layout: fixed` chia cho cột không đặt bề rộng 0px. */
-.bckd-bd__bang {
-  min-width: 1146px;
-}
-
-.bckd-bd__bang tfoot tr > td {
-  border-top: 1px solid var(--rule);
-}
-
-/* Thanh % trong ô: rãnh xám, phần đã làm một màu, số % bên phải. */
-.bckd-bd__o {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.bckd-bd__ray {
-  flex: 1;
-  height: 8px;
-  background: var(--rule-hair);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.bckd-bd__ray > i {
-  display: block;
-  height: 100%;
-  background: var(--bckd-nhat);
-  border-radius: 4px;
-}
-
-.bckd-bd__pt {
-  width: 40px;
-  text-align: right;
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-.bckd-bd__bang td.bckd-bd__chu-y {
-  white-space: normal;
-  height: auto;
-}
-
-.bckd-bd__chu-y > .lds-chip {
-  margin: 2px 6px 2px 0;
-}
-
-@media (max-width: 700px) {
-  .bckd-bd__ong {
-    padding: 4px 12px 14px;
+@container (max-width: 1100px) {
+  .bckd-bd__hang--2,
+  .bckd-bd__hang--3 {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .bckd-bd__ong-hang {
-    grid-template-columns: 96px minmax(0, 1fr) 56px;
+  .bckd-bd .bd-the-hang {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
+}
 
-  .bckd-bd__ong-so {
-    display: none;
+@container (max-width: 560px) {
+  .bckd-bd .bd-the-hang {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
+}
+
+/* Đơn được bấm ở dạng biểu đồ. */
+.bckd__luoi tr.bckd-hl > td {
+  background: var(--tt-xanh-bg);
 }

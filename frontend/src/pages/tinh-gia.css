@@ -1126,11 +1126,13 @@ select.tg-input {
   justify-content: flex-start;
   flex-wrap: wrap;
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
   font-size: 12.5px;
 }
 .tg-taiban__nhan {
   color: var(--ash-2);
+}
+.tg-taiban__ma {
+  color: var(--ink);
 }
 .tg-taiban__tach {
   padding: 2px 8px;

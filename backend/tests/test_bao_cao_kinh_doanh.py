@@ -288,8 +288,8 @@ def _giao(order_id: int, sl: int, xong_luc: datetime) -> None:
         db.add(req)
         db.flush()
         trip = DeliveryTrip(request_id=req.id, lan_thu=1, trang_thai=LG_THANH_CONG,
-                            employee_id=nhan_vien_cua(db, admin).id, gio_lay_hang=xong_luc,
-                            gio_du_kien_giao=xong_luc, thoi_gian_ket_thuc=xong_luc)
+                            employee_id=nhan_vien_cua(db, admin).id,
+                            thoi_gian_ket_thuc=xong_luc)
         db.add(trip)
         db.flush()
         db.add(DeliveryTripLine(trip_id=trip.id, order_line_id=ln.id, qty_giao=sl))

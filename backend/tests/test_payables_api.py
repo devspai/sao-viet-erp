@@ -1338,6 +1338,71 @@ def test_mot_hoa_don_phu_nhieu_dot_giao(client):
     assert {d["invoice_number"] for d in r.json()["deliveries"]} == {"HD-0001"}
 
 
+def test_ky_hieu_hoa_don_cua_dot_di_toi_cong_no_va_sao_ke(client):
+    """Một hoá đơn đầu vào = cặp ký hiệu + số (13/10/2026). Ký hiệu chuẩn hoá viết hoa, đi tới
+    dòng công nợ của đợt và sao kê; sao kê tách số, ký hiệu, ngày hoá đơn khỏi ngày nhận hàng."""
+    headers = _headers(client)
+    supplier = _supplier(client, headers, name="NCC Ky Hieu")
+    don = _don(client, headers, supplier["id"])
+    _da_mua(client, headers, don["id"])
+    dong = _dong_dau_tien(don)
+    hom_nay = _hom_nay()
+    ngay_nhan = (hom_nay - timedelta(days=3)).isoformat()
+    ngay_hd = (hom_nay - timedelta(days=1)).isoformat()
+
+    # Có ký hiệu mà không có số ⇒ chặn.
+    r = client.post(
+        f"/api/purchase-requests/{don['id']}/deliveries",
+        json={"delivery_date": ngay_nhan, "invoice_symbol": "1C26TAA",
+              "lines": [{"purchase_request_line_id": dong, "quantity": 300}]},
+        headers=headers,
+    )
+    assert r.status_code == 422, r.text
+    assert "ký hiệu" in r.json()["detail"]
+
+    r = client.post(
+        f"/api/purchase-requests/{don['id']}/deliveries",
+        json={"delivery_date": ngay_nhan, "invoice_symbol": " 1c26taa ", "invoice_number": "0000811",
+              "invoice_date": ngay_hd, "lines": [{"purchase_request_line_id": dong, "quantity": 300}]},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    dot = r.json()["deliveries"][0]
+    assert dot["invoice_symbol"] == "1C26TAA"
+    assert dot["invoice_number"] == "0000811"
+
+    muc = next(x for x in _cong_no_ncc(client, headers, supplier["id"])["items"] if x["delivery_id"] == dot["id"])
+    assert (muc["invoice_symbol"], muc["invoice_number"], muc["invoice_date"]) == ("1C26TAA", "0000811", ngay_hd)
+
+    r = client.get(
+        f"/api/accounting/payables/{supplier['id']}/so-chi-tiet",
+        params={"tu_ngay": (hom_nay - timedelta(days=30)).isoformat(), "den_ngay": hom_nay.isoformat()},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    sk = next(d for d in r.json()["dong"] if d["loai"] == "dot_giao")
+    assert sk["ngay"] == ngay_nhan
+    assert (sk["so_hoa_don"], sk["ky_hieu"], sk["ngay_hoa_don"], sk["don_ma"]) == (
+        "0000811", "1C26TAA", ngay_hd, don["code"]
+    )
+
+    # Gán hoá đơn khác cho đợt: đổi cả ký hiệu; gỡ số thì gỡ luôn ký hiệu.
+    r = client.post(
+        f"/api/purchase-requests/{don['id']}/invoice",
+        json={"delivery_ids": [dot["id"]], "invoice_symbol": "1c27tbb", "invoice_number": "0000005"},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["deliveries"][0]["invoice_symbol"] == "1C27TBB"
+    r = client.post(
+        f"/api/purchase-requests/{don['id']}/invoice",
+        json={"delivery_ids": [dot["id"]], "invoice_number": None},
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["deliveries"][0]["invoice_symbol"] is None
+
+
 # --- hợp đồng + cọc dự kiến -------------------------------------------------
 
 

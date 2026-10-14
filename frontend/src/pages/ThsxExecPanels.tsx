@@ -482,22 +482,24 @@ export function BatchForm({
                   const tick = p.id in psSl;
                   const sai = tick && psSl[p.id] !== "" && toNum(psSl[p.id]) <= 0;
                   return (
+                    // Một hàng: tick + tên | ô số lượng có đơn vị nằm TRONG ô (chỉ khi đã tick) | đơn giá.
                     <li key={p.id} className="thsx-gm-ps__dong">
-                      <label className="thsx-gm-ps__chon">
-                        <input type="checkbox" checked={tick} onChange={() => tickPs(p)} />
-                        <span>{p.ten}</span>
+                      <div className="thsx-gm-ps__hang">
+                        <label className="thsx-gm-ps__chon">
+                          <input type="checkbox" checked={tick} onChange={() => tickPs(p)} />
+                          <span>{p.ten}</span>
+                        </label>
+                        {tick && (
+                          <label className={`thsx-gm-ps__o${sai ? " is-loi" : ""}`}>
+                            <input type="number" min={0} step="any" inputMode="decimal" autoFocus
+                              placeholder="Số lượng" aria-label={`Số lượng ${p.ten}`} value={psSl[p.id]}
+                              onChange={(e) => setPsSl((cu) => ({ ...cu, [p.id]: e.target.value }))} />
+                            <span>{p.don_vi_ten ?? nhanDonVi(p.don_vi)}</span>
+                          </label>
+                        )}
                         <span className="thsx-gm-gia thsx-num">{giaKhoan(p)}</span>
-                      </label>
-                      {tick && (
-                        <div className="thsx-gm-ps__sl">
-                          <input type="number" min={0} step="any" inputMode="decimal" autoFocus
-                            className="thsx-x-in" placeholder="Số lượng"
-                            aria-label={`Số lượng ${p.ten}`} value={psSl[p.id]}
-                            onChange={(e) => setPsSl((cu) => ({ ...cu, [p.id]: e.target.value }))} />
-                          <span className="thsx-gm-mo">{p.don_vi_ten ?? nhanDonVi(p.don_vi)}</span>
-                          {sai && <span className="thsx-f__g thsx-f__g--loi">Phải lớn hơn 0</span>}
-                        </div>
-                      )}
+                      </div>
+                      {sai && <span className="thsx-f__g thsx-f__g--loi thsx-gm-ps__loi">Phải lớn hơn 0</span>}
                     </li>
                   );
                 })}

@@ -1,4 +1,5 @@
-"""Báo tài xế khi KHO LẬP PHIẾU — móc duy nhất mà Giao hàng đặt vào luồng của Kho.
+"""Móc của Giao hàng vào luồng Kho: báo tài xế khi KHO LẬP PHIẾU, đổi trạng thái chuyến khi KHO
+GHI SỔ.
 
 Vì sao phải có móc này (chủ chốt 20/08/2026): mốc thật sự làm tài xế lên đường là *"kho soạn
 xong hàng"*, mà việc đó xảy ra bên màn Kho. Router phiếu kho không đẩy sự kiện nào, nên Giao hàng
@@ -7,8 +8,8 @@ chờ, hoặc tới muộn.
 
 RANH GIỚI, cố ý giữ hẹp:
 
-* Toàn bộ logic nằm ở ĐÂY, file của Giao hàng. Bên `routers/kho_voucher` chỉ có MỘT dòng gọi,
-  bọc `try` — hỏng gửi toast KHÔNG được làm hỏng việc lập phiếu của kho.
+* Toàn bộ logic nằm ở ĐÂY, file của Giao hàng. Bên `routers/kho_voucher` mỗi chỗ chỉ MỘT dòng
+  gọi; hàm tự nuốt lỗi — hỏng phần phụ KHÔNG được làm hỏng việc lập phiếu / ghi sổ của kho.
 * Chỉ ĐỌC dữ liệu kho, không sửa gì, không đổi trạng thái gì của họ.
 * Yêu cầu không phải của giao hàng (`delivery_trip_id` rỗng) thì lặng lẽ thôi — mọi phiếu vật tư
   thường đi qua đây, không được sinh tiếng động nào.
@@ -53,12 +54,15 @@ def bao_tai_xe_kho_lap_phieu(db, request_id: int | None, ma_phieu: str | None = 
         return
 
 
-def kho_nhan_lai_hang_giao(db, request_id: int | None, *, actor) -> None:
-    """Kho vừa ghi sổ phiếu NHẬP của một yêu cầu trả hàng về (19/09/2026) ⇒ chuyến thất bại sang
-    "đã trả hàng" và đơn tự làm mới tiến độ (phần hàng đó quay lại "giao được").
+def kho_ghi_so_hang_giao(db, request_id: int | None, *, actor) -> None:
+    """Kho vừa ghi sổ một phiếu của yêu cầu thuộc chuyến giao:
 
-    THỦ KHO là người xác nhận hàng về — bằng chính phiếu nhập của họ; trước đây tài xế tự bấm "kho đã
-    nhận lại". Nuốt lỗi như móc trên: phiếu kho đã ghi sổ đúng, không được báo đỏ vì phần phụ này.
+    * phiếu XUẤT (12/10/2026) — yêu cầu đã xuất đủ ⇒ chuyến "Đã lấy hàng" + báo tài xế bắt đầu
+      giao được. Mốc này thay nút "Đã lấy hàng" tài xế tự bấm (bấm được cả khi kho chưa lập phiếu).
+    * phiếu NHẬP trả hàng về (19/09/2026) — chuyến thất bại sang "đã trả hàng" và đơn tự làm mới
+      tiến độ (phần hàng đó quay lại "giao được"). Thủ kho xác nhận hàng về bằng chính phiếu nhập.
+
+    Nuốt lỗi như móc trên: phiếu kho đã ghi sổ đúng, không được báo đỏ vì phần phụ này.
     """
     try:
         if not request_id:
@@ -67,12 +71,19 @@ def kho_nhan_lai_hang_giao(db, request_id: int | None, *, actor) -> None:
         if req is None or not getattr(req, "delivery_trip_id", None):
             return
         from ..repositories.delivery_repo import DeliveryRepository
+        from ..repositories.employee_repo import EmployeeRepository
         from ..repositories.order_repo import OrderRepository
         from .delivery_service import DeliveryService
 
-        svc = DeliveryService(DeliveryRepository(db), OrderRepository(db), None, None, None)
-        if svc.sau_ghi_so_tra_hang(req, actor=actor):
+        svc = DeliveryService(DeliveryRepository(db), OrderRepository(db), EmployeeRepository(db),
+                              None, None)
+        xuat = svc.sau_ghi_so_xuat(req, actor=actor)
+        if xuat is not None or svc.sau_ghi_so_tra_hang(req, actor=actor):
             db.commit()
+        # Báo SAU commit — tài xế / màn Giao hàng refetch trên kết nối khác.
+        if xuat is not None:
+            svc.bao_tai_xe(xuat, "Kho đã xuất hàng cho chuyến của bạn — bắt đầu giao được rồi.",
+                           viec="da_xuat_kho")
         # Nhóm `giao_hang` + `ban_hang`: màn Giao hàng + drawer Đơn hàng bán (tiến độ giao).
         hub.gui({"type": "giao_hang_changed", "trip_id": req.delivery_trip_id},
                 quyen=hop(MAN_GIAO_HANG, MAN_BAN_HANG))

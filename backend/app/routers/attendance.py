@@ -474,7 +474,8 @@ def my_status(svc: Service, user: SelfUser) -> MyStatusOut:
 def preview(body: CheckIn, svc: Service, user: SelfUser) -> PreviewOut:
     """Dry-run geofence (không ghi log) cho card chấm 'sống' — self-service."""
     try:
-        res = svc.preview(user=user, latitude=body.latitude, longitude=body.longitude)
+        res = svc.preview(user=user, latitude=body.latitude, longitude=body.longitude,
+                          accuracy=body.accuracy)
     except AttendanceError as exc:
         _raise(exc)
     return PreviewOut(**res)
@@ -483,7 +484,8 @@ def preview(body: CheckIn, svc: Service, user: SelfUser) -> PreviewOut:
 @router.post("/check", response_model=CheckResultOut)
 def check(body: CheckIn, svc: Service, user: SelfWriter) -> CheckResultOut:
     try:
-        res = svc.check(user=user, latitude=body.latitude, longitude=body.longitude)
+        res = svc.check(user=user, latitude=body.latitude, longitude=body.longitude,
+                        accuracy=body.accuracy)
     except AttendanceError as exc:
         _raise(exc)
     nearest = res["nearest_location"]
@@ -495,6 +497,7 @@ def check(body: CheckIn, svc: Service, user: SelfWriter) -> CheckResultOut:
         distance_m=res["distance_m"],
         nearest_location=(NearestLocationOut(id=nearest.id, name=nearest.name, radius_m=nearest.radius_m)
                           if nearest is not None else None),
+        vi_tri_gan_dung=res.get("vi_tri_gan_dung", False),
         message=res["message"],
         log=AttendanceLogOut.model_validate(res["log"]) if res["log"] is not None else None,
     )

@@ -100,9 +100,11 @@ class StockVoucherService:
             )
 
     def _assert_chua_tinh_gia(self, kho_id, ngay, *, viec: str, them: str = "") -> None:
-        """Chặn thao tác vào kỳ đã bấm "Tính giá kỳ" (chưa khoá) — 11/10/2026. N-X-T kỳ sau đọc đầu
-        kỳ từ số đã chốt và BỎ QUA phiếu có ngày nằm trong kỳ đó: ghi sổ lùi ngày hay sửa số ở đây là
-        tồn đầu kỳ sau lệch ngầm. Lối thoát: khoá rồi mở lại kỳ (mở sổ xoá số đã tính)."""
+        """Chặn thao tác vào kỳ đã bấm "Tính giá kỳ" — 11/10/2026. N-X-T kỳ sau đọc đầu kỳ từ số đã
+        chốt và BỎ QUA phiếu có ngày nằm trong kỳ đó: ghi sổ lùi ngày hay sửa số ở đây là tồn đầu kỳ
+        sau lệch ngầm. Từ 13/10/2026 chỉ tính được kỳ đã khóa (khóa chặn trước ở `_assert_period_open`),
+        nên chốt này còn gác số đã tính trên kỳ CHƯA khóa từ trước đó. Lối thoát: khoá rồi mở lại kỳ
+        (mở sổ xoá số đã tính)."""
         if kho_id is None or ngay is None:
             return
         ky = KhoKyTonRepository(self.vouchers.db).ky_da_tinh_tu(kho_id, ngay)
@@ -153,6 +155,8 @@ class StockVoucherService:
             raise StockVoucherError(
                 "Phiếu nhập điều chuyển đã được dựng sẵn — vào yêu cầu điều chuyển để ghi sổ."
             )
+
+        self._chan_thanh_pham_ngoai_kho(req, loai, kho_id)
 
         lines_by_id = {ln.id: ln for ln in req.lines}
         prepared: list[dict] = []
@@ -217,6 +221,8 @@ class StockVoucherService:
                     item["don_gia"] = int(rl.don_gia or 0)
                     # Hạn sử dụng khai ở dòng (tách lô theo hạn) — ghi sổ chép sang lô. None = không hạn.
                     item["hsd"] = ln.get("hsd")
+                    # Hàng khách trả về (mg 0401): lô mới thuộc họ lô gốc đã xuất ra nó.
+                    item["lo_goc_id"] = getattr(rl, "lo_goc_id", None)
             else:
                 lot = self._require_lot(ln.get("lot_id"), hang, kho_id, rl)
                 item["lot_id"] = lot.id
@@ -263,6 +269,16 @@ class StockVoucherService:
         from ..models.user import User
         nguoi_yc = self.vouchers.db.get(User, req.nguoi_tao_id) if req.nguoi_tao_id else None
         header["nguoi_giao_nhan"] = getattr(nguoi_yc, "name", None)
+        # Phiếu của CHUYẾN GIAO (12/10/2026): người cầm hàng ở cửa kho là TÀI XẾ của chuyến — nhận
+        # hàng đi giao (xuất) hay mang hàng trả về (nhập) — không phải người lên đơn ở văn phòng.
+        if getattr(req, "delivery_trip_id", None):
+            from ..models.delivery import DeliveryTrip
+            from ..models.employee import Employee
+
+            trip = self.vouchers.db.get(DeliveryTrip, req.delivery_trip_id)
+            tx = self.vouchers.db.get(Employee, trip.employee_id) if trip is not None else None
+            if tx is not None:
+                header["nguoi_giao_nhan"] = tx.full_name
         voucher = self.vouchers.create(
             ma=ma_clean, loai=loai, request_id=req.id, nguoi_lap_id=user.id,
             kho_id=kho_id, ngay=ngay or date.today(), lines=prepared, **header
@@ -270,6 +286,23 @@ class StockVoucherService:
         # Đã lập phiếu (nháp) → yêu cầu rời "Cần cấp" sang "Đang cấp" (Đang chuẩn bị).
         self.request_service.mark_in_progress(req)
         return voucher
+
+    def _chan_thanh_pham_ngoai_kho(self, req, loai: str, kho_id: int) -> None:
+        """Thành phẩm chỉ vào / ra Kho thành phẩm (12/10/2026, `kho_thanh_pham`).
+
+        NHẬP thành phẩm vào kho khác ⇒ chặn — gồm cả vế nhập đích của điều chuyển, nên thành phẩm
+        không điều chuyển ra khỏi Kho thành phẩm được. XUẤT thành phẩm từ kho khác ⇒ chặn, trừ vế xuất
+        nguồn của điều chuyển (đường đưa thành phẩm còn sót ở kho khác VỀ Kho thành phẩm)."""
+        from .kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
+
+        if loai == VOUCHER_XUAT and getattr(req, "dieu_chuyen", False):
+            return
+        tp = hang_thanh_pham(self.vouchers.db, [(rl.hang_loai, rl.hang_id) for rl in req.lines])
+        kho_tp = id_kho_thanh_pham(self.vouchers.db)
+        if not tp or kho_tp is None or int(kho_id) == kho_tp:
+            return
+        raise StockVoucherError("Thành phẩm chỉ nhập vào Kho thành phẩm." if loai == VOUCHER_NHAP
+                                else "Thành phẩm chỉ xuất từ Kho thành phẩm.")
 
     def _chan_lo_khac_khach(self, request_id: int, lots) -> None:
         """Xuất cho Giao hàng đơn X: lô thành phẩm sản xuất cho KHÁCH KHÁC ⇒ chặn — cùng mã (danh mục gộp
@@ -438,6 +471,12 @@ class StockVoucherService:
                 # Đơn giá khai theo ĐƠN VỊ NGƯỜI NHẬP (đ/ram), lô lưu theo đơn vị gốc (đ/kg) —
                 # quy theo đúng tỉ lệ của chính dòng này: 1.020.000 đ/ram ÷ 41,93 kg/ram ≈ 24.325 đ/kg.
                 gia_goc = round(float(ln.don_gia or 0) * float(ln.so_luong) / sl_goc) if sl_goc else 0
+                # Lô thuộc họ lô gốc (điều chuyển, hàng trả về): cả họ MỘT giá — đọc giá gốc HIỆN TẠI
+                # của lô gốc, vì kế toán có thể đã gõ giá gốc sau lúc lập yêu cầu (mg 0401).
+                goc_lo = self.lots.get(ln.lo_goc_id) if ln.lo_goc_id else None
+                if goc_lo is not None and not getattr(req, "dieu_chuyen", False):
+                    gia_goc = int(goc_lo.don_gia_nhap or 0)
+                    ln.don_gia = round(gia_goc * sl_goc / float(ln.so_luong)) if ln.so_luong else gia_goc
                 lot = self.lots.create(
                     ma_lo=self.lots.next_ma_lo(mh.ma, v.ngay),
                     hang_loai=ln.hang_loai,
@@ -784,6 +823,13 @@ class StockVoucherService:
             raise StockVoucherError("Kho nguồn và kho đích phải khác nhau.")
         if not items:
             raise StockVoucherError("Chưa chọn mặt hàng để điều chuyển.")
+        # Thành phẩm nằm cố định ở Kho thành phẩm (12/10/2026): chỉ chuyển VỀ kho đó, không chuyển đi.
+        # Vế nhập đích (`create(_dc_dest=True)`) cũng chặn — kiểm sớm để báo trước khi dựng gì.
+        from .kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
+        kho_tp = id_kho_thanh_pham(self.vouchers.db)
+        if (kho_tp is not None and kho_den_id != kho_tp
+                and hang_thanh_pham(self.vouchers.db, [(it["hang_loai"], it["hang_id"]) for it in items])):
+            raise StockVoucherError("Thành phẩm nằm ở Kho thành phẩm — không điều chuyển sang kho khác.")
 
         # (1) Duyệt từng mặt hàng: đơn vị gốc + FIFO đích danh ở nguồn + giá vốn bình quân.
         # Điều chuyển theo ĐƠN VỊ GỐC (spec §13) → dòng yêu cầu lấy dvt = đơn vị gốc, hệ số quy đổi
@@ -1087,6 +1133,7 @@ class StockVoucherService:
                 "order_ma": n.get("order_ma"),
                 "khach_hang": n.get("khach_hang"),
                 "canh_bao": canh_bao.get(lot.id),
+                "chua_gia_goc": bool(n.get("tu_kcs")) and not lot.don_gia_nhap,
             })
             remaining -= take
         return out, max(0.0, round(remaining, 2))

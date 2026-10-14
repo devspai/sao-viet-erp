@@ -9,7 +9,8 @@
 // `quy_doi_service.don_vi_dung_duoc` bên máy chủ (`cap_map` cũng hai chiều). Máy chủ vẫn là cửa chặn
 // thật: đơn vị thêm cùng nhóm, hay bỏ đơn vị còn tồn/còn đơn dùng ⇒ 422 với câu tiếng Việt, drawer
 // hiện nguyên câu đó.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Plus, X } from "lucide-react";
 
 import { useAuth } from "../../auth/useAuth";
 import { crud, type Row } from "../../api/rebuildCatalog";
@@ -81,19 +82,16 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
   const ds = useMemo(() => (Array.isArray(value) ? value.map(chuan).filter(Boolean) : []), [value]);
   const maChinh = chuan(chinh);
 
-  /** Từng đơn vị thêm: nhóm nó kéo theo + đơn vị khai TRƯỚC nó mà nhóm đã chứa nó (khai thừa — máy
-   *  chủ sẽ chặn lúc lưu, báo luôn ở đây cho khỏi bấm Lưu mới biết). */
+  /** Từng đơn vị thêm + đơn vị khai TRƯỚC nó mà nhóm đã chứa nó (khai thừa — máy chủ sẽ chặn lúc
+   *  lưu, báo luôn ở đây cho khỏi bấm Lưu mới biết). */
   const the = useMemo(() => {
     const truoc: string[] = maChinh ? [maChinh] : [];
     return ds.map((ma) => {
-      const nhom = nhomCua(ma, g);
       const trung = truoc.find((u) => u === ma || nhomCua(u, g).includes(ma)) ?? null;
       truoc.push(ma);
-      return { ma, gom: nhom.filter((x) => x !== ma), trung };
+      return { ma, trung };
     });
   }, [ds, maChinh, g]);
-
-  const gomChinh = useMemo(() => (maChinh ? nhomCua(maChinh, g).filter((x) => x !== maChinh) : []), [maChinh, g]);
 
   // Danh sách thêm: bỏ mọi đơn vị đã nằm trong nhóm của ĐVT chính hoặc của đơn vị đã thêm.
   const conThem = useMemo(() => {
@@ -103,6 +101,7 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
   }, [donVi, maChinh, ds, g]);
 
   const [mo, setMo] = useState(false);
+  const [lenTren, setLenTren] = useState(false);
   const khungRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!mo) return;
@@ -123,50 +122,51 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
       document.removeEventListener("keydown", phim, true);
     };
   }, [mo]);
+  // Lật danh sách lên khi dưới ô không đủ chỗ trong khung cuộn của drawer — cùng lối `RefSearchField`.
+  useLayoutEffect(() => {
+    const khung = khungRef.current;
+    const menu = khung?.querySelector<HTMLElement>(".rc-dvn__menu");
+    if (!mo || !khung || !menu) {
+      setLenTren(false);
+      return;
+    }
+    let cuon = khung.parentElement;
+    while (cuon && !/(auto|scroll)/.test(getComputedStyle(cuon).overflowY)) cuon = cuon.parentElement;
+    const o = khung.getBoundingClientRect();
+    const mep = cuon ? cuon.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    const duoi = mep.bottom - o.bottom;
+    setLenTren(menu.offsetHeight + 4 > duoi && o.top - mep.top > duoi);
+  }, [mo, conThem.length]);
 
-  // Mỗi đơn vị một mẩu riêng, cách nhau bằng khoảng trống — không nối bằng dấu phẩy.
-  const gom = (ds2: string[]) => (
-    <>
-      gồm{ds2.map((m) => <span key={m} className="rc-dvn__gom-dv">{tenCua(m)}</span>)}
-    </>
-  );
+  const loi = the.filter((t) => t.trung);
 
+  // MỘT ô như các ô nhập khác (nằm ngay dưới ô ĐVT): mỗi đơn vị thêm một thẻ CHỈ có tên, nút thêm
+  // ở cuối ô. Nhóm quy đổi KHÔNG bày ra ô (13/10/2026: "gồm ram" trong thẻ + "kg đã gồm g tấn" dưới
+  // ô đọc như chữ vỡ) — chỉ một câu ở chân danh sách thả nói vì sao đơn vị cùng nhóm không có mặt.
   return (
     <div className="rc-dvn">
-      {maChinh && gomChinh.length > 0 && (
-        <span className="rc-field__hint">ĐVT chính {gom(gomChinh)}</span>
-      )}
-      {the.length > 0 && (
-        <div className="rc-dvn__ds">
+      <div className="rc-dvn__khung" ref={khungRef}>
+        <div className={`rc-input rc-dvn__o${maChinh ? "" : " rc-dvn__o--khoa"}${mo ? " rc-dvn__o--mo" : ""}`}
+          onClick={(e) => { if (maChinh && e.target === e.currentTarget) setMo((v) => !v); }}>
           {the.map((t) => (
-            <div key={t.ma} className={`rc-dvn__the${t.trung ? " rc-dvn__the--loi" : ""}`}>
-              <div className="rc-dvn__dong">
-                <span className="rc-dvn__ten">{tenCua(t.ma)}</span>
-                <button type="button" className="rc-timeline__btn rc-timeline__btn--danger"
-                  title={`Bỏ đơn vị ${tenCua(t.ma)}`} aria-label={`Bỏ đơn vị ${tenCua(t.ma)}`}
-                  onClick={() => onChange(ds.filter((x) => x !== t.ma))}>✕</button>
-              </div>
-              {t.trung ? (
-                <span className="rc-dvn__gom rc-dvn__gom--loi">
-                  Đã nằm trong nhóm của {tenCua(t.trung)}. Bỏ đơn vị này đi.
-                </span>
-              ) : t.gom.length > 0 ? (
-                <span className="rc-dvn__gom">{gom(t.gom)}</span>
-              ) : null}
-            </div>
+            <span key={t.ma} className={`rc-dvn__the${t.trung ? " rc-dvn__the--loi" : ""}`}>
+              <span className="rc-dvn__ten">{tenCua(t.ma)}</span>
+              <button type="button" className="rc-dvn__bo"
+                title={`Bỏ đơn vị ${tenCua(t.ma)}`} aria-label={`Bỏ đơn vị ${tenCua(t.ma)}`}
+                onClick={() => onChange(ds.filter((x) => x !== t.ma))}>
+                <X size={12} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </span>
           ))}
+          <button type="button" className="rc-dvn__nut" disabled={!maChinh}
+            aria-haspopup="listbox" aria-expanded={mo}
+            onClick={() => setMo((v) => !v)}>
+            <Plus size={13} strokeWidth={2} aria-hidden="true" />
+            {the.length > 0 ? "Thêm" : "Thêm đơn vị"}
+          </button>
         </div>
-      )}
-      <div className="rc-dvn__them" ref={khungRef}>
-        <button type="button" className="rc-dvn__nut" disabled={!maChinh}
-          aria-haspopup="listbox" aria-expanded={mo}
-          title={maChinh ? undefined : "Chọn ĐVT chính trước"}
-          onClick={() => setMo((v) => !v)}>
-          ＋ Thêm đơn vị
-        </button>
-        {!maChinh && <span className="rc-field__hint">Chọn ĐVT chính trước.</span>}
         {mo && (
-          <div className="rc-ref-search-panel rc-dvn__menu" role="listbox">
+          <div className={`rc-ref-search-panel rc-dvn__menu${lenTren ? " rc-ref-search-panel--len" : ""}`} role="listbox">
             {conThem.length === 0 ? (
               <div className="rc-dvn__trong">Không còn đơn vị nào ngoài các nhóm đã khai.</div>
             ) : conThem.map((d) => {
@@ -181,9 +181,21 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
                 </button>
               );
             })}
+            {conThem.length > 0 && (
+              <div className="rc-dvn__chu-thich">Đơn vị quy đổi được với đơn vị đã khai thì không hiện ở đây.</div>
+            )}
           </div>
         )}
       </div>
+      {!maChinh ? (
+        <span className="rc-field__hint">Chọn ĐVT trước.</span>
+      ) : loi.length > 0 ? (
+        loi.map((t) => (
+          <span key={t.ma} className="rc-field__hint rc-dvn__loi">
+            {tenCua(t.ma)} đã nằm trong nhóm của {tenCua(t.trung!)}, bỏ thẻ này đi.
+          </span>
+        ))
+      ) : null}
     </div>
   );
 }

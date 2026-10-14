@@ -16,6 +16,7 @@ from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.order import STATUS_ORDERED, Order, OrderLine
 from .catalog_base import SIZE_TRAN
 from .loc_danh_sach import dk_khoang_ngay
+from .org_scope import chu_theo_khach
 
 # Mốc ngày của dải kỳ trên bảng lệnh (06/10/2026): (cột, là cột Date).
 MOC_LENH = {
@@ -23,6 +24,17 @@ MOC_LENH = {
     "han_sx": (Lsx.han_hoan_thanh_sx, True),
     "han_giao": (Lsx.han_giao_khach, True),
 }
+def dk_don_trong_pham_vi(owner_ids: set[int]):
+    """Đơn thuộc phạm vi (14/10/2026): CHỦ ĐƠN — sale phụ trách khách, thiếu thì sale ghi trên đơn —
+    nằm trong `owner_ids`. Đúng biểu thức của Đơn hàng bán (`services/lenh_sx/pham_vi.chu_don`)."""
+    return chu_theo_khach(Order.customer_id, Order.sale_user_id).in_(owner_ids)
+
+
+def dk_lenh_trong_pham_vi(owner_ids: set[int]):
+    """Lệnh thuộc phạm vi = ĐƠN của lệnh thuộc phạm vi (lệnh luôn có `order_id`)."""
+    return Lsx.order_id.in_(select(Order.id).where(dk_don_trong_pham_vi(owner_ids)))
+
+
 # Mốc ngày của dải kỳ trên hàng chờ: ngày tạo đơn / lúc Sale chuyển xuống sản xuất.
 MOC_HANG_CHO = {
     "tao": (Order.created_at, False),
@@ -84,9 +96,7 @@ class LsxRepository:
                 Lsx.order_id.in_(select(Order.id).where(Order.order_no.ilike(like))),
             ))
         if owner_ids is not None:
-            conds.append(
-                or_(Lsx.nguoi_phu_trach_id.in_(owner_ids), Lsx.created_by.in_(owner_ids))
-            )
+            conds.append(dk_lenh_trong_pham_vi(owner_ids))
         if gia_cong:
             # Ô lọc "Gia công ngoài" (spec gia công ngoài §7) — chờ mang đi / đang ở ngoài / trọn gói.
             from .gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
@@ -219,8 +229,9 @@ class LsxRepository:
         ).scalars()
         return {r.order_line_id: r for r in rows}
 
-    def _dk_hang_cho(self) -> tuple:
-        """Điều kiện NỀN của hàng chờ (chưa kể thanh lọc) — dùng chung cho bảng và ô lọc Khách."""
+    def _dk_hang_cho(self, owner_ids: set[int] | None = None) -> tuple:
+        """Điều kiện NỀN của hàng chờ (chưa kể thanh lọc) — dùng chung cho bảng và ô lọc Khách.
+        `owner_ids` None = mọi đơn; có tập thì chỉ đơn trong phạm vi (`dk_don_trong_pham_vi`)."""
         # Viết bằng MỘT TẬP ID (union) chứ không phải `or_(EXISTS…, NOT EXISTS…)` ngay trong WHERE:
         # dạng OR làm Postgres ước lượng chi phí ~1.000.000, vượt `jit_above_cost` nên nó bật JIT
         # và đốt 470 ms biên dịch cho một câu chỉ chạy 80 ms (đo 18/08/2026 trên 20.000 đơn).
@@ -242,18 +253,19 @@ class LsxRepository:
             )
             .subquery()
         )
-        return (
+        dk = (
             Order.status == STATUS_ORDERED,
             Order.san_xuat_released_at.is_not(None),
             Order.id.in_(select(con_no.c.order_id)),
         )
+        return dk if owner_ids is None else (*dk, dk_don_trong_pham_vi(owner_ids))
 
-    def khach_hang_cho(self) -> list[tuple[int, str, int]]:
+    def khach_hang_cho(self, *, owner_ids: set[int] | None = None) -> list[tuple[int, str, int]]:
         """`(id, tên, số đơn)` của khách đang có đơn nằm hàng chờ — ô "Khách hàng" của hàng chờ."""
         stmt = (
             select(Customer.id, Customer.name, func.count(Order.id))
             .join(Order, Order.customer_id == Customer.id)
-            .where(*self._dk_hang_cho())
+            .where(*self._dk_hang_cho(owner_ids))
             .group_by(Customer.id, Customer.name)
             .order_by(Customer.name)
         )
@@ -262,7 +274,7 @@ class LsxRepository:
     def orders_ban_giao(
         self, *, page: int = 1, size: int = 50, chi_dem: bool = False,
         customer_id: int | None = None, tu_ngay: date | None = None,
-        den_ngay: date | None = None, moc: str = "tao",
+        den_ngay: date | None = None, moc: str = "tao", owner_ids: set[int] | None = None,
     ) -> tuple[list[Order], int]:
         """Đơn đã chốt + đã chuyển xuống SX mà CÒN nợ lệnh (kèm dòng đơn), mới nhất trước.
 
@@ -270,7 +282,7 @@ class LsxRepository:
         toàn bộ lịch sử đơn hàng về kèm mọi dòng đơn — cách cũ làm endpoint không trả nổi kết
         quả ở quy mô thật.
         """
-        conds = list(self._dk_hang_cho())
+        conds = list(self._dk_hang_cho(owner_ids))
         if customer_id is not None:
             conds.append(Order.customer_id == customer_id)
         cot, la_ngay = MOC_HANG_CHO.get(moc, MOC_HANG_CHO["tao"])

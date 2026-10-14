@@ -375,3 +375,41 @@ def test_migration_bg2_bao_ro_data_trung_va_khong_tu_xoa():
     )).scalar_one() == 2
     # Duplicate phải được phát hiện trước mọi ALTER/backfill để retry không ở trạng thái nửa vời.
     assert "ten" not in {c["name"] for c in inspect(db.get_bind()).get_columns("bai_ghep")}
+
+
+def test_gop_dien_may_cho_luot_chung(db, orders, lsx_svc, admin, customer):
+    """Lượt chạy chung không ra đời trống máy (12/10/2026): các bước gộp cùng một máy ⇒ giữ máy đó;
+    khác máy ⇒ máy mặc định của công đoạn (máy còn dùng đứng đầu danh sách)."""
+    from app.models.cong_doan import CongDoan, CongDoanMay
+    from app.models.may_thiet_bi import MayThietBi
+
+    a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
+    svc = _bg2_svc(db)
+    bg = svc.tao(lsx_ids=[a.id, b.id], actor=admin)
+    lsx_map = svc._lsx_map(svc._get(bg.id))
+    sa = next(cd for cd in lsx_map[a.id].cong_doans if cd.loai_buoc == "may")
+    sb = next(cd for cd in lsx_map[b.id].cong_doans if cd.cong_doan_id == sa.cong_doan_id)
+    m1 = MayThietBi(ma="T-M1", ten="Máy một", loai_may="Máy thử", toc_do=1,
+                    don_vi_toc_do="to_gio", active=True)
+    m2 = MayThietBi(ma="T-M2", ten="Máy hai", loai_may="Máy thử", toc_do=1,
+                    don_vi_toc_do="to_gio", active=True)
+    db.add_all([m1, m2])
+    db.flush()
+    cd = db.get(CongDoan, sa.cong_doan_id)
+    cd.may_lam_duoc.clear()
+    db.flush()
+    cd.may_lam_duoc.append(CongDoanMay(may_id=m2.id, thu_tu=0))
+    cd.may_lam_duoc.append(CongDoanMay(may_id=m1.id, thu_tu=1))
+    sa.may_id, sb.may_id = m1.id, None
+    db.commit()
+
+    svc.gop(bai_ghep_id=bg.id, step_keys=[sa.step_key, sb.step_key], actor=admin)
+    chung = svc._buoc_chungs(svc._get(bg.id))[0]
+    assert chung.may_id == m2.id, "khác máy ⇒ máy đầu danh sách của công đoạn"
+
+    svc.tach(bai_ghep_id=bg.id, gang_step_key=chung.step_key, actor=admin)
+    sb.may_id = m1.id
+    db.commit()
+    svc.gop(bai_ghep_id=bg.id, step_keys=[sa.step_key, sb.step_key], actor=admin)
+    chung = svc._buoc_chungs(svc._get(bg.id))[0]
+    assert chung.may_id == m1.id, "các bước cùng một máy ⇒ lượt chung giữ máy đó"

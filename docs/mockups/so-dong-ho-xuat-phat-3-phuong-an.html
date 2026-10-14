@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Số đồng hồ xuất phát</title>
+<style>
+  :root{
+    --ink:#0f172a; --mute:#64748b; --line:#e2e8f0; --soft:#f8fafc; --paper:#fff; --hover:#f1f5f9;
+    --accent:#c2410c; --accent-dam:#9a3412; --toi:#1f2937;
+    --la-bg:#dcfce7; --la-fg:#15803d; --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8;
+    --vang-bg:#fef3c7; --vang-fg:#b45309; --cam-bg:#ffedd5; --cam-fg:#c2410c;
+    --tim-bg:#ede9fe; --tim-fg:#6d28d9; --do-bg:#fee2e2; --do-fg:#b91c1c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef1f5;color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+  b,h1,h2,h3,th{font-weight:500}
+  .trang{max-width:1240px;margin:0 auto;padding:24px 16px 80px}
+  h1{font-size:22px;margin:0 0 6px} h2{font-size:18px;margin:40px 0 4px} h3{font-size:14px;margin:18px 0 8px;color:var(--mute)}
+  p.mo{color:var(--mute);margin:0 0 12px;max-width:940px}
+  .ghi{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin:12px 0;max-width:940px}
+  .ghi ul,.ghi ol{margin:6px 0 0;padding-left:20px} .ghi li{margin:3px 0}
+  .mute{color:var(--mute)} .nho{font-size:12px}
+  .hang{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+
+  /* Ngăn lượt xe (rút gọn) */
+  .ngan{background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 30px rgba(15,23,42,.08);width:820px;max-width:100%;overflow:hidden;position:relative}
+  .ngan__dau{padding:16px 22px 0}
+  .duong{color:var(--mute);font-size:13px}
+  .tieu{display:flex;align-items:center;gap:10px;margin:4px 0 12px}
+  .tieu .ma{font-size:20px}
+  .tieu .nut-phai{margin-left:auto;position:relative}
+  .kv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 12px}
+  .kv dt{color:var(--mute);font-size:12px} .kv dd{margin:0} .kv small{display:block;color:var(--mute);font-size:12px}
+  .tabs{display:flex;gap:20px;border-bottom:1px solid var(--line)}
+  .tabs span{padding:8px 0;color:var(--mute)} .tabs span.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+  .than{padding:16px 22px 22px}
+
+  .chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:1px 9px;font-size:12px;white-space:nowrap}
+  .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.8}
+  .c-tim{background:var(--tim-bg);color:var(--tim-fg)} .c-xanh{background:var(--xanh-bg);color:var(--xanh-fg)}
+  .c-la{background:var(--la-bg);color:var(--la-fg)}
+  .btn{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink);white-space:nowrap}
+  .btn--chinh{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn--to{padding:10px 18px;font-size:14px}
+  .btn--goi-y{border-style:dashed;color:var(--xanh-fg);border-color:#bfdbfe;background:#f8fbff;padding:4px 10px;font-size:12px}
+
+  /* Ô số đồng hồ: rộng vừa số, chữ km bên trong, số có dấu chấm nghìn, không mũi tên. */
+  .o-km{display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:8px;background:#fff;height:40px;padding:0 12px;gap:8px}
+  .o-km input{border:0;outline:0;font:inherit;font-size:18px;width:120px;font-variant-numeric:tabular-nums;color:var(--ink);background:transparent;letter-spacing:.3px}
+  .o-km input::placeholder{color:#94a3b8;font-size:15px;letter-spacing:0}
+  .o-km span{color:var(--mute)}
+  .o-km.dang{border-color:#64748b;box-shadow:0 0 0 3px rgba(100,116,139,.18)}
+  .o-km.loi{border-color:var(--do-fg)}
+  .o-km.to{height:52px} .o-km.to input{font-size:24px;width:100%}
+  .nhan{display:block;font-size:13px;color:var(--mute);margin-bottom:6px}
+  .goi{font-size:12px;color:var(--mute);margin-top:6px}
+  .goi-loi{font-size:12px;color:var(--do-fg);margin-top:6px}
+  .canh{background:var(--vang-bg);color:var(--vang-fg);border-radius:8px;padding:8px 12px;font-size:13px;margin-top:10px}
+  .canh label{display:flex;gap:8px;align-items:center;margin-top:6px;color:var(--ink)}
+
+  /* Dải lộ trình */
+  .dai{display:flex;align-items:flex-start;gap:0;margin:4px 0 14px}
+  .diem{flex:none;width:130px;text-align:center;padding:8px 6px;border-radius:10px;cursor:pointer}
+  .diem.chon{background:#eef2ff}
+  .diem .tron{width:26px;height:26px;border-radius:50%;border:1.5px solid #cbd5e1;margin:0 auto 4px;display:grid;place-items:center;font-size:12px;color:var(--mute);background:#fff}
+  .diem.xong .tron{background:var(--la-fg);border-color:var(--la-fg);color:#fff}
+  .diem.dang .tron{border-color:var(--xanh-fg);color:var(--xanh-fg)}
+  .diem small{display:block;color:var(--mute);font-size:12px}
+  .noi{flex:1;height:1.5px;background:#cbd5e1;margin-top:21px;position:relative;min-width:40px}
+  .noi em{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-style:normal;font-size:11px;color:var(--mute);white-space:nowrap}
+  .dai--hep .diem{width:70px;font-size:12px;padding:6px 2px} .dai--hep .noi{min-width:20px}
+  .the{border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .the .dau-the{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .mo-xam{background:var(--soft)}
+
+  /* Phương án A: hộp thoại */
+  .phu{position:absolute;inset:0;background:rgba(15,23,42,.38);display:grid;place-items:center}
+  .hop{background:#fff;border-radius:12px;width:400px;box-shadow:0 20px 50px rgba(15,23,42,.25);padding:20px 22px}
+  .hop h4{margin:0 0 2px;font-size:16px;font-weight:500}
+  .hop .ds{margin:10px 0 16px;padding:0;list-style:none;font-size:13px}
+  .hop .ds li{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--line)}
+  .hop .chan{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+
+  /* Phương án B: bung tại nút */
+  .bung{position:absolute;right:0;top:calc(100% + 8px);background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.14);padding:14px;width:330px;z-index:2;text-align:left}
+  .bung::before{content:"";position:absolute;right:28px;top:-6px;width:10px;height:10px;background:#fff;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
+  .bung .hang-nut{display:flex;gap:8px;margin-top:12px}
+
+  /* Điện thoại */
+  .dt{width:360px;border:10px solid #111827;border-radius:30px;background:#fff;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.18);flex:none}
+  .dt__dau{padding:12px 16px 8px;border-bottom:1px solid var(--line)}
+  .dt__than{padding:14px 16px;min-height:420px;position:relative}
+  .dt__chan{position:sticky;bottom:0;border-top:1px solid var(--line);padding:10px 16px;background:#fff}
+  .dt .btn--chinh{width:100%;padding:12px;font-size:15px}
+  .phim{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+  .phim span{background:#f1f5f9;border-radius:8px;text-align:center;padding:10px 0;font-size:18px}
+
+  .so-sanh{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:12px}
+  .so-sanh th,.so-sanh td{border-bottom:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top;font-size:13px}
+  .so-sanh th{background:var(--soft);color:var(--mute)}
+</style>
+</head>
+<body>
+<div class="trang">
+  <h1>Số đồng hồ lúc xuất phát: 3 phương án</h1>
+  <p class="mo">Hiện bấm "Bắt đầu giao" thì một hộp xám chen vào thân tab Lộ trình. Ô số kéo hết 1.500px, có mũi tên tăng giảm của trình duyệt, ba câu chữ và nút cam nhạt như bị hỏng.</p>
+
+  <div class="ghi">
+    Logic giữ nguyên, chỉ làm lại cách nhập:
+    <ul>
+      <li>Rời kho tài xế gõ số trên đồng hồ xe. Tới mỗi khách gõ số lúc đó. Máy trừ số liền trước ra km từng chặng rồi tra đơn giá khoán.</li>
+      <li>Số lùi lại hoặc nhảy quá 500 km so với số cuối của xe thì phải tích xác nhận mới lưu.</li>
+      <li>Chung cho cả ba: ô rộng vừa con số, chữ "km" nằm trong ô, gõ tới đâu chèn dấu chấm nghìn tới đó, không mũi tên. Trên điện thoại bật bàn phím số. Nút chính luôn đậm; bấm khi ô trống thì báo ngay dưới ô.</li>
+    </ul>
+    <p class="nho mute" style="margin:8px 0 0">Tham khảo: Fleetio gọi mỗi lần gõ số đồng hồ là một "meter entry", luôn hiện số hiện tại của xe cạnh ô và chặn số nhỏ hơn số hiện tại (<a href="https://help.fleetio.com/en_US/meter-entry-add-or-update">trợ giúp Fleetio</a>, <a href="https://fleetio.helpjuice.com/en_US/meter-overview">tổng quan meter</a>). Lấy hai ý đó: số cuối đứng ngay cạnh ô, kiểm tra ngay khi gõ.</p>
+  </div>
+
+  <!-- ======================= A ======================= -->
+  <h2>A. Hộp thoại nhỏ khi bấm "Bắt đầu giao"</h2>
+  <p class="mo">Bấm nút ở đầu ngăn thì mở một hộp 400px giữa màn, nền mờ phía sau. Hộp nói rõ đang bắt đầu lượt nào, xe nào, bao nhiêu điểm. Lộ trình phía sau không bị đẩy xuống.</p>
+  <div class="hang">
+    <div class="ngan">
+      <div class="ngan__dau">
+        <div class="duong">Lượt xe</div>
+        <div class="tieu"><span class="ma">LX-261012-O1EQ</span><span class="chip c-tim">Đã lấy hàng</span>
+          <span class="nut-phai"><button class="btn btn--chinh">Bắt đầu giao (1 điểm)</button></span></div>
+        <dl class="kv">
+          <div><dt>Xe</dt><dd>51D-40752<small>Xe a Sang</small></dd></div>
+          <div><dt>Kíp</dt><dd>Trần Hùng Tín<small>phụ xe Trần Văn Thạch Sang</small></dd></div>
+          <div><dt>Xuất phát</dt><dd>Chưa rời kho<small>kho hẹn 06:00 13/10</small></dd></div>
+          <div><dt>Đã chạy</dt><dd>0 km</dd></div>
+        </dl>
+        <div class="tabs"><span class="on">Lộ trình</span><span>Chứng từ</span><span>Lịch sử</span></div>
+      </div>
+      <div class="than" style="min-height:260px">
+        <div class="dai">
+          <div class="diem dang"><div class="tron"></div>Rời kho<small>chưa rời</small></div><div class="noi"></div>
+          <div class="diem"><div class="tron">1</div>CAFÉ KATINAT<small>hẹn 13/10</small></div><div class="noi"></div>
+          <div class="diem"><div class="tron"></div>Về kho<small>chưa về</small></div>
+        </div>
+      </div>
+      <div class="phu">
+        <div class="hop">
+          <h4>Bắt đầu giao lượt LX-261012-O1EQ</h4>
+          <div class="mute nho">Xe 51D-40752 rời kho với 1 điểm đã lấy hàng</div>
+          <div style="margin-top:16px">
+            <span class="nhan">Số trên đồng hồ xe lúc rời kho</span>
+            <span class="o-km to dang" style="width:100%"><input value="12.030"><span>km</span></span>
+            <div class="goi">Số cuối của xe trong sổ: 12.012 km, về kho lượt LX-261011-A2K9 ngày 11/10. Lần này chạy thêm 18 km ngoài sổ.</div>
+          </div>
+          <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Bắt đầu giao</button></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="margin-top:0">Điện thoại (tài xế)</h3>
+      <div class="dt">
+        <div class="dt__dau"><div class="nho mute">Bắt đầu giao</div><div>LX-261012-O1EQ</div></div>
+        <div class="dt__than">
+          <div class="mute nho">Xe 51D-40752 rời kho với 1 điểm</div>
+          <div style="margin-top:14px">
+            <span class="nhan">Số trên đồng hồ xe</span>
+            <span class="o-km to dang" style="width:100%"><input value="12.030"><span>km</span></span>
+            <div class="goi">Số cuối trong sổ: 12.012 km</div>
+          </div>
+          <div class="phim"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span></span><span>0</span><span>⌫</span></div>
+        </div>
+        <div class="dt__chan"><button class="btn btn--chinh">Bắt đầu giao</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Trạng thái: số nhảy quá 500 km so với số cuối</h3>
+  <div class="hop" style="box-shadow:none;border:1px solid var(--line)">
+    <span class="nhan">Số trên đồng hồ xe lúc rời kho</span>
+    <span class="o-km to" style="width:100%"><input value="120.300"><span>km</span></span>
+    <div class="canh">Số này hơn số cuối của xe (12.012) tới 108.288 km. Hay gặp là gõ thừa một chữ số.
+      <label><input type="checkbox"> Tôi đã xem lại đồng hồ, số 120.300 là đúng</label></div>
+    <div class="chan" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn">Thôi</button><button class="btn btn--chinh">Bắt đầu giao</button></div>
+  </div>
+  <h3>Trạng thái: xe chưa có số nào trong sổ</h3>
+  <div class="hop" style="box-shadow:none;border:1px solid var(--line)">
+    <span class="nhan">Số trên đồng hồ xe lúc rời kho</span>
+    <span class="o-km to" style="width:100%"><input placeholder="Đọc số trên đồng hồ xe"><span>km</span></span>
+    <div class="goi">Lượt đầu tiên của xe này có ghi số. Từ lượt sau sẽ hiện số cuối để so.</div>
+  </div>
+
+  <!-- ======================= A bản 2 ======================= -->
+  <h2>A bản 2: từ lượt thứ hai, số rời kho lấy sẵn số cuối của xe</h2>
+  <p class="mo">Xe vừa về kho ở lượt trước thì đồng hồ lúc rời kho lần này chính là số về kho đó. Hộp không bắt gõ nữa: số đứng sẵn, tài xế nhìn đồng hồ thấy khớp thì bấm "Bắt đầu giao" là xong, một cú bấm. Chỉ khi đồng hồ chỉ số khác (xe chạy việc riêng, đổ xăng giữa hai lượt) mới bấm "Đồng hồ chỉ số khác" để gõ.</p>
+  <div class="ghi">
+    Số đứng sẵn là CHỮ, không phải ô đã điền sẵn. Ngày 27/09 từng điền sẵn vào ô, tài xế bấm vào gõ nối thêm thành số tỉ km. Nên muốn sửa thì mở ô TRỐNG, gõ lại cả số.
+    <ul>
+      <li>Số cuối = số lớn nhất máy đã có của xe: về kho, rời kho hoặc tới khách ở mọi lượt trước. Dòng nhỏ nói số đó từ lượt nào, ngày nào.</li>
+      <li>Lượt trước chưa ghi số về kho thì vẫn lấy số lớn nhất đã có, và dòng nhỏ nói rõ là số tới khách cuối, chưa phải số về kho.</li>
+      <li>Lượt đầu tiên của xe (sổ chưa có số nào) thì vẫn là ô trống phải gõ, như bản A.</li>
+    </ul>
+  </div>
+  <div class="hang">
+    <div>
+      <h3 style="margin-top:0">1. Có số cuối: một cú bấm</h3>
+      <div class="hop" style="box-shadow:0 10px 30px rgba(15,23,42,.14)">
+        <h4>Bắt đầu giao lượt LX-261013-B7QK</h4>
+        <div class="mute nho">Xe 51D-40752 rời kho với 3 điểm đã lấy hàng</div>
+        <div style="margin-top:16px">
+          <span class="nhan">Số đồng hồ lúc rời kho</span>
+          <div style="font-size:26px;font-variant-numeric:tabular-nums;line-height:1.2">12.048 <span class="mute" style="font-size:15px">km</span></div>
+          <div class="goi">Số về kho của lượt LX-261012-O1EQ, 17:40 ngày 12/10</div>
+          <button class="btn btn--goi-y" style="margin-top:10px">Đồng hồ chỉ số khác</button>
+        </div>
+        <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Bắt đầu giao</button></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">2. Bấm "Đồng hồ chỉ số khác": ô trống để gõ lại</h3>
+      <div class="hop" style="box-shadow:0 10px 30px rgba(15,23,42,.14)">
+        <h4>Bắt đầu giao lượt LX-261013-B7QK</h4>
+        <div class="mute nho">Xe 51D-40752 rời kho với 3 điểm đã lấy hàng</div>
+        <div style="margin-top:16px">
+          <span class="nhan">Số trên đồng hồ xe lúc rời kho</span>
+          <span class="o-km to dang" style="width:100%"><input value="12.066"><span>km</span></span>
+          <div class="goi">Sổ ghi 12.048 km lúc về kho lượt trước. Xe đã chạy thêm 18 km giữa hai lượt, máy ghi lại để quản lý xem.</div>
+          <button class="btn btn--goi-y" style="margin-top:10px">Dùng số cuối 12.048</button>
+        </div>
+        <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Bắt đầu giao</button></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">3. Lượt đầu tiên của xe: phải gõ</h3>
+      <div class="hop" style="box-shadow:0 10px 30px rgba(15,23,42,.14)">
+        <h4>Bắt đầu giao lượt LX-261012-O1EQ</h4>
+        <div class="mute nho">Xe 51D-40752 rời kho với 1 điểm đã lấy hàng</div>
+        <div style="margin-top:16px">
+          <span class="nhan">Số trên đồng hồ xe lúc rời kho</span>
+          <span class="o-km to dang" style="width:100%"><input placeholder="Đọc số trên đồng hồ xe"><span>km</span></span>
+          <div class="goi">Lượt đầu tiên của xe này có ghi số. Từ lượt sau máy lấy sẵn số về kho.</div>
+        </div>
+        <div class="chan"><button class="btn">Thôi</button><button class="btn btn--chinh">Bắt đầu giao</button></div>
+      </div>
+    </div>
+  </div>
+  <h3>Điện thoại, trường hợp 1</h3>
+  <div class="dt">
+    <div class="dt__dau"><div class="nho mute">Bắt đầu giao</div><div>LX-261013-B7QK</div></div>
+    <div class="dt__than" style="min-height:260px">
+      <div class="mute nho">Xe 51D-40752 rời kho với 3 điểm</div>
+      <div style="margin-top:18px">
+        <span class="nhan">Số đồng hồ lúc rời kho</span>
+        <div style="font-size:30px;font-variant-numeric:tabular-nums">12.048 <span class="mute" style="font-size:16px">km</span></div>
+        <div class="goi">Số về kho lượt trước, 17:40 ngày 12/10</div>
+        <button class="btn btn--goi-y" style="margin-top:12px;padding:8px 12px">Đồng hồ chỉ số khác</button>
+      </div>
+    </div>
+    <div class="dt__chan"><button class="btn btn--chinh">Bắt đầu giao</button></div>
+  </div>
+
+  <!-- ======================= B ======================= -->
+  <h2>B. Bung ngay dưới nút, gõ xong bấm luôn</h2>
+  <p class="mo">Bấm "Bắt đầu giao" thì một ô nhỏ bung ra ngay dưới nút, kiểu ô hỏi nhanh. Không có nền mờ, không đẩy gì. Số cuối nằm thành nút gợi ý: trùng số thì bấm một cái là điền.</p>
+  <div class="hang">
+    <div class="ngan" style="overflow:visible">
+      <div class="ngan__dau">
+        <div class="duong">Lượt xe</div>
+        <div class="tieu"><span class="ma">LX-261012-O1EQ</span><span class="chip c-tim">Đã lấy hàng</span>
+          <span class="nut-phai"><button class="btn btn--chinh">Bắt đầu giao (1 điểm)</button>
+            <div class="bung">
+              <span class="nhan">Số đồng hồ lúc rời kho</span>
+              <div style="display:flex;gap:8px;align-items:center">
+                <span class="o-km dang"><input value="12.030" style="width:110px"><span>km</span></span>
+                <button class="btn btn--goi-y">Dùng 12.012</button>
+              </div>
+              <div class="goi">Số cuối của xe: 12.012 km, ngày 11/10</div>
+              <div class="hang-nut"><button class="btn btn--chinh">Bắt đầu giao</button><button class="btn">Thôi</button></div>
+            </div>
+          </span></div>
+        <dl class="kv">
+          <div><dt>Xe</dt><dd>51D-40752<small>Xe a Sang</small></dd></div>
+          <div><dt>Kíp</dt><dd>Trần Hùng Tín<small>phụ xe Trần Văn Thạch Sang</small></dd></div>
+          <div><dt>Xuất phát</dt><dd>Chưa rời kho<small>kho hẹn 06:00 13/10</small></dd></div>
+          <div><dt>Đã chạy</dt><dd>0 km</dd></div>
+        </dl>
+        <div class="tabs"><span class="on">Lộ trình</span><span>Chứng từ</span><span>Lịch sử</span></div>
+      </div>
+      <div class="than" style="min-height:220px">
+        <div class="dai">
+          <div class="diem dang"><div class="tron"></div>Rời kho<small>chưa rời</small></div><div class="noi"></div>
+          <div class="diem"><div class="tron">1</div>CAFÉ KATINAT<small>hẹn 13/10</small></div><div class="noi"></div>
+          <div class="diem"><div class="tron"></div>Về kho<small>chưa về</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <h3 style="margin-top:0">Điện thoại: ô dính đáy màn</h3>
+      <div class="dt">
+        <div class="dt__dau"><div class="nho mute">Lượt xe</div><div>LX-261012-O1EQ</div></div>
+        <div class="dt__than" style="min-height:300px">
+          <div class="dai dai--hep">
+            <div class="diem dang"><div class="tron"></div>Rời kho</div><div class="noi"></div>
+            <div class="diem"><div class="tron">1</div>KATINAT</div><div class="noi"></div>
+            <div class="diem"><div class="tron"></div>Về kho</div>
+          </div>
+          <div class="mute nho">Thẻ điểm 1 và hàng giao nằm ở đây</div>
+        </div>
+        <div class="dt__chan" style="box-shadow:0 -8px 20px rgba(15,23,42,.08)">
+          <span class="nhan">Số đồng hồ lúc rời kho</span>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+            <span class="o-km dang" style="flex:1"><input value="12.030" style="width:100%"><span>km</span></span>
+            <button class="btn btn--goi-y">Dùng 12.012</button>
+          </div>
+          <button class="btn btn--chinh">Bắt đầu giao</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= C ======================= -->
+  <h2>C. Ghi số tại điểm "Rời kho" trên dải lộ trình</h2>
+  <p class="mo">Mỗi điểm trên dải là một nơi ghi số đồng hồ: Rời kho, từng khách, Về kho. Bấm "Bắt đầu giao" thì dải tự chọn ô Rời kho và thẻ của nó mở ngay dưới dải với ô số. Sau đó dải hiện luôn số đã ghi ở mỗi điểm và km từng chặng, ai nhìn cũng thấy km tính từ đâu ra.</p>
+  <div class="hang">
+    <div class="ngan">
+      <div class="ngan__dau">
+        <div class="duong">Lượt xe</div>
+        <div class="tieu"><span class="ma">LX-261012-O1EQ</span><span class="chip c-tim">Đã lấy hàng</span>
+          <span class="nut-phai"><button class="btn btn--chinh">Bắt đầu giao (1 điểm)</button></span></div>
+        <dl class="kv">
+          <div><dt>Xe</dt><dd>51D-40752<small>Xe a Sang</small></dd></div>
+          <div><dt>Kíp</dt><dd>Trần Hùng Tín<small>phụ xe Trần Văn Thạch Sang</small></dd></div>
+          <div><dt>Xuất phát</dt><dd>Chưa rời kho<small>kho hẹn 06:00 13/10</small></dd></div>
+          <div><dt>Đã chạy</dt><dd>0 km</dd></div>
+        </dl>
+        <div class="tabs"><span class="on">Lộ trình</span><span>Chứng từ</span><span>Lịch sử</span></div>
+      </div>
+      <div class="than">
+        <div class="dai">
+          <div class="diem dang chon"><div class="tron"></div>Rời kho<small>đang ghi số</small></div><div class="noi"></div>
+          <div class="diem"><div class="tron">1</div>CAFÉ KATINAT<small>hẹn 13/10</small></div><div class="noi"></div>
+          <div class="diem"><div class="tron"></div>Về kho<small>chưa về</small></div>
+        </div>
+        <div class="the mo-xam">
+          <div class="dau-the"><span>Rời kho</span><span class="mute nho">Kho thành phẩm</span></div>
+          <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
+            <div>
+              <span class="nhan">Số đồng hồ lúc rời kho</span>
+              <span class="o-km dang"><input value="12.030" style="width:120px"><span>km</span></span>
+            </div>
+            <div class="goi" style="margin:0 0 10px">Số cuối của xe: 12.012 km, ngày 11/10</div>
+            <div style="margin-left:auto;display:flex;gap:8px"><button class="btn">Thôi</button><button class="btn btn--chinh">Bắt đầu giao</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3>Sau khi giao xong điểm 1: dải nói luôn số và km từng chặng</h3>
+  <div class="ngan" style="width:820px">
+    <div class="than">
+      <div class="dai">
+        <div class="diem xong"><div class="tron">✓</div>Rời kho<small>12.030 km</small></div><div class="noi"><em>18 km</em></div>
+        <div class="diem xong"><div class="tron">1</div>CAFÉ KATINAT<small>12.048 km</small></div><div class="noi"><em>chưa về</em></div>
+        <div class="diem dang"><div class="tron"></div>Về kho<small>chưa ghi số</small></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>So nhanh</h2>
+  <table class="so-sanh">
+    <tr><th></th><th>A. Hộp thoại</th><th>B. Bung dưới nút</th><th>C. Tại điểm Rời kho</th></tr>
+    <tr><td>Bấm tới lúc gõ được</td><td>1 bấm, ô nhận sẵn con trỏ</td><td>1 bấm, ô nhận sẵn con trỏ</td><td>1 bấm, ô nhận sẵn con trỏ</td></tr>
+    <tr><td>Biết đang làm cho lượt nào</td><td>Rõ nhất, tiêu đề hộp ghi mã lượt và xe</td><td>Dựa vào vị trí cạnh nút</td><td>Dựa vào dải lộ trình đang chọn Rời kho</td></tr>
+    <tr><td>Chỗ cho cảnh báo nhảy số</td><td>Rộng, nằm gọn trong hộp</td><td>Chật, hộp bung phải dài ra</td><td>Rộng, nằm trong thẻ</td></tr>
+    <tr><td>Điện thoại</td><td>Toàn màn, bàn phím số, nút dính đáy</td><td>Ô dính đáy màn cạnh nút</td><td>Thẻ dưới dải, phải cuộn nếu lộ trình dài</td></tr>
+    <tr><td>Về kho và tới khách</td><td>Dùng lại cùng hộp, đổi tiêu đề</td><td>Dùng lại cùng ô bung</td><td>Cùng một chỗ: mỗi điểm trên dải là nơi ghi số, km từng chặng hiện trên dải</td></tr>
+    <tr><td>Sửa code</td><td>Ít, thay khung form bằng hộp thoại có sẵn</td><td>Ít, cần ô bung có mũi trỏ</td><td>Nhiều hơn, dải lộ trình phải mang số và km từng chặng</td></tr>
+  </table>
+</div>
+</body>
+</html>

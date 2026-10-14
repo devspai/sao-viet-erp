@@ -417,7 +417,8 @@ class PhieuTinhGiaListItem(BaseModel):
     # Tên các sản phẩm BÊN TRONG phiếu. Ô `ten_san_pham` ở đầu phiếu là chữ tự do người lập
     # gõ, bỏ trống được — bỏ trống thì bảng ngoài này chẳng biết phiếu báo cái gì. Gửi kèm
     # tên hàng bên trong để cột "Sản phẩm" có cái mà rơi về. Danh sách đã selectinload sẵn,
-    # không thêm truy vấn nào.
+    # không thêm truy vấn nào. Mỗi tên là một SẢN PHẨM khách mua: ruột + bìa cùng nhóm báo giá
+    # gộp về tên nhóm (`thanh_phan_engine.cum_san_pham`).
     ten_thanh_phans: list[str] = Field(default_factory=list)
     # Báo giá lập từ phiếu này (một phiếu một báo giá) — router tra theo trang.
     bao_gia_id: int | None = None

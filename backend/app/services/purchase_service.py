@@ -458,6 +458,11 @@ def phan_bo_tien_dot(row, *, den_ngay: date | None = None) -> tuple[list[dict], 
     return out, coc, con_coc
 
 
+def _ky_hieu_hoa_don(giatri: str | None) -> str | None:
+    """Ký hiệu hoá đơn viết hoa, bỏ khoảng trắng thừa (VD "1c26taa " → "1C26TAA")."""
+    return (giatri or "").strip().upper() or None
+
+
 def han_tra_dot(delivery, supplier, ngay_chot: date | None) -> date | None:
     """Hạn trả của một đợt giao. Thang bốn bậc, bậc trên thắng bậc dưới.
 
@@ -3229,12 +3234,17 @@ class PurchaseService:
         ngay_hd = values.get("invoice_date")
         if ngay_hd is not None and ngay_hd > _business_today():
             raise PurchaseValidationError("Ngày hóa đơn không được ở tương lai.")
+        so_hd = (values.get("invoice_number") or "").strip() or None
+        ky_hieu = _ky_hieu_hoa_don(values.get("invoice_symbol"))
+        if ky_hieu and not so_hd:
+            raise PurchaseValidationError("Có ký hiệu thì phải có số hóa đơn.")
         # KHÔNG nhận số tiền: tiền của đợt do máy tính từ đơn giá đã chốt trên phiếu
         # (chủ chốt 07/08/2026 — xem `phan_bo_du_dot`). Cột `amount` để dormant.
         return {
             "delivery_date": ngay,
             "due_date": han,
-            "invoice_number": (values.get("invoice_number") or "").strip() or None,
+            "invoice_symbol": ky_hieu if so_hd else None,
+            "invoice_number": so_hd,
             "invoice_date": ngay_hd,
             "note": (values.get("note") or "").strip() or None,
         }
@@ -3326,6 +3336,7 @@ class PurchaseService:
         invoice_number: str | None,
         invoice_date: date | None,
         actor,
+        invoice_symbol: str | None = None,
     ) -> dict:
         """Gán MỘT hoá đơn cho NHIỀU đợt giao.
 
@@ -3336,10 +3347,14 @@ class PurchaseService:
         if not delivery_ids:
             raise PurchaseValidationError("Chưa chọn đợt giao nào để gán hóa đơn.")
         so_hd = (invoice_number or "").strip() or None
+        ky_hieu = _ky_hieu_hoa_don(invoice_symbol)
+        if ky_hieu and not so_hd:
+            raise PurchaseValidationError("Có ký hiệu thì phải có số hóa đơn.")
         if invoice_date is not None and invoice_date > _business_today():
             raise PurchaseValidationError("Ngày hóa đơn không được ở tương lai.")
         for did in delivery_ids:
             dot = self._dot_giao(row, did)
+            dot.invoice_symbol = ky_hieu if so_hd else None
             dot.invoice_number = so_hd
             dot.invoice_date = invoice_date
         saved = self.requests.save(row)
@@ -3347,7 +3362,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="assign_purchase_invoice",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — HĐ {so_hd or '(gỡ)'} cho {len(delivery_ids)} đợt",
+            detail=f"{row.code} — HĐ {' '.join(x for x in (ky_hieu, so_hd) if x) or '(gỡ)'} cho {len(delivery_ids)} đợt",
         )
         return self._to_request_out(saved)
 
@@ -4059,6 +4074,7 @@ class PurchaseService:
                 # NULL = NCC chưa khai số ngày cho nợ ⇒ đợt này không bao giờ vào cột Quá hạn.
                 # Cờ này để màn hình đẩy nó lên đầu kèm badge thay vì để nó chìm nghỉm.
                 "chua_dat_han": han_tra_dot(d, row.supplier, row.debt_cutoff_date) is None,
+                "invoice_symbol": d.invoice_symbol,
                 "invoice_number": d.invoice_number,
                 "invoice_date": d.invoice_date,
                 "note": d.note,

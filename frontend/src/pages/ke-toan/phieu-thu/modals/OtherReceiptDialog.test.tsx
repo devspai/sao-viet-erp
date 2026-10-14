@@ -12,7 +12,7 @@ const goi = vi.hoisted(() => ({
 vi.mock("../../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
 vi.mock("../../../../api/client", async (goc) => ({
   ...(await goc<typeof import("../../../../api/client")>()),
-  api: { accounting: goi },
+  api: { mucThuChi: { list: vi.fn().mockResolvedValue({ items: [{ id: 7, ma: "PL", ten: "Bán phế liệu", loai: "thu", ghi_chu: null, active: true }] }) }, accounting: goi },
 }));
 
 import { OtherReceiptDialog } from "./OtherReceiptDialog";
@@ -37,6 +37,7 @@ describe("Form lập phiếu thu khác (PT-3)", () => {
     expect(screen.getByText("Ghi người hoặc đơn vị nộp tiền.")).toBeInTheDocument();
     expect(screen.getByText("Số tiền thu phải lớn hơn 0.")).toBeInTheDocument();
     expect(screen.getByText("Ghi lý do nộp.")).toBeInTheDocument();
+    expect(screen.getByText("Chọn mục thu.")).toBeInTheDocument();
     expect(screen.getByLabelText(/Số tiền thu/)).toHaveFocus();
     expect(goi.createOtherReceipt).not.toHaveBeenCalled();
   });
@@ -49,8 +50,11 @@ describe("Form lập phiếu thu khác (PT-3)", () => {
     await u.type(screen.getByLabelText(/Người nộp tiền/), "  Phế liệu Tư Hải ");
     await u.type(screen.getByLabelText(/Số tiền/), "2350000");
     expect(screen.getByLabelText(/Số tiền/)).toHaveValue("2.350.000");
+    await u.selectOptions(await screen.findByRole("combobox", { name: /Mục thu/ }), "Bán phế liệu");
     await u.type(screen.getByLabelText(/Lý do nộp/), "Bán giấy vụn");
     const giay = screen.getByLabelText("Xem trước phiếu thu");
+    expect(giay).toHaveTextContent("Mục thu:Bán phế liệu");
+    expect(giay).not.toHaveTextContent("Nguồn thu");
     expect(giay).toHaveTextContent("Phế liệu Tư Hải");
     expect(giay).toHaveTextContent("2.350.000 đ");
     expect(giay).toHaveTextContent("Hình thức:Tiền mặt");
@@ -69,6 +73,7 @@ describe("Form lập phiếu thu khác (PT-3)", () => {
       company_bank_account_id: null,
       bank_reference: null,
       note: null,
+      muc_thu_chi_id: 7,
     });
     expect(onSaved).toHaveBeenCalled();
   });
@@ -79,6 +84,7 @@ describe("Form lập phiếu thu khác (PT-3)", () => {
     render(<OtherReceiptDialog onClose={() => {}} onSaved={() => {}} />);
     await u.type(screen.getByLabelText(/Người nộp tiền/), "Bao bì Việt Hưng");
     await u.type(screen.getByLabelText(/Số tiền/), "58600000");
+    await u.selectOptions(await screen.findByRole("combobox", { name: /Mục thu/ }), "Bán phế liệu");
     await u.type(screen.getByLabelText(/Lý do nộp/), "Thu tiền hàng");
     await u.click(screen.getByRole("radio", { name: "Chuyển khoản" }));
     const chon = await screen.findByLabelText(/Tài khoản nhận/);

@@ -15,6 +15,11 @@ import { describe, expect, it } from "vitest";
 import {
   bhThueRows,
   bonusRows,
+  getCongCnLeVal,
+  getCongThuongVal,
+  getTienCnLeVal,
+  getTienCongThuongVal,
+  getTienTangCaVal,
   hoaHongTotal,
   phatRows,
   phuCapRows,
@@ -184,5 +189,112 @@ describe("Bảng lương — cột Phụ cấp gồm cả cơm ca và phụ cấ
   it("dòng lương cũ thiếu hẳn 3 ô (kỳ trước khi có cơm ca) vẫn ra số, không NaN", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(phuCapTotal({ allowance: 300_000 } as any)).toBe(300_000);
+  });
+});
+
+describe("Bảng lương — tách công & tiền thường vs CN/Lễ", () => {
+  it("⭐ tách công thường và công CN/lễ chính xác", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const l1 = { actual_cong: 28, special_cong: 2 } as any;
+    expect(getCongThuongVal(l1)).toBe(26);
+    expect(getCongCnLeVal(l1)).toBe(2);
+
+    // Ưu tiên field cong_thuong từ backend nếu đã có
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const l2 = { actual_cong: 28, special_cong: 2, cong_thuong: 26 } as any;
+    expect(getCongThuongVal(l2)).toBe(26);
+  });
+
+  it("⭐ tách thành tiền công thường và tiền CN/lễ chuẩn xác (người lương thời gian)", () => {
+    // 26 công thường + 2 công CN: monthly 32.500.000 / 26 = 1.250.000/công
+    // luong_cong = 35.000.000 (đã gồm 2 công gốc CN = 2.500.000)
+    // ot_pay = 2.500.000 (phần phụ trội Đ98 làm CN)
+    const l = {
+      actual_cong: 28,
+      special_cong: 2,
+      standard_cong: 26,
+      monthly_salary: 32_500_000,
+      is_probation: false,
+      luong_cong: 35_000_000,
+      ot_pay: 2_500_000,
+      tien_gio_tang_ca: 0,
+      off1x_pay: 0,
+      luong_ngay_le: 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    expect(getTienCongThuongVal(l)).toBe(32_500_000);
+    // Tiền CN/lễ = gốc 2.500.000 + phụ trội 2.500.000 = 5.000.000 (đúng 2 ngày × 200%)
+    expect(getTienCnLeVal(l)).toBe(5_000_000);
+    // Tăng ca thuần = 0
+    expect(getTienTangCaVal(l)).toBe(0);
+
+    // Tổng tiền không thay đổi:
+    expect(getTienCongThuongVal(l) + getTienCnLeVal(l) + getTienTangCaVal(l)).toBe(
+      l.luong_cong + l.ot_pay + l.luong_ngay_le,
+    );
+  });
+
+  it("⭐ tách thành tiền khi có thêm giờ tăng ca ngày thường", () => {
+    // Thêm 500.000đ tiền giờ tăng ca ngày thường
+    const l = {
+      actual_cong: 28,
+      special_cong: 2,
+      standard_cong: 26,
+      monthly_salary: 32_500_000,
+      is_probation: false,
+      luong_cong: 35_000_000,
+      ot_pay: 3_000_000, // 2.5tr phụ trội CN + 500k giờ tăng ca
+      tien_gio_tang_ca: 500_000,
+      off1x_pay: 0,
+      luong_ngay_le: 0,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    expect(getTienCongThuongVal(l)).toBe(32_500_000);
+    expect(getTienCnLeVal(l)).toBe(5_000_000);
+    expect(getTienTangCaVal(l)).toBe(500_000);
+    expect(getTienCongThuongVal(l) + getTienCnLeVal(l) + getTienTangCaVal(l)).toBe(
+      l.luong_cong + l.ot_pay + l.luong_ngay_le,
+    );
+  });
+
+  it("⭐ người chế độ khoán (sản lượng) không có tiền tăng ca, tiền CN/lễ tính đúng", () => {
+    const l = {
+      actual_cong: 26,
+      special_cong: 2,
+      standard_cong: 26,
+      monthly_salary: 26_000_000,
+      che_do_khoan: true,
+      la_giao_hang: false,
+      lay_bu_lo: false,
+      khoan: 15_000_000,
+      luong_cong: 0,
+      ot_pay: 2_000_000, // phụ trội CN
+      tien_gio_tang_ca: 0,
+      off1x_pay: 0,
+      luong_ngay_le: 500_000, // công ngày lễ nghỉ
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    expect(getTienTangCaVal(l)).toBe(0);
+    expect(getTienCnLeVal(l)).toBe(2_500_000); // 2tr phụ trội + 500k lễ
+  });
+
+  it("⭐ ưu tiên giá trị derive từ backend khi có sẵn", () => {
+    const l = {
+      cong_thuong: 24,
+      tien_cong_thuong: 30_000_000,
+      tien_cn_le: 4_000_000,
+      tien_gio_tang_ca: 600_000,
+      off1x_pay: 200_000,
+      ot_pay: 2_800_000,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    expect(getCongThuongVal(l)).toBe(24);
+    expect(getTienCongThuongVal(l)).toBe(30_000_000);
+    expect(getTienCnLeVal(l)).toBe(4_000_000);
+    expect(getTienTangCaVal(l)).toBe(800_000); // 600k giờ tc + 200k off1x
   });
 });
