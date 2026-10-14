@@ -55,7 +55,7 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # Ba màn tách khỏi `san_xuat` ngày 17/08/2026. Đã soi: KHÔNG router nào của chúng đọc scope
     # (`bai_ghep_2.py` · `xep_lich.py` · `ke_hoach_vat_tu.py` đều 0 lần) — bài ghép và lịch xưởng
     # là bức tranh chung, không có "bài ghép của tôi". Riêng `san_xuat` KHÔNG vào đây: `lsx.py` đọc
-    # scope thật (`_owner_ids_for_scope`) để thợ chỉ thấy lệnh của mình.
+    # scope thật (`_owner_ids_for_scope`) — từ 14/10/2026 theo CHỦ ĐƠN, như Đơn hàng bán.
     # Khoá `bai_ghep` gỡ 18/08/2026 (mg 0216) — quyền đã chép sang `bai_ghep_2`.
     "ke_hoach_vat_tu",
     "bai_ghep_2",
@@ -146,7 +146,6 @@ READ_IMPLYING_KEYS = (
     "can_view_drivers",
     "can_approve_exception",
     "can_set_credit_terms",
-    "can_record_deposit",
     "can_assign_work",
     "can_record_output",
     "can_handover",
@@ -396,7 +395,6 @@ class RoleService:
                     # do save_matrix xử lý riêng, giữ nguyên hành vi cũ — không mở rộng ở đây.)
                     "can_approve_exception": bool(p.can_approve_exception) if p else False,
                     "can_set_credit_terms": bool(p.can_set_credit_terms) if p else False,
-                    "can_record_deposit": bool(p.can_record_deposit) if p else False,
                     "can_assign_work": bool(p.can_assign_work) if p else False,
                     "can_record_output": bool(p.can_record_output) if p else False,
                     "can_handover": bool(p.can_handover) if p else False,
@@ -492,7 +490,6 @@ class RoleService:
                 can_view_drivers=normalized.get("can_view_drivers", False),
                 can_approve_exception=normalized.get("can_approve_exception", False),
                 can_set_credit_terms=normalized.get("can_set_credit_terms", False),
-                can_record_deposit=normalized.get("can_record_deposit", False),
                 can_assign_work=normalized.get("can_assign_work", False),
                 can_record_output=normalized.get("can_record_output", False),
                 can_handover=normalized.get("can_handover", False),

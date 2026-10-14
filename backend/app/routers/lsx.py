@@ -12,13 +12,13 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import get_authorization_service, require_permission
 from ..models.lsx import Lsx
-from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
+from ..models.order import Order
 from ..models.user import User
 from ..doi_tuong_nhan import BAN_TO, KCS, MAN_THEO_LENH, NGHE_LENH
 from ..realtime import hub
@@ -26,8 +26,8 @@ from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.catalog_base import SIZE_TRAN
 from ..repositories.document_sequence_repo import DocumentSequenceRepository
-from ..repositories.lsx_repo import LsxRepository
-from ..repositories.org_scope import dept_subtree_ids
+from ..repositories.lsx_repo import LsxRepository, dk_lenh_trong_pham_vi
+from ..repositories.org_scope import chu_cua
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.lsx import (
     BuocMacDinhOut,
@@ -56,6 +56,7 @@ from ..schemas.lsx import (
     XemTruocRoutingOut,
 )
 from ..services import lsx_nhat_ky, lsx_tong_quan
+from ..services.lenh_sx import pham_vi
 from ..services.lsx_dinh_kem import MAX_BYTES as DINH_KEM_MAX_BYTES
 from ..tai_len import doc_gioi_han
 from ..services.lsx_dinh_kem import LsxDinhKemService, TepBiChan, TepQuaLon, don_kho
@@ -103,27 +104,37 @@ def _map(exc: Exception) -> HTTPException:
 
 
 def _owner_ids_for_scope(db: Session, user: User, authz: AuthorizationService) -> set[int] | None:
-    """Tập user-id mà `user` được thấy lệnh theo scope module `san_xuat`. None = thấy TẤT CẢ.
+    """Tập user-id CHỦ ĐƠN mà `user` được thấy theo scope module `san_xuat`. None = thấy TẤT CẢ.
 
-    Lệnh KHÔNG thuộc sale (khác đơn hàng) nên phạm vi tính theo người phụ trách / người tạo lệnh:
-    Kế hoạch SX cầm scope `all` → thấy hết; tổ trưởng/thợ scope `own` → chỉ lệnh của mình.
+    14/10/2026 chủ chốt: phạm vi của Kế hoạch SX đi THEO ĐƠN, đúng luật Đơn hàng bán + Hồ sơ lệnh +
+    Theo dõi SX (`services/lenh_sx/pham_vi.py`): Của tôi = mình + người cùng nhóm dùng chung, Cả
+    phòng = phòng mình + cây con, Tất cả = không lọc. Lệnh thuộc phạm vi khi ĐƠN của nó thuộc phạm
+    vi (`lsx_repo.dk_lenh_trong_pham_vi`). Trước đó tính theo người tạo / phụ trách lệnh.
     """
-    scope = authz.scope_for(user, MODULE) or SCOPE_OWN
-    if scope == SCOPE_ALL:
-        return None
-    if scope == SCOPE_DEPARTMENT:
-        dept_ids = dept_subtree_ids(db, user.department_id)
-        if dept_ids:
-            ids = db.execute(select(User.id).where(User.department_id.in_(dept_ids))).scalars().all()
-            return set(ids) | {user.id}
-    return {user.id}
+    return pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
 
 
-def _guard_scope(db: Session, lsx, user: User, authz: AuthorizationService) -> None:
+def lenh_trong_pham_vi(db: Session, lsx, owner_ids: set[int] | None) -> bool:
+    """Bản Python của `dk_lenh_trong_pham_vi` cho một lệnh đã nạp."""
+    if owner_ids is None:
+        return True
+    order = db.get(Order, lsx.order_id) if lsx.order_id else None
+    return order is not None and chu_cua(db, order.customer_id, order.sale_user_id) in owner_ids
+
+
+def _guard_don(db: Session, order_id: int, user: User, authz: AuthorizationService) -> None:
+    """Đơn ngoài phạm vi ⇒ 404 như lệnh ngoài phạm vi (hàng chờ đã lọc theo chủ đơn, gõ id thẳng
+    vào `/preview` hay `/tao` cũng không vượt được)."""
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is None:
         return
-    if lsx.nguoi_phu_trach_id in owner_ids or lsx.created_by in owner_ids:
+    order = db.get(Order, order_id)
+    if order is None or chu_cua(db, order.customer_id, order.sale_user_id) not in owner_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
+
+
+def _guard_scope(db: Session, lsx, user: User, authz: AuthorizationService) -> None:
+    if lenh_trong_pham_vi(db, lsx, _owner_ids_for_scope(db, user, authz)):
         return
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lệnh sản xuất")
 
@@ -152,13 +163,12 @@ def hang_cho(
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern="^(tao|chuyen)$"),
 ) -> HangChoOut:
-    """Đơn Sale đã chuyển xuống SX mà còn dòng chưa lên lệnh. Chỉ người có phạm vi TOÀN BỘ (Kế
-    hoạch SX) mới thấy — đơn chưa lên lệnh thì chưa thuộc về ai bên sản xuất."""
-    if _owner_ids_for_scope(db, user, authz) is not None:
-        return HangChoOut(items=[], total=0, page=page, size=size)
+    """Đơn Sale đã chuyển xuống SX mà còn dòng chưa lên lệnh, trong phạm vi theo CHỦ ĐƠN (14/10/2026
+    — trước đó chỉ người có phạm vi toàn bộ mới thấy). Lên lệnh vẫn do ô Thao tác (`create`)."""
     items, total = _svc(db).hang_cho(
         page=page, size=size, chi_dem=chi_dem,
         customer_id=customer_id, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
+        owner_ids=_owner_ids_for_scope(db, user, authz),
     )
     return HangChoOut(items=items, total=total, page=page, size=size)
 
@@ -170,10 +180,9 @@ def hang_cho_khach_loc(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> list[LuaChonLoc]:
     """Ô "Khách hàng" của thanh lọc hàng chờ: khách đang có đơn chờ lên lệnh, kèm số đơn. Cùng cửa
-    phạm vi với `/hang-cho` — người không có phạm vi toàn bộ thì rỗng."""
-    if _owner_ids_for_scope(db, user, authz) is not None:
-        return []
-    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in _svc(db).khach_hang_cho()]
+    phạm vi với `/hang-cho`."""
+    return [LuaChonLoc(id=i, ten=t, so=n)
+            for i, t, n in _svc(db).khach_hang_cho(owner_ids=_owner_ids_for_scope(db, user, authz))]
 
 
 # --- Xem trước danh sách lệnh dự kiến ----------------------------------------
@@ -181,8 +190,10 @@ def hang_cho_khach_loc(
 def preview(
     order_id: int,
     db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> PreviewOut:
+    _guard_don(db, order_id, user, authz)
     try:
         return PreviewOut.model_validate(_svc(db).preview(order_id))
     except Exception as exc:
@@ -194,8 +205,10 @@ def tao(
     order_id: int,
     payload: TaoLsxIn,
     db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
 ) -> LsxListOut:
+    _guard_don(db, order_id, user, authz)
     svc = _svc(db)
     try:
         created = svc.tao(order_id=order_id, order_line_ids=payload.order_line_ids, actor=user)
@@ -316,8 +329,7 @@ def tong_quan(
     truy = select(Lsx.id).where(Lsx.id.in_(wanted))
     owner_ids = _owner_ids_for_scope(db, user, authz)
     if owner_ids is not None:
-        truy = truy.where(or_(Lsx.nguoi_phu_trach_id.in_(owner_ids),
-                              Lsx.created_by.in_(owner_ids)))
+        truy = truy.where(dk_lenh_trong_pham_vi(owner_ids))
     thay = set(db.execute(truy).scalars())
     wanted = [i for i in wanted if i in thay]
     return LsxTongQuanOut(items=[LsxTongQuanItem.model_validate(r)

@@ -277,7 +277,7 @@ class OrderService:
     def _row(self, order: Order, customer_name: str | None, sale_name: str | None,
              quotation_code: str | None = None, *, agg: dict | None = None,
              received: int | None = None,
-             line_sum: tuple[str, int] | None = None) -> OrderRow:
+             line_sum: tuple[str, int] | None = None, refunded: int = 0) -> OrderRow:
         m = self._money(order, agg=agg, received=received)
         return OrderRow(
             id=order.id,
@@ -296,6 +296,7 @@ class OrderService:
             deposit_required=m["deposit_required"],
             deposit_received=m["deposit_received"],
             deposit_ok=m["deposit_ok"],
+            deposit_refunded=refunded,
             delivery_committed_date=order.delivery_committed_date,
             is_rush=order.is_rush,
             sale_user_id=order.sale_user_id,
@@ -356,7 +357,7 @@ class OrderService:
             # chạy hai lần mỗi lần mở ngăn đơn (13/10/2026).
             **self._row(order, cust_name, names.get(order.sale_user_id), q_code,
                         agg={k: m[k] for k in ("total", "total_with_vat", "order_cost")},
-                        received=m["deposit_received"]).model_dump(),
+                        received=m["deposit_received"], refunded=da_tra_lai).model_dump(),
             quotation_version=order.quotation_version,
             quotation_effective_from=order.quotation_effective_from,
             parent_order_id=order.parent_order_id,
@@ -366,7 +367,6 @@ class OrderService:
             delivery_note=order.delivery_note,
             production_note=order.production_note,
             vat_pct_estimate=order.vat_pct_estimate,
-            deposit_refunded=da_tra_lai,
             lines=[OrderLineOut.model_validate(ln) for ln in order.lines],
             order_cost=m["order_cost"],
             margin_pct=m["margin_pct"],
@@ -390,7 +390,12 @@ class OrderService:
             return loc
         from dataclasses import replace
 
-        from .don_hang_san_xuat import tom_tat_nhieu_don
+        from .don_hang_san_xuat import CHO_TRA_COC, tom_tat_nhieu_don
+
+        if loc.dang_cho == CHO_TRA_COC:
+            huy = self.repo.don_huy_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
+                                         nguoi=nguoi, loc=loc)
+            return replace(loc, chi_id=self._con_giu_coc(huy))
 
         ung_vien = self.repo.don_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
                                               nguoi=nguoi, loc=loc)
@@ -399,10 +404,22 @@ class OrderService:
 
     def dem_dang_cho(self, *, actor, scope: str) -> dict[str, int]:
         """Số đơn theo từng giá trị "Đang chờ" trong tầm nhìn — số đếm của menu lọc."""
-        from .don_hang_san_xuat import CHO_TAT_CA, tom_tat_nhieu_don
+        from .don_hang_san_xuat import CHO_TAT_CA, CHO_TRA_COC, tom_tat_nhieu_don
 
         tom = tom_tat_nhieu_don(self.db, self.repo.don_da_chot_khop(scope=scope, actor=actor))
-        return {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in CHO_TAT_CA}
+        dem = {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in CHO_TAT_CA}
+        dem[CHO_TRA_COC] = len(self._con_giu_coc(self.repo.don_huy_khop(scope=scope, actor=actor)))
+        return dem
+
+    def _con_giu_coc(self, order_ids: list[int]) -> list[int]:
+        """Trong các đơn (đã huỷ) cho vào, đơn nào còn giữ cọc của khách: đã thu − đã trả lại > 0.
+        Hai câu gộp cho cả tập. Không có ca "chuyển cọc sang đơn khác" (chủ chốt 13/10/2026) nên
+        tiền còn giữ chỉ có một lối ra là phiếu chi trả lại."""
+        if not order_ids:
+            return []
+        thu = self.accounting_repo.received_deposit_sums(order_ids)
+        tra = self.accounting_repo.coc_da_tra_lai_nhieu(order_ids)
+        return sorted(i for i in order_ids if thu.get(i, 0) - tra.get(i, 0) > 0)
 
     def list(
         self, *, actor, scope: str, q: str | None, status: str | None,
@@ -424,16 +441,23 @@ class OrderService:
         from .don_hang_san_xuat import tom_tat_nhieu_don
 
         sx = tom_tat_nhieu_don(self.db, rows)
-        items = [
-            self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
-                      q_codes.get(o.quotation_id),
-                      agg=sums.get(o.id, {}), received=received.get(o.id, 0),
-                      line_sum=line_sums.get(o.id)).model_copy(update={
-                          "san_xuat_mon": [MonSanXuatOut(**m) for m in sx.get(o.id, {}).get("mon", [])],
-                          "dang_cho": sx.get(o.id, {}).get("dang_cho", []),
-                      })
-            for o in rows
-        ]
+        # Đơn huỷ: đã trả lại cọc bao nhiêu (một câu cho cả trang); còn giữ thì đơn "chờ trả lại cọc".
+        from .don_hang_san_xuat import CHO_TRA_COC
+
+        tra = self.accounting_repo.coc_da_tra_lai_nhieu(
+            [o.id for o in rows if o.status == STATUS_CANCELLED])
+        items = []
+        for o in rows:
+            dang_cho = sx.get(o.id, {}).get("dang_cho", [])
+            if o.status == STATUS_CANCELLED and received.get(o.id, 0) - tra.get(o.id, 0) > 0:
+                dang_cho = [CHO_TRA_COC]
+            items.append(self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
+                                   q_codes.get(o.quotation_id),
+                                   agg=sums.get(o.id, {}), received=received.get(o.id, 0),
+                                   line_sum=line_sums.get(o.id), refunded=tra.get(o.id, 0)).model_copy(update={
+                "san_xuat_mon": [MonSanXuatOut(**m) for m in sx.get(o.id, {}).get("mon", [])],
+                "dang_cho": dang_cho,
+            }))
         ids = self.repo.ids_khop_cuoi
         return OrderListOut(items=items, total=total, page=page, size=size,
                             tong_gia_tri=self.repo.tong_gia_tri(ids) if total else 0,
@@ -758,7 +782,7 @@ class OrderService:
     def add_deposit_receipt(self, *, order_id: int, actor, scope: str, payload) -> OrderDetailOut:
         """Kế toán tạo PaymentReceipt(source='don_hang_ban', received) gắn đơn. THU CỌC = BƯỚC 2 SAU
         chốt (chốt = chốt thông tin; kế toán nhận SSE khi đơn chốt → thu cọc). Cho ghi khi đơn đã CHỐT;
-        chặn hủy. Quyền gate ở router = record_deposit."""
+        chặn hủy. Quyền gate ở router = Phiếu thu → Tạo."""
         order = self.repo.get_by_id(order_id)
         if order is None or not self.repo.can_access(order=order, scope=scope, actor=actor):
             raise OrderNotFound("Không tìm thấy đơn hàng")

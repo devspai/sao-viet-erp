@@ -595,6 +595,11 @@ class TheLocCongNoOut(BaseModel):
     vuot_han_muc: int = 0
 
 
+class TheLocPhaiThuOut(TheLocCongNoOut):
+    #: Số khách còn giữ cọc của đơn đã huỷ — nút "Còn giữ cọc đơn huỷ" (13/10/2026).
+    tra_coc: int = 0
+
+
 class TongLocCongNoOut(BaseModel):
     """Tổng của MỌI dòng khớp bộ lọc (trước khi cắt trang) — dòng Cộng của bảng. Khác số tổng đầu
     màn (`total_due`, `aging`…) vốn không theo bộ lọc nâng cao."""
@@ -809,6 +814,8 @@ class ReceivableCustomerOut(BaseModel):
     sale_user_name: str | None = None
     thu_gan_nhat_ngay: date | None = None
     thu_gan_nhat_tien: int = 0
+    #: Σ cọc còn giữ của các đơn ĐÃ HUỶ của khách — việc kế toán phải lập phiếu chi trả lại.
+    coc_don_huy: int = 0
 
 
 class ReceivablesSummaryOut(BaseModel):
@@ -822,7 +829,7 @@ class ReceivablesSummaryOut(BaseModel):
     received_in_period: int = 0
     ban_trong_ky: int = 0
     vuot_han_muc_count: int = 0
-    the_loc: TheLocCongNoOut = Field(default_factory=TheLocCongNoOut)
+    the_loc: TheLocPhaiThuOut = Field(default_factory=TheLocPhaiThuOut)
     #: Dòng Cộng theo bộ lọc. None khi `dem_only` / `chi_tong` (hai lối nhanh không tính).
     tong_loc: TongLocCongNoOut | None = None
     #: Rổ tuổi TOÀN MÀN. Tổng 5 rổ trễ luôn bằng `overdue_amount`, rổ "chưa tới hạn" bằng phần
@@ -875,6 +882,15 @@ class ReceivableReceiptOut(BaseModel):
     created_by_name: str | None = None
 
 
+class CocDonHuyOut(BaseModel):
+    """Một đơn ĐÃ HUỶ còn giữ cọc của khách — ngăn Công nợ phải thu lập phiếu trả lại theo đơn."""
+
+    order_id: int
+    order_code: str
+    da_nhan: int
+    con_lai: int
+
+
 class ReceivablesDetailOut(BaseModel):
     customer_id: int
     customer_name: str
@@ -899,6 +915,8 @@ class ReceivablesDetailOut(BaseModel):
     aging: list[AgingBucketOut] = Field(default_factory=list)
     received_in_period: int
     as_of: date
+    #: Đơn đã huỷ còn giữ cọc (13/10/2026) — mỗi đơn một nút "Trả lại cọc" gắn đúng đơn.
+    coc_don_huy: list[CocDonHuyOut] = Field(default_factory=list)
 
 
 # --- báo cáo tổng hợp công nợ theo kỳ (docs/prd-bao-cao-cong-no.md §5.1) ------------------

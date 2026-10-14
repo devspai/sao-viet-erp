@@ -29,7 +29,6 @@ export const READ_IMPLYING_ACTIONS: ActionKey[] = [
   "can_adjust",
   "can_approve_exception",
   "can_set_credit_terms",
-  "can_record_deposit",
   "can_assign_work",
   "can_record_output",
   "can_handover",

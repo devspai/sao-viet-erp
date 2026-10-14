@@ -115,7 +115,7 @@ def _loc_don_hang(
     gia_den: int | None = Query(default=None, ge=0),
     hen_giao: str | None = Query(default=None, pattern="^(qua|sap)$"),
     dang_cho: str | None = Query(
-        default=None, pattern="^(coc|ke_hoach|xuong|gia_cong|kho|giao|hoa_don|xong)$"),
+        default=None, pattern="^(coc|ke_hoach|xuong|gia_cong|kho|giao|hoa_don|xong|tra_coc)$"),
     gia_cong: str | None = Query(default=None, pattern="^(co|tron_goi|mot_phan|giao_thang|khong)$"),
     nha_gia_cong: int | None = Query(default=None),
     giao: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
@@ -228,7 +228,7 @@ def notify_summary(
     connect + REST fallback khi có event). Kế toán=chờ ghi cọc; Sale=sẵn sàng chốt."""
     return svc.notify_summary(
         actor=user, scope=_scope_for(authz, user),
-        can_record_deposit=authz.can(user, MODULE, "record_deposit"),
+        can_record_deposit=authz.can(user, "phieu_thu", "create"),
         can_chot=authz.can(user, MODULE, "update"),
     )
 
@@ -311,7 +311,7 @@ def create_order(
     if (d.deposit_pct or 0) > 0:
         # Chấm đỏ Đơn hàng cho người GHI CỌC trong phạm vi phòng của Sale đứng tên đơn.
         sale = db.get(User, d.sale_user_id) if d.sale_user_id else None
-        bao(db, kenh="don_hang_ban", loai="don_cho_coc", actor_id=user.id, quyen="record_deposit",
+        bao(db, kenh="don_hang_ban", loai="don_cho_coc", actor_id=user.id, quyen="phieu_thu:create",
             phong_id=sale.department_id if sale else None, ma=d.order_no)
     return d
 
@@ -448,12 +448,13 @@ def extend_quote(
         raise _map(exc)
 
 
-# --- Cọc (V5) — Kế toán LẬP PHIẾU THU CỌC THẬT, quyền `record_deposit` --------
+# --- Cọc (V5) — Kế toán LẬP PHIẾU THU CỌC THẬT, quyền Phiếu thu → Tạo (13/10/2026; trước đó là ô
+# riêng `record_deposit` của Đơn hàng bán — ai thu cọc được mà không lập được phiếu thu là lệch).
 @router.post("/{order_id}/deposit-receipts", response_model=OrderDetailOut)
 def add_deposit_receipt(
     order_id: int,
     payload: OrderDepositReceiptIn,
-    user: Annotated[User, Depends(require_permission(MODULE, "record_deposit"))],
+    user: Annotated[User, Depends(require_permission("phieu_thu", "create"))],
     svc: Service,
     authz: Authz,
     db: Annotated[Session, Depends(get_db)],

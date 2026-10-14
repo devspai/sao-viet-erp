@@ -150,6 +150,9 @@ class AttendanceLog(Base):
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     # Khoảng cách (mét) tới điểm khớp lúc chấm.
     distance_m: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    # Sai số (mét) trình duyệt báo kèm toạ độ — `coords.accuracy`. Rỗng ở lượt cũ / chấm tay. Lưu để
+    # đối soát khi toạ độ lệch: lệch vì máy định vị kém hay vì đứng ngoài thật (14/10/2026).
+    accuracy_m: Mapped[float | None] = mapped_column(Numeric(10, 1), nullable=True)
     within_range: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )

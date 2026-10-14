@@ -15,7 +15,7 @@ tránh CTE đệ quy để giữ portable SQLite/Postgres.
 from __future__ import annotations
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from ..models.customer import Customer
 from ..models.department import Department
@@ -72,9 +72,10 @@ def nhom_dung_chung_user_ids(db: Session, user_id: int) -> set[int]:
 
 def chu_theo_khach(customer_id_col, nguoi_col):
     """Biểu thức SQL "chủ" của một dòng chứng từ: sale phụ trách khách, thiếu thì `nguoi_col`."""
-    sale_cua_khach = (
-        select(Customer.sale_user_id).where(Customer.id == customer_id_col).scalar_subquery()
-    )
+    # Bí danh riêng: câu ngoài có sẵn `Customer` trong FROM (vd ô lọc Khách của hàng chờ) thì
+    # truy vấn con dùng thẳng `Customer` bị auto-correlate mất bảng ⇒ "returned no FROM clauses".
+    kh = aliased(Customer)
+    sale_cua_khach = select(kh.sale_user_id).where(kh.id == customer_id_col).scalar_subquery()
     return func.coalesce(sale_cua_khach, nguoi_col)
 
 

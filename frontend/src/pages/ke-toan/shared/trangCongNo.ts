@@ -128,7 +128,7 @@ export function useTrangCongNo<S extends TomTatCongNo>(
 
   const tl = data?.the_loc;
   const demThe: Record<TheCongNo, number> | null = tl
-    ? { all: tl.tat_ca, overdue: tl.qua_han, vuot_han_muc: tl.vuot_han_muc }
+    ? { all: tl.tat_ca, overdue: tl.qua_han, vuot_han_muc: tl.vuot_han_muc, tra_coc: tl.tra_coc ?? 0 }
     : null;
 
   const boLoc = () => {

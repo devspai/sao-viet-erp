@@ -110,6 +110,22 @@ describe("LocationForm", () => {
     expect(document.querySelector(".banner--error")).toBeNull();
   });
 
+  // 14/10/2026: một điểm bị đặt lệch 1,3 km vì trình duyệt chỉ cho vị trí gần đúng.
+  it("sai số cỡ vị trí gần đúng thì không điền toạ độ, nói lý do và cách sửa", async () => {
+    gpsFakes.getPosition.mockResolvedValue({
+      coords: { latitude: 10.9369369, longitude: 106.7130461, accuracy: 1800 },
+    });
+    render(
+      <LocationForm token="token" location={null} onClose={vi.fn()} onSaved={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /lấy vị trí gps/i }));
+
+    expect(await screen.findByText(/sai số định vị hiện khoảng 1800 m/i)).toBeInTheDocument();
+    expect(screen.getByText(/kéo ghim trên bản đồ/i)).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("10.9369369")).toBeNull();
+  });
+
   // 23/09/2026: dán cặp "vĩ độ, kinh độ" copy từ Google Maps vào ô số thì Chrome dính hai số làm một
   // và ô còn lại GIỮ số cũ ⇒ điểm lưu lệch vài chục – cả trăm mét.
   it("dán CẢ CẶP toạ độ Google Maps vào một ô ⇒ điền cả hai ô", () => {

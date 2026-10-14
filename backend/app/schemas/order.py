@@ -175,6 +175,9 @@ class OrderRow(BaseModel):
     deposit_required: int               # deposit_pct% × total_with_vat
     deposit_received: int               # Σ phiếu thu cọc received (V5)
     deposit_ok: bool
+    # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.
+    # Lên dòng danh sách từ 13/10/2026 để cột Cọc của đơn huỷ nói "Còn giữ … / Đã trả lại".
+    deposit_refunded: int = 0
     delivery_committed_date: date | None
     sale_user_id: int | None
     sale_name: str | None
@@ -237,8 +240,6 @@ class OrderDetailOut(OrderRow):
     # V5: danh sách PHIẾU THU CỌC (PaymentReceipt nguồn đơn). Giữ tên field `deposits` để giảm thay
     # đổi FE; mỗi phần tử là OrderDepositReceiptOut.
     deposits: list[OrderDepositReceiptOut] = []
-    # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.
-    deposit_refunded: int = 0
     consent_attachments: list[AttachmentOut] = []
     # Cổng chốt (P4): checklist đọc-được cho FE.
     can_confirm: bool = False

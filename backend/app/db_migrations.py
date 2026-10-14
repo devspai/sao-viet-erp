@@ -18203,3 +18203,82 @@ def _migrate_gia_von_don_theo_san_pham(db: Session) -> None:
 
 
 MIGRATIONS.append(("0406_gia_von_don_theo_san_pham", _migrate_gia_von_don_theo_san_pham))
+
+
+def _migrate_thu_coc_theo_phieu_thu(db: Session) -> None:
+    """Thu cọc trên đơn hỏi Phiếu thu → Tạo thay ô riêng `can_record_deposit` (13/10/2026).
+
+    Chủ chốt: việc dính tiền trên ngăn đơn (thu cọc, ghi / huỷ hoá đơn, trả lại cọc) đi theo đúng
+    quyền của màn kế toán, ma trận chỉ SOI các ô đó lên dòng Đơn hàng bán. Vai đang bật "Ghi phiếu
+    thu cọc" được cấp công tắc Phiếu thu → Chỉnh sửa (thêm + sửa + xoá — ma trận gộp ba cột làm một
+    công tắc; cấp thiếu thì công tắc hiện tắt dù người đó thu được) để không ai mất việc đang làm.
+    Chỉ CẤP, không THU. Thông báo "đơn chờ cọc" cũ đổi ô đòi sang `phieu_thu:create`.
+
+    Đọc cột cũ bằng SQL thô TRƯỚC lệnh ghi đầu tiên; DB trắng chưa có cột (model đã gỡ) thì chỉ
+    còn phần đổi thông báo."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    if "role_permissions" in tables and "can_record_deposit" in _existing_columns(insp, "role_permissions"):
+        roles = [r[0] for r in db.execute(text(
+            "SELECT role_id FROM role_permissions "
+            "WHERE module_key = 'don_hang_ban' AND can_record_deposit = TRUE")).all()]
+        for rid in roles:
+            co = db.execute(text(
+                "SELECT 1 FROM role_permissions WHERE role_id = :r AND module_key = 'phieu_thu'"),
+                {"r": rid}).first()
+            if co:
+                db.execute(text(
+                    "UPDATE role_permissions SET can_read = TRUE, can_create = TRUE, "
+                    "can_update = TRUE, can_delete = TRUE "
+                    "WHERE role_id = :r AND module_key = 'phieu_thu'"), {"r": rid})
+            else:
+                db.execute(text(
+                    "INSERT INTO role_permissions "
+                    "(role_id, module_key, can_read, can_create, can_update, can_delete, scope) "
+                    "VALUES (:r, 'phieu_thu', TRUE, TRUE, TRUE, TRUE, 'all')"), {"r": rid})
+    if "module_notifications" in tables:
+        db.execute(text(
+            "UPDATE module_notifications SET required_action = 'phieu_thu:create' "
+            "WHERE channel = 'don_hang_ban' AND required_action = 'record_deposit'"))
+    db.commit()
+
+
+MIGRATIONS.append(("0407_thu_coc_theo_phieu_thu", _migrate_thu_coc_theo_phieu_thu))
+
+
+def _migrate_pham_vi_ke_hoach_sx_theo_don(db: Session) -> None:
+    """Kế hoạch SX: phạm vi đi theo CHỦ ĐƠN (14/10/2026) — vai xưởng sang Tất cả.
+
+    Chủ chốt: phạm vi `san_xuat` (Của tôi / Cả phòng / Tất cả) nay tính theo chủ đơn như Đơn hàng
+    bán, không theo người tạo / phụ trách lệnh. Vai xưởng (Tổ trưởng SX, Thợ SX…) không bán đơn
+    nào: giữ "Của tôi" là màn Kế hoạch SX trống trơn ⇒ đổi sang Tất cả. Nhận diện vai xưởng = vai
+    có `san_xuat` hẹp mà KHÔNG đọc được Đơn hàng bán — vai kinh doanh (Trợ lý kinh doanh…) đọc
+    được đơn nên giữ nguyên phạm vi của mình."""
+    if "role_permissions" not in set(inspect(db.get_bind()).get_table_names()):
+        return
+    db.execute(text(
+        "UPDATE role_permissions SET scope = 'all' "
+        "WHERE module_key = 'san_xuat' AND scope <> 'all' AND role_id NOT IN ("
+        "  SELECT role_id FROM role_permissions "
+        "  WHERE module_key = 'don_hang_ban' AND can_read = TRUE)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0408_pham_vi_ke_hoach_sx_theo_don", _migrate_pham_vi_ke_hoach_sx_theo_don))
+
+
+def _migrate_sai_so_luot_cham(db: Session) -> None:
+    """mg 0409 — `attendance_logs.accuracy_m` (14/10/2026).
+
+    Sai số trình duyệt báo kèm toạ độ lúc chấm. Máy chủ từ chối lượt có sai số cỡ "vị trí gần
+    đúng" và lưu sai số của lượt hợp lệ để đối soát. Lượt cũ để trống.
+    Đọc inspector TRƯỚC lệnh ghi; idempotent."""
+    insp = inspect(db.get_bind())
+    if "attendance_logs" not in set(insp.get_table_names()):
+        return
+    if "accuracy_m" not in _existing_columns(insp, "attendance_logs"):
+        db.execute(text("ALTER TABLE attendance_logs ADD COLUMN accuracy_m NUMERIC(10, 1)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0409_sai_so_luot_cham", _migrate_sai_so_luot_cham))

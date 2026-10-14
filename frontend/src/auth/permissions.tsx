@@ -34,7 +34,6 @@ export type PermAction =
   | "adjust"
   | "approve_exception"
   | "set_credit_terms"
-  | "record_deposit"
   // san_xuat (Thực hiện SX tại tổ) — giao/rút người + bắt đầu/tạm dừng/kết thúc phiên chạy.
   | "assign_work"
   // Kho (spec-kho-de-nghi §9.1) — quyền chi tiết của module `kho` + ghi sổ (SoD).

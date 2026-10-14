@@ -1,17 +1,19 @@
 // XẾP LỊCH — KHAY "Chờ xếp lịch" bên phải lưới (mockup A cải tiến, khuôn khay Unscheduled của Asana).
 // Lọc + cắt trang ở máy chủ như hàng chờ cũ; thẻ kéo thả vào ngày muốn bắt đầu.
-import { ChevronsRight, GripVertical, Search, X } from "lucide-react";
+import { ChevronsRight, GripVertical, Package, Search, X } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { XlThe } from "../api/client";
+import type { XlThe, XlVatTu } from "../api/client";
 import { EmptyState } from "../components/EmptyState";
 import { gioChu } from "./xlShared";
 
 export function XlKhay({
-  the, tong, tim, trang, moiTrang, dangTai, keoDuoc, keoId, thanhLoc, dangLoc,
+  the, vatTu, tong, tim, trang, moiTrang, dangTai, keoDuoc, keoId, thanhLoc, dangLoc,
   onTim, onTrang, onChon, onKeo, onThu,
 }: {
   the: XlThe[];
+  /** Đèn vật tư cùng nguồn với thẻ trên lưới; không truyền = đã tắt ở Hiển thị. */
+  vatTu?: Map<number, XlVatTu>;
   tong: number;
   tim: string;
   trang: number;
@@ -55,7 +57,9 @@ export function XlKhay({
             {tim || dangLoc ? "Không có lệnh nào khớp bộ lọc." : "Mọi lệnh sẵn sàng đều đã có lịch."}
           </p>
         )}
-        {the.map((t) => (
+        {the.map((t) => {
+          const vt = vatTu?.get(t.lsx_id);
+          return (
           <article
             key={t.lsx_id}
             className={`xa-q${keoId === t.lsx_id ? " xa-q--keo" : ""}${keoDuoc ? "" : " xa-q--khoa"}`}
@@ -80,8 +84,16 @@ export function XlKhay({
             </div>
             <div className="xa-q__2 xa-q__ten">{t.ten || "Chưa đặt tên"}</div>
             <div className="xa-q__2">{t.customer_name ?? "Chưa gắn khách"}</div>
+            {vt && vt.muc !== "ok" && (
+              <div className="xa-q__vt">
+                <span className={`xa-vt xa-vt--co xa-vt--${vt.muc === "do" ? "do" : "vang"}`} title={vt.chu}>
+                  <Package size={12} />{vt.chu || (vt.muc === "do" ? "Thiếu vật tư" : "Chưa giữ vật tư")}
+                </span>
+              </div>
+            )}
           </article>
-        ))}
+          );
+        })}
       </div>
       {soTrang > 1 && (
         <div className="xa-khay__trang">

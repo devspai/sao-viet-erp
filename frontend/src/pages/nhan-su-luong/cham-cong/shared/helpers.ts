@@ -243,27 +243,81 @@ export function fmtElapsed(fromIso: string | null | undefined, now: number): str
   return `${p(h)}:${p(m)}:${p(s)}`;
 }
 
-// Fix vừa lấy trong vòng 30 giây được dùng lại: bấm liên tiếp không phải dò lại từ đầu.
-const GPS_MAX_AGE_MS = 30_000;
-const GPS_TIMEOUT_MS = 15_000;
+// Mẫu có sai số tới mức này là đủ tốt: dừng dò ngay.
+export const GPS_DU_TOT_M = 50;
+// Sai số tối đa để ĐẶT TÂM điểm chấm công bằng GPS. Máy bàn Wi-Fi ~76 m vẫn đặt được (quyết định
+// 23/09/2026); vị trí gần đúng / theo IP lệch cả km thì không.
+export const SAI_SO_DAT_DIEM_M = 100;
+// Chưa có mẫu đủ tốt thì dò tối đa chừng này rồi dùng mẫu tốt nhất đã có.
+const GPS_DO_TOI_DA_MS = 8_000;
+// Không có mẫu nào sau chừng này thì báo quá lâu: máy bàn tắt Location service có thể treo im.
+const GPS_HET_GIO_MS = 20_000;
 
 /**
- * Lấy vị trí hiện tại và dùng ngay mẫu đầu tiên trình duyệt trả về.
- * Không chặn theo sai số: máy bàn định vị bằng Wi-Fi nên sai số luôn vài chục mét
- * và chờ thêm cũng không cải thiện. Việc so với bán kính geofence là của máy chủ.
+ * Lấy vị trí hiện tại: dò nhiều mẫu, dừng ngay khi sai số ≤ `GPS_DU_TOT_M`, quá
+ * `GPS_DO_TOI_DA_MS` thì lấy mẫu sai số nhỏ nhất đã có.
+ *
+ * Không nhận mẫu đầu tiên (23/09–14/10/2026 từng làm vậy): ở trong nhà mẫu đầu thường là ước lượng
+ * theo Wi-Fi/trạm phát sóng, lệch hàng trăm mét tới cả km, trong khi vài giây sau chip GPS mới cho
+ * mẫu tốt; `enableHighAccuracy` chỉ là gợi ý. Không dùng lại mẫu cũ (`maximumAge: 0`). Không từ chối
+ * theo sai số ở đây — máy bàn chỉ có Wi-Fi, sai số vài trăm mét vẫn phải chấm được; máy chủ nhận
+ * `coords.accuracy` và tự chặn mức "vị trí gần đúng".
  */
 export function getPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
+    const geo = navigator.geolocation;
+    if (!geo) {
       reject(new Error("Trình duyệt không hỗ trợ định vị GPS."));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: GPS_TIMEOUT_MS,
-      maximumAge: GPS_MAX_AGE_MS,
-    });
+    let tot: GeolocationPosition | null = null;
+    let xong = false;
+    let watchId: number | null = null;
+    const batDau = Date.now();
+    const ket = (fn: () => void) => {
+      if (xong) return;
+      xong = true;
+      clearTimeout(henDo);
+      clearTimeout(henHet);
+      if (watchId != null) geo.clearWatch(watchId);
+      fn();
+    };
+    const henDo = setTimeout(() => {
+      const t = tot;
+      if (t) ket(() => resolve(t));
+    }, GPS_DO_TOI_DA_MS);
+    const henHet = setTimeout(() => {
+      const t = tot;
+      ket(() => (t ? resolve(t) : reject(Object.assign(new Error("Lấy vị trí quá lâu."), { code: 3 }))));
+    }, GPS_HET_GIO_MS);
+    watchId = geo.watchPosition(
+      (pos) => {
+        if (!tot || pos.coords.accuracy < tot.coords.accuracy) tot = pos;
+        const t = tot;
+        if (pos.coords.accuracy <= GPS_DU_TOT_M) ket(() => resolve(pos));
+        // Mẫu đầu tới sau mốc dò tối đa (hẹn giờ đã nổ lúc chưa có mẫu nào) ⇒ dùng luôn.
+        else if (Date.now() - batDau >= GPS_DO_TOI_DA_MS) ket(() => resolve(t));
+      },
+      (err) => {
+        const t = tot;
+        ket(() => (t ? resolve(t) : reject(err)));
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_HET_GIO_MS },
+    );
+    // Trình duyệt gọi lại ĐỒNG BỘ (có mẫu sẵn) thì `ket` chạy trước khi có `watchId`.
+    if (xong) geo.clearWatch(watchId);
   });
+}
+
+/** Chặn vị trí quá kém trước khi ĐẶT TÂM điểm chấm công (sai số > `SAI_SO_DAT_DIEM_M`). Tâm lệch
+ *  thì mọi lượt chấm sau đều lệch theo — một điểm từng bị đặt lệch 1,3 km (14/10/2026). */
+export function kiemSaiSoDatDiem(pos: GeolocationPosition, goiY: string): GeolocationPosition {
+  if (pos.coords.accuracy > SAI_SO_DAT_DIEM_M) {
+    throw new Error(
+      `Sai số định vị hiện khoảng ${Math.round(pos.coords.accuracy)} m, chưa đủ để đặt tâm điểm chấm công. ${goiY}`,
+    );
+  }
+  return pos;
 }
 
 export function geoErrText(e: unknown): string {

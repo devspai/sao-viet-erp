@@ -20,13 +20,13 @@ Write-Host "[dev] Ctrl+C để dừng cả hai.`n"                          -For
 # Backend ở tiến trình/cửa sổ riêng để log uvicorn hiện rõ
 $backend = Start-Process powershell -PassThru -ArgumentList @(
   '-NoExit', '-Command',
-  "Set-Location '$root/backend'; python -m uvicorn app.main:app --port 8000 --reload"
+  "Set-Location '$root/backend'; python -m uvicorn app.main:app --port 8000 --reload --host 0.0.0.0"
 )
 
 try {
   # Frontend ở foreground — log Vite hiện ngay trong cửa sổ này
   Set-Location "$root/frontend"
-  npm run dev
+  npm run dev -- --host
 }
 finally {
   Write-Host "`n[dev] Đang dừng backend..." -ForegroundColor Yellow

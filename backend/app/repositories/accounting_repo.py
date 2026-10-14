@@ -32,7 +32,7 @@ from ..models.muc_thu_chi import MUC_CO_DINH, NGUON_CO_DINH_CHI, NGUON_CO_DINH_T
 from .customer_repo import CustomerRepository
 from .loc_danh_sach import dk_khoang_ngay
 from ..models.payroll import SalaryAdvance
-from ..models.order import Order
+from ..models.order import STATUS_CANCELLED as ORDER_CANCELLED, Order
 from ..models.purchase import PurchaseRequest, PurchaseRequestSource, Supplier
 
 
@@ -1051,6 +1051,47 @@ class AccountingRepository:
             PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
         )
         return int(self.db.execute(stmt).scalar_one())
+
+    def coc_da_tra_lai_nhieu(self, order_ids) -> dict[int, int]:
+        """Bản lô của `coc_da_tra_lai`: `{order_id: Σ phiếu chi trả lại cọc}`, MỘT câu cho cả tập.
+        Đơn chưa trả lại đồng nào vắng mặt trong map."""
+        ids = sorted({int(i) for i in order_ids if i})
+        if not ids:
+            return {}
+        stmt = (
+            select(PaymentVoucher.order_id, func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0))
+            .where(PaymentVoucher.order_id.in_(ids), PaymentVoucher.status == PAYMENT_VOUCHER_PAID)
+            .group_by(PaymentVoucher.order_id)
+        )
+        return {int(oid): int(s) for oid, s in self.db.execute(stmt)}
+
+    def coc_don_huy_con_giu(self, customer_id: int | None = None) -> list[dict]:
+        """Đơn ĐÃ HUỶ còn giữ cọc của khách — đã thu − đã trả lại > 0 (13/10/2026, việc kế toán
+        phải lập phiếu chi trả lại). Mỗi phần tử: `order_id`, `order_code`, `customer_id`,
+        `da_nhan`, `con_lai`. Hai câu cho cả tập; `customer_id` thu hẹp về một khách."""
+        stmt = (
+            select(Order.id, Order.order_no, Order.customer_id,
+                   func.coalesce(func.sum(PaymentReceipt.amount), 0))
+            .join(PaymentReceipt, PaymentReceipt.order_id == Order.id)
+            .where(
+                Order.status == ORDER_CANCELLED,
+                PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
+                PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+            )
+            .group_by(Order.id, Order.order_no, Order.customer_id)
+            .order_by(Order.id)
+        )
+        if customer_id is not None:
+            stmt = stmt.where(Order.customer_id == customer_id)
+        thu = list(self.db.execute(stmt))
+        tra = self.coc_da_tra_lai_nhieu([r[0] for r in thu])
+        out = []
+        for oid, ma, cid, s in thu:
+            con = int(s) - tra.get(int(oid), 0)
+            if con > 0 and cid is not None:
+                out.append({"order_id": int(oid), "order_code": ma, "customer_id": int(cid),
+                            "da_nhan": int(s), "con_lai": con})
+        return out
 
     def phieu_chi_hoan_khach(self) -> list[PaymentVoucher]:
         """Phiếu chi ĐÃ CHI có gắn khách (trả lại tiền cho khách, nguồn `customer_refund`) — vế Nợ

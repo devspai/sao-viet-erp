@@ -703,3 +703,9 @@
 .lds .lds-g tbody tr.kt-da-huy td { color: var(--lds-mo); }
 /* Ghi chú đầu bảng "Gia công chờ chi". */
 .kt-gc-ghi { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; color: var(--ash-2); }
+
+/* Tên đối tác kèm dấu (phải thu: "Còn giữ cọc …"): tên co lại cắt ba chấm, dấu giữ nguyên. */
+.kt-ten-dau { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.kt-ten-dau > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.kt-ten-dau > :last-child { flex: none; }
+.kt-coc-huy { margin-bottom: 12px; }

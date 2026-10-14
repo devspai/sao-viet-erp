@@ -16,7 +16,8 @@ from ..realtime import hub
 from ..repositories.module_notification_repo import DieuKienKenh, ModuleNotificationRepository
 from ..repositories.org_scope import dept_subtree_ids
 
-# Kênh tĩnh → các ô quyền (ngoài Xem) mà một dòng phát rộng của kênh có thể đòi.
+# Kênh tĩnh → các ô quyền (ngoài Xem) mà một dòng phát rộng của kênh có thể đòi. Ô của MÀN KHÁC
+# ghi dạng `khoá:việc` (đơn chờ cọc báo người có Phiếu thu → Tạo, 13/10/2026).
 KENH: dict[str, tuple[str, ...]] = {
     "thu_mua": (),
     "ke_toan": (),
@@ -25,7 +26,7 @@ KENH: dict[str, tuple[str, ...]] = {
     "tang_ca": ("approve",),
     "cham_cong": ("approve_late_early",),
     "bao_gia": ("approve_exception",),
-    "don_hang_ban": ("record_deposit",),
+    "don_hang_ban": ("phieu_thu:create",),
     "san_xuat": (),
     "xep_lich": (),
     "kho": (),
@@ -126,7 +127,7 @@ def trang_thai(db: Session, authz, user) -> dict[str, dict]:
         pv = authz.scope_for(user, kenh) or "own"
         phong = None if pv == SCOPE_ALL else (_cay() if pv == SCOPE_DEPARTMENT else ())
         for q in (None, *cac_quyen):
-            if q is None or authz.can(user, kenh, q):
+            if q is None or authz.can(user, *(q.split(":", 1) if ":" in q else (kenh, q))):
                 dk.append(DieuKienKenh(kenh=kenh, quyen=q, phong_ids=phong))
     if user.role_id is not None:
         qt = quyen_to_cua(db, user)

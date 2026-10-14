@@ -524,7 +524,7 @@ function QueueTable({
     <>
       <section className="lds-loc">
         <div className="lds-loc__thanh tl-thanh" role="search">
-          {scopeAll && <ThanhLoc ky={ky} moc={MOC_HANG_CHO} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />}
+          <ThanhLoc ky={ky} moc={MOC_HANG_CHO} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />
           <ChonCot cot={COT_CHO} {...luoi.chonCot} />
         </div>
       </section>
@@ -570,7 +570,7 @@ function QueueTable({
                     ) : scopeAll ? (
                       "Không có đơn nào chờ lên lệnh. Đơn đã chốt và đủ cọc tự hiện ở đây ngay, không cần tải lại trang."
                     ) : (
-                      "Bạn chỉ xem được lệnh của mình. Hàng chờ tiếp nhận dành cho người có phạm vi toàn bộ (bộ phận Kế hoạch sản xuất)."
+                      "Không có đơn nào của bạn chờ lên lệnh. Đơn đã chốt và đủ cọc tự hiện ở đây ngay, không cần tải lại trang."
                     )}
                   </td>
                 </tr>

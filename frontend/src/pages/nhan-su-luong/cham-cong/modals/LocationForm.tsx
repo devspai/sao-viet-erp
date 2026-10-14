@@ -6,7 +6,7 @@ import {
   type WorkLocationInput,
 } from "../../../../api/client";
 import { Navigation } from "lucide-react";
-import { getPosition, geoErrText } from "../shared/helpers";
+import { geoErrText, getPosition, kiemSaiSoDatDiem } from "../shared/helpers";
 import { LocationMapPicker } from "../components/LocationMapPicker";
 
 /** Tách cặp "vĩ độ, kinh độ" copy từ Google Maps ("21.047563, 105.784361"). Không phải cặp ⇒ null.
@@ -71,7 +71,10 @@ export function LocationForm({
     setLocating(true);
     setError(null);
     try {
-      const pos = await getPosition();
+      const pos = kiemSaiSoDatDiem(
+        await getPosition(),
+        "Kéo ghim trên bản đồ tới đúng chỗ, hoặc bật Vị trí chính xác cho trình duyệt rồi thử lại.",
+      );
       setCoordinates(pos.coords.latitude, pos.coords.longitude);
     } catch (e) {
       setError(geoErrText(e));

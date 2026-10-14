@@ -267,6 +267,8 @@ def _loc_the_cong_no(items: list[dict], filter_: str) -> list[dict]:
         return [m for m in items if m["no_han_amount"] > 0]
     if filter_ == "vuot_han_muc":
         return [m for m in items if m["vuot_han_muc"]]
+    if filter_ == "tra_coc":
+        return [m for m in items if m.get("coc_don_huy", 0) > 0]
     return items
 
 
@@ -2010,6 +2012,7 @@ class AccountingService:
                 "sale_user_name": None,
                 "thu_gan_nhat_ngay": None,
                 "thu_gan_nhat_tien": 0,
+                "coc_don_huy": 0,
             }
 
         theo_khach: dict[int | None, dict] = {}
@@ -2058,6 +2061,20 @@ class AccountingService:
                 theo_khach[cid]["received_in_period"] += amount
 
         if not chi_tong:
+            # Cọc còn giữ của đơn ĐÃ HUỶ (13/10/2026): khách chỉ có đơn huỷ (không hoá đơn) vẫn lên
+            # danh sách để kế toán thấy mà lập phiếu chi trả lại. Không đụng số nợ.
+            coc_huy: dict[int, int] = {}
+            for d in self.repo.coc_don_huy_con_giu():
+                coc_huy[d["customer_id"]] = coc_huy.get(d["customer_id"], 0) + d["con_lai"]
+            thieu = set(coc_huy) - set(theo_khach)
+            for cid, kh in self.repo.customers_by_ids(thieu).items():
+                theo_khach[cid] = _muc_moi(
+                    cid, kh.name, int(kh.credit_limit or 0), kh.payment_term_days, kh.sale_user_id
+                )
+            for cid, so in coc_huy.items():
+                if cid in theo_khach:
+                    theo_khach[cid]["coc_don_huy"] = so
+
             # Lần thu gần nhất (cả lịch sử): hàng đầu tiên gặp của mỗi khách là mới nhất.
             for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no(
                 invoice_ids=sorted(invoice_to_customer), order_ids=sorted(order_to_customer)
@@ -2086,7 +2103,10 @@ class AccountingService:
                     _ap_du_cuoi_ky_qua_khu(muc, it, phai_tra=False)
 
         def _co_so(i) -> bool:
-            return i["total_due"] > 0 or i["received_in_period"] > 0 or i["ban_trong_ky"] > 0
+            return (
+                i["total_due"] > 0 or i["received_in_period"] > 0 or i["ban_trong_ky"] > 0
+                or i["coc_don_huy"] > 0
+            )
 
         items = []
         for item in theo_khach.values():
@@ -2121,8 +2141,9 @@ class AccountingService:
         if tim:
             items = [i for i in items if tim in (i["customer_name"] or "").lower()]
         elif co_ky and not ca_da_tra_het:
-            # Có kỳ: khách đã thu hết (còn nợ = 0) ẩn khỏi danh sách, vẫn cộng vào tổng.
-            items = [i for i in items if i["total_due"] > 0]
+            # Có kỳ: khách đã thu hết (còn nợ = 0) ẩn khỏi danh sách, vẫn cộng vào tổng — trừ khách
+            # còn giữ cọc đơn huỷ (việc còn phải làm).
+            items = [i for i in items if i["total_due"] > 0 or i["coc_don_huy"] > 0]
         items = _loc_nang_cao(
             items, no_tu=no_tu, no_den=no_den, han_tra=han_tra, han_muc=han_muc, moc=cuoi_ky
         )
@@ -2135,6 +2156,7 @@ class AccountingService:
             items = [i for i in items if i["aging"][aging_bucket]["amount"] > 0]
         # Số trên nhóm nút: đếm TRƯỚC `filter_` — cùng luật với phải trả.
         the_loc = _the_loc_cong_no(items)
+        the_loc["tra_coc"] = sum(1 for i in items if i["coc_don_huy"] > 0)
         items = _loc_the_cong_no(items, filter_)
         items = _sap_xep_cong_no(
             items, sap_xep, chieu, khoa_gan_nhat="thu_gan_nhat_ngay", khoa_ky="received_in_period"
@@ -2292,6 +2314,7 @@ class AccountingService:
             "aging": _aging_ra_danh_sach(ro_chi_tiet),
             "received_in_period": tong_da_thu,
             "as_of": hom_nay,
+            "coc_don_huy": self.repo.coc_don_huy_con_giu(customer_id),
         }
 
     # --- payment receipts ---------------------------------------------------

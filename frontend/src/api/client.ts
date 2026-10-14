@@ -3744,7 +3744,6 @@ export interface ModuleCapability {
   can_approve_exception: boolean;
   /** khach_hang — thiết lập điều khoản tín dụng khách (hạn mức + điều khoản thanh toán). */
   can_set_credit_terms: boolean;
-  can_record_deposit: boolean;
   can_assign_work: boolean;
   can_record_output: boolean;
   can_handover: boolean;
@@ -3826,7 +3825,6 @@ export interface PermissionRow {
   can_adjust: boolean;
   can_approve_exception: boolean;
   can_set_credit_terms: boolean;
-  can_record_deposit: boolean;
   can_assign_work: boolean;
   can_record_output: boolean;
   can_handover: boolean;
@@ -5413,6 +5411,7 @@ export interface AttendanceLog {
   latitude?: number | null;
   longitude?: number | null;
   distance_m?: number | null;
+  accuracy_m?: number | null;  // sai số trình duyệt báo lúc chấm; rỗng ở lượt cũ / chấm tay
   within_range: boolean;
   note?: string | null;
 }
@@ -5430,6 +5429,7 @@ export interface CheckResult {
   ot_mode?: boolean;           // lượt vừa chấm thuộc phiên TĂNG CA
   distance_m: number | null;
   nearest_location: NearestLocation | null;
+  vi_tri_gan_dung?: boolean;   // bị từ chối vì trình duyệt chỉ cho vị trí gần đúng
   message: string;
   log: AttendanceLog | null;
 }
@@ -5443,6 +5443,7 @@ export interface AttendancePreview {
   radius_m: number | null;
   next_action: string | null;  // "in" | "out"
   ot_mode?: boolean;           // lượt kế tiếp thuộc phiên TĂNG CA
+  vi_tri_gan_dung?: boolean;   // sai số cỡ vị trí gần đúng ⇒ không đo được khoảng cách
   message: string;
 }
 
@@ -7625,6 +7626,8 @@ export interface TheLocCongNo {
   tat_ca: number;
   qua_han: number;
   vuot_han_muc: number;
+  /** Chỉ phải thu: số khách còn giữ cọc của đơn đã huỷ. */
+  tra_coc?: number;
 }
 
 /** Dòng Cộng của bảng công nợ: tổng của MỌI dòng khớp bộ lọc (trước khi cắt trang). Khác số tổng
@@ -7825,6 +7828,8 @@ export interface ReceivableCustomerRow {
   sale_user_name?: string | null;
   thu_gan_nhat_ngay?: string | null;
   thu_gan_nhat_tien?: number;
+  /** Σ cọc còn giữ của các đơn ĐÃ HUỶ của khách — kế toán phải lập phiếu chi trả lại. */
+  coc_don_huy?: number;
 }
 
 export interface ReceivablesSummary {
@@ -7984,6 +7989,15 @@ export interface ReceivablesDetail {
   aging: AgingBucket[];
   received_in_period: number;
   as_of: string;
+  /** Đơn đã huỷ còn giữ cọc — mỗi đơn một nút "Trả lại cọc" gắn đúng đơn. */
+  coc_don_huy?: CocDonHuy[];
+}
+
+export interface CocDonHuy {
+  order_id: number;
+  order_code: string;
+  da_nhan: number;
+  con_lai: number;
 }
 
 /** Dòng hàng ĐÃ GÁN nhà cung cấp — chỉ dùng cho đường tạo cả mẻ. */
@@ -9147,6 +9161,8 @@ export interface OrderRow {
   deposit_required: number;
   deposit_received: number;
   deposit_ok: boolean;
+  /** Đơn đã huỷ: tổng phiếu chi trả lại cọc còn hiệu lực. Cọc còn giữ = deposit_received − số này. */
+  deposit_refunded: number;
   delivery_committed_date: string | null;
   sale_user_id: number | null;
   sale_name: string | null;
@@ -9165,7 +9181,8 @@ export interface OrderRow {
 /** Mặt hàng đang ở đâu — `backend/app/services/don_hang_san_xuat.py` O_*. */
 /** `dong_thieu`: mọi lệnh đã đóng, kho không còn gì chờ nhận mà hàng vẫn chưa đủ số đặt. */
 export type MonO = "du_hang" | "ngoai" | "xuong" | "cho_kho" | "dong_thieu" | "chua_xuong" | "chua_lenh";
-export type DangCho = "coc" | "ke_hoach" | "xuong" | "gia_cong" | "kho" | "giao" | "hoa_don" | "xong";
+/** `tra_coc`: đơn ĐÃ HUỶ còn giữ cọc của khách, chờ lập phiếu chi trả lại. */
+export type DangCho = "coc" | "ke_hoach" | "xuong" | "gia_cong" | "kho" | "giao" | "hoa_don" | "xong" | "tra_coc";
 
 /** Lần gia công ngoài ĐANG MỞ của một lệnh. */
 export interface GiaCongMon {
@@ -9235,8 +9252,6 @@ export interface OrderDetail extends OrderRow {
   cancel_reason: string | null;
   cancel_fault: string | null;
   deposits: OrderDepositReceipt[];   // V5: phiếu thu cọc THẬT (PaymentReceipt nguồn đơn)
-  /** Đơn đã huỷ: tổng phiếu chi trả lại cọc còn hiệu lực. Cọc còn giữ = deposit_received − số này. */
-  deposit_refunded?: number;
   consent_attachments: AttachmentOut[];
   can_confirm: boolean;
   confirm_blockers: string[];
@@ -12961,17 +12976,18 @@ export const api = {
     myStatus(token: string): Promise<AttendanceStatus> {
       return authed<AttendanceStatus>("/api/attendance/me/status", token);
     },
-    check(token: string, latitude: number, longitude: number): Promise<CheckResult> {
+    /** `accuracy` = `coords.accuracy` (mét): máy chủ từ chối khi cỡ "vị trí gần đúng" và lưu kèm lượt chấm. */
+    check(token: string, latitude: number, longitude: number, accuracy?: number): Promise<CheckResult> {
       return authed<CheckResult>("/api/attendance/check", token, {
         method: "POST",
-        body: JSON.stringify({ latitude, longitude }),
+        body: JSON.stringify({ latitude, longitude, accuracy }),
       });
     },
     /** Dry-run geofence (không ghi log) cho card chấm "sống". */
-    preview(token: string, latitude: number, longitude: number): Promise<AttendancePreview> {
+    preview(token: string, latitude: number, longitude: number, accuracy?: number): Promise<AttendancePreview> {
       return authed<AttendancePreview>("/api/attendance/me/preview", token, {
         method: "POST",
-        body: JSON.stringify({ latitude, longitude }),
+        body: JSON.stringify({ latitude, longitude, accuracy }),
       });
     },
     myLogs(token: string): Promise<{ items: AttendanceLog[] }> {

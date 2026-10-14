@@ -395,9 +395,12 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
             "Bước chưa gán máy nên chưa biết chạy trên máy nào — chọn máy ở tab Phân công & "
             "Thiết bị. Cách đo giờ chạy và tốc độ đều khai theo cặp (công đoạn × máy)."
             if theo_may and may_dung_duoc is None else
-            "Chưa quy đổi được số lượng vào sang đơn vị của tốc độ nên không tính được thời gian "
-            "chạy. Khai cầu quy đổi (hoặc công thức cho đơn vị đó) ở Cấu hình danh mục → "
-            "Đơn vị & quy đổi."
+            # Chỉ về ô "Cách đo giờ chạy" chứ không về Đơn vị & quy đổi: màn đó chỉ còn hệ số CỐ
+            # ĐỊNH (quy đổi động gỡ 14/08/2026), nên ca hay gặp nhất — bước đếm tờ, máy chạy m²/h —
+            # khai ở đó không bao giờ ra số.
+            "Chưa đổi được số lượng vào sang đơn vị tốc độ của máy nên không tính được thời gian "
+            "chạy. Khai ô \"Cách đo giờ chạy\" của máy này ở Cấu hình danh mục → Công đoạn → "
+            "bảng máy của công đoạn."
         )
     elif phuong_phap == "thieu_nang_suat":
         # Chỉ còn bước MÁY vào được nhánh này. Bước TỔ để 0 giờ là hợp lệ, KHÔNG cảnh báo (§5.1).
@@ -1235,7 +1238,8 @@ class LsxService:
         chỉ còn đếm để HIỆN "x/y dòng đã lên lệnh". `chi_dem` ⇒ chỉ đếm (badge menu): `([], total)`,
         không nạp dòng đơn / tên khách / tên sale.
         """
-        # `loc` = thanh lọc của hàng chờ (06/10/2026): `customer_id`, `tu_ngay`/`den_ngay`/`moc`.
+        # `loc` = thanh lọc của hàng chờ (06/10/2026): `customer_id`, `tu_ngay`/`den_ngay`/`moc`,
+        # cộng `owner_ids` — phạm vi theo chủ đơn (14/10/2026).
         orders, total = self.repo.orders_ban_giao(page=page, size=size, chi_dem=chi_dem, **loc)
         if not orders:
             return [], total
@@ -2684,9 +2688,9 @@ class LsxService:
         """Ô "Đơn hàng" của thanh lọc bảng lệnh — đơn đang có lệnh trong phạm vi, kèm số lệnh."""
         return self.repo.don_loc(owner_ids=owner_ids)
 
-    def khach_hang_cho(self) -> list[tuple[int, str, int]]:
-        """Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có đơn chờ lên lệnh, kèm số đơn."""
-        return self.repo.khach_hang_cho()
+    def khach_hang_cho(self, *, owner_ids: set[int] | None = None) -> list[tuple[int, str, int]]:
+        """Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có đơn chờ lên lệnh (trong phạm vi), kèm số đơn."""
+        return self.repo.khach_hang_cho(owner_ids=owner_ids)
 
     def dem_trang_thai(self, **kw) -> dict[str, int]:
         """Số trên TAB lọc — đếm ở máy chủ theo cùng bộ lọc trừ chính `trang_thai`.

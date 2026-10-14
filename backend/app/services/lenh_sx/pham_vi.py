@@ -8,8 +8,9 @@ lọc thẳng `orders.sale_user_id`: khách đã chuyển cho người khác th�
 MỨC phạm vi (own / department / all) vẫn đọc từ ô quyền của CHÍNH màn gọi: chủ xưởng có thể có
 `theo_doi_san_xuat:all` mà không có quyền gì ở Đơn hàng bán.
 
-KHÁC `routers/lsx.py::_owner_ids_for_scope`, và khác một cách CỐ Ý. Ở đó phạm vi tính theo
-`lsx.nguoi_phu_trach_id` / `lsx.created_by` — "lệnh này ai LÀM". Ở đây là "lệnh này bán cho ai".
+Từ 14/10/2026 Kế hoạch SX (`routers/lsx.py::_owner_ids_for_scope`) cũng gọi hàm này với khoá
+`san_xuat` — cả ba màn đi theo "lệnh này bán cho ai". Trước đó Kế hoạch SX tính theo người tạo /
+phụ trách lệnh.
 
 Lệnh CHƯA xuống xưởng không thuộc phạm vi của bất kỳ ai ở đây: hai màn này nói về việc đã thả
 xuống xưởng. Lệnh nháp/đang lập vẫn xem ở màn Kế hoạch sản xuất.

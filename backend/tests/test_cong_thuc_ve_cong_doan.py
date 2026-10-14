@@ -160,11 +160,14 @@ def test_buoc_may_trong_may_bao_dung_cho_khong_do_cho_cau_quy_doi():
     assert "chưa gán máy" in kq["canh_bao"][0]
     assert "quy đổi" not in kq["canh_bao"][0], "đừng chỉ người ta sang màn Đơn vị & quy đổi"
 
-    # Có máy mà vẫn không quy đổi được ⇒ câu cũ, đúng chỗ khai cầu quy đổi.
+    # Có máy mà vẫn không đổi được ⇒ chỉ về ô "Cách đo giờ chạy" của cặp công đoạn × máy, KHÔNG
+    # về Đơn vị & quy đổi (màn đó chỉ còn hệ số cố định, tờ → m² không khai được ở đó).
     may = SimpleNamespace(toc_do=6000, toc_do_min=0, toc_do_max=0, don_vi_toc_do="to_gio",
                           makeready_time_default=15)
     kq2 = thoi_luong_buoc(cd, may=may, sl_tinh=None)["dien_giai"]
-    assert "Chưa quy đổi được" in kq2["canh_bao"][0]
+    assert "Chưa đổi được" in kq2["canh_bao"][0]
+    assert "Cách đo giờ chạy" in kq2["canh_bao"][0]
+    assert "Đơn vị & quy đổi" not in kq2["canh_bao"][0]
 
 
 def test_may_mac_dinh_dien_cho_ca_buoc_ngoai_nhom_in(db, orders, lsx_svc, admin, customer):

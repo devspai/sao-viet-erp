@@ -22,7 +22,8 @@ import { api, type ReceivableCustomerRow, type ReceivablesSummary, type SaleOpti
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
-import { LOC_CONG_NO_TRONG, dangLocCongNo, dieuKienCongNo, type TrangThaiCongNo } from "../shared/locCongNo";
+import { ChipTT, soVN } from "../../../components/LuoiDs";
+import { LOC_CONG_NO_TRONG, THE_TRA_COC, dangLocCongNo, dieuKienCongNo, type TrangThaiCongNo } from "../shared/locCongNo";
 import { ThanTrangCongNo, nhanTuoiDangLoc, type CauHinhThanCongNo } from "../shared/ThanTrangCongNo";
 import { useTrangCongNo } from "../shared/trangCongNo";
 import { ReceivablesDrawer } from "./components/ReceivablesDrawer";
@@ -58,6 +59,11 @@ const CAU_HINH: CauHinhThanCongNo<ReceivableCustomerRow> = {
   daTraTrongKy: (r) => r.received_in_period,
   ganNhat: (r) => (r.thu_gan_nhat_ngay ? { ngay: r.thu_gan_nhat_ngay, tien: r.thu_gan_nhat_tien ?? 0 } : null),
   lienHe: (r) => ({ ten: r.lien_he_ten, sdt: r.lien_he_sdt, phuTrach: r.sale_user_name }),
+  theThem: [THE_TRA_COC],
+  danhDau: (r) =>
+    (r.coc_don_huy ?? 0) > 0 ? (
+      <ChipTT mau="cam" vuong title="Cọc của đơn đã huỷ chưa trả lại khách">Còn giữ cọc {soVN(r.coc_don_huy ?? 0)}</ChipTT>
+    ) : null,
 };
 
 type KhachMo = { id: number | null; name: string };

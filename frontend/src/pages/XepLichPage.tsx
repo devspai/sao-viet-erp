@@ -241,10 +241,14 @@ export function XepLichPage({
     return () => { huy = true; };
   }, [token, tu, den, khoaLuoi, eventTick, nhip]);
 
-  // Đèn vật tư: hỏi riêng sau khi có dòng — câu phụ, hỏng thì lưới vẫn vẽ.
+  // Đèn vật tư: hỏi riêng sau khi có dòng — câu phụ, hỏng thì lưới vẫn vẽ. Gộp cả lệnh đang nằm
+  // trong khay chờ vào CÙNG một lượt: bảng cân đối là phần đắt, dựng một lần cho cả hai chỗ.
   const idsVatTu = useMemo(
-    () => dong.filter((d) => d.trang_thai !== "da_dong").map((d) => d.lsx_id).sort((a, b) => a - b).join(","),
-    [dong],
+    () => [...new Set([
+      ...dong.filter((d) => d.trang_thai !== "da_dong").map((d) => d.lsx_id),
+      ...the.map((t) => t.lsx_id),
+    ])].sort((a, b) => a - b).join(","),
+    [dong, the],
   );
   useEffect(() => {
     if (!token || !hien.vatTu || !idsVatTu) { setVatTu(new Map()); return; }
@@ -473,6 +477,7 @@ export function XepLichPage({
   const viTri = chonId === null ? -1 : dongThay.findIndex((d) => d.lsx_id === chonId);
   const phutChay = useMemo(() => phutChayTrongCuaSo(dong, tu, soNgay), [dong, tu, soNgay]);
   const caPhut = useMemo(() => phutCa(cacCa), [cacCa]);
+  const caDau = useMemo(() => cacCa.map((c) => c.tu.slice(0, 5)).sort()[0] ?? "00:00", [cacCa]);
   const truocDo = useMemo(() => {
     for (let i = lui.length - 1; i >= 0; i -= 1) if (lui[i].lsxId === chonId) return lui[i].truoc;
     return null;
@@ -594,7 +599,7 @@ export function XepLichPage({
               </div>
             </div>
             <div className="xa-hien__khoi">
-              <p className="xa-hien__nhan">Thông tin trên thanh{hien.thoang ? "" : ", hiện khi chọn Thoáng"}</p>
+              <p className="xa-hien__nhan">Thông tin ở cột trái{hien.thoang ? "" : ", hiện khi chọn Thoáng"}</p>
               <div className="xa-tg">
                 {chip("khach", "Khách hàng", Building2)}
                 {chip("may", "Máy chính", Printer)}
@@ -640,6 +645,7 @@ export function XepLichPage({
             suaDuoc={suaDuoc && !dangGhi}
             keoTuKhay={keoTuKhay}
             caPhut={caPhut}
+            caDau={caDau}
             trong={coLoc ? "Không có lệnh nào khớp bộ lọc." : undefined}
             onChon={setChonId}
             onDatMoc={datMoc}
@@ -649,6 +655,7 @@ export function XepLichPage({
         {khayMo && (
           <XlKhay
             the={the}
+            vatTu={hien.vatTu ? vatTu : undefined}
             tong={tongCho}
             tim={tim}
             trang={trang}
@@ -677,11 +684,12 @@ export function XepLichPage({
       </div>
 
       <footer className="xa-chan">
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#d6e2fc" }} />Chưa phát hành</span>
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#cdebd7" }} />Đã phát hành</span>
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "repeating-linear-gradient(135deg, #fde68a 0 4px, #fef3c7 4px 8px)" }} />Chờ lệnh khác</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#eef3fe", boxShadow: "inset 0 0 0 1px #bfdbfe" }} />Chưa phát hành</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#edf8f1", boxShadow: "inset 0 0 0 1px #bbf7d0" }} />Đã phát hành</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#16a34a" }} />Đã chạy</span>
+        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "repeating-linear-gradient(-45deg, #fecaca 0 4px, #fee2e2 4px 8px)" }} />Quá hạn</span>
         <span><i style={{ width: 22, height: 10, borderRadius: 3, boxShadow: "inset 0 0 0 1.5px #8b5cf6" }} />In chung một tờ</span>
-        <span><i style={{ width: 9, height: 9, transform: "rotate(45deg)", background: "#0f172a" }} />Hạn xong sản xuất</span>
+        <span><i style={{ width: 9, height: 9, transform: "rotate(45deg)", border: "1.5px solid #475569", background: "#fff" }} />Hạn xong sản xuất</span>
         <span className="xa-gian" />
         <span className="xa-phim"><kbd>◀</kbd><kbd>▶</kbd>15 phút</span>
         <span className="xa-phim"><kbd>Shift</kbd><kbd>◀</kbd><kbd>▶</kbd>một ca</span>

@@ -33,12 +33,14 @@ export type LocNangCaoCongNo = {
 export const LOC_CONG_NO_TRONG: LocNangCaoCongNo = {};
 
 /** Nhóm nút đầu thanh lọc ("Tất cả | Quá hạn | Vượt hạn mức") — giá trị là `filter` của máy chủ. */
-export type TheCongNo = "all" | "overdue" | "vuot_han_muc";
+export type TheCongNo = "all" | "overdue" | "vuot_han_muc" | "tra_coc";
 export const THE_CONG_NO: [TheCongNo, string][] = [
   ["all", "Tất cả"],
   ["overdue", "Quá hạn"],
   ["vuot_han_muc", "Vượt hạn mức"],
 ];
+/** Nút riêng của phải thu (13/10/2026): khách còn giữ cọc của đơn đã huỷ, chờ lập phiếu chi trả lại. */
+export const THE_TRA_COC: [TheCongNo, string] = ["tra_coc", "Còn giữ cọc đơn huỷ"];
 
 const HAN_TRA: GiaTriDK[] = [
   { value: "qua_han", nhan: "Đã quá hạn" },
@@ -234,7 +236,7 @@ export function sapXepTuUrl(p: URLSearchParams | null): SapXepCongNo | null {
 /** Khoá URL → trạng thái lọc. Giá trị rác thì bỏ qua từng khoá (không làm hỏng cả bộ lọc). */
 export function congNoTuUrl(p: URLSearchParams | null): TrangThaiCongNo {
   if (!p) return { the: "all", tuoi: null, tim: "", loc: LOC_CONG_NO_TRONG };
-  const the = THE_CONG_NO.find(([t]) => t === p.get("the"))?.[0] ?? "all";
+  const the = [...THE_CONG_NO, THE_TRA_COC].find(([t]) => t === p.get("the"))?.[0] ?? "all";
   const moc = p.get("tuoi");
   const loc: LocNangCaoCongNo = {};
   const noTu = soDuong(p.get("no_tu"));

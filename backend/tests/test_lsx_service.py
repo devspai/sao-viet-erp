@@ -2999,7 +2999,7 @@ def test_chua_quy_doi_duoc_thi_KHONG_bia_gio():
     assert t["chay_phut"] == 0
     assert round(t["chiem_may_phut"]) == 55                  # chỉ còn chuẩn bị
     assert t["dien_giai"]["phuong_phap"] == "chua_quy_doi"
-    assert any("quy đổi" in c for c in t["dien_giai"]["canh_bao"])
+    assert any("Cách đo giờ chạy" in c for c in t["dien_giai"]["canh_bao"])
 
 
 # --- Khuôn của bước: hai nhánh gán-cũ / làm-mới (mg 0205, 16/08/2026) ----------------

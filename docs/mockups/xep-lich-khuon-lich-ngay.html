@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xếp lịch theo khuôn lịch ngày</title>
+<style>
+  :root {
+    --paper: #f8fafc; --canvas: #fff; --ink: #0f172a; --ash: #475569; --ash-2: #64748b; --ash-3: #94a3b8;
+    --rule: #cbd5e1; --rule-soft: #e2e8f0; --rule-hair: #f1f5f9; --rust: #c5400a; --rust-deep: #8a2d07;
+    --xanh: #2563eb; --xanh-bg: #dbeafe; --la: #15803d; --la-bg: #dcfce7; --la-dam: #16a34a;
+    --vang: #92400e; --vang-bg: #fef3c7; --do: #b91c1c; --do-bg: #fee2e2; --tim: #6d28d9; --tim-bg: #ede9fe;
+    --nhan: 268px; --ngay: 84px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.45 "Inter", "Segoe UI", system-ui, sans-serif; }
+  b, strong { font-weight: 500; }
+  .trang { max-width: 1560px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 6px; }
+  h2 { font-size: 16px; font-weight: 500; margin: 36px 0 10px; }
+  .mo { color: var(--ash-2); }
+  .ghi { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 10px; padding: 14px 18px; font-size: 13.5px; }
+  .ghi ol { margin: 6px 0 0; padding-left: 20px; }
+  .ghi li { margin: 4px 0; }
+  .ghi .nhan-gd { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 5px; background: var(--vang-bg); color: var(--vang); }
+
+  /* khung màn */
+  .man { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }
+  .tom { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--rule-soft); background: var(--paper); font-size: 13.5px; flex-wrap: wrap; }
+  .tom .gian { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 1px solid var(--rule-soft); border-radius: 999px; background: var(--canvas); font-size: 13px; }
+  .cham { width: 7px; height: 7px; border-radius: 50%; }
+
+  .luoi { overflow-x: auto; position: relative; }
+  .bang { position: relative; width: calc(var(--nhan) + 14 * var(--ngay)); }
+  .dau { display: flex; height: 50px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--canvas); z-index: 5; }
+  .dau-nhan { width: var(--nhan); flex: none; position: sticky; left: 0; z-index: 2; background: var(--canvas); border-right: 1px solid var(--rule-soft);
+    display: flex; align-items: center; gap: 4px; padding: 0 14px; font-size: 12px; color: var(--ash-2); }
+  .dau-nhan .so { font-size: 13.5px; color: var(--ink); }
+  .ngay { width: var(--ngay); flex: none; border-left: 1px solid var(--rule-soft); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; white-space: nowrap; }
+  .ngay .t { font-size: 11.5px; color: var(--ash-2); }
+  .ngay .s { font-size: 13px; }
+  .ngay .d { font-size: 11px; color: var(--ash-2); }
+  .ngay--cn { background: var(--paper); }
+  .ngay--cn .t, .ngay--cn .s { color: var(--ash-3); }
+  .ngay--nay { background: var(--rule-hair); box-shadow: inset 0 -2px 0 var(--rust); }
+  .ngay--nay .t, .ngay--nay .s, .ngay--nay .d { color: var(--rust-deep); }
+  .ngay--dich { background: #eff6ff; box-shadow: inset 0 -2px 0 var(--xanh); }
+  .ngay--dich .t, .ngay--dich .s { color: var(--xanh); }
+
+  .than { position: relative; }
+  .nen { position: absolute; inset: 0; pointer-events: none; }
+  .nen-cot { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--rule-soft); }
+  .nen-cot--cn { background: color-mix(in srgb, var(--rule-soft) 35%, transparent); }
+  .nen-cot--nay { background: color-mix(in srgb, var(--rule-hair) 60%, transparent); }
+  .nen-cot--dich { background: rgba(219, 234, 254, .45); }
+  .nen-nhan { position: sticky; left: 0; width: var(--nhan); height: 100%; background: var(--canvas); border-right: 1px solid var(--rule-soft); z-index: 1; }
+
+  .hang { position: relative; display: flex; border-bottom: 1px solid var(--rule-soft); }
+  .hang:hover { background: rgba(221, 225, 229, .3); }
+  .hang--chon { background: rgba(241, 245, 249, .7); }
+  .o-nhan { width: var(--nhan); flex: none; position: sticky; left: 0; z-index: 3; background: var(--canvas); border-right: 1px solid var(--rule-soft);
+    box-shadow: 2px 0 6px rgba(15, 23, 42, .04); padding: 8px 12px 8px 14px; display: flex; flex-direction: column; gap: 3px; justify-content: center; min-width: 0; }
+  .hang--thut .o-nhan { padding-left: 30px; }
+  .dong { display: flex; align-items: center; gap: 10px; min-width: 0; line-height: 1.3; }
+  .dong > span { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dong > span:first-child { flex-shrink: 0.2; }
+  .ma { font-size: 13.5px; }
+  .ten { font-size: 12.5px; }
+  .phu { font-size: 11.5px; color: var(--ash-2); }
+  .tt { width: 14px; height: 14px; flex: none; }
+  .gap { font-size: 11px; padding: 0 6px; height: 18px; border-radius: 5px; background: var(--do-bg); color: var(--do); display: inline-flex; align-items: center; }
+  .vt { display: inline-flex; align-items: center; gap: 4px; height: 19px; padding: 0 7px; border-radius: 999px; font-size: 11px; white-space: nowrap; }
+  .vt--do { background: var(--do-bg); color: var(--do); }
+  .vt--xam { background: var(--rule-hair); color: var(--ash); }
+  .tre { color: var(--do); font-size: 12px; display: inline-flex; align-items: center; gap: 3px; }
+
+  .vung { position: relative; flex: none; width: calc(14 * var(--ngay)); isolation: isolate; }
+  .kh, .thuc { position: absolute; display: flex; align-items: center; gap: 5px; padding: 0 8px; border-radius: 6px; font-size: 11.5px; white-space: nowrap; overflow: hidden; cursor: grab; }
+  .kh { top: calc(50% - 27px); height: 22px; border: 1px dashed var(--rule); background: var(--canvas); color: var(--ash); }
+  .kh--chua { border: 1px solid #bfdbfe; background: #eff6ff; color: #1e40af; }
+  .kh--phat { border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; }
+  .kh--chung { box-shadow: 0 0 0 2px var(--tim-bg), 0 0 0 3px #a78bfa; }
+  .kh--chon { outline: 2px solid var(--rust); outline-offset: 1px; }
+  .kh--tre-duoi { position: absolute; top: calc(50% - 27px); height: 22px; border-radius: 0 6px 6px 0; background: repeating-linear-gradient(-45deg, #fecaca 0 5px, #fee2e2 5px 10px); border: 1px solid #fca5a5; border-left: 0; }
+  .thuc { top: calc(50% + 1px); height: 26px; cursor: pointer; }
+  .thuc--chay { background: var(--la-dam); border: 1px solid #15803d; color: #fff; }
+  .thuc--xong { background: var(--rule-hair); border: 1px solid var(--rule-soft); color: var(--ash); }
+  .thuc--xong svg { color: var(--ash-2); }
+  .moc { position: absolute; top: calc(50% - 22px); width: 11px; height: 11px; transform: translateX(-50%) rotate(45deg); background: var(--ink); border-radius: 2px; z-index: 2; }
+  .moc--vuot { background: var(--do); }
+  .moc-chu { position: absolute; top: calc(50% - 44px); transform: translateX(-50%); font-size: 11px; color: var(--ash-2); white-space: nowrap; }
+  .moc-chu--vuot { color: var(--do); }
+
+  .cum { position: relative; display: flex; align-items: center; height: 36px; border-bottom: 1px solid var(--rule-soft); background: #fbfaff; }
+  .cum .o-nhan { flex-direction: row; align-items: center; gap: 8px; padding-top: 0; padding-bottom: 0; background: #fbfaff; box-shadow: none; }
+  .cum-chip { display: flex; align-items: center; gap: 6px; padding-left: 10px; white-space: nowrap; }
+  .nho { display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 8px; border-radius: 5px; font-size: 12px; background: var(--rule-hair); color: var(--ash); }
+  .nho--tim { background: var(--tim-bg); color: var(--tim); }
+  .nho--xanh { background: #eff6ff; color: #1d4ed8; }
+
+  .bong { position: absolute; top: calc(50% - 27px); height: 22px; border: 1.5px dashed var(--xanh); background: rgba(219, 234, 254, .7); border-radius: 6px; }
+  .nk { position: absolute; font-size: 11.5px; padding: 2px 8px; border-radius: 6px; background: var(--canvas); border: 1px solid var(--rule-soft); box-shadow: 0 4px 12px rgba(15, 23, 42, .08); white-space: nowrap; z-index: 4; }
+  .mo-cu { opacity: .35; }
+
+  .chan { display: flex; align-items: center; gap: 18px; padding: 10px 18px; border-top: 1px solid var(--rule-soft); font-size: 12.5px; color: var(--ash); flex-wrap: wrap; }
+  .chan i { display: inline-block; width: 22px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+  .so-sanh { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .so-sanh > div { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 10px; padding: 12px 16px; font-size: 13px; }
+  .so-sanh h3 { font-size: 14px; font-weight: 500; margin: 0 0 6px; }
+  .so-sanh ul { margin: 0; padding-left: 18px; }
+  @media (max-width: 760px) { .so-sanh { grid-template-columns: 1fr; } :root { --nhan: 200px; } }
+</style>
+</head>
+<body>
+<div class="trang">
+  <h1>Xếp lịch theo khuôn lịch ngày của bàn Thực hiện SX</h1>
+  <p class="mo">Mockup tĩnh. Khoảng xem 12 đến 25 tháng 10 năm 2026, hôm nay T4 14. LSX26-0008 và LSX26-0009 lấy đúng số trên màn hiện tại; LSX26-0007 và LSX26-0010 là <span class="nhan-gd" style="font-size:12px;padding:0 6px;border-radius:5px;background:#fef3c7;color:#92400e">giả định</span> để thấy đủ các trạng thái.</p>
+
+  <div class="ghi">
+    Đã đọc trước khi vẽ: <code>ThsxLichNgay.tsx</code> và CSS <code>thsx-ln</code> (hình 1), <code>XlLuoi.tsx</code>, <code>XlKhay.tsx</code>, <code>XepLichPage.tsx</code> (hình 2). Những gì lấy từ hình 1 và những gì phải đổi:
+    <ol>
+      <li>Thêm cột nhãn dính bên trái, mỗi lệnh một dòng có kẻ ngang. Bốn dòng trong ô nhãn: mã và trạng thái; tên và máy; khách; số lượng, giờ máy chạy, số tờ in, vật tư. Các chip xám đang nằm dưới thanh bị bỏ, thông tin chuyển hết vào ô nhãn. Nút Hiển thị vẫn bật tắt từng dòng như cũ.</li>
+      <li>Đầu cột ngày ghi "T2 12/10" và "N lệnh" chạy ngày đó; ô góc trái ghi "N lệnh trong khoảng".</li>
+      <li>Thanh chiếm trọn các ô ngày nó chạm, giờ viết trong thanh ("14:00–15:59", nhiều ngày thì "14/10 → 17/10"). Thanh của bàn Xếp lịch giữ màu trạng thái lệnh (xanh dương chưa phát hành, xanh lá đã phát hành) thay vì viền nét đứt xám của bàn tổ, vì đây là màn sửa được.</li>
+      <li>Làn dưới là THỰC TẾ y bàn tổ: lệnh đã vào việc có thanh đậm "Chạy từ …" hoặc "Xong …". Lệnh chưa chạy thì không có làn dưới.</li>
+      <li>Hạn là hình thoi ở mép phải ô ngày hạn. Kế hoạch vượt hạn thì phần thanh qua hạn có sọc đỏ, ô nhãn ghi "trễ N ngày".</li>
+      <li>Cụm lệnh (cùng đơn, phát hành cùng nhau) là một dòng tiêu đề nền tím rất nhạt, các lệnh của cụm thụt vào bên dưới. Quan hệ chờ nhau nói bằng chip trên dòng cụm.</li>
+    </ol>
+  </div>
+
+  <div class="so-sanh" style="margin-top:14px">
+    <div>
+      <h3>Mất đi so với lưới hiện tại</h3>
+      <ul>
+        <li>Thanh không còn dài đúng theo giờ: lệnh 2 tiếng cũng chiếm trọn một ô ngày, giống bàn tổ.</li>
+        <li>Đường chấm cong nối hai bước của hai lệnh bị bỏ. Chip "LSX26-0008 bước 4 chờ LSX26-0009 bước 3" trên dòng cụm nói thay.</li>
+        <li>Không còn tô đậm khúc trong ca và sọc vàng "chờ lệnh khác" bên trong thanh.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Kéo thả đổi thế nào</h3>
+      <ul>
+        <li>Kéo thanh, hoặc thả thẻ từ khay, vào ô ngày nào thì lệnh bắt đầu từ ca đầu tiên của ngày đó. Cột ngày đích tô xanh, hai đầu bóng thanh ghi giờ bắt đầu và giờ xong do máy chủ tính (mục 2 bên dưới).</li>
+        <li>Chỉnh lẻ giờ vẫn bằng ◀ ▶ 15 phút, Shift một ca, Ctrl Z hoàn tác.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>1. Mở màn</h2>
+  <div class="man">
+    <div class="tom">
+      <span>Trong khoảng này máy chạy <b>9 giờ 55 phút</b></span>
+      <span class="chip"><span class="cham" style="background:#dc2626"></span>Trễ hạn 1</span>
+      <span class="chip"><span class="cham" style="background:#2563eb"></span>Chưa phát hành 2</span>
+      <span class="gian"></span>
+      <span class="mo">Ca 2 14:00 đến 22:30</span>
+    </div>
+    <div class="luoi">
+      <div class="bang" id="bang1"></div>
+    </div>
+    <div class="chan">
+      <span><i style="background:#eff6ff;border:1px solid #bfdbfe"></i>Kế hoạch chưa phát hành</span>
+      <span><i style="background:#f0fdf4;border:1px solid #bbf7d0"></i>Kế hoạch đã phát hành</span>
+      <span><i style="background:#16a34a"></i>Đang chạy</span>
+      <span><i style="background:#f1f5f9;border:1px solid #e2e8f0"></i>Đã xong</span>
+      <span><i style="box-shadow:0 0 0 2px #ede9fe,0 0 0 3px #a78bfa;background:#fff"></i>In chung một tờ</span>
+      <span>◆ Hạn xong sản xuất</span>
+    </div>
+  </div>
+
+  <h2>2. Đang kéo LSX26-0009 sang T5 15</h2>
+  <div class="man">
+    <div class="luoi">
+      <div class="bang" id="bang2"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NGAY = ["T2","T3","T4","T5","T6","T7","CN"];
+const ngays = Array.from({ length: 14 }, (_, i) => ({ thu: NGAY[i % 7], so: 12 + i }));
+const NAY = 2;
+
+const icon = {
+  chua: '<svg class="tt" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#2563eb" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12z" fill="#2563eb"/></svg>',
+  phat: '<svg class="tt" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#16a34a"/><path d="m5 8.2 2 2 4-4.2" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  chay: '<svg width="12" height="12" viewBox="0 0 16 16"><path d="M5 3.5v9l7-4.5z" fill="currentColor"/></svg>',
+  xong: '<svg width="12" height="12" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  goi: '<svg width="12" height="12" viewBox="0 0 16 16"><path d="M2.5 5 8 2l5.5 3v6L8 14l-5.5-3z M2.5 5 8 8l5.5-3 M8 8v6" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
+  noi: '<svg width="13" height="13" viewBox="0 0 16 16"><path d="M6.5 9.5 9.5 6.5 M7 4.5l1.2-1.2a2.6 2.6 0 0 1 3.7 3.7L10.7 8.2 M9 11.5l-1.2 1.2a2.6 2.6 0 0 1-3.7-3.7L5.3 7.8" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+  canh: '<svg width="13" height="13" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.8v3.8M8 10.9v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+};
+
+const W = 84, LE = 4;
+const thanh = (a, b) => `left:${a * W + LE}px;width:${(b - a + 1) * W - 2 * LE}px`;
+
+// Lệnh: dau/cuoi = chỉ số ô ngày kế hoạch; thuc = dải thực tế.
+const cumA = { ten: "Sách A5 64 trang", chip: ["2 lệnh cùng đơn DH009"], noi: "LSX26-0008 bước 4 chờ LSX26-0009 bước 3" };
+const lenh = [
+  { cum: cumA },
+  { ma: "LSX26-0009", tt: "chua", ten: "Bìa sách A5", may: "Máy in 5 màu Mitsubishi 54×79", khach: "CÔNG TY TNHH VI LŨ",
+    sl: ["1.000 cuốn", "Máy chạy 1 giờ 59 phút", "350 tờ in"], dau: 2, cuoi: 2, chu: "14:00–15:59", thut: true, chon: true },
+  { ma: "LSX26-0008", tt: "chua", ten: "Ruột sách A5 64 trang", may: "Máy in 5 màu Mitsubishi 54×79", khach: "CÔNG TY TNHH VI LŨ",
+    sl: ["1.000 cuốn", "Máy chạy 5 giờ 11 phút", "4.150 tờ in"], vt: ["vt--xam", "Chưa giữ vật tư"], dau: 2, cuoi: 2, chu: "16:00–21:11", thut: true },
+  { ma: "LSX26-0010", tt: "phat", ten: "Hộp giấy cứng 3 lớp", may: "Máy in 4 màu Heidelberg", khach: "CÔNG TY CỔ PHẦN BAO BÌ AN PHÚ",
+    sl: ["5.000 hộp", "Máy chạy 19 giờ 30 phút", "2.600 tờ in"], vt: ["vt--do", "Thiếu giấy Duplex 350"], gap: true, tre: 1,
+    dau: 2, cuoi: 5, chu: "14/10 → 17/10", han: 4, thuc: { dau: 2, cuoi: 2, loai: "chay", chu: "Chạy từ 14:10" } },
+  { ma: "LSX26-0007", tt: "phat", ten: "Tờ rơi A4 4 màu", may: "Máy in 5 màu Mitsubishi 54×79", khach: "CÔNG TY CỔ PHẦN CAFÉ HẠ LONG",
+    sl: ["1.100 tờ", "Máy chạy 1 giờ 44 phút", "550 tờ in"], dau: 1, cuoi: 1, chu: "14:24–16:08", han: 3,
+    thuc: { dau: 1, cuoi: 1, loai: "xong", chu: "Xong 15:52" } },
+];
+
+function ve(id, keo) {
+  const el = document.getElementById(id);
+  const dem = Array(14).fill(0);
+  lenh.forEach((l) => { if (l.ma) for (let k = l.dau; k <= l.cuoi; k++) dem[k]++; });
+  const dich = keo ? 3 : -1;
+  let h = `<div class="dau"><div class="dau-nhan"><span class="so">4</span> lệnh trong khoảng</div>`;
+  ngays.forEach((n, i) => {
+    const lop = ["ngay", n.thu === "CN" ? "ngay--cn" : "", i === NAY ? "ngay--nay" : "", i === dich ? "ngay--dich" : ""].join(" ");
+    h += `<div class="${lop}"><span><span class="t">${n.thu}</span> <span class="s">${n.so}/10</span></span><span class="d">${dem[i] ? dem[i] + " lệnh" : "&nbsp;"}</span></div>`;
+  });
+  h += `</div><div class="than"><div class="nen"><div class="nen-nhan"></div>`;
+  ngays.forEach((n, i) => {
+    const lop = ["nen-cot", n.thu === "CN" ? "nen-cot--cn" : "", i === NAY ? "nen-cot--nay" : "", i === dich ? "nen-cot--dich" : ""].join(" ");
+    h += `<span class="${lop}" style="left:calc(var(--nhan) + ${i * W}px);width:${W}px"></span>`;
+  });
+  h += `</div>`;
+  for (const l of lenh) {
+    if (l.cum) {
+      h += `<div class="cum"><div class="o-nhan"><span style="color:#7c3aed">${icon.noi}</span><span class="ten" style="font-size:13.5px">${l.cum.ten}</span></div>
+        <div class="cum-chip">${l.cum.chip.map((c) => `<span class="nho">${c}</span>`).join("")}<span class="nho nho--tim">phát hành cùng nhau</span><span class="nho nho--xanh">${icon.noi}${l.cum.noi}</span></div></div>`;
+      continue;
+    }
+    const dangKeo = keo && l.ma === "LSX26-0009";
+    const sel = l.chon && !keo;
+    let vung = "";
+    if (dangKeo) {
+      vung += `<div class="kh kh--chua mo-cu" style="${thanh(l.dau, l.cuoi)}">${l.chu}</div>`;
+      vung += `<div class="bong" style="${thanh(3, 3)}"></div>`;
+      vung += `<div class="nk" style="right:calc(${14 * W}px - ${3 * W}px + 8px);top:calc(50% - 28px)">T5 15/10 14:00</div>`;
+      vung += `<div class="nk" style="left:${4 * W + 8}px;top:calc(50% - 28px)">xong 15:59</div>`;
+    } else {
+      const ketThucKh = l.han != null && l.cuoi > l.han ? l.han : l.cuoi;
+      vung += `<div class="kh kh--${l.tt}${sel ? " kh--chon" : ""}" style="${thanh(l.dau, ketThucKh)}${ketThucKh < l.cuoi ? ";border-top-right-radius:0;border-bottom-right-radius:0;width:" + ((ketThucKh - l.dau + 1) * W - LE) + "px" : ""}">${l.chu}</div>`;
+      if (ketThucKh < l.cuoi) vung += `<div class="kh--tre-duoi" style="left:${(ketThucKh + 1) * W}px;width:${(l.cuoi - ketThucKh) * W - LE}px"></div>`;
+      if (l.thuc) vung += `<div class="thuc thuc--${l.thuc.loai}" style="${thanh(l.thuc.dau, l.thuc.cuoi)}">${icon[l.thuc.loai]}${l.thuc.chu}</div>`;
+      if (l.han != null) {
+        const vuot = l.cuoi > l.han;
+        vung += `<div class="moc${vuot ? " moc--vuot" : ""}" style="left:${(l.han + 1) * W}px"></div><div class="moc-chu${vuot ? " moc-chu--vuot" : ""}" style="left:${(l.han + 1) * W}px">Hạn SX ${12 + l.han}/10</div>`;
+      }
+    }
+    h += `<div class="hang${l.thut ? " hang--thut" : ""}${sel ? " hang--chon" : ""}" style="height:92px">
+      <div class="o-nhan">
+        <div class="dong"><span class="ma">${l.ma}</span>${icon[l.tt]}${l.gap ? '<span class="gap">Gấp</span>' : ""}${l.tre ? `<span class="tre">${icon.canh}trễ ${l.tre} ngày</span>` : ""}</div>
+        <div class="dong"><span class="ten">${l.ten}</span><span class="phu">${l.may}</span></div>
+        <div class="dong"><span class="phu">${l.khach}</span></div>
+        <div class="dong"><span class="phu" style="display:flex;gap:8px">${l.sl.map((s) => `<span>${s}</span>`).join("")}</span></div>
+        ${l.vt ? `<div class="dong"><span class="vt ${l.vt[0]}">${icon.goi}${l.vt[1]}</span></div>` : ""}
+      </div>
+      <div class="vung">${vung}</div>
+    </div>`;
+  }
+  h += `</div>`;
+  el.innerHTML = h;
+  el.querySelectorAll(".hang").forEach((r) => { if (r.querySelector(".vt")) r.style.height = "108px"; });
+}
+ve("bang1", false);
+ve("bang2", true);
+</script>
+</body>
+</html>

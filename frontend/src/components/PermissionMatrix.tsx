@@ -49,7 +49,6 @@ export type ActionKey =
   | "can_adjust"
   | "can_approve_exception"
   | "can_set_credit_terms"
-  | "can_record_deposit"
   | "can_assign_work"
   | "can_record_output"
   | "can_handover"
@@ -87,7 +86,17 @@ const WRITE_ACTIONS: ActionKey[] = ["can_create", "can_update", "can_delete"];
 // cột chi tiết. Thêm module/hành động mới chỉ cần bổ sung vào bảng này + cột ở backend.
 // `keys` (tuỳ chọn): 1 công tắc bật/tắt NHIỀU cột cùng lúc (gộp quyền). `key` = cột đại diện để
 // đếm/định danh; `keys` = toàn bộ cột được set. Không có `keys` → công tắc 1 cột như thường.
-type FineAction = { key: ActionKey; keys?: ActionKey[]; label: string; hint?: string };
+// `mod` (tuỳ chọn, 13/10/2026): ô SOI — đọc/ghi cột của DÒNG KHÁC (`mod`), không phải dòng đang
+// đứng. Cùng một quyền hiện ở hai chỗ, bật/tắt bên nào bên kia đổi theo vì chỉ có một giá trị.
+// `chung`: chữ hiện ra mặt cạnh nhãn để người cấp quyền thấy ngay ô này là ô của màn nào.
+type FineAction = {
+  key: ActionKey;
+  keys?: ActionKey[];
+  label: string;
+  hint?: string;
+  mod?: string;
+  chung?: string;
+};
 
 //: Ô chi tiết "Xem giá thành" — MỖI module kho một ô RIÊNG, cột `can_view_cost` của chính dòng đó
 //: (chủ chốt 05/10/2026: *"giá thành kho phải nằm trong chi tiết của mỗi module"*; *"kho giấy tôi
@@ -145,16 +154,46 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       label: "Duyệt báo giá đặc thù",
       hint: "Cho phép duyệt, từ chối báo giá đặc thù: từ 1 tỷ trở lên (trước VAT); bán dưới giá vốn; chiết khấu / markup ngoài mức của khách. Lưu ý: không bật thì không duyệt được các báo giá này.",
     },
+    // Ô SOI (13/10/2026): nút "Tạo đơn hàng" trên báo giá khách đã đồng ý hỏi Đơn hàng bán → Thêm —
+    // bày ngay ở đây để người cấp quyền báo giá thấy, không phải đoán sang dòng khác.
+    {
+      key: "can_create",
+      keys: WRITE_ACTIONS,
+      mod: "don_hang_ban",
+      chung: "chung ô Đơn hàng bán",
+      label: "Tạo đơn hàng",
+      hint: "Cho phép tạo đơn hàng từ báo giá khách đã đồng ý. Lưu ý: bật ô này là bật luôn Chỉnh sửa ở Đơn hàng bán, tắt cũng vậy.",
+    },
   ],
-  // Đơn hàng bán: duyệt đơn đặc thù (nhập tay/bổ sung) + hủy đơn đã chốt = 1 cờ; ghi cọc = Kế toán.
+  // Đơn hàng bán: mọi việc dính TIỀN trên ngăn đơn đi theo quyền của màn kế toán (13/10/2026) — ở đây
+  // chỉ SOI các ô đó lên (`mod`), không có cột riêng. "Ghi phiếu thu cọc" (`can_record_deposit`) đã gỡ
+  // (mg 0407): thu cọc được mà không lập được phiếu thu là lệch.
   don_hang_ban: [
     // "Duyệt đơn đặc thù · hủy đơn đã chốt" (can_approve_exception) đã gỡ khỏi ma trận 24/08/2026:
     // luồng duyệt đơn đặc thù vốn đã bỏ, nay chốt hủy-đơn-đã-chốt MẶC ĐỊNH BẬT cho vai có Sửa đơn.
     // Cột DB + ActionKey giữ nguyên (đảo được: thêm lại entry ở đây là bật lại toggle).
     {
-      key: "can_record_deposit",
-      label: "Ghi phiếu thu cọc",
-      hint: "Cho phép ghi phiếu thu cọc trên đơn. Lưu ý: đơn đã chốt mà thu đủ cọc thì tự chuyển xuống sản xuất. Thường dành cho kế toán.",
+      key: "can_create",
+      keys: WRITE_ACTIONS,
+      mod: "phieu_thu",
+      chung: "chung ô Phiếu thu",
+      label: "Thu cọc và ghi hoá đơn",
+      hint: "Cho phép thu cọc và ghi hoá đơn ngay trên đơn. Lưu ý: bật ô này là bật luôn Chỉnh sửa ở Phiếu thu, tắt cũng vậy.",
+    },
+    {
+      key: "can_cancel",
+      mod: "phieu_thu",
+      chung: "chung ô Phiếu thu",
+      label: "Huỷ hoá đơn",
+      hint: "Cho phép huỷ hoá đơn đã ghi trên đơn. Lưu ý: bật ô này là bật luôn Hủy phiếu thu ở Phiếu thu, tắt cũng vậy.",
+    },
+    {
+      key: "can_create",
+      keys: WRITE_ACTIONS,
+      mod: "phieu_chi",
+      chung: "chung ô Phiếu chi",
+      label: "Trả lại cọc",
+      hint: "Cho phép trả lại cọc cho khách khi đơn đã huỷ. Lưu ý: bật ô này là bật luôn Chỉnh sửa ở Phiếu chi, tắt cũng vậy.",
     },
   ],
   // "Gán việc" · "Ghi sản lượng" · "Bàn giao / nhận" ĐÃ GỠ 14/09/2026: Bàn tổ thôi hỏi ô "Kế hoạch
@@ -170,6 +209,19 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // nhiên là người chốt lịch cho xưởng chạy.
   // "Báo máy hỏng" dời từ khoá `yeu_cau_sua_chua` (gỡ 24/09/2026, mg `0332`) — chủ chốt: *"bên
   // thanh bên có 2 module sao ở quyền lại có 3"*. Nó là TAB của chính màn Sửa chữa máy.
+  // Kế hoạch vật tư (14/10/2026): nút "Đề nghị mua" trên dòng thiếu + "Huỷ phiếu" trùng trong ngăn hỏi
+  // Yêu cầu mua hàng → Thao tác (create mở form, update huỷ). Soi lên đây để người cấp quyền thấy
+  // ngay, khỏi đoán sang dòng khác — thiếu ô này thì ô tick trên bảng khoá mà không nói vì sao.
+  ke_hoach_vat_tu: [
+    {
+      key: "can_create",
+      keys: WRITE_ACTIONS,
+      mod: "yeu_cau_mua_hang",
+      chung: "chung ô Yêu cầu mua hàng",
+      label: "Đề nghị mua",
+      hint: "Cho phép tick dòng thiếu để lập yêu cầu mua, và huỷ phiếu mua trùng ngay trên bảng. Lưu ý: bật ô này là bật luôn Thao tác ở Yêu cầu mua hàng, tắt cũng vậy.",
+    },
+  ],
   ky_thuat_may: [
     {
       key: "can_request",
@@ -462,7 +514,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // Phân hệ Kế toán tách mỗi màn một khoá (10/08/2026). Ô "Lập phiếu" nay là cột **Thêm** của
   // chính màn đó, không còn núp dưới tên `can_approve` — nên ở đây chỉ còn các quyền phụ.
   phieu_chi: [
-    { key: "can_cancel", label: "Hủy phiếu chi", hint: "Cho phép huỷ phiếu chi đã lập (phải ghi lý do). Lưu ý: không huỷ được khi phiếu đã có phiếu thu hoàn tiền, hoặc khoản tạm ứng đã trừ vào kỳ lương đã chốt. Huỷ phiếu chi tạm ứng thì cả lô quay về chờ chi. Phiếu huỷ vẫn giữ số chứng từ." },
+    { key: "can_cancel", label: "Hủy phiếu chi", hint: "Cho phép huỷ phiếu chi đã lập." },
     { key: "can_export", label: "In phiếu chi", hint: "Cho phép in phiếu chi / UNC và in bảng kê tạm ứng." },
   ],
   // Ô "Xác nhận đã thu tiền" (`can_manage_status`) ĐÃ GỠ 27/08/2026: phiếu thu nay lập ra là ĐÃ
@@ -470,7 +522,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // (`mark-received`) cho phiếu CŨ lỡ nằm lại ở trạng thái chờ, nhưng không bày thành ô bật/tắt
   // nữa — bày một ô cho cái nút không bao giờ hiện chỉ tổ làm người cấp quyền đoán mò.
   phieu_thu: [
-    { key: "can_cancel", label: "Hủy phiếu thu / hoá đơn bán", hint: "Cho phép huỷ phiếu thu và hoá đơn bán đã ghi nhận (phải ghi lý do). Lưu ý: hoá đơn còn phiếu thu thì phải huỷ phiếu thu trước; nút huỷ hoá đơn nằm ở màn Đơn hàng bán. Phiếu huỷ vẫn giữ số chứng từ." },
+    { key: "can_cancel", label: "Hủy phiếu thu / hoá đơn bán", hint: "Cho phép huỷ phiếu thu và hoá đơn bán. Lưu ý: bật ô này là bật luôn Huỷ hoá đơn ở Đơn hàng bán, tắt cũng vậy." },
     { key: "can_export", label: "In phiếu thu", hint: "Cho phép in phiếu thu." },
   ],
 };
@@ -500,7 +552,7 @@ const MODULE_HINTS: Record<string, string> = {
   // Hai chú giải dưới bổ sung 21/08/2026: trước đó hai màn này KHÔNG có dòng nào, người cấp quyền
   // phải tự đoán "Xem cái này thì thấy gì" (xem docs/RBAC_QUYEN_THEO_MODULE.md §5).
   yeu_cau_mua_hang:
-    "Xem: yêu cầu mua hàng. Thao tác: lập, sửa yêu cầu; huỷ yêu cầu, bỏ món — của mình và của người khác trong phạm vi. Lưu ý: phạm vi Của tôi là yêu cầu mình lập (chỉ huỷ được của mình); Cả phòng chỉ đúng phòng mình, không gồm phòng con.",
+    "Xem: yêu cầu mua hàng. Thao tác: lập, sửa yêu cầu; huỷ yêu cầu, bỏ món — của mình và của người khác trong phạm vi. Lưu ý: phạm vi Của tôi là yêu cầu mình lập (chỉ huỷ được của mình); Cả phòng chỉ đúng phòng mình, không gồm phòng con. Bật Thao tác là bật luôn Đề nghị mua ở Kế hoạch vật tư, tắt cũng vậy.",
   nha_cung_cap:
     "Xem: nhà cung cấp và mặt hàng họ bán. Thao tác: thêm, sửa, ngừng dùng, nhập từ Excel.",
   khach_hang:
@@ -508,13 +560,13 @@ const MODULE_HINTS: Record<string, string> = {
   bao_gia:
     "Xem: báo giá. Thao tác: tạo, sửa, gửi khách, ghi kết quả, huỷ báo giá; tải PDF gửi khách.",
   don_hang_ban:
-    "Xem: đơn hàng bán. Thao tác: tạo, sửa, chốt, huỷ đơn; chuyển đơn xuống sản xuất.",
+    "Xem: đơn hàng bán. Chỉnh sửa: tạo, sửa, chốt, huỷ đơn; chuyển đơn xuống sản xuất. Lưu ý: bật Chỉnh sửa là bật luôn Tạo đơn hàng ở Báo giá, tắt cũng vậy.",
   // 6 dòng dưới đây gác 6 MÀN RIÊNG (tách 17/08/2026). Trước đó `san_xuat` mở 4 màn và
   // `ky_thuat_may` mở 2 — nhãn cũ chỉ kể một màn nên người cấp quyền không đoán ra mình vừa mở gì.
   san_xuat:
-    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: hàng chờ chỉ hiện khi phạm vi “Tất cả”.",
+    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: phạm vi tính theo sale phụ trách đơn.",
   ke_hoach_vat_tu:
-    "Xem: bảng cân đối vật tư (không có giá). Thao tác: giữ chỗ, nhả giữ chỗ vật tư cho lệnh. Lưu ý: lập yêu cầu mua từ dòng thiếu cần thêm Thao tác ở màn Yêu cầu mua hàng.",
+    "Xem: bảng cân đối vật tư (không có giá). Thao tác: giữ chỗ, nhả giữ chỗ vật tư cho lệnh. Lưu ý: lập yêu cầu mua từ dòng thiếu là ô chi tiết Đề nghị mua.",
   // Khoá vẫn mang hậu tố `_2` (đổi khoá trong DB không đáng), nhưng đây là màn Bài ghép DUY NHẤT
   // từ 18/08/2026 — bản cũ đã gỡ, mg 0216 chép quyền sang.
   bai_ghep_2:
@@ -530,9 +582,9 @@ const MODULE_HINTS: Record<string, string> = {
   ke_toan:
     "Xem: mọi phiếu mua hàng đã gửi duyệt (chờ duyệt, đã duyệt, đang chi…).",
   phieu_chi:
-    "Xem: phiếu chi. Thao tác: lập phiếu chi.",
+    "Xem: phiếu chi. Chỉnh sửa: lập phiếu chi. Lưu ý: bật Chỉnh sửa là bật luôn Trả lại cọc ở Đơn hàng bán, tắt cũng vậy.",
   phieu_thu:
-    "Xem: phiếu thu. Thao tác: lập, sửa phiếu thu; ghi hoá đơn bán (ở màn Đơn hàng bán).",
+    "Xem: phiếu thu. Chỉnh sửa: lập, sửa phiếu thu. Lưu ý: bật Chỉnh sửa là bật luôn Thu cọc và ghi hoá đơn ở Đơn hàng bán, tắt cũng vậy.",
   cong_no_phai_tra:
     "Xem: số còn nợ từng nhà cung cấp.",
   cong_no_phai_thu:
@@ -548,9 +600,9 @@ const MODULE_HINTS: Record<string, string> = {
   tinh_gia_thanh:
     "Xem: phiếu tính giá. Thao tác: lập, sửa, nhân bản phiếu.",
   lenh_san_xuat:
-    "Xem: hồ sơ các lệnh sản xuất. Lưu ý: phạm vi tính theo sale bán đơn; người xưởng nên để “Tất cả”.",
+    "Xem: hồ sơ các lệnh sản xuất. Lưu ý: phạm vi tính theo sale phụ trách đơn.",
   theo_doi_san_xuat:
-    "Xem: tiến độ sản xuất của các lệnh. Lưu ý: phạm vi tính theo sale bán đơn; người xưởng nên để “Tất cả”.",
+    "Xem: tiến độ sản xuất của các lệnh. Lưu ý: phạm vi tính theo sale phụ trách đơn.",
   tai_san:
     "Xem: tài sản và công cụ dụng cụ, khấu hao từng tháng. Thao tác: thêm (cả nhập Excel tài sản đang dùng), sửa, chuyển bộ phận, sửa chữa lớn, thôi dùng, xoá cái nhập nhầm; xuất Excel khấu hao tháng.",
   kho:
@@ -589,7 +641,7 @@ const MODULE_HINTS: Record<string, string> = {
 //: Khối Kinh doanh (Tính giá · Báo giá · Đơn hàng · Khách hàng) lọc theo NGƯỜI PHỤ TRÁCH KHÁCH và "Của tôi"
 //: nới ra cả nhóm dùng chung (`org_scope.nhom_dung_chung_user_ids`) — khác các khối còn lại.
 const HINT_PHAM_VI_KD =
-  "Người này được thấy khách hàng, phiếu tính giá, báo giá, đơn hàng của những ai — tính theo người PHỤ TRÁCH KHÁCH. Của tôi: khách do chính mình phụ trách, cộng khách của những người cùng nhóm dùng chung với mình. Cả phòng: khách của mọi người cùng phòng, kể cả các phòng nhỏ trực thuộc. Tất cả: toàn bộ khách của công ty. Lưu ý: nhóm dùng chung gộp ở màn Phòng ban, tab Nhân sự. Giao hàng tính khác — xem dấu hỏi cạnh tên màn Giao hàng.";
+  "Thấy khách, phiếu tính giá, báo giá, đơn của ai, tính theo sale phụ trách khách. Của tôi: của mình và nhóm dùng chung. Cả phòng: cả phòng mình. Tất cả: toàn công ty.";
 
 const COL_HINTS = {
   read: "Cho phép mở màn và xem dữ liệu. Tắt Xem thì Thao tác cũng tắt theo.",
@@ -901,6 +953,11 @@ const nhanThaoTac = (moduleKey: string) =>
   NHAN_THAO_TAC[moduleKey] ??
   (laDongKho(moduleKey) ? "Thao tác (khai ngưỡng tồn)" : "Chỉnh sửa (thêm, sửa, xóa)");
 
+// Khối Sản xuất (14/10/2026): ba màn Kế hoạch SX · Hồ sơ lệnh · Theo dõi SX lọc theo CHỦ ĐƠN của
+// lệnh (`services/lenh_sx/pham_vi.py`), cùng cách tính với khối Kinh doanh; các màn còn lại khoá Tất cả.
+const HINT_PHAM_VI_SX =
+  "Thấy đơn và lệnh của ai, tính theo sale phụ trách đơn. Của tôi: của mình và nhóm dùng chung. Cả phòng: cả phòng mình. Tất cả: toàn công ty. Người xưởng chọn Tất cả.";
+
 const HINT_PHAM_VI_TO =
   "Người này được thấy việc của ai trong tổ ở dòng này (tính cả các tổ con của nó). Của tôi: chỉ việc của chính mình. Cả phòng: việc của tổ mình đang ở và các tổ con của nó. Tất cả: việc của cả tổ ở dòng này và mọi tổ con.";
 
@@ -953,7 +1010,6 @@ export function defaultMatrix(modules: ModuleDef[]): PermissionRow[] {
     can_adjust: false,
     can_approve_exception: false,
     can_set_credit_terms: false,
-    can_record_deposit: false,
     can_assign_work: false,
     can_record_output: false,
     can_handover: false,
@@ -974,8 +1030,9 @@ export function defaultMatrix(modules: ModuleDef[]): PermissionRow[] {
 /** Một module có "quyền" nào không (để đếm N/M ở đầu nhóm + quyết định nhóm nào mở sẵn). */
 function rowHasAny(row: PermissionRow): boolean {
   if (row.can_read || cotThaoTac(row.module_key).some((k) => row[k])) return true;
+  // Ô soi (`mod`) là quyền của dòng khác — không tính dòng này "có quyền".
   const fine = fineCua(row.module_key);
-  return fine ? fine.some((a) => row[a.key]) : false;
+  return fine ? fine.some((a) => !a.mod && row[a.key]) : false;
 }
 
 interface PermissionMatrixProps {
@@ -1225,6 +1282,9 @@ export function PermissionMatrix({
       }
     }
     for (const a of fineCua(khoa) ?? []) {
+      // Ô soi KHÔNG vào "Bật hết" của dòng / nhóm: tích hết Đơn hàng bán mà mở luôn quyền thu chi ở
+      // màn kế toán là quá tay. Muốn cấp thì bấm đúng ô đó.
+      if (a.mod) continue;
       if (!oSong(khoa, a.key.replace("can_", ""))) continue;
       if (doiPhamViToanCty(khoa, a.key) && row.scope !== "all") continue;
       (a.keys ?? [a.key]).forEach((k) => out.push({ khoa, key: k, on: !!row[k] }));
@@ -1300,7 +1360,7 @@ export function PermissionMatrix({
                   {!g.noScope && (
                     <span className="rdx-perm__c-scope">
                       Phạm vi
-                      <HoverTip tieuDe="Phạm vi" text={g.noWrite ? HINT_PHAM_VI_TO : g.key === "kinh_doanh" ? HINT_PHAM_VI_KD : COL_HINTS.scope} />
+                      <HoverTip tieuDe="Phạm vi" text={g.noWrite ? HINT_PHAM_VI_TO : g.key === "kinh_doanh" ? HINT_PHAM_VI_KD : g.key === "san_xuat" ? HINT_PHAM_VI_SX : COL_HINTS.scope} />
                     </span>
                   )}
                 </div>
@@ -1368,10 +1428,16 @@ export function PermissionMatrix({
                   const phamViChoPhep =
                     PHAM_VI_CHO_PHEP[row.module_key] ?? (laDongKho(row.module_key) ? ["all"] : undefined);
                   const def = moduleDef.get(row.module_key);
-                  const fineActs = fineCua(row.module_key);
+                  // Ô soi (`mod`) mà dòng nguồn không có trong ma trận (màn ngừng dùng) thì không bày.
+                  const fineActs = fineCua(row.module_key)?.filter((a) => !a.mod || byKey.has(a.mod));
+                  /** Dòng mà ô đọc / ghi: dòng đang đứng, hoặc dòng nguồn của ô soi. */
+                  const dongCua = (a: FineAction): PermissionRow => (a.mod ? byKey.get(a.mod)! : row);
+                  const khoaCua = (a: FineAction) => a.mod ?? row.module_key;
                   // Công tắc gộp (`keys`): bật = TẤT CẢ cột bật.
-                  const fineOn = (a: FineAction) =>
-                    a.keys ? a.keys.every((k) => row[k]) : !!row[a.key];
+                  const fineOn = (a: FineAction) => {
+                    const r = dongCua(a);
+                    return a.keys ? a.keys.every((k) => r[k]) : !!r[a.key];
+                  };
                   const fineGranted = fineActs ? fineActs.filter(fineOn).length : 0;
                   const fineIsOpen = openFine.has(row.module_key);
                   const oDong = oCuaDong(row, g.noWrite);
@@ -1510,39 +1576,41 @@ export function PermissionMatrix({
 
                       {fineActs && fineIsOpen && (
                         <div className="rdx-perm__fine" role="group" aria-label={`Quyền chi tiết — ${label}`}>
-                          {fineActs.map((a) => (
-                            <label key={a.key} className="rdx-perm__fine-item">
+                          {fineActs.map((a) => {
+                            const khoaO = khoaCua(a);
+                            const dongO = dongCua(a);
+                            const song = oSong(khoaO, a.key.replace("can_", ""));
+                            const canhPhamVi = doiPhamViToanCty(khoaO, a.key) && dongO.scope !== "all";
+                            // Ô bắt buộc theo Chỉnh sửa chỉ xét cho ô của CHÍNH dòng này.
+                            const theoGhi = !a.mod && FINE_THEO_WRITE[row.module_key] === a.key && coDuongGhi;
+                            return (
+                            <label key={`${a.mod ?? ""}:${a.key}`} className="rdx-perm__fine-item">
                               <input
                                 type="checkbox"
                                 className="switch"
-                                checked={fineOn(a) && oSong(row.module_key, a.key.replace("can_", ""))}
-                                disabled={
-                                  readOnly ||
-                                  !oSong(row.module_key, a.key.replace("can_", "")) ||
-                                  (doiPhamViToanCty(row.module_key, a.key)
-                                    && row.scope !== "all") ||
-                                  (FINE_THEO_WRITE[row.module_key] === a.key && coDuongGhi)
-                                }
+                                checked={fineOn(a) && song}
+                                disabled={readOnly || !song || canhPhamVi || theoGhi}
                                 title={
-                                  FINE_THEO_WRITE[row.module_key] === a.key && coDuongGhi
+                                  theoGhi
                                     ? CANH_BAO_FINE_THEO_WRITE
-                                    : doiPhamViToanCty(row.module_key, a.key)
-                                      && row.scope !== "all"
+                                    : canhPhamVi
                                       ? CANH_BAO_PHAM_VI
-                                      : oSong(row.module_key, a.key.replace("can_", ""))
+                                      : song
                                         ? a.hint
                                         : CANH_BAO_O_CHET
                                 }
                                 aria-label={`${a.label} — ${label}`}
                                 onChange={(e) =>
-                                  // Công tắc gộp → set TẤT CẢ cột trong `keys`; thường → 1 cột.
+                                  // Công tắc gộp → set TẤT CẢ cột trong `keys`; thường → 1 cột. Ô soi
+                                  // ghi vào dòng nguồn (`mod`).
                                   (a.keys ?? [a.key]).forEach((k) =>
-                                    onToggle(row.module_key, k, e.target.checked),
+                                    onToggle(khoaO, k, e.target.checked),
                                   )
                                 }
                               />
                               <span className="rdx-perm__fine-text">
                                 {a.label}
+                                {a.chung && <span className="rdx-perm__fine-chung">{a.chung}</span>}
                                 {/* Nói RA MẶT lý do không bật được — nằm trong tooltip thì người
                                     cấp quyền phải rê chuột mới biết, mà họ có biết đâu mà rê. */}
                                 {doiPhamViToanCty(row.module_key, a.key)
@@ -1556,7 +1624,8 @@ export function PermissionMatrix({
                                 )}
                               </span>
                             </label>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>

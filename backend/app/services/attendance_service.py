@@ -98,6 +98,27 @@ def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * _EARTH_RADIUS_M * math.asin(math.sqrt(a))
 
 
+# Sai số trên mức này là vị trí GẦN ĐÚNG chứ không phải định vị: Android/Chrome khi chỉ cho "vị trí
+# gần đúng" làm mờ toạ độ trong ô cỡ vài km², IP-geolocation lệch cả km. Wi-Fi của máy bàn thường
+# vài chục tới vài trăm mét nên vẫn qua. Toạ độ cỡ này không nói được đứng trong hay ngoài bán kính
+# 150 m ⇒ không chấm, báo thẳng lý do thay vì "ngoài phạm vi" (chủ báo lệch 1,3 km 14/10/2026).
+SAI_SO_GAN_DUNG_M = 1000
+
+
+def _sai_so(accuracy) -> float | None:
+    try:
+        v = float(accuracy)
+    except (TypeError, ValueError):
+        return None
+    return round(v, 1) if math.isfinite(v) and v >= 0 else None
+
+
+def _loi_gan_dung(sai_so: float) -> str:
+    km = f"{sai_so / 1000:.1f}".replace(".", ",")
+    return (f"Điện thoại đang chỉ cho vị trí gần đúng (sai số khoảng {km} km) nên chưa "
+            "chấm được. Bật Vị trí chính xác cho trình duyệt rồi thử lại.")
+
+
 def min_to_hhmm(m: int) -> str:
     return f"{int(m) // 60:02d}:{int(m) % 60:02d}"
 
@@ -1066,9 +1087,10 @@ class AttendanceService:
             "check_block_reason": block_reason,
         }
 
-    def preview(self, *, user, latitude, longitude) -> dict:
+    def preview(self, *, user, latitude, longitude, accuracy=None) -> dict:
         """Dry-run geofence cho card chấm 'sống': tính điểm gần nhất + trong/ngoài phạm vi +
         còn cách bao nhiêu — KHÔNG ghi log. Dùng để vẽ vòng geofence realtime cho NV."""
+        sai_so = _sai_so(accuracy)
         emp = self._employee_for_user(user)  # chỉ NV có hồ sơ mới preview (self-service)
         now_local = datetime.now(timezone.utc).astimezone(VN_TZ)
         shift, work_day = self._shift_for_check(emp, now_local)
@@ -1091,19 +1113,29 @@ class AttendanceService:
             if best is None or d < best:
                 best, nearest = d, loc
         distance = round(best, 1)
+        if sai_so is not None and sai_so > SAI_SO_GAN_DUNG_M:
+            # Không có "còn cách bao nhiêu": toạ độ gần đúng không nói được khoảng cách thật.
+            return {
+                "locations_configured": True, "within_range": False, "distance_m": None,
+                "meters_out": None, "nearest_name": nearest.name, "radius_m": nearest.radius_m,
+                "next_action": check_type, "ot_mode": ot_mode, "vi_tri_gan_dung": True,
+                "message": _loi_gan_dung(sai_so),
+            }
         within = distance <= nearest.radius_m
         meters_out = 0.0 if within else round(distance - nearest.radius_m, 1)
         return {
             "locations_configured": True, "within_range": within, "distance_m": distance,
             "meters_out": meters_out, "nearest_name": nearest.name, "radius_m": nearest.radius_m,
-            "next_action": check_type, "ot_mode": ot_mode,
+            "next_action": check_type, "ot_mode": ot_mode, "vi_tri_gan_dung": False,
             "message": (f"Trong phạm vi '{nearest.name}' (cách {distance:.0f} m)." if within
                         else f"Ngoài phạm vi '{nearest.name}' — còn cách {meters_out:.0f} m."),
         }
 
-    def check(self, *, user, latitude, longitude) -> dict:
+    def check(self, *, user, latitude, longitude, accuracy=None) -> dict:
         """Attempt a GPS check-in/out. Returns a result dict; a log is created ONLY when
-        the point is inside some active location's radius (chặn cứng)."""
+        the point is inside some active location's radius (chặn cứng) and the browser did not
+        report an approximate-location accuracy (`SAI_SO_GAN_DUNG_M`)."""
+        sai_so = _sai_so(accuracy)
         emp = self._employee_for_user(user)
         # Hai lượt bấm của cùng một người (bấm đúp, mạng chậm bấm lại, hai máy) xếp hàng ở đây.
         self.employees.khoa_de_cham(emp.id)
@@ -1133,20 +1165,29 @@ class AttendanceService:
             if best is None or d < best:
                 best, nearest = d, loc
         distance = round(best, 1)
+        if sai_so is not None and sai_so > SAI_SO_GAN_DUNG_M:
+            return {
+                "success": False, "within_range": False, "check_type": None,
+                "distance_m": None, "nearest_location": nearest, "vi_tri_gan_dung": True,
+                "message": _loi_gan_dung(sai_so), "log": None,
+            }
         within = distance <= nearest.radius_m
 
         if not within:
+            # Sai số lớn hơn bán kính thì "ngoài phạm vi" có thể chỉ do máy định vị kém — nói kèm.
+            kem = (f" Sai số định vị hiện khoảng {sai_so:.0f} m."
+                   if sai_so is not None and sai_so > nearest.radius_m else "")
             return {
                 "success": False, "within_range": False, "check_type": None,
                 "distance_m": distance, "nearest_location": nearest,
                 "message": (f"Bạn đang cách điểm '{nearest.name}' {distance:.0f} m "
-                            f"(bán kính {nearest.radius_m} m) — ngoài phạm vi, chưa chấm được."),
+                            f"(bán kính {nearest.radius_m} m) — ngoài phạm vi, chưa chấm được.{kem}"),
                 "log": None,
             }
 
         log = self.attendance.create_log(
             employee_id=emp.id, work_location_id=nearest.id, check_type=check_type,
-            latitude=lat, longitude=lon, distance_m=distance, within_range=True,
+            latitude=lat, longitude=lon, distance_m=distance, accuracy_m=sai_so, within_range=True,
         )
         suffix = " TĂNG CA" if ot_mode else ""
         verb = ("VÀO" if check_type == CHECK_IN else "RA") + suffix

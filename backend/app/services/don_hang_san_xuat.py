@@ -45,6 +45,9 @@ CHO_GIAO = "giao"
 CHO_HOA_DON = "hoa_don"
 CHO_XONG = "xong"
 CHO_TAT_CA = (CHO_COC, CHO_KE_HOACH, CHO_XUONG, CHO_GIA_CONG, CHO_KHO, CHO_GIAO, CHO_HOA_DON, CHO_XONG)
+# Đơn ĐÃ HUỶ còn giữ cọc của khách (13/10/2026) — chờ kế toán lập phiếu chi trả lại. Không thuộc
+# CHO_TAT_CA vì tập đó suy từ đơn đã chốt; `order_service` tính riêng từ phiếu thu − phiếu chi.
+CHO_TRA_COC = "tra_coc"
 
 _O_SANG_CHO = {O_NGOAI: CHO_GIA_CONG, O_XUONG: CHO_XUONG, O_CHO_KHO: CHO_KHO,
                O_CHUA_XUONG: CHO_KE_HOACH, O_CHUA_LENH: CHO_KE_HOACH}

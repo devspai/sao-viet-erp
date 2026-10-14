@@ -159,7 +159,8 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   const can = useCan();
   // `create` KHÔNG còn được dùng ở màn này (đơn sinh từ Báo giá) — quyền vẫn tồn tại, gác ở đó.
   const canUpdate = can("don_hang_ban", "update");
-  const canRecordDeposit = can("don_hang_ban", "record_deposit");
+  // Thu cọc = lập phiếu thu ⇒ hỏi Phiếu thu → Tạo (13/10/2026, trước đó là ô riêng của Đơn hàng bán).
+  const canRecordDeposit = can("phieu_thu", "create");
   // Hủy đơn đã chốt MẶC ĐỊNH BẬT cho vai có Sửa đơn (gỡ công tắc `approve_exception` 24/08/2026;
   // luồng "duyệt đơn đặc thù" vốn đã bỏ nên cờ này giờ chỉ còn gác việc hủy đơn đã chốt).
   const canApproveException = true;
@@ -474,7 +475,15 @@ function ODon({ cot, o, mocNgay }: { cot: string; o: OrderRow; mocNgay: "tao" | 
         </td>
       );
     }
-    case "coc":
+    case "coc": {
+      // Đơn huỷ: cọc còn giữ của khách là việc kế toán phải trả — nói thẳng ra, không "Đủ cọc".
+      if (o.status === "cancelled") {
+        const conGiu = o.deposit_received - o.deposit_refunded;
+        if (conGiu > 0) {
+          return <td title={`Đã thu ${vnd(o.deposit_received)}`}><ChipTT mau="cam" vuong>Còn giữ {soVN(conGiu)}</ChipTT></td>;
+        }
+        return <td>{o.deposit_received > 0 ? <span className="lds-mu3">Đã trả lại</span> : <span className="lds-mu3">Không cọc</span>}</td>;
+      }
       if (!o.deposit_required) return <td>{o.status === "draft" ? mu : <span className="lds-mu3">Không cọc</span>}</td>;
       return o.deposit_ok ? (
         <td title={`Đã thu ${vnd(o.deposit_received)}`}><ChipTT mau="la" vuong>Đủ cọc</ChipTT></td>
@@ -484,6 +493,7 @@ function ODon({ cot, o, mocNgay }: { cot: string; o: OrderRow; mocNgay: "tao" | 
           <span className="lds-u">/ {soVN(o.deposit_required)}</span>
         </td>
       );
+    }
     case "giao": {
       // Giao khách: suy từ số đã giao của từng mặt hàng (cùng nguồn với tiến độ đơn).
       if (o.status !== "ordered" || !o.san_xuat_released_at || o.san_xuat_mon.length === 0) return <td>{mu}</td>;
@@ -567,7 +577,7 @@ function OrderDrawer({
   const canCancelInvoice = can("phieu_thu", "cancel");
   // Đơn đã huỷ còn cọc: "Trả lại cọc" = lập phiếu chi trả lại tiền cho khách (12/10/2026).
   const [traCoc, setTraCoc] = useState(false);
-  const cocConGiu = order.deposit_received - (order.deposit_refunded ?? 0);
+  const cocConGiu = order.deposit_received - order.deposit_refunded;
   const canCancel = (order.status === "draft" && canUpdate) || (order.status === "ordered" && canApproveException);
 
   // `dungNapTruoc` chỉ ở lần nạp đầu của ngăn: lấy lại lời gọi đã bắn lúc bấm mở đơn.
@@ -883,7 +893,7 @@ function OrderDrawer({
                           ...(order.cancel_fault ? [{ nhan: "Lỗi tại", so: order.cancel_fault === "khach" ? "Khách hàng" : "Xưởng in" }] : []),
                           ...(order.deposit_received > 0 ? [
                             { nhan: "Cọc đã nhận", so: soVN(order.deposit_received) },
-                            ...((order.deposit_refunded ?? 0) > 0 ? [{ nhan: "Đã trả lại", so: soVN(order.deposit_refunded ?? 0) }] : []),
+                            ...(order.deposit_refunded > 0 ? [{ nhan: "Đã trả lại", so: soVN(order.deposit_refunded) }] : []),
                             { nhan: "Cọc còn giữ", so: soVN(cocConGiu), tong: true, tone: cocConGiu > 0 ? "chu" as const : undefined },
                           ] : []),
                         ]} />

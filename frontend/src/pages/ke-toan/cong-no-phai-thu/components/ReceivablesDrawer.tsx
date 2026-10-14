@@ -34,9 +34,10 @@ import { RayThuocTinh } from "../../shared/LuoiGon";
 import { NganCongNo, oRayCongNo } from "../../shared/NganCongNo";
 import { useTabNho } from "../../shared/NganPhieu";
 import { TabSaoKe } from "../../shared/TabSaoKe";
-import { TraLaiTienKhachModal } from "../../phieu-chi/modals/TraLaiTienKhachModal";
+import { TraLaiTienKhachModal, type DonTraCoc } from "../../phieu-chi/modals/TraLaiTienKhachModal";
 import { PAID_PAGE } from "../shared/constants";
 import type { Bucket, TuoiDangLoc } from "../shared/types";
+import { CocDonHuyBlock } from "./CocDonHuyBlock";
 import { HoaDonConNoBlock } from "./HoaDonConNoBlock";
 import { ThuTienHoaDon } from "./ThuTienHoaDon";
 
@@ -103,7 +104,8 @@ export function ReceivablesDrawer({
   const [loc, setLoc] = useState<string | null>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : null);
   const [dangThu, setDangThu] = useState<ReceivableItemRow | null>(null);
   const [daLap, setDaLap] = useState<PaymentReceiptRow | PaymentVoucherRow | null>(null);
-  const [moTraLai, setMoTraLai] = useState(false);
+  // Trả lại tiền: `don` vắng = trả chung; có = trả lại cọc của đúng đơn đã huỷ đó.
+  const [moTraLai, setMoTraLai] = useState<{ don: DonTraCoc | null } | null>(null);
   const [dangIn, setDangIn] = useState(false);
   const [soLanLap, setSoLanLap] = useState(0);
 
@@ -214,7 +216,7 @@ export function ReceivablesDrawer({
         ma={ma}
         coSo={hopLe}
         nutHoSo={moHoSo ? { nhan: "Hồ sơ khách hàng", onMo: moHoSo } : undefined}
-        nutTraLai={quyen.traLai ? { nhan: "Trả lại tiền", onMo: () => setMoTraLai(true) } : undefined}
+        nutTraLai={quyen.traLai ? { nhan: "Trả lại tiền", onMo: () => setMoTraLai({ don: null }) } : undefined}
         onInSaoKe={() => {
           setTab("sk");
           setDangIn(true);
@@ -260,6 +262,12 @@ export function ReceivablesDrawer({
               <div className="kt-hang-loc kt-ncn-loc">
                 <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => setLoc(null)} />
               </div>
+            )}
+            {(detail!.coc_don_huy?.length ?? 0) > 0 && (
+              <CocDonHuyBlock ds={detail!.coc_don_huy!} onMoDon={moDon}
+                onTraLai={quyen.traLai
+                  ? (d) => setMoTraLai({ don: { id: d.order_id, ma: d.order_code, daNhan: d.da_nhan, conLai: d.con_lai } })
+                  : undefined} />
             )}
             <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} khachChuaDatHan={detail!.payment_term_days == null}
               dangLoc={loc != null} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon} />
@@ -318,13 +326,14 @@ export function ReceivablesDrawer({
         <TraLaiTienKhachModal
           khachId={customerId}
           khachTen={ten}
-          onClose={() => setMoTraLai(false)}
+          don={moTraLai.don}
+          onClose={() => setMoTraLai(null)}
           onMoTaiKhoan={() => {
             onClose();
             navigate("ke-toan-tai-khoan-ngan-hang");
           }}
           onDone={(pc) => {
-            setMoTraLai(false);
+            setMoTraLai(null);
             setDaLap(pc);
             setSoLanLap((n) => n + 1);
             reload();

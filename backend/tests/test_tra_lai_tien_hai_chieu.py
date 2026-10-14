@@ -146,3 +146,45 @@ def test_ncc_hoan_tien_gan_thang_ncc_va_vao_cong_no_phai_tra(client):
     assert d["hoan"] == 400_000, "giao diện trừ khỏi Nhận hàng, tính là trả âm"
     assert all(x["doi_tuong_id"] is not None for x in bc["items"])
     _kiem_can_so(bc)
+
+
+def test_don_huy_con_giu_coc_loc_duoc_o_don_hang_va_danh_dau_o_cong_no_phai_thu(client):
+    """13/10/2026: đơn huỷ còn giữ cọc ⇒ ô "Đang chờ" = "Chờ trả lại cọc" (lọc + đếm), dòng mang
+    `deposit_refunded`; Công nợ phải thu đánh dấu khách (kể cả khách không có hoá đơn nào), lọc được
+    bằng nút `tra_coc`, ngăn khách liệt kê từng đơn. Trả lại hết ⇒ RỤNG khỏi cả ba chỗ."""
+    h = _headers(client)
+    huy, _ = _sales_order(suffix="TC1")
+    _add_deposit(huy, 300_000)
+    kh = _khach_cua_don(huy, huy=True)
+    con_chay, _ = _sales_order(suffix="TC2")
+    _add_deposit(con_chay, 200_000)
+
+    def _loc():
+        r = client.get("/api/orders", params={"dang_cho": "tra_coc", "size": 50}, headers=h)
+        assert r.status_code == 200, r.text
+        return r.json()["items"]
+
+    ds = _loc()
+    assert [d["id"] for d in ds] == [huy]
+    assert (ds[0]["deposit_received"], ds[0]["deposit_refunded"], ds[0]["dang_cho"]) == (300_000, 0, ["tra_coc"])
+    assert client.get("/api/orders/dang-cho-dem", headers=h).json()["tra_coc"] == 1
+
+    man = client.get("/api/accounting/receivables", params={"filter": "tra_coc"}, headers=h).json()
+    assert [(i["customer_id"], i["coc_don_huy"], i["total_due"]) for i in man["items"]] == [(kh, 300_000, 0)]
+    assert man["the_loc"]["tra_coc"] == 1
+    ngan = client.get(f"/api/accounting/receivables/{kh}", headers=h).json()
+    assert [(d["order_id"], d["da_nhan"], d["con_lai"]) for d in ngan["coc_don_huy"]] == [(huy, 300_000, 300_000)]
+
+    # Trả một phần: vẫn còn giữ.
+    assert _tra_lai(client, h, so_tien=100_000, customer_id=kh, order_id=huy).status_code == 201
+    ds = _loc()
+    assert (ds[0]["deposit_refunded"], len(ds)) == (100_000, 1)
+    # Trả hết: rụng khỏi lọc, số đếm, nút công nợ và ngăn khách.
+    assert _tra_lai(client, h, so_tien=200_000, customer_id=kh, order_id=huy).status_code == 201
+    assert _loc() == []
+    assert client.get("/api/orders/dang-cho-dem", headers=h).json()["tra_coc"] == 0
+    man = client.get("/api/accounting/receivables", params={"filter": "tra_coc"}, headers=h).json()
+    assert man["items"] == [] and man["the_loc"]["tra_coc"] == 0
+    assert client.get(f"/api/accounting/receivables/{kh}", headers=h).json()["coc_don_huy"] == []
+    don = client.get("/api/orders", params={"status": "cancelled", "size": 50}, headers=h).json()["items"]
+    assert [(d["deposit_refunded"], d["dang_cho"]) for d in don if d["id"] == huy] == [(300_000, [])]

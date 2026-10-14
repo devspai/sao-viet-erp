@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { getPosition } from "./helpers";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getPosition, kiemSaiSoDatDiem } from "./helpers";
 
 function position(accuracy: number): GeolocationPosition {
   return {
@@ -18,81 +18,120 @@ function position(accuracy: number): GeolocationPosition {
   };
 }
 
+/** Giả lập trình duyệt: `watchPosition` giữ callback lại để test tự bắn từng mẫu. */
+function stubGeolocation() {
+  let ok: PositionCallback | null = null;
+  let fail: PositionErrorCallback | null | undefined = null;
+  const watchPosition = vi.fn(
+    (o: PositionCallback, f?: PositionErrorCallback | null, _options?: PositionOptions) => {
+      ok = o;
+      fail = f;
+      return 7;
+    },
+  );
+  const clearWatch = vi.fn();
+  const getCurrentPosition = vi.fn();
+  vi.stubGlobal("navigator", {
+    ...navigator,
+    geolocation: { getCurrentPosition, watchPosition, clearWatch },
+  });
+  return {
+    watchPosition,
+    clearWatch,
+    getCurrentPosition,
+    mau: (accuracy: number) => ok?.(position(accuracy)),
+    loi: (e: GeolocationPositionError) => fail?.(e),
+  };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
-function stubGeolocation(
-  getCurrentPosition: Geolocation["getCurrentPosition"],
-): { watchPosition: ReturnType<typeof vi.fn> } {
-  const watchPosition = vi.fn(() => {
-    throw new Error("không được dò nhiều mẫu nữa");
-  });
-  vi.stubGlobal("navigator", {
-    ...navigator,
-    geolocation: { getCurrentPosition, watchPosition, clearWatch: vi.fn() },
-  });
-  return { watchPosition };
-}
-
 describe("lấy vị trí chấm công", () => {
-  it("dùng ngay mẫu đầu tiên, không chờ dò thêm", async () => {
-    const getCurrentPosition = vi.fn((ok: PositionCallback) => ok(position(76)));
-    const { watchPosition } = stubGeolocation(getCurrentPosition);
+  it("không nhận mẫu đầu kém: dò tiếp tới khi có mẫu đủ tốt rồi dừng dò", async () => {
+    const gps = stubGeolocation();
+    const p = getPosition();
 
-    await expect(getPosition()).resolves.toMatchObject({
-      coords: { accuracy: 76 },
-    });
-    expect(watchPosition).not.toHaveBeenCalled();
-    expect(getCurrentPosition).toHaveBeenCalledWith(
-      expect.any(Function),
-      expect.any(Function),
-      expect.objectContaining({ enableHighAccuracy: true }),
-    );
+    gps.mau(1800); // ước lượng theo mạng / vị trí gần đúng
+    gps.mau(30); // chip GPS bắt được
+
+    await expect(p).resolves.toMatchObject({ coords: { accuracy: 30 } });
+    expect(gps.clearWatch).toHaveBeenCalledWith(7);
+    expect(gps.getCurrentPosition).not.toHaveBeenCalled();
   });
 
-  it("không từ chối tọa độ vì sai số lớn", async () => {
-    stubGeolocation(vi.fn((ok: PositionCallback) => ok(position(420))));
+  it("đòi mẫu mới, không dùng lại vị trí cũ", () => {
+    const gps = stubGeolocation();
+    void getPosition();
 
-    await expect(getPosition()).resolves.toMatchObject({
-      coords: { accuracy: 420 },
-    });
+    const options = gps.watchPosition.mock.calls[0][2] as PositionOptions;
+    expect(options).toMatchObject({ enableHighAccuracy: true, maximumAge: 0 });
   });
 
-  it("cho dùng lại fix vừa lấy nên bấm liên tiếp không phải dò lại", async () => {
-    // Khai đủ BA tham số của `getCurrentPosition`: chỉ nhận `ok` thì tuple `mock.calls[0]` dài 1,
-    // đọc `[2]` là lỗi biên dịch. Hai tham số sau mở đầu bằng `_` nên `noUnusedParameters` bỏ qua.
-    const getCurrentPosition = vi.fn(
-      (
-        ok: PositionCallback,
-        _fail?: PositionErrorCallback | null,
-        _options?: PositionOptions,
-      ) => ok(position(50)),
-    );
-    stubGeolocation(getCurrentPosition);
+  it("dò hết giờ mà chưa đủ tốt thì dùng mẫu sai số nhỏ nhất (máy bàn chỉ có Wi-Fi)", async () => {
+    const gps = stubGeolocation();
+    const p = getPosition();
 
-    await getPosition();
+    gps.mau(420);
+    gps.mau(900);
+    gps.mau(76);
+    await vi.advanceTimersByTimeAsync(8_000);
 
-    const options = getCurrentPosition.mock.calls[0][2] as PositionOptions;
-    expect(options.maximumAge).toBeGreaterThan(0);
-    expect(options.timeout).toBeGreaterThan(0);
+    await expect(p).resolves.toMatchObject({ coords: { accuracy: 76 } });
+    expect(gps.clearWatch).toHaveBeenCalled();
   });
 
-  it("trả nguyên lỗi của trình duyệt để hiện đúng lý do", async () => {
+  it("mẫu đầu tới trễ hơn mốc dò tối đa thì dùng luôn", async () => {
+    const gps = stubGeolocation();
+    const p = getPosition();
+
+    await vi.advanceTimersByTimeAsync(9_000);
+    gps.mau(300);
+
+    await expect(p).resolves.toMatchObject({ coords: { accuracy: 300 } });
+  });
+
+  it("không có mẫu nào thì báo quá lâu, không treo", async () => {
+    stubGeolocation();
+    const p = getPosition();
+    const ket = expect(p).rejects.toMatchObject({ code: 3 });
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    await ket;
+  });
+
+  it("trả nguyên lỗi của trình duyệt khi chưa có mẫu nào", async () => {
+    const gps = stubGeolocation();
+    const p = getPosition();
     const denied = { code: 1, message: "User denied" } as GeolocationPositionError;
-    stubGeolocation(
-      vi.fn((_ok: PositionCallback, fail?: PositionErrorCallback | null) =>
-        fail?.(denied),
-      ),
-    );
 
-    await expect(getPosition()).rejects.toBe(denied);
+    gps.loi(denied);
+
+    await expect(p).rejects.toBe(denied);
   });
 
   it("báo lỗi khi trình duyệt không hỗ trợ định vị", async () => {
     vi.stubGlobal("navigator", {});
 
     await expect(getPosition()).rejects.toThrow("không hỗ trợ định vị");
+  });
+});
+
+describe("đặt tâm điểm chấm công", () => {
+  it("nhận sai số của máy bàn Wi-Fi", () => {
+    expect(kiemSaiSoDatDiem(position(76), "gợi ý").coords.accuracy).toBe(76);
+  });
+
+  it("chặn vị trí gần đúng, nói sai số và gợi ý", () => {
+    expect(() => kiemSaiSoDatDiem(position(1800), "Kéo ghim trên bản đồ.")).toThrow(
+      /khoảng 1800 m.*Kéo ghim trên bản đồ\./,
+    );
   });
 });

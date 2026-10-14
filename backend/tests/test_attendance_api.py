@@ -344,6 +344,48 @@ def test_me_preview_dry_run(client):
     assert client.get("/api/attendance/me/logs", headers=_h(token)).json()["items"] == []
 
 
+def test_vi_tri_gan_dung_khong_cham_va_luu_sai_so(client):
+    """Trình duyệt chỉ cho vị trí gần đúng (sai số cỡ km) ⇒ không chấm, báo đúng lý do chứ không
+    báo "ngoài phạm vi"; lượt hợp lệ lưu sai số để đối soát (14/10/2026)."""
+    token = _admin_token(client)
+    _make_location(client, token, lat=10.0, lng=106.0, radius=200)
+    _link_admin_employee(client, token)
+    ngay_tai_diem = {"latitude": 10.0, "longitude": 106.0}
+
+    p = client.post("/api/attendance/me/preview", json={**ngay_tai_diem, "accuracy": 2000},
+                    headers=_h(token)).json()
+    assert p["vi_tri_gan_dung"] is True and p["within_range"] is False
+    assert p["meters_out"] is None and "vị trí gần đúng" in p["message"]
+
+    r = client.post("/api/attendance/check", json={**ngay_tai_diem, "accuracy": 2000},
+                    headers=_h(token)).json()
+    assert r["success"] is False and r["vi_tri_gan_dung"] is True and r["log"] is None
+    assert "2,0 km" in r["message"] and "Vị trí chính xác" in r["message"]
+    assert client.get("/api/attendance/me/logs", headers=_h(token)).json()["items"] == []
+
+    # Máy bàn định vị Wi-Fi sai số vài trăm mét vẫn chấm được như trước.
+    ok = client.post("/api/attendance/check", json={**ngay_tai_diem, "accuracy": 420},
+                     headers=_h(token)).json()
+    assert ok["success"] is True and ok["vi_tri_gan_dung"] is False
+    assert ok["log"]["accuracy_m"] == 420.0
+
+    # Client cũ không gửi sai số: chấm như cũ, sai số để trống.
+    p_cu = client.post("/api/attendance/me/preview", json=ngay_tai_diem, headers=_h(token)).json()
+    assert p_cu["vi_tri_gan_dung"] is False and p_cu["within_range"] is True
+
+
+def test_ngoai_pham_vi_noi_kem_sai_so_khi_lon_hon_ban_kinh(client):
+    token = _admin_token(client)
+    _make_location(client, token, lat=10.0, lng=106.0, radius=200)
+    _link_admin_employee(client, token)
+    xa = {"latitude": 10.01, "longitude": 106.0}   # ~1,1 km
+    r = client.post("/api/attendance/check", json={**xa, "accuracy": 600}, headers=_h(token)).json()
+    assert r["success"] is False and r["vi_tri_gan_dung"] is False
+    assert "Sai số định vị hiện khoảng 600 m" in r["message"]
+    r2 = client.post("/api/attendance/check", json={**xa, "accuracy": 30}, headers=_h(token)).json()
+    assert "Sai số" not in r2["message"]
+
+
 def _orphan_admin_account() -> None:
     """Gỡ hồ sơ khỏi tài khoản admin ở tầng DB.
 
