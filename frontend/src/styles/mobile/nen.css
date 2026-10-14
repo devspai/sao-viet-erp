@@ -500,4 +500,72 @@
   .btn:not(td *) {
     min-height: 44px;
   }
+
+  /* ---- BÀN PHÍM ẢO (theoDoiBanPhim — utils/dienThoai.ts) ----------------------------------------
+     `html.dang-go` = một ô gõ chữ đang focus; `--ban-phim` = phần màn bàn phím đang che (iPhone; Android
+     đã tự co trang nhờ `interactive-widget=resizes-content` nên ≈ 0).
+     - Thanh tab dưới giấu đi: không thì nó nổi ngay trên bàn phím, ăn chỗ của ô đang gõ.
+     - Khung toàn màn (hộp, ngăn, menu) và bảng đáy dừng NGAY TRÊN bàn phím ⇒ ô đang gõ + chân hộp
+       (Huỷ / Lưu) không bị che. */
+  html.dang-go .dt-tabbar {
+    display: none !important;
+  }
+  html.dang-go .shell__content {
+    padding-bottom: calc(16px + var(--ban-phim, 0px));
+  }
+  html.dang-go .sidebar {
+    bottom: var(--ban-phim, 0px) !important;
+  }
+  html.dang-go .ns-modal .ns-modal__box,
+  html.dang-go .ns-modal .ns-detail-modal-box,
+  html.dang-go .dmodal-overlay .dmodal,
+  html.dang-go .rc-modal__scrim .rc-modal {
+    height: calc(100dvh - var(--ban-phim, 0px)) !important;
+    max-height: calc(100dvh - var(--ban-phim, 0px)) !important;
+    align-self: flex-start;
+  }
+  html.dang-go .kt-ngan,
+  html.dang-go :is(.rc-drawer, .rc-drawer--wide, .rc-drawer--mid, .rc-drawer--formula, .rc-drawer--mat-wide) {
+    bottom: var(--ban-phim, 0px) !important;
+    max-height: calc(100dvh - var(--ban-phim, 0px)) !important;
+  }
+  /* Hộp xác nhận (bảng đáy) có ô gõ — vd ô lý do từ chối: đẩy cả hộp lên trên bàn phím. */
+  html.dang-go .cdlg-overlay {
+    padding-bottom: var(--ban-phim, 0px) !important;
+  }
+  html.dang-go :is(.cdlg, .cdlg--wide) {
+    max-height: calc(100dvh - var(--ban-phim, 0px) - 12px) !important;
+    overflow-y: auto;
+  }
+  /* Bảng đáy RIÊNG của từng màn có ô gõ: hộp Khách hàng (`kh__overlay` — thêm / sửa khách…) và hộp thao
+     tác ở bàn tổ (`thsx-hop-nen` — nhập sản lượng, báo sự cố…). */
+  html.dang-go :is(.kh__overlay, .thsx-hop-nen) {
+    padding-bottom: var(--ban-phim, 0px) !important;
+  }
+  html.dang-go :is(.kh__dialog--hero, .thsx-hop, .thsx-hop--hep) {
+    max-height: calc(100dvh - var(--ban-phim, 0px) - 12px) !important;
+    overflow-y: auto;
+  }
+  html.dang-go .thsx-hop--dt-toan {
+    height: calc(100dvh - 40px - var(--ban-phim, 0px)) !important;
+  }
+  html.dang-go .tl-pop.tl-pop {
+    max-height: calc(100dvh - 52px - var(--ban-phim, 0px) - 8px);
+  }
+
+  /* `vh` trên trình duyệt điện thoại tính CẢ phần thanh địa chỉ ⇒ khung cao 100vh có đáy (chân nút) nằm
+     dưới thanh công cụ trình duyệt. Trình giả lập trên máy không có thanh địa chỉ nên không thấy. */
+  .kh__dialog--hero.kh__dialog--hero {
+    max-height: 94dvh;
+  }
+  .thsx-hop.thsx-hop,
+  .thsx-hop--hep.thsx-hop--hep {
+    max-height: 92dvh;
+  }
+  .thsx-hop--dt-toan.thsx-hop--dt-toan {
+    height: calc(100dvh - 40px);
+  }
+  .khsx .khvt-drawer {
+    height: 100dvh !important;
+  }
 }

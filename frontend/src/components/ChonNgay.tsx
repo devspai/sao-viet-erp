@@ -10,7 +10,12 @@ import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, X } from "
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
+import { laDienThoai } from "../utils/dienThoai";
 import "./chon-ngay.css";
+
+/** Điện thoại: chạm ô ngày / giờ CHỈ mở lịch / danh sách giờ, KHÔNG bật bàn phím số — bàn phím bật lên che
+ *  mất cái lịch nằm ngay dưới ô (bàn phím chiếm nửa dưới màn). Máy lớn vẫn gõ tay được như cũ. */
+const kieuGo = (): "none" | "numeric" => (laDienThoai() ? "none" : "numeric");
 
 export type MauDanhDau = "la" | "xanh" | "vang" | "do" | "tim";
 
@@ -294,7 +299,7 @@ export function ChonNgay({
       }}>
       <CalendarDays size={15} className="cn-khung__ic" aria-hidden="true" />
       <input ref={oRef} id={id} className="cn-khung__go" value={chu} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
-        required={required} aria-label={nhan} aria-haspopup="dialog" aria-expanded={mo} autoFocus={autoFocus} inputMode="numeric"
+        required={required} aria-label={nhan} aria-haspopup="dialog" aria-expanded={mo} autoFocus={autoFocus} inputMode={kieuGo()}
         autoComplete="off"
         onChange={(e) => {
           setChu(e.target.value);
@@ -393,7 +398,7 @@ export function ChonGio({
       }}>
       <Clock size={15} className="cn-khung__ic" aria-hidden="true" />
       <input ref={oRef} id={id} className="cn-khung__go" value={chu} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
-        required={required} aria-label={nhan} aria-haspopup="listbox" aria-expanded={mo} autoFocus={autoFocus} inputMode="numeric"
+        required={required} aria-label={nhan} aria-haspopup="listbox" aria-expanded={mo} autoFocus={autoFocus} inputMode={kieuGo()}
         autoComplete="off"
         onChange={(e) => setChu(e.target.value)}
         onFocus={() => { if (!khoa) setMo(true); }}
@@ -485,7 +490,7 @@ export function ChonNgayGio({
       <CalendarDays size={15} className="cn-khung__ic" aria-hidden="true" />
       <input ref={ngayRef} id={id} className="cn-khung__go cn-khung__go--ngay" value={chuNgay} placeholder="dd/mm/yyyy" disabled={disabled}
         readOnly={readOnly} required={required} aria-label={`${nhan}, ngày`} aria-haspopup="dialog" aria-expanded={mo} autoFocus={autoFocus}
-        inputMode="numeric" autoComplete="off"
+        inputMode={kieuGo()} autoComplete="off"
         onChange={(e) => {
           setChuNgay(e.target.value);
           const n = docNgayGo(e.target.value);
@@ -506,7 +511,7 @@ export function ChonNgayGio({
           if (phimLich(e, con, setCon)) e.preventDefault();
         }} />
       <input ref={gioRef} className="cn-khung__go cn-khung__go--gio" value={chuGio} placeholder="--:--" disabled={disabled} readOnly={readOnly}
-        aria-label={`${nhan}, giờ`} inputMode="numeric" autoComplete="off"
+        aria-label={`${nhan}, giờ`} inputMode={kieuGo()} autoComplete="off"
         onChange={(e) => setChuGio(e.target.value)}
         onFocus={moLich}
         onBlur={(e) => { chotGio(); roiKhung(e); }}

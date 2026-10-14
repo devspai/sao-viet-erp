@@ -117,7 +117,7 @@ import {
 } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { ChuongViec, MobileTabBar, bangMuc } from "./MobileTabBar";
-import { useLaDienThoai } from "../utils/dienThoai";
+import { theoDoiBanPhim, useLaDienThoai } from "../utils/dienThoai";
 import { useTheHoaBang } from "./luoiThe";
 import { GoiYBang } from "./LuoiDs";
 import { coQuyenBanTo, khoaBanTo } from "./appShellRealtime";
@@ -244,6 +244,9 @@ export function AppShell() {
   const laDT = useLaDienThoai();
   // Điện thoại: bảng danh sách ở mọi màn (kể cả trong hộp thoại / ngăn) thành thẻ — luoiThe.ts.
   useTheHoaBang(laDT);
+  // Bàn phím ảo của điện thoại: đo phần màn bị che + đánh dấu "đang gõ" (CSS điện thoại dùng để đẩy
+  // bảng đáy / chân hộp lên trên bàn phím và giấu thanh tab dưới).
+  useEffect(() => (laDT ? theoDoiBanPhim() : undefined), [laDT]);
   const [readable, setReadable] = useState<Set<string> | null>(null);
   const [caps, setCaps] = useState<Capabilities>(new Map());
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo

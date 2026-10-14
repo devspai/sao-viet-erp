@@ -379,6 +379,18 @@
     min-width: 40px !important;
     max-width: 40px !important;
   }
+  /* Tiêu đề "CA NỀN" in hoa nowrap cần 55px trong cột 40px ⇒ chữ tràn đè cột T2. Cho xuống 2 dòng
+     "CA / NỀN", chữ nhỏ, cắt phần thừa. */
+  .cc-sp-scroll .cc-sp-table thead th.cc-sp-col-base {
+    white-space: normal !important;
+    overflow: hidden;
+    padding: 2px !important;
+    font-size: 9.5px !important;
+    letter-spacing: 0 !important;
+    line-height: 1.15;
+    text-align: center;
+    word-break: keep-all;
+  }
   .cc-sp-scroll .cc-sp-table th.cc-sp-hdr,
   .cc-sp-scroll .cc-sp-table td.cc-sp-cell,
   .cc-sp-scroll .cc-sp-table td.cc-sp-foot {
@@ -1037,5 +1049,156 @@
   :root .cc-today-metrics-grid .cc-today-metric-item > :not(.cc-today-metric-label) {
     font-size: 17px !important;
     font-weight: 700 !important;
+  }
+
+  /* ---- Modal "Sửa lương" — các khoản trong kỳ (LineEditModal `.lg-lc`) ----------------------------
+     Bản ≤1000px vẫn là lưới 4 cột cố định 92 · 128 · 96px ⇒ ở 375px cột tên còn ~40px: "mức theo hồ sơ;
+     sửa ở đây…" mỗi từ một dòng, chip "Miễn thuế" đè chữ, ô số tiền tràn mép. Mỗi khoản thành một thẻ:
+       [Tên khoản  (Từ hồ sơ)]
+       [mức theo hồ sơ; sửa ở đây chỉ đổi riêng kỳ này]
+       [Miễn thuế]        [ ô số tiền ⟷ ]
+       [ghi chú ⟷]
+                      [Về mức hồ sơ][Lưu] */
+  .lg-lc .lg-lc__head {
+    display: none !important;
+  }
+  :root .lg-lc .lg-lc__row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__name {
+    grid-column: 1 / -1;
+    font-size: 14.5px;
+    line-height: 1.35;
+  }
+  .lg-lc .lg-lc__src {
+    font-size: 12.5px !important;
+    line-height: 1.4;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__name + div {
+    grid-column: 1;
+    align-self: center;
+    white-space: nowrap;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__money {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .lg-lc .lg-lc__money input {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__note {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .lg-lc .lg-lc__note input {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-lc .lg-lc__note:has(> .lg-lc__ro) {
+    color: var(--ash-2);
+    font-size: 13px;
+  }
+  /* Ghi chú chỉ đọc mà trống: bản máy lớn in "—" cho thẳng cột; trên thẻ là một dòng gạch lẻ — bỏ. */
+  .lg-lc .lg-lc__note:has(> .lg-lc__ro--trong) {
+    display: none;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__act {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__act:empty {
+    display: none;
+  }
+  .lg-lc .lg-lc__act .btn {
+    min-height: 40px;
+    margin-left: 0 !important;
+    font-size: 14px !important;
+    padding: 0 14px !important;
+  }
+
+  /* Form "+ Thêm khoản phát sinh" (lg-lc__add): chọn khoản · số tiền 140px · ghi chú + 2 nút chen một hàng.
+     Mỗi ô trọn hàng, hai nút chia đôi hàng cuối. */
+  .lg-lc__add.lg-lc__add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lg-lc__add > :is(select, input) {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-lc__add > .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* ---- Modal hồ sơ lương (SalaryModal) — "Mức lương & Phụ cấp" `.lg-comp` --------------------------
+     Bản ≤640px vẫn lưới cố định (danh mục: 1fr 80 120 50) ⇒ tên khoản còn ~70px, chip "Miễn thuế" đè chữ,
+     nút "Gỡ" trơ một hàng. Mỗi khoản thành thẻ:
+       [Tên khoản ⟷]  [Miễn thuế] [Gỡ]
+       [ số tiền ⟷ ]
+       [ ghi chú ⟷ ] */
+  .lg-comp .lg-comp__head {
+    display: none !important;
+  }
+  :root .lg-comp--cat .lg-comp__row.lg-comp__row {
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__name {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__name + div {
+    grid-column: 2;
+    grid-row: 1;
+    white-space: nowrap;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__act {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__money,
+  .lg-comp--cat .lg-comp__row > .lg-comp__note {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .lg-comp .lg-comp__money input,
+  .lg-comp .lg-comp__note input {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-comp .lg-btn-remove-comp {
+    height: 34px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+  }
+  /* Khoản HỆ THỐNG (lg-comp--sys: lương cơ bản…): tên trọn hàng trên, chip + số tiền hàng dưới. */
+  :root .lg-comp--sys .lg-comp__row.lg-comp__row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+  }
+  .lg-comp--sys .lg-comp__row > :first-child {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 }

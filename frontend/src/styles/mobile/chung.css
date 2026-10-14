@@ -74,15 +74,39 @@
     height: 36px;
     border-radius: 10px;
   }
+  /* Bảng lọc thả XUỐNG từ ngay dưới thanh trên (không trượt lên từ đáy): ô "Lọc theo…" ở đầu bảng — bàn
+     phím bật lên từ đáy chỉ che phần dưới, ô gõ + các dòng đầu vẫn thấy (bản trượt từ đáy: bàn phím che sạch). */
   .tl-pop.tl-pop {
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-height: 78dvh;
-    border-radius: 18px 18px 0 0;
-    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    position: fixed !important;
+    top: 52px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-height: min(70dvh, calc(100dvh - 52px - 62px));
+    overflow-y: auto;
+    border-radius: 0 0 18px 18px;
+    padding-bottom: 8px;
     z-index: 39;
-    box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.22);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+  }
+  /* Nút ✕ tắt bảng lọc (LopNoi `onDong`, chỉ dựng trên điện thoại): góc trên phải, dính khi bảng cuộn. */
+  .tl-pop.tl-pop > .tl-pop__dong {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 40px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ash);
+  }
+  .tl-pop.tl-pop:has(> .tl-pop__dong) :is(.tl-tim, .tl-dau, .tl-con__dau) {
+    padding-right: 48px;
   }
   .tl-pop.tl-pop .tl-dong {
     min-height: 46px;
