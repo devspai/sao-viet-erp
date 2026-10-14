@@ -423,15 +423,12 @@
 }
 /* Máy mặc định của công đoạn (`MayCuaCongDoanField`): nhãn ở máy đầu bảng, nút ở các máy còn lại. */
 .rc-may-mac-dinh,
-.rc-may-dat-mac-dinh {
-  margin-left: 8px;
-  font-size: 12px;
-  white-space: nowrap;
-}
 .rc-may-mac-dinh {
   color: var(--ash-2);
 }
 .rc-may-dat-mac-dinh {
+  margin-left: 8px;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   padding: 0;
@@ -1598,10 +1595,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 6px 0;
-}
-/* Ô bật/tắt có câu gợi ý: câu xuống hàng riêng dưới cả nhãn lẫn công tắc. Để chung một hàng thì câu
-   dài ép nhãn gãy thành ba bốn dòng (Mục thu chi, 12/10/2026). */
-.rc-field--check {
+  /* Ô bật/tắt có câu gợi ý: câu xuống hàng riêng dưới cả nhãn lẫn công tắc. Để chung một hàng thì
+     câu dài ép nhãn gãy thành ba bốn dòng (Mục thu chi, 12/10/2026). */
   flex-wrap: wrap;
   column-gap: 12px;
 }

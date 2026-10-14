@@ -16,6 +16,7 @@ from app.models.cong_doan import CongDoan
 from app.models.don_vi_do import DonViDo
 from app.models.khuon_be import KhuonBe
 from app.models.may_thiet_bi import MayThietBi
+from app.models.muc_thu_chi import MucThuChi
 from app.models.san_xuat_kcs import SanXuatKcsTieuChi
 from app.models.xe import Xe
 from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn
@@ -55,6 +56,8 @@ def _mau(db):
         # Xe giao hàng (12/09/2026) — `_xe` đếm CHUYẾN đã chạy xe này. Xe mẫu chưa chạy chuyến nào
         # nên xoá hẳn được; bài `test_xe_da_chay_chuyen...` mới là chỗ kiểm vế bị chặn.
         "xe": Xe(ma="ZZ-XE", ten="ZZ Xe mẫu"),
+        # Mục thu chi — `_muc_thu_chi` đếm phiếu thu/chi mang mục này. Mục mẫu chưa phiếu nào mang.
+        "muc_thu_chi": MucThuChi(ma="ZZ-MTC", ten="ZZ Mục chi", loai="chi"),
     }
     db.add_all([v for k, v in rows.items()
                 if k not in ("don_vi_do", "cong_doan")])

@@ -223,6 +223,25 @@ def test_schema_tra_ve_khong_cat_mat_cot_quyen_nao():
     )
 
 
+def _o_chi_tiet(than: str):
+    """Mọi ô chi tiết trong khối `FINE_ACTIONS` → `(module, cột, module_đích)`.
+
+    Đọc theo TỪNG Ô (`{ … }`), không theo dòng: ô soi (`mod: "…"`, 13/10/2026) khai cột một dòng,
+    dòng nguồn một dòng khác. `module_đích` = `mod` nếu là ô soi, không thì chính module đó — ô soi
+    là ô của DÒNG KHÁC hiện lại (cùng một giá trị), không phải quyền mới của dòng đang đứng.
+    `[a-z_0-9]+` — CHỮ SỐ là bắt buộc (`bai_ghep_2:`), xem chú thích ở test trùng cột.
+    """
+    khoi = list(re.finditer(r"^\s{2}([a-z_0-9]+): \[", than, re.M))
+    for i, k in enumerate(khoi):
+        doan = than[k.end(): khoi[i + 1].start() if i + 1 < len(khoi) else len(than)]
+        for o in re.finditer(r"\{(.*?)\}", doan, re.S):
+            cot = re.search(r'\bkey: "(can_\w+)"', o.group(1))
+            if not cot:
+                continue
+            dich = re.search(r'\bmod: "([a-z_0-9]+)"', o.group(1))
+            yield k.group(1), cot.group(1), dich.group(1) if dich else k.group(1)
+
+
 def test_o_chi_tiet_khong_dung_chung_cot_voi_nut_thao_tac():
     """⭐ Ô chi tiết KHÔNG được mượn cột mà nút "Thao tác" bật.
 
@@ -252,14 +271,13 @@ def test_o_chi_tiet_khong_dung_chung_cot_voi_nut_thao_tac():
     than = s[s.index("const FINE_ACTIONS"):]
     than = than[: than.index("\n};")]
 
-    dung_chung, mod = [], None
-    for dong in than.split("\n"):
-        khop = re.match(r"\s{2}([a-z_0-9]+): \[", dong)
-        if khop:
-            mod = khop.group(1)
-        for k in re.findall(r'key: "(can_\w+)"', dong):
-            if k in rieng.get(mod, ghi):
-                dung_chung.append(f"{mod}.{k}")
+    dung_chung = []
+    for mod, k, dich in _o_chi_tiet(than):
+        # Ô soi CỐ Ý là cột Thao tác của dòng nguồn — bật ở đâu cũng là một quyền, nhãn `chung` nói rõ.
+        if dich != mod:
+            continue
+        if k in rieng.get(mod, ghi):
+            dung_chung.append(f"{mod}.{k}")
 
     assert not dung_chung, (
         "Ô chi tiết mượn cột của nút Thao tác — bật Thao tác là ô đó TỰ SÁNG THEO, tức mở thêm "
@@ -285,19 +303,14 @@ def test_khong_co_hai_o_chi_tiet_dung_chung_mot_cot():
     # mọi ô của chúng bị dồn nhầm sang đó. Bệnh im lặng cho tới 10/09/2026: thêm `xep_lich_3` (cặp
     # can_approve_exception với `xep_lich_2`) là hai khối dồn chung một rổ ⇒ báo trùng oan cho
     # `san_xuat`.
-    trung, mod = [], None
-    da_thay: dict[str, set[str]] = {}
-    for dong in than.split("\n"):
-        khop = re.match(r"\s{2}([a-z_0-9]+): \[", dong)
-        if khop:
-            mod = khop.group(1)
-            da_thay[mod] = set()
-        for k in re.findall(r'key: "(can_\w+)"', dong):
-            if mod is None:
-                continue
-            if k in da_thay[mod]:
-                trung.append(f"{mod}.{k}")
-            da_thay[mod].add(k)
+    # Ô soi ghi vào dòng NGUỒN ⇒ so theo (dòng nguồn, cột): hai ô soi `can_create` của Phiếu thu và
+    # Phiếu chi là hai cột khác nhau, không trùng.
+    trung = []
+    da_thay: dict[str, set[tuple[str, str]]] = {}
+    for mod, k, dich in _o_chi_tiet(than):
+        if (dich, k) in da_thay.setdefault(mod, set()):
+            trung.append(f"{mod}.{k}" if dich == mod else f"{mod}.{dich}.{k}")
+        da_thay[mod].add((dich, k))
 
     assert not trung, (
         "Hai ô chi tiết dùng chung một cột — tick ô này ô kia sáng theo, mà nhãn lại khác nhau "

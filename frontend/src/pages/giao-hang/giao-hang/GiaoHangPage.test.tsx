@@ -1131,7 +1131,7 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
     // Nút trên dòng MỞ ngăn (việc nhập là của từng điểm, không phải của cả lượt).
     await userEvent.click(within(await dong()).getByRole("button", { name: "Nhập kết quả (2 điểm)" }));
     const n = await screen.findByRole("dialog", { name: "LX-260918-AB12" });
-    expect(within(n).getByText(/Tới khách nào thì bấm/)).toBeInTheDocument();
+    // Câu "Tới khách nào thì bấm Nhập kết quả…" đã gỡ 13/10/2026: nút nằm ngay trên thẻ điểm đang chọn.
     // Chỉ thẻ của ô đang chọn có nút — chọn ô nào nhập cho điểm đó.
     const lt = within(n).getByRole("list", { name: "Lộ trình" });
     expect(within(n).getAllByRole("button", { name: "Nhập kết quả" })).toHaveLength(1);
