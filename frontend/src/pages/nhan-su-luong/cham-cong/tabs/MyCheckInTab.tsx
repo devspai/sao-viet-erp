@@ -38,6 +38,11 @@ import {
 
 // --- Tab: Chấm công của tôi -------------------------------------------------
 
+/** Tên ca đã mở đầu bằng "Ca" (vd "Ca Hành Chính") thì không ghép thêm chữ "Ca" — tránh "Ca Ca Hành Chính". */
+function tenCa(ten: string): string {
+  return /^ca(\s|$)/i.test(ten.trim()) ? ten : `Ca ${ten}`;
+}
+
 export function MyCheckIn({
   token,
   canConfig,
@@ -338,7 +343,7 @@ export function MyCheckIn({
             <div className="cc-shift-tracker-compact">
               <div className="cc-shift-title">
                 <Clock3 size={13} style={{ color: "var(--rust)" }} />
-                <span>Ca {status.shift.name} ({status.shift.start_time} - {status.shift.end_time})</span>
+                <span>{tenCa(status.shift.name)} ({status.shift.start_time} - {status.shift.end_time})</span>
               </div>
               {showTimer && (
                 <div className="cc-shift-elapsed-time">
@@ -463,7 +468,7 @@ export function MyCheckIn({
                 <span className="cc-today-summary-title">Tóm tắt công hôm nay</span>
                 {status.shift && (
                   <span className="cc-today-shift-tag">
-                    Ca {status.shift.name} ({status.shift.start_time} - {status.shift.end_time})
+                    {tenCa(status.shift.name)} ({status.shift.start_time} - {status.shift.end_time})
                   </span>
                 )}
               </div>

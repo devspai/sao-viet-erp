@@ -60,6 +60,7 @@ import {
 import { PayslipCard } from "../components/PayslipCard";
 import { SoiKhoanKm } from "../components/SoiKhoanKm";
 import { LineEditModal } from "../modals/LineEditModal";
+import { laDienThoai } from "../../../../utils/dienThoai";
 
 // --- Tab: Bảng lương tháng --------------------------------------------------
 
@@ -132,7 +133,11 @@ export function BangLuongTab({
   const [year, month] = ym.split("-").map(Number);
 
   // Chế độ xem: "detailed" (22 cột chi tiết) vs "compact" (8 cột rút gọn)
-  const [viewMode, setViewMode] = useState<"detailed" | "compact">("detailed");
+  // Điện thoại (14/10/2026) mở sẵn bản TÓM TẮT: mỗi người một thẻ Thực lĩnh · Ngày công · Tổng thu ·
+  // Tổng trừ — 22 cột chi tiết thành thẻ dài cả màn mỗi người. Vẫn bấm "Xem chi tiết" được.
+  const [viewMode, setViewMode] = useState<"detailed" | "compact">(() =>
+    laDienThoai() ? "compact" : "detailed",
+  );
   // Dòng đang chọn (highlight row khi cuộn ngang)
   const [selectedId, setSelectedId] = useState<number | null>(null);
 

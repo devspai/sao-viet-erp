@@ -40,7 +40,7 @@ export function LuongPage({
   /** Tăng mỗi sự kiện real-time (SSE) → tab Tạm ứng đang mở tự refetch, không cần đổi màn. */
   eventTick?: number;
   /** Liên thông từ màn Phòng ban ("Sửa ở Cấu hình lương") → mở thẳng tab cấu hình. */
-  openTab?: "cauhinh";
+  openTab?: "cauhinh" | "phieu";
 }) {
   const { token } = useAuth();
   const can = useCan();
@@ -99,7 +99,9 @@ export function LuongPage({
   }, [focusEmployeeId, canLuongNhanVien]);
   useEffect(() => {
     if (openTab === "cauhinh" && canReadConfig) setTab("cauhinh");
-  }, [openTab, canReadConfig]);
+    // Ô "Phiếu lương" ở thanh dưới điện thoại.
+    else if (openTab === "phieu" && tuPhucVu) setTab("phieu");
+  }, [openTab, canReadConfig, tuPhucVu]);
 
   return (
     <main className="ns">

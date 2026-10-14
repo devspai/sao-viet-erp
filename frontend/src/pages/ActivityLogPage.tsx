@@ -46,6 +46,7 @@ import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import type { NavigateFn } from "../components/AppShell";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
+import { laDienThoai } from "../utils/dienThoai";
 import { ngayDeDoc } from "../utils/ky";
 import {
   LOC_NK_TRONG, MOC_NK, dieuKienNhatKy, kyNhatKyMacDinh, locNKLenUrl, locNKTuUrl, maHanhDong,
@@ -288,7 +289,9 @@ export function ActivityLogPage({
 
   // Mặc định BẢNG: màn này để TRA — so ngày/người/hành động theo cột nhanh hơn đọc dòng thời
   // gian, và một màn hình chứa được nhiều dòng hơn. Timeline vẫn còn ở nút chuyển.
-  const [viewMode, setViewMode] = useState<"timeline" | "table">("table");
+  // Điện thoại mở Timeline: bảng 6 cột thành thẻ thì giờ ghi đứng giữa, mỗi thẻ thừa một khoảng trống;
+  // timeline vốn đã một cột (người · việc · đối tượng · giờ) — đọc liền hơn.
+  const [viewMode, setViewMode] = useState<"timeline" | "table">(() => (laDienThoai() ? "timeline" : "table"));
   const [limit, setLimit] = useState(25);
   const [soTrang, setSoTrang] = useState(1);
   /** Mốc ảnh chụp do máy chủ trả ở trang 1; các trang sau gửi lại nguyên si để xấp trang không

@@ -41,6 +41,7 @@ import {
   toEdit,
 } from "./lsxBuoc";
 import "./dag-routing.css";
+import { laDienThoai } from "../utils/dienThoai";
 
 export interface RefRow {
   id: number;
@@ -183,7 +184,9 @@ export function LsxRoutingTable({
   // số vào–ra đứng im, tới khi bấm Lưu mới hiện băng đỏ.
   const suaDuoc = canUpdate && !giuCho;
   const [rows, setRows] = useState<EditRow[]>(() => congDoans.map(toEdit));
-  const [viewMode, setViewMode] = useState<"dag" | "table">("dag");
+  // Điện thoại (14/10/2026) mở sẵn dạng DANH SÁCH: sơ đồ DAG kéo-thả cần màn rộng + chuột; vẫn
+  // bấm "Sơ đồ DAG" để xem được.
+  const [viewMode, setViewMode] = useState<"dag" | "table">(() => (laDienThoai() ? "table" : "dag"));
   const [undo, setUndo] = useState<
     { row: EditRow; at: number; truoc: EditRow[] } | null>(null);
   const [live, setLive] = useState("");

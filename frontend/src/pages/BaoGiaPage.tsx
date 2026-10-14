@@ -1430,7 +1430,8 @@ function QuotationDetailView({
                 </div>
               </div>
             )}
-            <table>
+            {/* `bg-dong`: thẻ điện thoại (components/luoiThe.ts) nhận diện bảng dòng hàng của báo giá. */}
+            <table className="bg-dong">
               <thead>
                 <tr>
                   <th>Sản phẩm</th><th className="num">SL</th><th className="num">Giá vốn</th><th className="num">Markup</th><th className="num">Giá bán</th>
