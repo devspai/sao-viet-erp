@@ -567,4 +567,20 @@
     max-height: none !important;
     overflow: visible !important;
   }
+
+  /* ---- Xếp lịch — ngăn chi tiết lệnh (XlNgan) ---------------------------------------------
+     Chip đầu ngăn nowrap: tên khách dài ("CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ …") rộng hơn màn ⇒ cả
+     ngăn cuộn ngang. Cho chip xuống dòng, không vượt bề rộng ngăn. */
+  .kt-ngan__phu .xa-chip-dau {
+    max-width: 100%;
+    height: auto;
+    min-height: 24px;
+    padding-block: 3px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .kt-ngan__phu .xa-chip-dau > svg {
+    flex: none;
+  }
 }

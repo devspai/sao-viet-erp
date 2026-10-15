@@ -306,4 +306,19 @@
   .rc-formula__editor-header .rc-formula__che-do > * {
     white-space: nowrap;
   }
+
+  /* ---- Ô chọn ngày / giờ — hộp lịch nổi (`cn-hop`, ChonNgay.tsx) ----------------------------
+     Hộp ngày-giờ (ChonNgayGio) đặt cứng 428px trong style ⇒ màn 375px bị đẩy lệch trái, mất cột T2
+     (useViTriNoi kẹp mép phải trước). Chặn ở bề rộng màn: hộp đo lại `offsetWidth` rồi mới đặt nên
+     tự nằm gọn 8px hai mép; cột giờ hẹp lại cho lịch đủ chỗ 7 cột. */
+  .cn-hop.cn-hop {
+    max-width: calc(100vw - 16px);
+  }
+  .cn-hop .cn-ngay-gio {
+    grid-template-columns: minmax(0, 1fr) 68px;
+    gap: 8px;
+  }
+  .cn-hop .cn-ngay-gio__gio {
+    padding-left: 6px;
+  }
 }
