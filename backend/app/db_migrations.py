@@ -18331,3 +18331,39 @@ def _migrate_mua_hang_pham_vi_tat_ca(db: Session) -> None:
 
 
 MIGRATIONS.append(("0411_mua_hang_pham_vi_tat_ca", _migrate_mua_hang_pham_vi_tat_ca))
+
+
+def _migrate_o_nhan_su_luon_bat(db: Session) -> None:
+    """mg 0412 — ô việc-của-chính-mình LUÔN BẬT cho mọi vai (15/10/2026).
+
+    Chủ chốt: Chấm công, Nghỉ phép, Tăng ca bật Xem + Thao tác; Lương bật Xem — *"bật và không thể
+    tắt như cái nội quy"*. Danh sách ở `rbac_repo.O_LUON_BAT`; từ nay `role_service.save_matrix` ép
+    lúc lưu. Lương KHÔNG khoá Thao tác: cột đó gồm sửa mức lương / cấu hình lương.
+    Thêm dòng cho vai chưa có (phạm vi Của tôi), bật cột cho dòng đang tắt. Đọc inspector TRƯỚC
+    lệnh ghi; idempotent."""
+    from .repositories.rbac_repo import O_LUON_BAT
+
+    insp = inspect(db.get_bind())
+    if not {"roles", "role_permissions", "modules"} <= set(insp.get_table_names()):
+        return
+    cols = sorted(_existing_columns(insp, "role_permissions"))
+    co_module = {r[0] for r in db.execute(text("SELECT key FROM modules")).all()}
+    khac = [c for c in cols if c not in ("id", "role_id", "module_key", "scope")]
+    for khoa, bat in O_LUON_BAT.items():
+        if khoa not in co_module:
+            continue
+        gia_tri = ", ".join("true" if c in bat else "false" for c in khac)
+        db.execute(text(
+            f"INSERT INTO role_permissions (role_id, module_key, scope, {', '.join(khac)}) "
+            f"SELECT r.id, :khoa, 'own', {gia_tri} FROM roles r "
+            "WHERE NOT EXISTS (SELECT 1 FROM role_permissions x "
+            "  WHERE x.role_id = r.id AND x.module_key = :khoa)"
+        ), {"khoa": khoa})
+        db.execute(text(
+            f"UPDATE role_permissions SET {', '.join(f'{c} = true' for c in bat)} "
+            f"WHERE module_key = :khoa AND NOT ({' AND '.join(bat)})"
+        ), {"khoa": khoa})
+    db.commit()
+
+
+MIGRATIONS.append(("0412_o_nhan_su_luon_bat", _migrate_o_nhan_su_luon_bat))

@@ -10,7 +10,7 @@ from ..catalog_registry import MODULE_KEYS
 from ..models.role import Role
 from ..quyen_notify import bao_quyen_doi
 from ..repositories.audit_repo import AuditLogRepository
-from ..repositories.rbac_repo import DepartmentRepository, ModuleRepository, RoleRepository
+from ..repositories.rbac_repo import O_LUON_BAT, DepartmentRepository, ModuleRepository, RoleRepository
 from ..repositories.user_repo import UserRepository
 
 
@@ -100,9 +100,6 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # Báo cáo thu chi (11/10/2026): sổ thu chi của CẢ CÔNG TY, router không đọc phạm vi.
     "bao_cao_thu_chi",
 }
-
-#: Dòng có ô Xem luôn bật, không tắt được — xem `save_matrix` và mg 0410.
-KHOA_LUON_XEM = "self_service"
 
 
 def _la_scopeless(module_key: str) -> bool:
@@ -274,21 +271,30 @@ class RoleService:
         )
         return role
 
-    def delete_role(self, *, role_id: int, actor_id: int | None) -> None:
+    def delete_role(self, *, role_id: int, actor_id: int | None, force: bool = False) -> None:
+        """Xoá vai trò. Còn người giữ thì chặn (`RoleInUse`) — trừ khi `force` (15/10/2026, chủ chốt
+        *"cưỡng chế xóa vai trò"*): gỡ vai khỏi họ (về "chưa có vai", chỉ còn quyền đương nhiên
+        của tài khoản) rồi xoá. Họ được báo đổi quyền ngay để menu tự rút."""
         role = self.roles.get_by_id(role_id)
         if role is None:
             raise RoleNotFound("Không tìm thấy vai trò")
-        in_use = self.users.count_by_role(role_id)
-        if in_use > 0:
-            raise RoleInUse(in_use)
+        nguoi = self.users.list_ids_by_role(role_id)
+        if nguoi and not force:
+            raise RoleInUse(len(nguoi))
         name = role.name
+        for uid in nguoi:
+            u = self.users.get_by_id(uid)
+            self.users.set_assignment(u, department_id=u.department_id, role_id=None,
+                                      is_active=u.is_active, commit=False)
         self.roles.delete(role)
         self.audit.create(
             actor_user_id=actor_id,
             action="delete_role",
             target=f"role:{role_id}",
-            detail=name,
+            detail=f"{name} (gỡ khỏi {len(nguoi)} người)" if nguoi else name,
         )
+        if nguoi:
+            bao_quyen_doi(nguoi)
 
     def list_modules(self) -> list[dict]:
         """Danh mục module, kèm những "việc" ĐÃ XÁC MINH là chết ở màn đó.
@@ -449,10 +455,11 @@ class RoleService:
                     if normalized.get(key, False):
                         can_read = True
                         break
-            # "Hồ sơ của tôi" LUÔN BẬT (14/10/2026, mg 0410) — hồ sơ, chấm công, phiếu lương của chính
-            # mình là quyền của mọi người lao động; client gửi tắt cũng không tắt được.
-            if normalized["module_key"] == KHOA_LUON_XEM:
-                can_read = True
+            # Ô LUÔN BẬT (mg 0410, 0412) — việc của chính mình là quyền của mọi người lao động;
+            # client gửi tắt cũng không tắt được. Danh sách ở `rbac_repo.O_LUON_BAT`.
+            for key in O_LUON_BAT.get(normalized["module_key"], ()):
+                normalized[key] = True
+            can_read = can_read or bool(normalized.get("can_read"))
             normalized["can_read"] = can_read
             if _la_scopeless(normalized["module_key"]):
                 normalized["scope"] = "all"

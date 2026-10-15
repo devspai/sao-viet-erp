@@ -31,6 +31,7 @@ import { ChipTT, TT_DON, TT_KHO, TT_TIEN, nhanHangDon } from "../trang-thai-mua"
 import { Icon } from "../../../components/Icons";
 import { hanGanNhat } from "./BangDonMua";
 import { SuaDieuKhoan } from "./SuaDieuKhoan";
+import { moTaHanTra } from "./hanTra";
 import "../../ke-toan/ke-toan.css";
 import "../trang-thai-mua.css";
 
@@ -100,6 +101,7 @@ export function NganDonMua({
   onDong,
   phieuChiTick = 0,
   onMoLenh,
+  onMoNcc,
 }: {
   row: PurchaseRequestRow;
   duongDan: string;
@@ -121,6 +123,8 @@ export function NganDonMua({
   /** Tăng lên khi vừa lập phiếu chi — nạp lại danh sách phiếu chi của đơn. */
   phieuChiTick?: number;
   onMoLenh?: (l: MuaChoLenh) => void;
+  /** Mở hồ sơ NCC của đơn (sửa số ngày cho nợ). Thiếu = không có quyền xem màn Nhà cung cấp. */
+  onMoNcc?: (supplierId: number) => void;
 }) {
   const { token } = useAuth();
   const can = useCan();
@@ -215,7 +219,23 @@ export function NganDonMua({
             </div>
           </div>
         }
-        canhBao={canhBao}
+        canhBao={
+          credit?.vuot_han_muc || canhBao ? (
+            <>
+              {/* Vượt hạn mức nợ NCC: chỉ nhắc, không chặn. Đặt ở đây để ngăn Mua hàng lẫn Kế toán
+                  cùng thấy (trước 15/10/2026 chỉ ngăn Kế toán có). */}
+              {credit?.vuot_han_muc && (
+                <div className="mh-canh mh-canh--vang" role="status">
+                  <span>
+                    Đang nợ {row.supplier_name || "nhà cung cấp"} {so(credit.no_hien_tai)} đ, vượt hạn mức{" "}
+                    {so(credit.credit_limit)} đ là {so(credit.vuot_bao_nhieu)} đ. Chỉ nhắc, không chặn lập đơn.
+                  </span>
+                </div>
+              )}
+              {canhBao}
+            </>
+          ) : undefined
+        }
         tabs={tabs}
         tab={tabDung}
         onTab={(id) => setTab(id as TabDon)}
@@ -234,7 +254,7 @@ export function NganDonMua({
           <CotPhai row={row} credit={credit} huy={huy} moc={moc} onSua={suaDuoc ? () => setSuaDK(true) : undefined} />
         </div>
       </NganPhai>
-      {suaDK && <SuaDieuKhoan row={row} onDong={() => setSuaDK(false)} onLuu={onDoi} />}
+      {suaDK && <SuaDieuKhoan row={row} onDong={() => setSuaDK(false)} onLuu={onDoi} onMoNcc={onMoNcc} />}
     </>
   );
 }
@@ -263,9 +283,7 @@ function CotPhai({
   const coNo = !huy && (row.gia_tri_da_giao > 0 || row.coc_da_chi > 0);
   const pt = row.total_estimate > 0 ? Math.min(100, Math.round((row.gia_tri_da_giao / row.total_estimate) * 100)) : 0;
   const han = hanGanNhat(row);
-  const choNo =
-    row.supplier_credit_days == null ? <span className="mh-mo3">Chưa đặt</span>
-      : row.supplier_credit_days === 0 ? "Trả ngay" : `${row.supplier_credit_days} ngày`;
+  const hanTra = moTaHanTra(row.supplier_credit_days, row.debt_cutoff_date);
   const henGiao = ["approved", "purchased", "partially_received"].includes(row.status);
   return (
     <aside className="mh-ngan__phai" aria-label="Tiền, điều khoản và người">
@@ -312,7 +330,13 @@ function CotPhai({
             <button type="button" className="mh-lk" onClick={onSua}>Sửa</button>
           )}
         </h4>
-        <div className="mh-r"><span>Cho nợ</span><span>{choNo}</span></div>
+        <div className="mh-r">
+          <span>Hạn trả</span>
+          <span className={hanTra.chuaRo ? "mh-mo3" : undefined}>
+            {hanTra.chinh}
+            {hanTra.phu && <small className="mh-r__phu">{hanTra.phu}</small>}
+          </span>
+        </div>
         {credit && (
           <>
             <div className="mh-r">
@@ -325,12 +349,11 @@ function CotPhai({
         )}
         {!huy && (
           <>
-            <div className="mh-r"><span>Số hợp đồng</span><span>{row.contract_number || <span className="mh-mo3">Chưa có</span>}</span></div>
             <div className="mh-r">
-              <span>Ngày chốt nợ</span>
-              <span>{row.debt_cutoff_date ? fmtDate(row.debt_cutoff_date) : <span className="mh-mo3">Theo hoá đơn</span>}</span>
+              <span>Cọc dự kiến</span>
+              <span>{row.deposit_expected > 0 ? `${so(row.deposit_expected)} đ` : <span className="mh-mo3">Không cọc</span>}</span>
             </div>
-            <div className="mh-r"><span>Cọc dự kiến</span><span>{so(row.deposit_expected)} đ</span></div>
+            <div className="mh-r"><span>Số hợp đồng</span><span>{row.contract_number || <span className="mh-mo3">Chưa có</span>}</span></div>
           </>
         )}
         {henGiao && (

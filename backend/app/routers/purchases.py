@@ -1131,7 +1131,8 @@ def update_purchase_contract(
 def get_purchase_supplier_credit(
     request_id: int,
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
-    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    # Kế toán > Đơn mua hàng mở cùng ngăn đơn này — cảnh báo phải có đúng lúc DUYỆT.
+    user: Annotated[User, Depends(require_any_permission((MODULE, "read"), (MODULE_KE_TOAN, "read")))],
 ) -> SupplierCreditOut:
     """Nợ hiện tại của NCC so với hạn mức — CẢNH BÁO MỀM, không chặn gì (Đ6)."""
     try:

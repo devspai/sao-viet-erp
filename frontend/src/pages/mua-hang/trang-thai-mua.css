@@ -56,6 +56,15 @@
 .mh-dk__tien > span { color: var(--ash-2); font-size: 13px; }
 .mh-dk__nhac { font-size: 12px; line-height: 1.45; color: var(--ash-2); }
 .mh-dk__nhac.is-loi { color: var(--tt-do-fg); }
+/* Hạn trả (15/10/2026): hai lựa chọn xếp dọc, ô ngày lùi vào dưới lựa chọn thứ hai. */
+.mh-dk__chon { display: flex; flex-direction: column; gap: 6px; padding-top: 7px; }
+.mh-dk__chon label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.mh-dk__chon input { margin: 0; accent-color: var(--rust); }
+.mh-dk__o .mh-dk__ngay--lui { margin-left: 24px; }
+.mh-dk__ncc { font-size: 12px; line-height: 1.5; color: var(--ash); background: var(--rule-hair); border-radius: 8px; padding: 7px 10px; }
+.mh-dk__ncc .mh-lk { font-size: 12px; }
+.mh-dk__ket { margin: 4px 0 2px; padding: 8px 12px; border-radius: 8px; background: var(--paper); font-size: 13px; color: var(--ash); }
+.mh-dk__ket span { color: var(--ink); }
 @media (max-width: 520px) {
   .mh-dk__dong { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .mh-dk__nhan { line-height: 1.4; }
@@ -149,6 +158,7 @@
 /* Số tiền không bao giờ bị bẻ giữa chừng — thiếu chỗ thì nhãn bên trái xuống dòng. */
 .mh-r > span:last-child { flex-shrink: 0; max-width: 62%; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
 .mh-r--lon > span:last-child { font-size: 15px; }
+.mh-r__phu { display: block; font-size: 12px; line-height: 1.35; color: var(--ash-3); }
 .mh-r--tong { border-top: 1px solid var(--rule-soft); margin-top: 2px; }
 .mh-vach { display: block; height: 4px; border-radius: 2px; background: var(--rule-soft); margin: 2px 0 4px; overflow: hidden; }
 .mh-vach > i { display: block; height: 100%; background: var(--tt-cam-dot); }

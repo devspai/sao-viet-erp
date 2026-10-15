@@ -1104,6 +1104,7 @@ export function PurchaseRequestsPage({
       {selected && (
         <PurchaseDetailDrawer
           onMoLenh={moLenh}
+          onMoNcc={can("nha_cung_cap", "read") ? (id) => navigate("nha-cung-cap", { openSupplierId: id }) : undefined}
           selected={selected}
           setSelectedId={setSelectedId}
           openYcmh={openYcmh}

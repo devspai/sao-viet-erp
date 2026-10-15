@@ -1,12 +1,11 @@
 // Ngăn CHI TIẾT đơn mua hàng ở màn Kế toán — phương án 3 (07/10/2026): dùng CHUNG `NganDonMua` với
 // màn Mua hàng, chỉ khác là mở thẳng tab Thanh toán (việc chính của kế toán là chi tiền), nút đầu
 // ngăn là Duyệt / Từ chối / Lập phiếu chi, và mỗi đợt còn nợ có nút Lập phiếu chi riêng.
-// Vượt hạn mức nợ nhà cung cấp là dải vàng dưới đầu ngăn — chỉ nhắc, không chặn.
+// Vượt hạn mức nợ nhà cung cấp là dải vàng dưới đầu ngăn — chỉ nhắc, không chặn; `NganDonMua` tự vẽ
+// từ `credit` (15/10/2026) để ngăn Mua hàng cũng có.
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { MuaChoLenh, PurchaseRequestRow, SupplierCredit } from "../../../../api/client";
 import { NganDonMua } from "../../../mua-hang/don-mua-chung/NganDonMua";
-
-const so = (n: number) => Math.round(n).toLocaleString("vi-VN");
 
 export function InboxDrawer({
   selected,
@@ -39,16 +38,6 @@ export function InboxDrawer({
       tabDau="tt"
       // Đơn đã huỷ: không còn nút nào (InboxRowActions tự trả null).
       hanhDong={actions(selected, true)}
-      canhBao={
-        credit?.vuot_han_muc ? (
-          <div className="mh-canh mh-canh--vang" role="status">
-            <span>
-              Đang nợ {selected.supplier_name || "nhà cung cấp"} {so(credit.no_hien_tai)} đ, vượt hạn mức{" "}
-              {so(credit.credit_limit)} đ là {so(credit.vuot_bao_nhieu)} đ. Chỉ nhắc, không chặn lập phiếu.
-            </span>
-          </div>
-        ) : undefined
-      }
       openYcmh={openYcmh}
       onMoLenh={onMoLenh}
       credit={credit}

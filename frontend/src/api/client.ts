@@ -12278,8 +12278,11 @@ export const api = {
         body: JSON.stringify({ name }),
       });
     },
-    deleteRole(token: string, roleId: number): Promise<void> {
-      return authed<void>(`/api/roles/${roleId}`, token, { method: "DELETE" });
+    /** `force`: còn người giữ vai thì máy chủ gỡ vai khỏi họ rồi xoá (15/10/2026). */
+    deleteRole(token: string, roleId: number, force = false): Promise<void> {
+      return authed<void>(`/api/roles/${roleId}${force ? "?force=true" : ""}`, token, {
+        method: "DELETE",
+      });
     },
     /** Nhân bản vai trò: vai MỚI với ma trận quyền chép y nguyên vai gốc.
      *  Bỏ `name` = máy chủ tự đặt "«tên gốc» (bản sao)"; bỏ `departmentId` = cùng phòng vai gốc.

@@ -196,7 +196,7 @@ def test_moi_khoa_module_may_chu_gac_deu_co_cho_dung_o_giao_dien():
 NUT_NGUY_HIEM: list[tuple[str, str, str, tuple[str, ...]]] = [
     # (mô tả, module, action, thư mục màn giao diện)
     ("Chốt kỳ công / Mở lại kỳ", "cham_cong", "lock", MAN_CHAM_CONG),
-    ("Duyệt / từ chối PMH", "ke_toan", "approve", MAN_KE_TOAN_DON_MUA_HANG),
+    ("Duyệt đơn mua hàng", "ke_toan", "approve", MAN_KE_TOAN_DON_MUA_HANG),
     # Gộp về ô "Thao tác" 12/08/2026 — ô riêng `manage_status` đã bỏ khỏi ma trận.
     ("Sửa số nhận · Mở lại đơn · Đóng đơn", "thu_mua", "update", MAN_MUA_HANG_PHIEU),
     # GỘP VỀ MÀN CHẤM CÔNG 15/08/2026 (mg 0194) — hai tab này vốn nằm trong màn đó, không phải

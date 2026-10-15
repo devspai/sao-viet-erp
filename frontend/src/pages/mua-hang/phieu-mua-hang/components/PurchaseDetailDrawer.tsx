@@ -1,11 +1,12 @@
 // Ngăn CHI TIẾT ĐƠN MUA ở màn Mua hàng — phương án 3 (07/10/2026): thân ngăn là `NganDonMua` dùng
 // CHUNG với Kế toán; ở đây chỉ còn cụm nút đầu ngăn và các việc trên đợt giao của Thu mua.
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import {
   api,
   type MuaChoLenh,
   type PurchaseDeliveryRow,
   type PurchaseRequestRow,
+  type SupplierCredit,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { useCan } from "../../../../auth/permissions";
@@ -27,6 +28,7 @@ export function PurchaseDetailDrawer({
   setSelectedId,
   openYcmh,
   onMoLenh,
+  onMoNcc,
   canUpdate,
   canApprovePurchase,
   updateRow,
@@ -48,6 +50,8 @@ export function PurchaseDetailDrawer({
   /** Thiếu = không có ô Xem màn Yêu cầu mua hàng ⇒ mã chỉ hiện dạng chữ. */
   openYcmh?: (code: string) => void;
   onMoLenh?: (l: MuaChoLenh) => void;
+  /** Mở hồ sơ NCC — thiếu = không có quyền xem màn Nhà cung cấp. */
+  onMoNcc?: (supplierId: number) => void;
   canUpdate: boolean;
   canApprovePurchase: boolean;
   updateRow: (next: PurchaseRequestRow) => void;
@@ -95,6 +99,22 @@ export function PurchaseDetailDrawer({
   // "Nhập kho" nhảy sang màn Kho, tab Đề nghị nhập với form điền sẵn ⇒ hỏi đúng ô mở tab đó
   // (`kho:request`), KHÔNG phải `kho:create` — bộ phận mua hàng có `request` mà không có `create`.
   const coQuyenNhapKho = can("kho", "request");
+
+  // Hạn mức và tiền đang nợ NCC (15/10/2026): trước đây chỉ ngăn Kế toán nạp, người lập đơn và đặt
+  // cọc không biết NCC đã vượt hạn mức. Một lần một đơn, chỉ khi mở ngăn; hỏng thì nuốt — cảnh báo phụ.
+  const [credit, setCredit] = useState<SupplierCredit | null>(null);
+  useEffect(() => {
+    if (!token || selected.supplier_id == null) {
+      setCredit(null);
+      return;
+    }
+    let bo = false;
+    api.purchaseRequests
+      .supplierCredit(token, selected.id)
+      .then((data) => { if (!bo) setCredit(data); })
+      .catch(() => { if (!bo) setCredit(null); });
+    return () => { bo = true; };
+  }, [token, selected.id, selected.supplier_id]);
 
   // Cụm nút đầu ngăn — cùng kiểu với ngăn Yêu cầu mua: nút thường có icon, VIỆC TIẾP THEO của đơn
   // (Gửi duyệt / Đã đặt hàng / Ghi đợt giao) tô màu và đứng cuối bên phải; In, Sửa, Huỷ để trơn.
@@ -205,6 +225,8 @@ export function PurchaseDetailDrawer({
       hanhDong={actionButtons(selected)}
       openYcmh={openYcmh}
       onMoLenh={onMoLenh}
+      onMoNcc={onMoNcc}
+      credit={credit}
       viecDot={{
         ghiDuoc: canUpdate && GHI_DOT_DUOC.includes(selected.status),
         nhapKhoDuoc: canUpdate && coQuyenNhapKho,

@@ -1306,6 +1306,17 @@ def test_vuot_han_muc_khong_chan_lap_don_moi(client):
     assert tin.json()["vuot_han_muc"] is True
 
 
+def test_ke_toan_xem_duoc_canh_bao_han_muc_ncc(client):
+    """Kế toán duyệt đơn ở màn của mình, không có quyền Mua hàng — vẫn phải thấy cảnh báo hạn mức."""
+    headers = _headers(client)
+    supplier = _supplier(client, headers, name="NCC Han Muc Ke Toan")
+    don = _don(client, headers, supplier["id"])
+    tok = _token_vai("chi-ke-toan", module="ke_toan", can_read=True)
+    tin = client.get(f"/api/purchase-requests/{don['id']}/supplier-credit",
+                     headers={"Authorization": f"Bearer {tok}"})
+    assert tin.status_code == 200, tin.text
+
+
 # --- hoá đơn: nhiều đợt chung một số ----------------------------------------
 
 
