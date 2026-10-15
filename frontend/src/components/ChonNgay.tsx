@@ -83,9 +83,12 @@ function useViTriNoi(mo: boolean, neo: RefObject<HTMLElement>, hop: RefObject<HT
       if (!r) return;
       const h = hop.current?.offsetHeight ?? 360;
       const w = hop.current?.offsetWidth ?? 300;
-      const duoi = r.bottom + 6 + h <= window.innerHeight - 8 || r.top - 6 - h < 8;
+      const duoi = r.bottom + 6 + h <= window.innerHeight - 8;
+      const tren = r.top - 6 - h >= 8;
+      // Dưới lẫn trên đều thiếu chỗ (điện thoại: ô nằm giữa màn, lịch ngày-giờ cao ~440px) ⇒ kéo hộp
+      // lên cho đáy chạm mép màn, đè lên ô — thà che ô còn hơn mất hàng nút "Bây giờ / Xong" dưới đáy.
       setVt({
-        top: duoi ? r.bottom + 6 : r.top - 6 - h,
+        top: duoi ? r.bottom + 6 : tren ? r.top - 6 - h : Math.max(8, window.innerHeight - 8 - h),
         left: Math.min(Math.max(8, r.left), window.innerWidth - w - 8),
       });
     };
