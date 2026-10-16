@@ -2019,6 +2019,7 @@ vật tư/dịch vụ, dùng để chọn vào phiếu yêu cầu mua hàng.
 | `payment_terms`  | `String(255)` → `VARCHAR(255)`                         | —      | yes  | —              | Điều khoản thanh toán tham khảo.                     |
 | `credit_limit`   | `BigInteger` → `BIGINT`                                | —      | no   | `0`            | HẠN MỨC công nợ (VNĐ) — trần tiền được nợ NCC này. `0` = không đặt hạn mức. Chỉ CẢNH BÁO MỀM, không chặn ở đâu. Migration 0168. |
 | `credit_days`    | `Integer` → `INTEGER`                                  | —      | yes  | —              | ĐỊNH MỨC công nợ = số NGÀY cho nợ từ ngày giao; dùng suy hạn trả của đợt giao. `0` = trả ngay · `NULL` = CHƯA đặt hạn (đợt giao không vào cột Quá hạn). Migration 0168. |
+| `debt_cutoff_day` | `Integer` → `INTEGER` | — | yes | — | Cách tính hạn trả của NCC: `NULL` = từ ngày hoá đơn (chưa có thì ngày nhận) + `credit_days`; 1–31 = **chốt công nợ hằng tháng** ngày đó (31 = cuối tháng, tháng ngắn rơi về ngày cuối) ⇒ hạn = mốc chốt gần nhất không sớm hơn ngày hoá đơn + `credit_days`. Điều khoản thuộc NCC, đơn mua không có điều khoản riêng. Sửa chỉ áp cho đợt ghi từ đó — đợt cũ đã chụp hạn vào `purchase_deliveries.due_date`. Migration 0415 dời từ `purchase_requests.debt_cutoff_day`. |
 | `status`         | `String(16)` → `VARCHAR(16)`                           | —      | no   | `"active"`     | Trạng thái `active`/`inactive`.                      |
 | `nhan_gia_cong`  | `Boolean` → `BOOLEAN`                                  | —      | no   | `false`        | Nhận gia công ngoài; ô chọn Nhà gia công ở KHSX chỉ mời NCC đang hoạt động có cờ này (mg 0339). |
 | `note`           | `Text` → `TEXT`                                        | —      | yes  | —              | Ghi chú.                                             |
@@ -2087,7 +2088,7 @@ chỉ là một con số cộng dồn trên dòng nên công nợ chỉ biết "
 | `purchase_request_id` | `Integer` → `INTEGER` | **FK→purchase_requests.id** (CASCADE), **IX** | no | — | Phiếu mua chứa đợt giao này. |
 | `seq_no` | `Integer` → `INTEGER` | **U** cùng `purchase_request_id` | no | — | Đợt 1, 2, 3… trong phạm vi MỘT phiếu mua. Cố ý không cấp mã chứng từ toàn hệ. |
 | `delivery_date` | `Date` → `DATE` | — | no | — | Ngày hàng về — gốc tính hạn trả. |
-| `due_date` | `Date` → `DATE` | — | yes | — | Hạn trả riêng của đợt. `NULL` ⇒ suy `delivery_date + suppliers.credit_days`; NCC chưa khai số ngày thì đợt KHÔNG có hạn ⇒ không vào cột Quá hạn. |
+| `due_date` | `Date` → `DATE` | — | yes | — | Hạn trả của đợt, MÁY CHỤP lúc ghi/sửa đợt và gán hoá đơn theo điều khoản NCC lúc đó (`tinh_han_dot`); sửa điều khoản NCC không kéo hạn đợt đã chụp. `NULL` = lúc ghi NCC chưa khai số ngày cho nợ ⇒ đọc sống theo NCC; vẫn chưa khai thì đợt KHÔNG có hạn ⇒ không vào cột Quá hạn. |
 | `invoice_symbol` | `String(64)` → `VARCHAR(64)` | — | yes | — | Ký hiệu hoá đơn (mg 0404). Một hoá đơn = cặp ký hiệu + số. |
 | `invoice_number` | `String(64)` → `VARCHAR(64)` | **IX** | yes | — | Số hoá đơn. Nhiều đợt mang CÙNG ký hiệu + số = cùng MỘT hoá đơn (NCC hay giao 3 đợt rồi mới xuất một hoá đơn chung). |
 | `invoice_date` | `Date` → `DATE` | — | yes | — | Ngày hoá đơn. |
@@ -2299,7 +2300,6 @@ duyệt trực tiếp trên phiếu này trước khi Thu mua mua hàng.
 | `reject_reason`       | `Text` → `TEXT`                                        | —                           | yes  | —              | Lý do **từ chối · huỷ · đóng đơn · mở lại**. Tách hẳn khỏi `content`: trước đây `cancel()` chạy `row.note = reason` ⇒ **ghi đè mất** ghi chú của người lập. Migration 0171. |
 | `needed_date`         | `Date` → `DATE`                                        | —                           | yes  | —              | Ngày cần hàng.                                                                                         |
 | `expected_receipt_date` | `Date` → `DATE`                                        | —                           | yes  | —              | Ngày dự kiến nhận hàng (NCC hẹn giao) — migration 0038.                                                |
-| `debt_cutoff_date`    | `Date` → `DATE`                                        | —                           | yes  | —              | **NGÀY CHỐT CÔNG NỢ** NCC báo cho ĐƠN. Hạn trả của **mọi** đợt giao trong đơn = ngày này + `suppliers.credit_days` — đồng hồ chạy từ mốc CHỐT, không phải từ ngày hoá đơn, nên hàng giao 05/8 và 28/8 cùng chốt 31/8 thì cùng hạn 30/9. NULL = chưa báo ⇒ `han_tra_dot` lùi về luật cũ (ngày hoá đơn + số ngày cho nợ). Migration 0226. |
 | `contract_number`     | `String(64)` → `VARCHAR(64)`                           | —                           | yes  | —              | Số hợp đồng mua. Bản thân hợp đồng là ảnh ở `purchase_attachments` (`kind='hop_dong'`) — cố ý không dựng danh mục hợp đồng. Migration 0168. |
 | `deposit_expected`    | `BigInteger` → `BIGINT`                                | —                           | no   | `0`            | Cọc DỰ KIẾN theo hợp đồng — chỉ để NHẮC, **KHÔNG** vào công thức công nợ. Tiền cọc thật là một Phiếu chi `payment_stage='advance'`; cho số này vào công thức là trừ cọc HAI LẦN. Migration 0168. |
 | `created_by_user_id`  | `Integer` → `INTEGER`                                  | **FK→users.id**, **IX**     | yes  | —              | Người tạo phiếu.                                                                                       |
@@ -4023,7 +4023,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Thu mua (PR#8) — nhà cung cấp. One row = 1 NCC (thông tin liên hệ + nhóm + điều khoản thanh toán).
 
-**Tất cả cột:** `id`, `code`, `name`, `tax_code`, `phone`, `email`, `address`, `contact_name`, `supplier_group`, `payment_terms`, `credit_limit`, `credit_days`, `status`, `note`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `code`, `name`, `tax_code`, `phone`, `email`, `address`, `contact_name`, `supplier_group`, `payment_terms`, `credit_limit`, `credit_days`, `debt_cutoff_day`, `status`, `note`, `created_at`, `updated_at`.
 
 ---
 
@@ -4039,7 +4039,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Thu mua — phiếu mua hàng (PMH) gửi Kế toán duyệt. One row = 1 PMH.
 
-**Tất cả cột:** `id`, `code`, `status`, `supplier_id`, `purpose`, `needed_date`, `expected_receipt_date`, `debt_cutoff_date`, `created_by_user_id`, `submitted_at`, `approved_by_user_id`, `approved_at`, `note`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `code`, `status`, `supplier_id`, `purpose`, `needed_date`, `expected_receipt_date`, `created_by_user_id`, `submitted_at`, `approved_by_user_id`, `approved_at`, `note`, `created_at`, `updated_at`.
 
 ---
 

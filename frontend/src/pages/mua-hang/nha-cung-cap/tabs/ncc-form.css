@@ -106,6 +106,13 @@
 .ncc-a__o:user-invalid {
   border-color: var(--signal);
 }
+/* Nhắc khi đổi điều khoản trả: hạn của đợt giao chụp lúc ghi đợt nên chỉ hàng về từ nay theo. */
+.ncc-a__nhac {
+  display: block;
+  padding: 6px 0;
+  color: var(--ash-2);
+  font-size: 12px;
+}
 .ncc-a__o--dam {
   font-size: 14px;
   font-weight: 400;

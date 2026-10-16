@@ -156,3 +156,9 @@
 .dfa-don .kna-mo { font-size: var(--fs-xs); }
 .dfa-se-tao__tong { flex: none; margin-left: auto; display: inline-flex; align-items: baseline; gap: 10px; white-space: nowrap; }
 .dfa-se-tao__tong .kna-so { font-size: var(--fs-md, 15px); color: var(--ink); }
+
+/* Hạn trả đợt này dưới "Cộng đợt" của hộp Ghi đợt giao (15/10/2026): gõ ngày hoá đơn là thấy hạn,
+   đổi cách tính của cả đơn ngay tại đây. */
+.dgd-han { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule-soft); }
+.dgd-han__dong { display: flex; justify-content: space-between; gap: 12px; }
+.dgd-han .mh-canh { align-items: flex-start; font-size: 12.5px; }

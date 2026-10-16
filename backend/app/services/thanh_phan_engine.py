@@ -160,6 +160,32 @@ def so_mau_dan_xuat(muc_a, muc_b) -> tuple[int, int, int]:
     )
 
 
+def dem_mau_cong_thuc(muc_a, muc_b, quy_cach_in: str) -> tuple[int, int, int]:
+    """Ba biến màu của công thức — `(so_mau, so_mau_pha, so_mau_phu)`. NGUỒN DUY NHẤT cho phiếu,
+    lệnh và bài ghép (16/10/2026).
+
+    - `so_mau` "Số màu in" = SỐ KẼM MỘT TAY, đổi theo quy cách in (`so_kem_moi_tay`): mặt A CMYK +
+      Pantone, mặt B y hệt ⇒ AB 10 · tự trở/trở nhíp 5 · 1 mặt 5. Tiền in tính theo bản lên máy.
+    - `so_mau_pha` "Số màu pha" = số KẼM màu pha, cùng luật: AB đếm riêng từng mặt (Pantone ở hai
+      mặt là hai bản), tự trở/trở nhíp hợp hai mặt. Nhờ vậy `so_mau - so_mau_pha` = kẽm màu thường.
+    - `so_mau_phu` "Số màu phủ giấy" = màu process mặt A + mặt B + màu pha phân biệt — ĐÚNG nghĩa
+      cũ của `so_mau` (trước 16/10/2026). Tự trở vẫn phủ mực cả hai mặt giấy, nên mực, giờ máy
+      (`so_mau / so_mat <= 4`), bình bài phải đếm theo số này; mg 0414 đã chuyển các công thức đó.
+    """
+    a, b = tap_muc(muc_a), tap_muc(muc_b)
+    sa, sb, sp = so_mau_dan_xuat(a, b)
+    proc = set(MUC_PROCESS)
+    pa = [m for m in a if m not in proc]
+    pb = [m for m in b if m not in proc]
+    if quy_cach_in == "mot_mat":
+        kem_pha = len(pa)
+    elif quy_cach_in in ("tu_tro", "tro_nhip"):
+        kem_pha = len(set(pa) | set(pb))
+    else:
+        kem_pha = len(pa) + len(pb)
+    return so_kem_moi_tay(a, b, quy_cach_in), kem_pha, sa + sb + sp
+
+
 def _f(v, d: float = 0.0) -> float:
     if v is None:
         return d
@@ -372,7 +398,7 @@ def luong_tu_cong_thuc(formula_str: str, eval_ctx: dict) -> float | None:
     Công thức tiền của vật tư luôn có dạng *lượng × đơn giá* (tiền bắt buộc tỉ lệ thuận với giá),
     nên thay đơn giá bằng 1 thì kết quả chính là lượng, theo đúng đơn vị của đơn giá::
 
-        mực CMYK  `so_mau * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * 0.0003` → **kg**
+        mực CMYK  `so_mau_phu * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * 0.0003` → **kg**
         màng bóng `dai_in * rong_in * don_gia_vat_tu * to_sau_in`                → **m²**
 
     (Chú thích cũ ở đây nói hai công thức trên "sai thang 10⁶ vì `dai_in`/`rong_in` là milimét" —
@@ -432,7 +458,7 @@ def _rut_gon_the_so(formula_str: str, variables: dict) -> tuple[str, dict[str, s
                         args.append(a)
                         continue
                     ma = f"giu_cho_{len(giu_cho)}"
-                    giu_cho[ma] = _vi(_r(_eval_node(a, variables)))
+                    giu_cho[ma] = _vi_dau_vao(_eval_node(a, variables))
                     args.append(ast.Name(id=ma, ctx=ast.Load()))
                 node.args = args
                 return node
@@ -450,6 +476,14 @@ def format_substituted_formula(formula_str: str, variables: dict) -> str:
     if not formula_str or not formula_str.strip():
         return ""
     formula_str, giu_cho = _rut_gon_the_so(formula_str, variables)
+    # Hằng số người khai gõ thẳng vào câu (150000, 1300…) cũng định dạng vi-VN như số đã thế, nếu
+    # không thì cùng một dòng có "79.520,61" cạnh "150000" (15/10/2026). Đổi sang tên giữ chỗ để
+    # các bước chèn khoảng trắng phía dưới không đụng vào dấu "."/"," của số.
+    def _giu_hang(m):
+        ma = f"hang_so_{len(giu_cho)}"
+        giu_cho[ma] = _vi_dau_vao(float(m.group(0)))
+        return ma
+    formula_str = re.sub(r'(?<![\w.])\d+(?:\.\d+)?(?![\w.])', _giu_hang, formula_str)
     word_regex = re.compile(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b')
     def replacer(match):
         word = match.group(1)
@@ -457,12 +491,12 @@ def format_substituted_formula(formula_str: str, variables: dict) -> str:
             return word
         if word in variables:
             val = variables[word]
-            return f"{word}({_vi(val)})"
+            return f"{word}({_vi_dau_vao(val)})"
         return word
     substituted = word_regex.sub(replacer, formula_str)
     substituted = substituted.replace('*', ' × ').replace('/', ' ÷ ').replace('-', ' − ').replace('+', ' + ')
     substituted = re.sub(r'\s+', ' ', substituted).strip()
-    # Thay vế đã tính sẵn của max/min SAU CÙNG — số có thể mang dấu "−"/"." mà các bước trên
+    # Thay vế đã tính sẵn của max/min và hằng số SAU CÙNG — số có thể mang dấu "−"/"." mà các bước trên
     # lại đi chèn khoảng trắng quanh dấu phép tính.
     for ma, so in giu_cho.items():
         substituted = re.sub(rf"\b{ma}\b", so, substituted)
@@ -710,6 +744,16 @@ def _vi(n) -> str:
     return f"{n:,.2f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".")
 
 
+def _vi_dau_vao(n) -> str:
+    """Số ĐẦU VÀO trong dòng thế số — giữ đủ số lẻ (tối đa 6), bỏ số 0 thừa. KHÔNG ép 2 số lẻ như
+    `_vi`: rộng 395 mm = 0,395 m mà in "0,40" thì người kiểm nhân tay ra kết quả khác (15/10/2026)."""
+    n = _f(n)
+    if n == int(n):
+        return f"{int(n):,}".replace(",", ".")
+    s = f"{n:,.6f}".rstrip("0").rstrip(".")
+    return s.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+
+
 def _ct(dan: str, tien: float, sl: int) -> str:
     """Công thức đã-THAY-SỐ cho phiếu in: '<dẫn giải> ÷ <SL> = <đ/sp>'. sl≤0 → chỉ tổng.
 
@@ -741,7 +785,7 @@ def _step_cost_safe(cd: dict, ctx: dict, warnings: list[str], ten: str) -> tuple
         return 0.0, "lỗi cấu hình — 0đ"
     rate = res.get("rate_used")
     bq = res.get("basis_qty")
-    ghi = f"{_vi(bq)} × {_vi(rate)}đ" if (rate is not None and bq is not None) else ""
+    ghi = f"{_vi_dau_vao(bq)} × {_vi_dau_vao(rate)}đ" if (rate is not None and bq is not None) else ""
     return _f(res.get("total")), ghi
 
 
@@ -981,7 +1025,8 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         muc_a, muc_b = tap_muc_tu_so(
             tp.get("so_mau_a"), tp.get("so_mau_b"), tp.get("so_mau_pha"))
     so_mau_a, so_mau_b, so_mau_pha = so_mau_dan_xuat(muc_a, muc_b)
-    so_mau = so_mau_a + so_mau_b + so_mau_pha
+    # Ba BIẾN công thức (khác ba cột trên): Số màu in = số kẽm một tay, đổi theo quy cách in.
+    bien_mau, bien_mau_pha, bien_mau_phu = dem_mau_cong_thuc(muc_a, muc_b, qc)
     co_in = bool(tp.get("co_in", True))
 
     # --- Biến đổi đơn vị cho biến công thức (mm -> m) ---
@@ -1009,7 +1054,8 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         so_luong=sl, so_con=con,
         so_trang=so_trang, trang_moi_tay=trang_moi_tay,
         to_dau_vao=to_dau_vao, to_sau_in=to_sau_in, to_nguyen=to_nguyen,
-        so_mau=so_mau, so_mau_pha=so_mau_pha, so_mat=passes, so_kem=so_kem,
+        so_mau=bien_mau, so_mau_pha=bien_mau_pha, so_mau_phu=bien_mau_phu,
+        so_mat=passes, so_kem=so_kem,
         dinh_luong=dinh_luong,
     )
 

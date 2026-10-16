@@ -706,7 +706,7 @@ class AccountingService:
                 "delivery_id": m["delivery"].id,
                 "seq_no": m["delivery"].seq_no,
                 "delivery_date": m["delivery"].delivery_date,
-                "due_date": han_tra_dot(m["delivery"], row.supplier, row.debt_cutoff_date),
+                "due_date": han_tra_dot(m["delivery"], row.supplier),
                 "invoice_symbol": m["delivery"].invoice_symbol,
                 "invoice_number": m["delivery"].invoice_number,
                 "invoice_date": m["delivery"].invoice_date,
@@ -853,7 +853,7 @@ class AccountingService:
             han
             for m in phan_bo
             if m["con_no"] > 0
-            and (han := han_tra_dot(m["delivery"], row.supplier, row.debt_cutoff_date)) is not None
+            and (han := han_tra_dot(m["delivery"], row.supplier)) is not None
         ]
         return min(cac_han, default=None)
 

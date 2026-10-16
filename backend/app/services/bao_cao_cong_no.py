@@ -518,7 +518,7 @@ def _khoan_phai_tra(don, *, den_ngay: date):
                 # Số ĐỢT TRONG ĐƠN, cùng cách ghi với dòng "Hàng đã nhận" của sổ chi tiết.
                 "so_ct": f"{pr.code} đợt {d.seq_no}",
                 "ngay": d.delivery_date,
-                "han": han_tra_dot(d, pr.supplier, pr.debt_cutoff_date),
+                "han": han_tra_dot(d, pr.supplier),
                 "goc": int(m["amount"]),
                 "con_no": int(m["con_no"]),
             }

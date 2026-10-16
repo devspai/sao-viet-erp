@@ -174,3 +174,46 @@ def test_buoc_khong_tinh_duoc_giu_nguyen_dong_giay_da_luu(db):
     db.refresh(lsx)
     _svc(db)._dong_bo_dong_giay(lsx)
     assert _dong_giay(b) == ("to", 123.0, 790, 1090, "to_nguyen")
+
+
+def _lenh_giay_chi_can(db, ma, don_vi_gia, *, gsm=250):
+    """Giấy tờ mà mã CHỈ khai nhóm cân (không khai tờ) — chuỗi Cắt tờ → In."""
+    from app.models.customer import Customer
+    c = Customer(code=f"KH-{ma}", name="Khách giấy cân")
+    db.add(c)
+    db.commit()
+    g = _giay(db, ma=ma, gsm=gsm, don_vi=don_vi_gia)
+    g.don_vi_them = []
+    db.commit()
+    lsx = _lenh(db, c, g)
+    cat = _buoc(db, lsx, 1, "Cắt tờ", TRAM_TO_NGUYEN, TRAM_TO, g)
+    in_ = _buoc(db, lsx, 2, "In", TRAM_TO, TRAM_TO, g)
+    db.refresh(lsx)
+    return lsx, cat, in_
+
+
+def test_giay_chi_khai_kg_dong_giay_quy_to_ra_kg_giu_kho_hai_canh(db):
+    """16/10/2026: mã giấy mua theo kg, không khai tờ ⇒ lệnh vẫn đếm tờ nhưng dòng giấy (thứ kho và
+    kế hoạch vật tư đọc) quy ra kg theo khổ của dòng × gsm, khổ giữ đủ hai cạnh."""
+    lsx, cat, in_ = _lenh_giay_chi_can(db, "IV-KG", "kg")
+    _svc(db)._ap_chuoi_nguoc(lsx)
+    goc, sl, kr, kd, dv = _dong_giay(cat)
+    assert (goc, kr, kd, dv) == ("kg", 790, 1090, "kg")
+    assert sl == pytest.approx(float(cat.so_luong_vao) * 0.79 * 1.09 * 0.25, rel=1e-6)
+    goc, sl, kr, kd, dv = _dong_giay(in_)
+    assert (goc, kr, kd, dv) == ("kg", 545, 790, "kg")
+    assert sl == pytest.approx(float(in_.so_luong_vao) * 0.545 * 0.79 * 0.25, rel=1e-6)
+
+
+def test_giay_chi_khai_tan_dong_giay_ra_tan(db):
+    lsx, cat, _in = _lenh_giay_chi_can(db, "IV-TAN", "tan")
+    _svc(db)._ap_chuoi_nguoc(lsx)
+    goc, sl, kr, kd, dv = _dong_giay(cat)
+    assert (goc, dv) == ("tan", "tan")
+    assert sl == pytest.approx(float(cat.so_luong_vao) * 0.79 * 1.09 * 0.25 / 1000, rel=1e-6)
+
+
+def test_giay_chi_khai_kg_thieu_gsm_giu_nguyen_dong_da_luu(db):
+    lsx, cat, _in = _lenh_giay_chi_can(db, "IV-0", "kg", gsm=0)
+    _svc(db)._dong_bo_dong_giay(lsx)
+    assert _dong_giay(cat)[1] == 1.0     # số rác ban đầu, không ghi đè bằng số tờ đội lốt kg

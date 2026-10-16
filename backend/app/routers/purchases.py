@@ -47,6 +47,7 @@ from ..schemas.purchase import (
     LuaChonLocMa,
     PurchaseRequestListOut,
     PurchaseRequestOut,
+    PurchaseSubmitIn,
     ReasonIn,
     ReceivedLinesIn,
     SupplierCreditOut,
@@ -838,9 +839,12 @@ def submit_purchase_request(
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     notifications: NotificationRepo,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+    payload: PurchaseSubmitIn | None = None,
 ) -> PurchaseRequestOut:
     try:
-        row = svc.submit(request_id, actor=user)
+        row = svc.submit(
+            request_id, actor=user, deposit_expected=payload.deposit_expected if payload else None
+        )
     except PurchaseError as exc:
         raise _map_error(exc) from None
     _notify_purchase_changed(
@@ -1116,7 +1120,6 @@ def update_purchase_contract(
             request_id,
             contract_number=payload.contract_number,
             deposit_expected=payload.deposit_expected,
-            debt_cutoff_date=payload.debt_cutoff_date,
             actor=user,
         )
     except PurchaseError as exc:

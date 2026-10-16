@@ -99,6 +99,9 @@ class SupplierIn(BaseModel):
     # ĐỊNH MỨC = số NGÀY cho nợ kể từ ngày giao. 0 = trả ngay · None = CHƯA ĐẶT hạn (đợt giao của
     # NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép None thành 0.
     credit_days: int | None = Field(default=None, ge=0)
+    # Cách tính hạn trả (16/10/2026): None = từ ngày hoá đơn; 1–31 = chốt hằng tháng ngày đó
+    # (31 = cuối tháng). Thuộc NCC — đơn mua không có điều khoản riêng.
+    debt_cutoff_day: int | None = Field(default=None, ge=1, le=31)
     status: str = Field(default="active", max_length=16)
     # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
     nhan_gia_cong: bool = False
@@ -153,6 +156,7 @@ class SupplierRow(BaseModel):
     payment_terms: str | None = None
     credit_limit: int = 0
     credit_days: int | None = None
+    debt_cutoff_day: int | None = None
     status: str
     nhan_gia_cong: bool = False
     note: str | None = None
@@ -690,12 +694,12 @@ class PurchaseDeliveryLineIn(BaseModel):
 
 class PurchaseDeliveryIn(BaseModel):
     delivery_date: date
-    due_date: date | None = None
     invoice_symbol: str | None = Field(default=None, max_length=64)
     invoice_number: str | None = Field(default=None, max_length=64)
     invoice_date: date | None = None
     note: str | None = Field(default=None, max_length=2000)
-    # None khi SỬA = giữ nguyên các dòng hàng, chỉ đổi phần đầu đợt (ngày, hạn, hoá đơn).
+    # None khi SỬA = giữ nguyên các dòng hàng, chỉ đổi phần đầu đợt (ngày, hoá đơn).
+    # Hạn trả KHÔNG nhận từ ngoài (16/10/2026): máy tính theo điều khoản NCC lúc ghi/sửa đợt.
     lines: list[PurchaseDeliveryLineIn] | None = None
 
 
@@ -708,11 +712,14 @@ class PurchaseInvoiceAssignIn(BaseModel):
     invoice_date: date | None = None
 
 
+class PurchaseSubmitIn(BaseModel):
+    # Cọc CHỐT lúc gửi duyệt (15/10/2026): người duyệt đồng ý đúng con số này. None = giữ số đang
+    # có trên đơn (gọi cũ không gửi thân).
+    deposit_expected: int | None = Field(default=None, ge=0)
+
+
 class PurchaseContractIn(BaseModel):
     contract_number: str | None = Field(default=None, max_length=64)
-    # NGÀY CHỐT CÔNG NỢ do NCC báo cho ĐƠN. Bỏ trống = chưa báo ⇒ hạn trả lùi về luật cũ
-    # (ngày hoá đơn + số ngày cho nợ), không đơn nào đổi hạn ngoài ý muốn.
-    debt_cutoff_date: date | None = None
     # Cọc DỰ KIẾN — chỉ để đối chiếu, KHÔNG vào công thức công nợ (cọc thật là phiếu chi).
     deposit_expected: int = Field(default=0, ge=0)
 
@@ -745,10 +752,10 @@ class PurchaseRequestOut(BaseModel):
     purpose: str | None = None
     needed_date: date | None = None
     expected_receipt_date: date | None = None
-    #: Ngày chốt công nợ NCC báo cho đơn — hạn trả MỌI đợt = ngày này + `suppliers.credit_days`.
-    debt_cutoff_date: date | None = None
-    #: Chụp `suppliers.credit_days` để màn hình suy hạn trả ngay tại chỗ gõ ngày chốt.
+    #: Điều khoản trả của NCC (16/10/2026 — thuộc NCC, đơn không có điều khoản riêng): số ngày cho
+    #: nợ + ngày chốt hằng tháng (1–31, 31 = cuối tháng; None = tính từ ngày hoá đơn).
     supplier_credit_days: int | None = None
+    supplier_debt_cutoff_day: int | None = None
     created_by_user_id: int | None = None
     created_by_name: str | None = None
     submitted_at: datetime | None = None
@@ -781,6 +788,8 @@ class PurchaseRequestOut(BaseModel):
     # ứng thêm là ca có thật, và mỗi lần tiền rời két phải có chứng từ riêng.
     coc_da_lap: list[PurchaseDepositVoucherOut] = Field(default_factory=list)
     coc_da_chi: int = 0
+    #: Cọc đã chi mà CHƯA bù vào đợt giao nào — đợt ghi tiếp theo sẽ được trừ phần này trước.
+    coc_chua_bu: int = 0
     payment_status: str
     nhom_tien: str | None = None
     payment_voucher_count: int

@@ -7138,6 +7138,9 @@ export interface SupplierRow {
   /** ĐỊNH MỨC = số NGÀY cho nợ kể từ ngày giao. `0` = trả ngay · `null` = CHƯA ĐẶT hạn (đợt giao
       của NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép null thành 0. */
   credit_days: number | null;
+  /** Cách tính hạn trả (16/10/2026, thuộc NCC): `null` = từ ngày hoá đơn · 1–31 = chốt công nợ
+   *  hằng tháng ngày đó (31 = cuối tháng). Sửa chỉ áp cho đợt giao ghi từ đó. */
+  debt_cutoff_day: number | null;
   status: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong: boolean;
@@ -7208,6 +7211,8 @@ export interface SupplierInput {
   credit_limit?: number;
   /** Số ngày cho nợ — `0` = trả ngay · `null` = chưa đặt hạn. */
   credit_days?: number | null;
+  /** Ngày chốt công nợ hằng tháng 1–31 (31 = cuối tháng) · `null` = tính từ ngày hoá đơn. */
+  debt_cutoff_day?: number | null;
   status?: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong?: boolean;
@@ -8337,7 +8342,6 @@ export interface PurchaseDeliveryLineInput {
 
 export interface PurchaseDeliveryInput {
   delivery_date: string;
-  due_date?: string | null;
   invoice_symbol?: string | null;
   invoice_number?: string | null;
   invoice_date?: string | null;
@@ -8356,9 +8360,6 @@ export interface PurchaseInvoiceAssignInput {
 
 export interface PurchaseContractInput {
   contract_number?: string | null;
-  /** NGÀY CHỐT CÔNG NỢ do NCC báo cho ĐƠN (YYYY-MM-DD). Hạn trả MỌI đợt của đơn = ngày này +
-   *  số ngày cho nợ của NCC. `null` = chưa báo ⇒ hạn lùi về luật cũ (ngày hoá đơn + số ngày). */
-  debt_cutoff_date?: string | null;
   /** Cọc DỰ KIẾN — chỉ để đối chiếu, KHÔNG vào công thức công nợ (cọc thật là phiếu chi). */
   deposit_expected: number;
 }
@@ -8406,11 +8407,10 @@ export interface PurchaseRequestRow {
   created_at: string;
   updated_at: string;
   contract_number: string | null;
-  /** NGÀY CHỐT CÔNG NỢ NCC báo cho đơn. Hạn trả MỌI đợt = ngày này + số ngày cho nợ của NCC —
-   *  đồng hồ chạy từ mốc CHỐT, không phải từ ngày hoá đơn. `null` = chưa báo. */
-  debt_cutoff_date: string | null;
-  /** Chụp `credit_days` của NCC — để suy hạn trả ngay tại ô gõ ngày chốt. `null` = NCC chưa khai. */
+  /** Điều khoản trả của NCC (16/10/2026 — đơn không có điều khoản riêng): số ngày cho nợ
+   *  (`null` = NCC chưa khai) + ngày chốt hằng tháng (`null` = tính từ ngày hoá đơn). */
   supplier_credit_days: number | null;
+  supplier_debt_cutoff_day: number | null;
   /** Cọc DỰ KIẾN — chỉ để nhắc, KHÔNG vào công thức công nợ. */
   deposit_expected: number;
   total_estimate: number;
@@ -8431,6 +8431,8 @@ export interface PurchaseRequestRow {
    *  riêng (sửa phiếu cũ lên số to hơn là làm phiếu không khớp lần chi thật). */
   coc_da_lap: { code: string; doc_no: string | null; amount: number; voucher_date: string }[];
   coc_da_chi: number;
+  /** Cọc đã chi mà CHƯA trừ vào đợt giao nào — đợt ghi tiếp theo được trừ phần này trước. */
+  coc_chua_bu: number;
   payment_status: "unpaid" | "partial" | "paid";
   /** Nhóm cột Tiền (máy chủ xếp, cùng hàm với bộ lọc). `null` = chưa phát sinh nợ. */
   nhom_tien: NhomTien | null;
@@ -15633,8 +15635,12 @@ export const api = {
     remove(token: string, id: number): Promise<void> {
       return authed<void>(`/api/purchase-requests/${id}`, token, { method: "DELETE" });
     },
-    submit(token: string, id: number): Promise<PurchaseRequestRow> {
-      return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}/submit`, token, { method: "POST" });
+    /** Gửi duyệt. `deposit_expected` = cọc chốt cùng lần gửi; bỏ trống = giữ cọc đang có. */
+    submit(token: string, id: number, input?: { deposit_expected?: number }): Promise<PurchaseRequestRow> {
+      return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}/submit`, token, {
+        method: "POST",
+        ...(input ? { body: JSON.stringify(input) } : {}),
+      });
     },
     approve(token: string, id: number): Promise<PurchaseRequestRow> {
       return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}/approve`, token, { method: "POST" });

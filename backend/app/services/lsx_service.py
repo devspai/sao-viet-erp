@@ -65,7 +65,7 @@ from ..services.dong_giay import (
     ban_do_tram, dich_chuoi, don_vi_chuoi, ma_cua_tram, tram_cua, tren_dong_giay,
 )
 from ..models.don_vi_do import DonViDo
-from ..services.kho_giay import DON_VI_TO_KHO, dong_giay_theo_dau_vao
+from ..services.kho_giay import DON_VI_TO_KHO, GocMatHang, don_vi_khai, dong_giay_theo_dau_vao
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
 from ..services.lsx_danh_muc_doi import vat_tu_lech
@@ -763,8 +763,9 @@ class LsxService:
                 if d["so_luong"] is not None:
                     # Chỉ nói NGUỒN của số — khổ đã in ngay dưới tên giấy ở ngăn bước, nhắc lại trong
                     # bong bóng là lặp; không nối mẩu bằng dấu chấm giữa.
-                    dien_giai = ("Số tờ và khổ" if d["don_vi_goc"] == DON_VI_TO_KHO
-                                 else "Số lượng và khổ rộng") + " lấy theo đầu vào của bước"
+                    dien_giai = d.get("dien_giai_nguon") or (
+                        ("Số tờ và khổ" if d["don_vi_goc"] == DON_VI_TO_KHO
+                         else "Số lượng và khổ rộng") + " lấy theo đầu vào của bước")
                 ra.append({
                     "hang_loai": HANG_GIAY, "vat_tu_id": mon_id, "don_vi_goc": d["don_vi_goc"],
                     "so_luong": (round(d["so_luong"], 3) if d["so_luong"] is not None else None),
@@ -2247,6 +2248,12 @@ class LsxService:
         # CUỐI CÙNG: dòng giấy của từng bước đọc số vào/ra vừa ghi ở trên.
         self._dong_bo_dong_giay(lsx)
 
+    def _goc_mat_hang(self) -> GocMatHang:
+        """Một `GocMatHang` cho cả lượt (đọc bảng đơn vị + cặp một lần, không hỏi lại mỗi dòng giấy)."""
+        if getattr(self, "_gmh", None) is None:
+            self._gmh = GocMatHang.tu_db(self.db)
+        return self._gmh
+
     def _dong_giay_cho_ma(self, cd, qc: dict, giay_id: int) -> dict:
         """Dòng giấy của MỘT bước ứng với mã giấy `giay_id`, ĐÃ đổi sang đơn vị của mã (spec
         2026-10-01 dong-giay-theo-dau-vao §4). Trả `dong_giay_theo_dau_vao` + `so_luong`/`don_vi`
@@ -2260,6 +2267,27 @@ class LsxService:
         # `dong_giay_theo_dau_vao` chỉ trả "kg" ở nhánh giấy khổ rộng; mọi nhánh khác đếm tờ.
         kg = d["don_vi"] == "kg"
         gia = (getattr(giay, "don_vi_gia", None) or "").strip().lower() or None
+        khai = don_vi_khai(giay) if giay is not None else []
+        gmh = self._goc_mat_hang() if khai else None
+        goc_kg = gmh.goc("kg", khai) if gmh else None
+        # Giấy tờ mà mã CHỈ khai nhóm cân (kg/tấn), không khai tờ (16/10/2026): xưởng vẫn đếm tờ,
+        # nhưng kho/mua hàng mã này chỉ có tồn theo cân ⇒ quy số tờ ra kg theo khổ của dòng × gsm.
+        # Giữ khổ hai cạnh: tồn giấy tờ mua theo kg vẫn khoá theo khổ tờ. Mã có khai tờ thì đếm tờ.
+        if (not kg and d["so_luong"] is not None and goc_kg
+                and gmh.goc(DON_VI_TO_KHO, khai) is None):
+            gsm = _f(getattr(giay, "gsm", None))
+            kg = True
+            d["don_vi"] = "kg"
+            if gsm <= 0:
+                d["so_luong"] = None
+                d["ly_do"] = "Giấy chỉ khai đơn vị theo cân mà chưa khai định lượng (gsm) nên không quy được số tờ ra kg."
+            else:
+                d["so_luong"] = (d["so_luong"] * (d["kho_rong"] / 1000) * (d["kho_dai"] / 1000)
+                                 * gsm / 1000)
+                d["dien_giai_nguon"] = "Số kg quy từ số tờ đầu vào của bước theo khổ và định lượng"
+        # Gốc nhóm cân = đơn vị đã khai mà nhóm của nó chứa kg (ĐVT chính là tờ, khai thêm kg vẫn
+        # ra kg); mã chưa khai gì thì lùi về ĐVT chính như trước.
+        gia = goc_kg or gia
         d["don_vi_goc"] = (gia or "kg") if kg else DON_VI_TO_KHO
         if kg and d["so_luong"] is not None:
             from ..repositories.don_vi_do_repo import DonViDoRepository

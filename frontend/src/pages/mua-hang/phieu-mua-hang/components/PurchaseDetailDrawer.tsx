@@ -13,7 +13,7 @@ import { useCan } from "../../../../auth/permissions";
 import { Button } from "../../../../components/Button";
 import { Icon } from "../../../../components/Icons";
 import { NganDonMua } from "../../don-mua-chung/NganDonMua";
-import { printPurchaseRequest } from "../print";
+import { DaiGuiDuyet } from "./DaiGuiDuyet";
 import { GHI_DOT_DUOC } from "../shared/constants";
 import type {
   CloseModalState,
@@ -88,14 +88,6 @@ export function PurchaseDetailDrawer({
     (canDuyetChi ||
       (canUpdate && row.status === "draft" && row.created_by_user_id === user?.id));
 
-  function openPrint(row: PurchaseRequestRow) {
-    if (!printPurchaseRequest(row)) {
-      setError(
-        "Trình duyệt đang chặn cửa sổ in. Vui lòng cho phép pop-up rồi thử lại.",
-      );
-    }
-  }
-
   // "Nhập kho" nhảy sang màn Kho, tab Đề nghị nhập với form điền sẵn ⇒ hỏi đúng ô mở tab đó
   // (`kho:request`), KHÔNG phải `kho:create` — bộ phận mua hàng có `request` mà không có `create`.
   const coQuyenNhapKho = can("kho", "request");
@@ -117,7 +109,7 @@ export function PurchaseDetailDrawer({
   }, [token, selected.id, selected.supplier_id]);
 
   // Cụm nút đầu ngăn — cùng kiểu với ngăn Yêu cầu mua: nút thường có icon, VIỆC TIẾP THEO của đơn
-  // (Gửi duyệt / Đã đặt hàng / Ghi đợt giao) tô màu và đứng cuối bên phải; In, Sửa, Huỷ để trơn.
+  // (Đã đặt hàng / Ghi đợt giao) tô màu và đứng cuối bên phải; In, Sửa, Huỷ để trơn.
   // Trước 11/10/2026 dùng `RowActionButton` (nút cỡ ô bảng, padding 2px) nên đầu ngăn trông lép.
   function actionButtons(row: PurchaseRequestRow) {
     const busy = (key: string) => actionBusy === `${key}:${row.id}`;
@@ -128,9 +120,7 @@ export function PurchaseDetailDrawer({
         {/* "Xem chi tiết" đã bỏ: bấm vào DÒNG là mở drawer, mà nút này lại nằm TRONG drawer nên
             thừa. Thao tác nằm GỌN trong bản ghi (drawer), không còn cột "Thao tác" ngoài dòng
             (24/08/2026). */}
-        <Button variant="ghost" onClick={() => openPrint(row)}>
-          <Icon name="printer" size={14} /> In phiếu
-        </Button>
+        {/* Nút "In phiếu" đã gỡ ở mọi trạng thái (15/10/2026, user yêu cầu ẩn). */}
         {canEdit && (
           <Button variant="ghost" onClick={() => openEdit(row)}>
             <Icon name="pencil" size={14} /> Sửa
@@ -175,20 +165,8 @@ export function PurchaseDetailDrawer({
             </Button>
           )}
         {/* KHÔNG có nút Duyệt / Từ chối ở màn Mua hàng (chủ 04/08/2026: "phải duyệt ở phần kế
-            toán chứ"). Duyệt đơn mua là quyết định CHI TIỀN — nằm ở Kế toán thu mua → Đơn mua. */}
-        {canUpdate && (row.status === "draft" || row.status === "rejected") && (
-          <Button
-            variant="accent"
-            loading={busy("submit")}
-            onClick={() =>
-              runAction(row, "submit", () =>
-                api.purchaseRequests.submit(token!, row.id),
-              )
-            }
-          >
-            <Icon name="send" size={14} /> Gửi duyệt
-          </Button>
-        )}
+            toán chứ"). Duyệt đơn mua là quyết định CHI TIỀN — nằm ở Kế toán thu mua → Đơn mua.
+            Nút GỬI DUYỆT dời xuống dải "Tiếp theo: gửi duyệt" (15/10/2026) để đi cùng ô cọc. */}
         {canUpdate && row.status === "approved" && (
           <Button
             variant="accent"
@@ -223,9 +201,24 @@ export function PurchaseDetailDrawer({
       duongDan="Mua hàng"
       tabDau="mh"
       hanhDong={actionButtons(selected)}
+      tiepTheo={
+        canUpdate && ["draft", "rejected", "pending_approval"].includes(selected.status) ? (
+          <DaiGuiDuyet
+            row={selected}
+            credit={credit}
+            guiBusy={actionBusy === `submit:${selected.id}`}
+            onGui={(coc) =>
+              runAction(selected, "submit", () =>
+                api.purchaseRequests.submit(token!, selected.id, { deposit_expected: coc }),
+              )
+            }
+            onDoi={updateRow}
+            onMoNcc={onMoNcc}
+          />
+        ) : undefined
+      }
       openYcmh={openYcmh}
       onMoLenh={onMoLenh}
-      onMoNcc={onMoNcc}
       credit={credit}
       viecDot={{
         ghiDuoc: canUpdate && GHI_DOT_DUOC.includes(selected.status),

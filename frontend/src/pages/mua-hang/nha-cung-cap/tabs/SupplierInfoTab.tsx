@@ -13,6 +13,13 @@ import { OGoDinhDang } from "../../../../components/OGoDinhDang";
 import type { SupplierInput } from "../../../../api/client";
 import "./ncc-form.css";
 
+/** Cách tính hạn trả: "" = từ ngày hoá đơn · 31 = chốt cuối tháng · 1–30 = chốt ngày đó. */
+const CACH_TINH_HAN = [
+  { gt: "", chu: "Ngày hoá đơn" },
+  { gt: "31", chu: "Chốt cuối tháng" },
+  ...Array.from({ length: 30 }, (_, i) => ({ gt: String(i + 1), chu: `Chốt ngày ${i + 1} hằng tháng` })),
+];
+
 /** Một dòng nhãn và giá trị. `rong` = trải hết bề ngang khối (không chia đôi). */
 function Dong({
   nhan,
@@ -77,13 +84,22 @@ export function SupplierInfoTab({
   form,
   setForm,
   nhomGoiY,
+  goc,
 }: {
   form: SupplierInput;
   setForm: Dispatch<SetStateAction<SupplierInput>>;
+  /** Hồ sơ đang lưu (sửa NCC) — để nhắc đổi điều khoản không kéo hạn các đợt đã ghi. */
+  goc?: SupplierInput | null;
   /** Nhóm hàng đang có trong danh mục — gợi ý cho ô Nhóm hàng để khỏi gõ lệch ("Giấy" / "giấy in"). */
   nhomGoiY: string[];
 }) {
   const doi = (patch: Partial<SupplierInput>) => setForm((f) => ({ ...f, ...patch }));
+  // Điều khoản trả thuộc NCC (16/10/2026): mọi đơn của NCC dùng chung. Hạn của đợt giao chụp lúc
+  // ghi đợt, nên đổi ở đây chỉ áp cho hàng về từ nay.
+  const doiDieuKhoan =
+    goc != null &&
+    ((goc.credit_days ?? null) !== (form.credit_days ?? null) ||
+      (goc.debt_cutoff_day ?? null) !== (form.debt_cutoff_day ?? null));
 
   return (
     <div className="ncc-a">
@@ -199,6 +215,22 @@ export function SupplierInfoTab({
               trong="Chưa thỏa thuận"
             />
           </Dong>
+          <Dong nhan="Tính hạn từ">
+            <select
+              className="ncc-a__o"
+              value={form.debt_cutoff_day ? String(form.debt_cutoff_day) : ""}
+              onChange={(e) => doi({ debt_cutoff_day: e.target.value ? Number(e.target.value) : null })}
+            >
+              {CACH_TINH_HAN.map((c) => (
+                <option key={c.gt} value={c.gt}>{c.chu}</option>
+              ))}
+            </select>
+          </Dong>
+          {doiDieuKhoan && (
+            <small className="ncc-a__nhac" role="status">
+              Áp cho hàng về từ nay. Các đợt giao đã ghi giữ hạn cũ.
+            </small>
+          )}
           {/* Dấu chấm nghìn, không `type="number"`: chín chữ số 0 liền nhau thì không ai đếm
               nổi, mà đếm sai một chữ số là sai hạn mức gấp mười. */}
           <Dong nhan="Hạn mức công nợ">

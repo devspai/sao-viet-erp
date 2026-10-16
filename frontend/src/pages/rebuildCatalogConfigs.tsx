@@ -621,7 +621,7 @@ export const CFG_GIAY: CatalogConfig = {
   columns: [
     { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
     { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
-    { key: "don_gia", label: "Đơn giá (đ/kg)", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
+    { key: "don_gia", label: "Đơn giá", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
     // Cột "Cách tính tiền" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem ở ô Công thức tính giá.
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
@@ -633,8 +633,8 @@ export const CFG_GIAY: CatalogConfig = {
     // Đơn vị THÊM (10/10/2026): cùng loại giấy lúc mua theo tờ lúc mua theo kg — hai nhóm không quy
     // đổi lẫn nhau, mỗi nhóm một dòng tồn. Máy KHÔNG còn ngầm thêm họ tờ cho giấy.
     F_DON_VI_THEM,
-    // Đơn giá theo cân — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
-    { key: "don_gia", label: "Đơn giá (đ/kg)", type: "number", group: "Giá", hint: "Đơn giá theo ĐVT đã chọn (mặc định đ/kg)" },
+    // Đơn giá theo ĐVT chính — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
+    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một ĐVT chính (đ/kg, đ/tờ, đ/ram…). Tính giá tự quy về giá một tờ hoặc một kg." },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
       nhanTab: "Công thức tính giá",
       // ĐIỀN SẴN khi thêm mới (11/09/2026), sửa/xoá được. Trước đó ô này để trống và engine âm

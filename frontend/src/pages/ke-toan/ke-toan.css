@@ -345,6 +345,13 @@
 .kt-sk-khung--tai { opacity: .6; }
 /* Bản in sao kê: ngày và số chứng từ không gãy giữa chừng ("01/01/202 6"). */
 .psheet table.kt-sk-in td:nth-child(-n+2) { white-space: nowrap; }
+/* Ký hiệu hoá đơn là MỘT mã liền ("1C26TSV") — từng gãy thành "1C26TS/V". Không xuống dòng, bớt
+   đệm hai bên để mã 7 ký tự lọt cột 11–12%. */
+.psheet table.kt-sk-in td.kt-sk__kh { white-space: nowrap; padding-left: 4px; padding-right: 4px; }
+/* Phải trả (in A4 ngang): số HĐ "0000847" và Ngày HĐ từng gãy "000084/7", "05/10/2 026" ⇒ mọi ô
+   không xuống dòng, trừ Diễn giải. */
+.psheet table.kt-sk-in--tra td { white-space: nowrap; }
+.psheet table.kt-sk-in--tra td.kt-sk__dg { white-space: normal; }
 /* Hộp hỏi giữa màn */
 .kt-hoi { position: fixed; z-index: 90; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, calc(100% - 32px));
   background: var(--canvas); border-radius: var(--r-6); box-shadow: var(--shadow-lg); }

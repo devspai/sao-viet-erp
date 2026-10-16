@@ -22,7 +22,7 @@ import { ThanhCongCuMuaHang, tabCoSo } from "../../mua-hang/loc-mua-hang/ThanhCo
 import { tabTien } from "../../mua-hang/phieu-mua-hang/tabs/PhieuListTab";
 import { TT_HANG_LOC } from "../../mua-hang/trang-thai-mua";
 import { useDebounced } from "../../../utils/useDebounced";
-import { RejectModal } from "./modals/RejectModal";
+import { DaiDuyet } from "./components/DaiDuyet";
 import { useNapTenDonVi } from "../../tenDonVi";
 import { PAGE_SIZE } from "./shared/constants";
 import {
@@ -117,8 +117,6 @@ export function AccountingPurchaseInboxPage({
     purchase: PurchaseRequestRow;
     dotId?: number | null;
   }>(null);
-  const [rejecting, setRejecting] = useState<PurchaseRequestRow | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
 
   const load = useCallback(() => {
     if (!token) return;
@@ -257,30 +255,15 @@ export function AccountingPurchaseInboxPage({
     }
   }
 
-  async function reject() {
-    if (!token || !rejecting) return;
-    if (!rejectReason.trim()) {
-      setError("Vui lòng nhập lý do từ chối.");
-      return;
-    }
-    setBusy(`reject:${rejecting.id}`);
+  /** TỪ CHỐI từ bong bóng ở dải Chờ duyệt — lỗi trả về để hiện ngay dưới ô lý do. */
+  async function reject(row: PurchaseRequestRow, lyDo: string): Promise<string | null> {
+    if (!token) return null;
     try {
-      await api.purchaseRequests.reject(
-        token,
-        rejecting.id,
-        rejectReason.trim(),
-      );
-      setRejecting(null);
-      setRejectReason("");
+      await api.purchaseRequests.reject(token, row.id, lyDo);
       load();
+      return null;
     } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.message
-          : "Không từ chối được đơn mua hàng.",
-      );
-    } finally {
-      setBusy(null);
+      return err instanceof ApiError ? err.message : "Không từ chối được đơn mua hàng.";
     }
   }
 
@@ -293,13 +276,8 @@ export function AccountingPurchaseInboxPage({
     return InboxRowActions({
       row,
       compact,
-      canApprove,
       canCreateVoucher,
-      busy,
       closeDetailThen,
-      approve,
-      setRejecting,
-      setRejectReason,
       setVoucherMode,
     });
   }
@@ -385,6 +363,17 @@ export function AccountingPurchaseInboxPage({
           openYcmh={openYcmh}
           onMoLenh={moLenh}
           actions={actions}
+          tiepTheo={
+            canApprove && selected.status === "pending_approval" ? (
+              <DaiDuyet
+                row={selected}
+                credit={credit}
+                duyetBusy={busy === `approve-${selected.id}`}
+                onDuyet={() => void approve(selected)}
+                onTuChoi={(lyDo) => reject(selected, lyDo)}
+              />
+            ) : undefined
+          }
           onLapPhieuChi={
             canCreateVoucher
               ? (dotId) => closeDetailThen(() => setVoucherMode({ purchase: selected, dotId }))
@@ -407,16 +396,6 @@ export function AccountingPurchaseInboxPage({
         />
       )}
 
-      {rejecting && (
-        <RejectModal
-          rejecting={rejecting}
-          setRejecting={setRejecting}
-          rejectReason={rejectReason}
-          setRejectReason={setRejectReason}
-          busy={busy}
-          reject={reject}
-        />
-      )}
     </main>
   );
 }

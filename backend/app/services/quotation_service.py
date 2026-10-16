@@ -892,7 +892,7 @@ class QuotationService:
     def exception_eval(self, quote: Quote) -> dict:
         """Soi 'báo giá đặc thù' trên VERSION HIỆN TẠI — cổng **theo TỪNG KHÁCH HÀNG** (redesign):
         - LUÔN áp (chung): Giá trị đơn ≥ 1 tỷ · Bán dưới vốn.
-        - Theo rào của KH (bỏ ngưỡng 15% cứng): CHIẾT KHẤU ngoài `discount_min/max_pct` · **MARKUP**
+        - Theo rào của KH (bỏ ngưỡng 15% cứng): CHIẾT KHẤU (soi từng sản phẩm) ngoài `discount_min/max_pct` · **MARKUP**
           (lợi nhuận / GIÁ VỐN — đúng con số Sale gõ ở ô Markup%) ngoài `margin_min/max_pct`. Trục
           BIÊN (lợi nhuận / giá bán) đã BỎ 29/08/2026: markup 10% ⇔ biên 9,1% nên soi bằng biên thì
           báo giá gõ đúng rào vẫn bị bắt trình duyệt. KH chưa đặt rào (None) → bỏ qua cổng đó;
@@ -913,9 +913,18 @@ class QuotationService:
         # Rào chính sách tài chính của KHÁCH (None nếu chưa đặt / khách lẻ chưa chọn). Ngoài khoảng
         # [min,max] (cả 2 chiều) → đặc thù; rào nào để None thì bỏ chiều đó.
         cust = self._customers.get_by_id(quote.customer_id) if (quote.customer_id and self._customers) else None
+        # Rào chiết khấu soi TỪNG sản phẩm khách thấy: dòng cùng nhãn `nhom` (ruột + bìa) là MỘT sản
+        # phẩm, cộng chung giá bán + chiết khấu rồi mới so.
+        sp: dict[str, dict] = {}
+        for it in version.items:
+            nh = (it.nhom or "").strip()
+            ln = sp.setdefault(nh or f"#{it.id}", {"ten": nh or it.product_name, "gross": 0.0, "discount": 0.0})
+            ln["gross"] += float(it.selling_price or 0)
+            ln["discount"] += float(it.discount_amount or 0)
         return _exc_evaluate_quote(
             subtotal=subtotal_net, total_gross=total_gross, cost=cost,
             discount_amount=discount, subtotal_gross=subtotal_gross,
+            discount_lines=list(sp.values()),
             discount_min_pct=(cust.discount_min_pct if cust else None),
             discount_max_pct=(cust.discount_max_pct if cust else None),
             markup_min_pct=(cust.markup_min_pct if cust else None),

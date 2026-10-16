@@ -18367,3 +18367,159 @@ def _migrate_o_nhan_su_luon_bat(db: Session) -> None:
 
 
 MIGRATIONS.append(("0412_o_nhan_su_luon_bat", _migrate_o_nhan_su_luon_bat))
+
+
+def _migrate_chot_cong_no_hang_thang(db: Session) -> None:
+    """Thu mua: ngày chốt công nợ của đơn đổi từ MỘT ngày cố định (`debt_cutoff_date`, mg 0226)
+    sang chốt HẰNG THÁNG (`debt_cutoff_day` 1–31, 31 = cuối tháng) — 15/10/2026.
+
+    Một ngày cố định làm đợt giao sau mốc đó nhận hạn của kỳ đã qua. Backfill lấy NGÀY TRONG THÁNG
+    của mốc cũ (chốt 31/10 ⇒ chốt ngày 31 hằng tháng) nên đợt đã ghi trước mốc giữ nguyên hạn.
+    Rồi bỏ cột cũ. Đọc inspector TRƯỚC lệnh ghi đầu tiên; idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    if "purchase_requests" not in insp.get_table_names():
+        return
+    cols = _existing_columns(insp, "purchase_requests")
+    is_pg = (bind.dialect.name or "").startswith("postgres")
+    if "debt_cutoff_day" not in cols:
+        db.execute(text("ALTER TABLE purchase_requests ADD COLUMN debt_cutoff_day INTEGER"))
+    if "debt_cutoff_date" in cols:
+        ngay = (
+            "EXTRACT(DAY FROM debt_cutoff_date)::int"
+            if is_pg
+            else "CAST(strftime('%d', debt_cutoff_date) AS INTEGER)"
+        )
+        db.execute(text(
+            f"UPDATE purchase_requests SET debt_cutoff_day = {ngay} "
+            "WHERE debt_cutoff_date IS NOT NULL AND debt_cutoff_day IS NULL"
+        ))
+        db.execute(text("ALTER TABLE purchase_requests DROP COLUMN debt_cutoff_date"))
+    db.commit()
+
+
+MIGRATIONS.append(("0413_chot_cong_no_hang_thang", _migrate_chot_cong_no_hang_thang))
+
+
+def _migrate_so_mau_phu(db: Session) -> None:
+    """Biến công thức `so_mau` ĐỔI NGHĨA (16/10/2026): "Số màu in" = số kẽm một tay, đổi theo quy
+    cách in (AB 10 · tự trở 5 cho mặt A CMYK+Pantone / mặt B y hệt). Cách đếm cũ (mặt A + mặt B +
+    màu pha) sang tên mới `so_mau_phu` "Số màu phủ giấy".
+
+    Viết lại `\\bso_mau\\b` → `so_mau_phu` ở công thức đã lưu, TRỪ công thức có `so_kem` hoặc
+    `so_mau_pha` — đó là công thức TIỀN IN, đúng chỗ người dùng muốn nhân theo kẽm. Còn lại là mực
+    (`so_mau * dai_in * ...`), giờ máy (`so_mau / so_mat <= 4` — tự trở 5 màu trên máy 4 màu vẫn
+    phải 2 lượt), bình bài: chúng đếm màu PHỦ GIẤY, giữ y số cũ. `\\b` không đụng `so_mau_pha`/
+    `so_mau_phu` (gạch dưới là ký tự từ) nên chạy lại vô hại.
+
+    Không đụng `cong_thuc_lich_su` (lịch sử gõ công thức — sửa là bịa lịch sử). Raw SQL đích danh cột."""
+    import re as _re
+
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    re_mau = _re.compile(r"\bso_mau\b")
+    re_tien_in = _re.compile(r"\b(so_kem|so_mau_pha)\b")
+    cot_chu = (
+        ("cong_doan", "cong_thuc_gia"),
+        ("cong_doan_khoan", "cong_thuc_khoan"),
+        ("cong_doan_vat_tu", "cong_thuc_luong"),
+        ("cong_doan_may", "cong_thuc_gio"),
+        ("cong_doan_may", "cong_thuc_gia"),
+        ("piece_rates", "cong_thuc_khoan"),
+        ("giay_nguyen", "cong_thuc_gia"),
+        ("vat_tu_in_an", "cong_thuc_gia"),
+        ("vat_tu_in_an", "cong_thuc_dinh_muc"),
+    )
+    # Đọc cột TRƯỚC lệnh ghi đầu tiên — inspector chạy sau UPDATE làm SQLite rollback mất ghi.
+    co_cot = {(bang, cot) for bang, cot in cot_chu
+              if bang in tables and cot in _existing_columns(insp, bang)}
+    for bang, cot in cot_chu:
+        if (bang, cot) not in co_cot:
+            continue
+        rows = db.execute(text(
+            f"SELECT id, {cot} FROM {bang} WHERE {cot} LIKE '%so_mau%'")).all()
+        for _id, ct in rows:
+            ct = ct or ""
+            if not re_mau.search(ct) or re_tien_in.search(ct):
+                continue
+            db.execute(text(f"UPDATE {bang} SET {cot} = :ct WHERE id = :id"),
+                       {"ct": re_mau.sub("so_mau_phu", ct), "id": _id})
+    db.commit()
+
+
+MIGRATIONS.append(("0414_so_mau_phu", _migrate_so_mau_phu))
+
+
+def _migrate_chot_cong_no_theo_ncc(db: Session) -> None:
+    """Điều khoản trả tiền thuộc NHÀ CUNG CẤP (16/10/2026, docs/prd-dieu-khoan-tra-tien-theo-ncc.md):
+    ngày chốt công nợ hằng tháng dời từ `purchase_requests.debt_cutoff_day` (mg 0413) sang
+    `suppliers.debt_cutoff_day`. NCC chốt công nợ một lần cho cả công ty mình — mỗi đơn một cách
+    tính là sổ mình lệch bảng đối chiếu của họ.
+
+    Backfill: NCC lấy ngày chốt của ĐƠN MỚI NHẤT có khai. Hạn các đợt đã ghi được chốt vào
+    `purchase_deliveries.due_date` TRƯỚC khi bỏ cột (tính bằng đúng luật cũ, raw SQL không qua ORM)
+    để đợt cũ giữ hạn đang hiện. Đọc inspector TRƯỚC lệnh ghi đầu tiên; idempotent."""
+    import calendar as _cal
+    from datetime import timedelta as _td
+
+    bind = db.get_bind()
+    insp = inspect(bind)
+    tables = set(insp.get_table_names())
+    if "suppliers" not in tables:
+        return
+    cot_ncc = _existing_columns(insp, "suppliers")
+    cot_don = _existing_columns(insp, "purchase_requests") if "purchase_requests" in tables else set()
+    cot_dot = (
+        _existing_columns(insp, "purchase_deliveries") if "purchase_deliveries" in tables else set()
+    )
+    if "debt_cutoff_day" not in cot_ncc:
+        db.execute(text("ALTER TABLE suppliers ADD COLUMN debt_cutoff_day INTEGER"))
+    if "debt_cutoff_day" not in cot_don:
+        db.commit()
+        return
+
+    def _moc(ngay, chot):
+        def trong(nam, thang):
+            return ngay.replace(year=nam, month=thang, day=min(chot, _cal.monthrange(nam, thang)[1]))
+        moc = trong(ngay.year, ngay.month)
+        if ngay > moc:
+            nam, thang = (ngay.year + 1, 1) if ngay.month == 12 else (ngay.year, ngay.month + 1)
+            moc = trong(nam, thang)
+        return moc
+
+    if {"due_date", "invoice_date", "delivery_date"} <= cot_dot:
+        rows = db.execute(text(
+            "SELECT d.id, d.invoice_date, d.delivery_date, p.debt_cutoff_day, s.credit_days "
+            "FROM purchase_deliveries d JOIN purchase_requests p ON p.id = d.purchase_request_id "
+            "LEFT JOIN suppliers s ON s.id = p.supplier_id "
+            "WHERE s.credit_days IS NOT NULL "
+            "AND (p.debt_cutoff_day IS NOT NULL OR d.invoice_date IS NOT NULL OR d.due_date IS NULL)"
+        )).all()
+        # Chụp đúng hạn luật cũ đang hiện: có chốt ⇒ mốc chốt + số ngày; có hoá đơn ⇒ hoá đơn + số
+        # ngày (cả hai đè hạn tay); chỉ còn hạn tay thì giữ. Không chụp thì đợt của đơn không chốt
+        # sẽ đọc ngày chốt vừa backfill lên NCC và đổi hạn im lặng.
+        for did, ngay_hd, ngay_giao, chot, so_ngay in rows:
+            goc = ngay_hd or ngay_giao
+            if goc is None:
+                continue
+            if isinstance(goc, str):
+                from datetime import date as _date
+                goc = _date.fromisoformat(goc[:10])
+            if chot is not None:
+                goc = _moc(goc, int(chot))
+            db.execute(text("UPDATE purchase_deliveries SET due_date = :h WHERE id = :id"),
+                       {"h": goc + _td(days=int(so_ngay)), "id": did})
+    moi_nhat = db.execute(text(
+        "SELECT supplier_id, debt_cutoff_day FROM purchase_requests "
+        "WHERE supplier_id IS NOT NULL AND debt_cutoff_day IS NOT NULL ORDER BY id"
+    )).all()
+    theo_ncc = {sid: chot for sid, chot in moi_nhat}
+    for sid, chot in theo_ncc.items():
+        db.execute(text(
+            "UPDATE suppliers SET debt_cutoff_day = :c WHERE id = :id AND debt_cutoff_day IS NULL"
+        ), {"c": int(chot), "id": sid})
+    db.execute(text("ALTER TABLE purchase_requests DROP COLUMN debt_cutoff_day"))
+    db.commit()
+
+
+MIGRATIONS.append(("0415_chot_cong_no_theo_ncc", _migrate_chot_cong_no_theo_ncc))

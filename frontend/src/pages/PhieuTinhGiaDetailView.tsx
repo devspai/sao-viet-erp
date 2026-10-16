@@ -277,7 +277,9 @@ function dienGiaiFormula(raw: string, tra: TraBien): string {
   return catToken(raw)
     .map((t) => {
       if (laToanTu(t)) return dau[t] ?? t;
-      if (laSo(t) || /^\s+$/.test(t)) return t;
+      // Hằng số gõ trong câu ("150000") chấm ngăn nghìn như dòng Thế số ngay dưới (15/10/2026).
+      if (laSo(t)) return Number(t).toLocaleString("vi-VN", { maximumFractionDigits: 6 });
+      if (/^\s+$/.test(t)) return t;
       if ((HAM_TOAN as readonly string[]).includes(t)) return t;
       return tra(t)?.nhan ?? t;
     })
