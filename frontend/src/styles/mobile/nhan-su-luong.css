@@ -910,6 +910,84 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  /* Tab Nhân sự của phòng — dòng người (`li.depts__member`, không phải bảng nên lớp thẻ chung
+     không chạm tới). Một hàng flex [tick][ảnh][tên · chức danh · @tài khoản][vai trò · trạng thái]
+     bóp cột giữa còn ~90px: chức danh gãy từng chữ một ("Kế / hoạch / sản / xuất"), viên trạng
+     thái gãy ba dòng. Nay lưới hai tầng — tick + ảnh đứng bên trái, các viên xuống dưới tên:
+       [☐][NT]  Nguyễn Thị Hoàng Uyên  NV019
+                Kế hoạch sản xuất · @nguyenthihoanguyen
+                [Giám đốc] [● Đang hoạt động]                                          */
+  .depts__members .depts__member {
+    display: grid !important;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "chk av main"
+      "chk av phai";
+    align-items: center;
+    gap: 6px 12px !important;
+    padding: 12px !important;
+  }
+  .depts__member > .depts__member-check {
+    grid-area: chk;
+  }
+  .depts__member > .rdx-avatar-wrap,
+  .depts__member > .depts__member-avatar {
+    grid-area: av;
+  }
+  .depts__member > .depts__member-main {
+    grid-area: main;
+    min-width: 0;
+  }
+  .depts__member > .depts__member-right {
+    grid-area: phai;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+  }
+  .depts__member .depts__member-line {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+  .depts__member .depts__member-name {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    font-size: 15px;
+  }
+  .depts__member .depts__member-sub {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-size: 13px;
+  }
+  .depts__member .depts__member-user {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .depts__member .depts__member-right > * {
+    white-space: nowrap;
+  }
+  /* Thanh trên danh sách: ô tìm trần 240px + ô trạng thái 160px + nút ⇒ ô tìm một mình một hàng
+     cụt lủn. Ô tìm trải hết hàng; ô trạng thái + "Thêm nhân viên" chia đôi hàng dưới. */
+  .depts__staff-toolbar.depts__staff-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+  .depts__staff-toolbar > .rdx-tree__search {
+    flex: 1 1 100% !important;
+    max-width: none !important;
+  }
+  .depts__staff-toolbar > div:not(.rdx-tree__search) {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0;
+  }
+  .depts__staff-toolbar > .rdx-head-hero__btn-highlight {
+    flex: 0 0 auto !important;
+    height: 44px !important;
+    padding: 0 14px !important;
+    font-size: 13.5px !important;
+  }
+
   /* ---- Hồ sơ của tôi ----------------------------------------------------------
      Thẻ đầu (ảnh · tên · nút Chấm công · Vào làm · Ca · Tài khoản…) cao 626px ⇒ ảnh nhỏ lại đứng
      cạnh tên, bớt đệm; 4 ô số liệu (Phép · Công · Phiếu lương · Đề nghị) thành lưới 2×2. */

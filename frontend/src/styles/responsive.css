@@ -255,8 +255,10 @@
   }
 
   /* Ô tick chọn dòng 13×13 là chỗ khó bấm nhất toàn hệ thống. 24px là đúng ngưỡng bắt buộc
-     của WCAG 2.5.8 mức AA (44px là mức AAA, không nhét vừa ô bảng mà không xé bố cục bảng). */
-  .shell__content input[type="checkbox"],
+     của WCAG 2.5.8 mức AA (44px là mức AAA, không nhét vừa ô bảng mà không xé bố cục bảng).
+     TRỪ công tắc `.switch` (ô tick vẽ lại thành công tắc 38×22, permission-matrix.css): ép vuông
+     24×24 là bóp nó thành một cục tròn — mất nền, không nhìn ra bật hay tắt. */
+  .shell__content input[type="checkbox"]:not(.switch),
   .shell__content input[type="radio"] {
     width: 24px;
     height: 24px;
@@ -672,7 +674,7 @@
   }
 
   :is([role="dialog"], [class*="modal"], [class*="drawer"], [class*="dialog"], [class*="overlay"])
-    :is(input[type="checkbox"], input[type="radio"]) {
+    :is(input[type="checkbox"]:not(.switch), input[type="radio"]) {
     flex: 0 0 auto;
     width: 24px;
     height: 24px;
