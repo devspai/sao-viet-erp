@@ -90,8 +90,9 @@
   .mh-tiep__luu { flex-wrap: wrap; }
   .mh-tiep__luu .mh-nut { flex: 1; justify-content: center; }
 }
-/* Cọc đã duyệt: ổ khoá nhỏ cạnh số, rê chuột ra người duyệt. */
-.mh-khoa { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; color: var(--ash-2); font-size: 12px; }
+/* Cọc đã duyệt: ổ khoá nhỏ cạnh số, rê chuột ra người duyệt. Tên riêng — `mh-khoa` là lớp dòng bảng bị khoá
+   (BangYeuCau/BangMonYeuCau), trùng tên thì dòng thành inline-flex và lệch cột. */
+.mh-khoa-coc { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; color: var(--ash-2); font-size: 12px; }
 /* Hạn từng đợt dưới dòng Hạn trả ở cột phải ngăn. */
 .mh-han-dot { margin: 2px 0 4px; border: 1px solid var(--rule-soft); border-radius: 8px; overflow: hidden; }
 .mh-han-dot > div { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 6px; align-items: baseline;

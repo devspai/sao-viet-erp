@@ -427,7 +427,7 @@ function CotPhai({
               {row.status === "pending_approval" && <small className="mh-r__phu">chờ người duyệt đồng ý</small>}
               {row.approved_at && !["draft", "pending_approval", "rejected"].includes(row.status) && (
                 <span
-                  className="mh-khoa"
+                  className="mh-khoa-coc"
                   title={`Chốt khi duyệt${row.approved_by_name ? `: ${row.approved_by_name}` : ""} lúc ${fmtDateTime(row.approved_at)}. Không đổi được nữa.`}
                 >
                   <Icon name="lock" size={12} /> đã duyệt
