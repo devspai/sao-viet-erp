@@ -7242,6 +7242,22 @@ export interface GiaCongChoChi {
   chot_boi_ten: string | null;
 }
 
+/** Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi, docs/prd-mua-hang-cho-chi-o-phieu-chi.md): ĐƠN đã
+ *  duyệt còn cọc chưa chi hoặc còn đợt giao còn nợ. `don` là nguyên dòng đơn — form lập phiếu chi dùng
+ *  thẳng; từng đợt còn nợ đọc ở `don.deliveries[].con_no`. */
+export interface MuaHangChoChi {
+  don: PurchaseRequestRow;
+  /** Cọc khai lúc gửi duyệt còn chưa chi (không quá phần giá trị đơn còn chưa trả). */
+  coc_can_chi: number;
+  so_dot_no: number;
+  /** Tổng nợ các đợt còn nợ (đã trừ phần cọc bù vào đợt). */
+  no_dot: number;
+  tong_can_chi: number;
+  /** Hạn trả gần nhất trong các đợt còn nợ — `null` = chưa có đợt nào (chỉ còn cọc). */
+  han_gan_nhat: string | null;
+  qua_han: boolean;
+}
+
 export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
 export type GiaCongNoiVe = "xuong" | "kho" | "khach";
 
@@ -8335,6 +8351,10 @@ export interface PurchaseDeliveryLineRow {
    *  PHẢI hiện ra chứ đừng chỉ hiện tổng: hệ không biết phần dư có thật là hàng tặng hay không,
    *  nên phải để người đọc bắt được ca NCC thực ra CÓ tính tiền phần dư. */
   quantity_du: number;
+  /** Đơn giá chốt trên dòng đơn (chưa CK/VAT). */
+  don_gia: number;
+  /** Thành tiền phần TÍNH TIỀN của dòng (đã CK/VAT) — đúng số máy chủ cộng vào `amount` của đợt. */
+  thanh_tien: number;
   /** KHỔ THỰC NHẬN (giấy tờ): khổ ghi ở đợt, không ghi thì khổ đặt. 0 · 0 với hàng khác. */
   kho_rong: number;
   kho_dai: number;
@@ -15930,6 +15950,10 @@ export const api = {
     },
   },
   accounting: {
+    /** Tab "Mua hàng chờ chi" của màn Phiếu chi — mỗi đơn một dòng (khoá `phieu_chi` read). */
+    muaHangChoChi(token: string, params: { q?: string; supplier_id?: number | null } = {}) {
+      return authed<MuaHangChoChi[]>(`/api/accounting/mua-hang-cho-chi${qs(params)}`, token);
+    },
     inbox(
       token: string,
       params: {

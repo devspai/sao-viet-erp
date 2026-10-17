@@ -156,6 +156,8 @@ export interface NavParams {
   focusLsxMa?: string;
   /** Liên thông: mở màn Phiếu chi / UNC với ô tìm kiếm điền sẵn (mã PC/PMH...). */
   focusVoucherQuery?: string;
+  /** Liên thông Đơn mua hàng → Phiếu chi: mở tab "Mua hàng chờ chi", bung sẵn đơn mã này. */
+  focusChoChiCode?: string;
   /** Liên thông Mục thu chi → Báo cáo thu chi (số "Đã dùng"): mở báo cáo lọc đúng mục này. */
   locMucThuChi?: number;
   /** Liên thông: mở màn Phiếu thu với ô tìm kiếm điền sẵn (mã PC/PT...). */
@@ -1443,6 +1445,7 @@ export function AppShell() {
             // `ban_hang`: huỷ đơn / huỷ hoá đơn đổi hàng "Chờ trả lại khách".
             eventTick={tickCua("mua_ke_toan", "ban_hang")}
             focusQuery={navParams?.focusVoucherQuery ?? null}
+            focusChoChi={navParams?.focusChoChiCode ?? null}
           />
         );
       case "ke-toan-cong-no":

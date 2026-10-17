@@ -710,6 +710,42 @@
 .lds .lds-g tbody tr.kt-da-huy td { color: var(--lds-mo); }
 /* Ghi chú đầu bảng "Gia công chờ chi". */
 .kt-gc-ghi { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; color: var(--ash-2); }
+/* Hàng "Mua hàng chờ chi" (17/10/2026): bấm dòng đơn mở POPUP — tóm tắt tiền cả đơn, rồi từng khoản (cọc,
+   từng đợt) thành một khối: đầu khối [tên + ngày/hạn/HĐ | số còn | nút], bảng vật tư, chân tiền của đợt. */
+.kt-mh-khoan { display: flex; flex-direction: column; gap: 14px; }
+.kt-mh-tom { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0;
+  border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
+.kt-mh-tom > div { padding: 10px 12px; border-right: 1px solid var(--rule-hair); }
+.kt-mh-tom > div:last-child { border-right: 0; }
+.kt-mh-tom dt { font-size: 12px; color: var(--ash-2); }
+.kt-mh-tom dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.kt-mh-tom__can { background: var(--tt-cam-bg); }
+.kt-mh-tom__can dd { color: var(--tt-cam-fg); }
+.kt-mh-khoan__ds { display: flex; flex-direction: column; gap: 12px; }
+.kt-mh-k { border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
+.kt-mh-k__dau { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
+  padding: 10px 12px; background: var(--paper); border-bottom: 1px solid var(--rule-hair); }
+.kt-mh-k__ten { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kt-mh-k__ten > b { font-size: 14px; color: var(--ink); }
+.kt-mh-k__mo { color: var(--ash-2); font-size: 12.5px; }
+.kt-mh-k__so { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
+.kt-mh-k__dau .kt-btn { white-space: nowrap; }
+.kt-mh-bang { width: 100%; border-collapse: collapse; font-size: 13px; }
+.kt-mh-bang caption { caption-side: top; text-align: left; padding: 8px 12px 2px; font-size: 11.5px; color: var(--ash-2);
+  text-transform: uppercase; letter-spacing: .04em; }
+.kt-mh-bang th { padding: 6px 12px; text-align: left; font-weight: 500; font-size: 12px; color: var(--ash-2);
+  border-bottom: 1px solid var(--rule-hair); }
+.kt-mh-bang td { padding: 7px 12px; border-bottom: 1px solid var(--rule-hair); color: var(--ink); }
+.kt-mh-bang tr:last-child td { border-bottom: 0; }
+.kt-mh-bang .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kt-mh-k__tien { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 20px; margin: 0; padding: 8px 12px;
+  border-top: 1px solid var(--rule-hair); font-size: 12.5px; }
+.kt-mh-k__tien > div { display: flex; gap: 6px; }
+.kt-mh-k__tien dt { color: var(--ash-2); }
+.kt-mh-k__tien dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--ink); }
+.kt-mh-k__con dd { font-weight: 600; }
+.kt-mh-khoan__chan { display: flex; justify-content: flex-end; }
+.kt-mh-khoan__xem { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 
 /* Tên đối tác kèm dấu (phải thu: "Còn giữ cọc …"): tên co lại cắt ba chấm, dấu giữ nguyên. */
 .kt-ten-dau { display: flex; align-items: center; gap: 6px; min-width: 0; }
