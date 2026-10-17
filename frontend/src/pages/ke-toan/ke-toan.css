@@ -710,6 +710,19 @@
 .lds .lds-g tbody tr.kt-da-huy td { color: var(--lds-mo); }
 /* Ghi chú đầu bảng "Gia công chờ chi". */
 .kt-gc-ghi { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; color: var(--ash-2); }
+/* Hàng "Mua hàng chờ chi" (17/10/2026): bấm dòng đơn mở POPUP các khoản — cọc, từng đợt — mỗi khoản
+   một nút lập phiếu. Mỗi khoản một hàng: tên | ngày/hạn | số còn | nút. */
+.kt-mh-khoan { display: flex; flex-direction: column; }
+.kt-mh-khoan__dong { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
+  min-height: 52px; padding: 8px 0; border-bottom: 1px solid var(--rule-hair); }
+.kt-mh-khoan__ten { font-weight: 600; color: var(--ink); }
+.kt-mh-khoan__mo { color: var(--ash-2); font-size: 12.5px; min-width: 0; }
+.kt-mh-khoan__so { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.kt-mh-khoan__dong .kt-btn { white-space: nowrap; }
+.kt-mh-khoan__chan { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px;
+  font-size: 13px; color: var(--ash-2); }
+.kt-mh-khoan__chan b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.kt-mh-khoan__xem { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 
 /* Tên đối tác kèm dấu (phải thu: "Còn giữ cọc …"): tên co lại cắt ba chấm, dấu giữ nguyên. */
 .kt-ten-dau { display: flex; align-items: center; gap: 6px; min-width: 0; }

@@ -815,6 +815,23 @@ class PurchaseRequestListOut(BaseModel):
     dem_theo_tien: dict[str, int] | None = None
 
 
+class MuaHangChoChiOut(BaseModel):
+    """Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi): ĐƠN + khoản còn phải chi của đơn đó.
+    `don` là nguyên dòng đơn như hộp Đơn mua hàng — form lập phiếu chi dùng thẳng, các đợt còn nợ
+    đọc ở `don.deliveries[].con_no`."""
+
+    don: PurchaseRequestOut
+    # Cọc khai lúc gửi duyệt còn chưa chi (không quá phần giá trị đơn còn chưa trả).
+    coc_can_chi: int
+    # Số đợt giao còn nợ và tổng nợ của chúng (đã trừ phần cọc bù vào đợt).
+    so_dot_no: int
+    no_dot: int
+    tong_can_chi: int
+    # Hạn trả gần nhất trong các đợt còn nợ; None = chưa có đợt nào (chỉ còn cọc).
+    han_gan_nhat: date | None = None
+    qua_han: bool = False
+
+
 class PurchaseNotifySummaryOut(BaseModel):
     """Badge Thu mua (sidebar `mua-hang`). FE cộng thẳng ba số — nên mọi con số người gọi KHÔNG
     được thấy phải là 0, đừng để FE tự nhớ luật che."""

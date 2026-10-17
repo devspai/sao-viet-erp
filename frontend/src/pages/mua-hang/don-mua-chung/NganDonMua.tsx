@@ -94,7 +94,7 @@ export function NganDonMua({
   openYcmh,
   credit,
   viecDot,
-  onLapPhieuChi,
+  onMoChoChi,
   suaDuoc,
   onDoi,
   onLoi,
@@ -105,7 +105,7 @@ export function NganDonMua({
   row: PurchaseRequestRow;
   duongDan: string;
   tabDau: TabDon;
-  /** Nút ở đầu ngăn — mỗi màn một bộ (Thu mua: Ghi đợt giao, Đóng đơn…; Kế toán: Duyệt, Lập phiếu chi). */
+  /** Nút ở đầu ngăn — mỗi màn một bộ (Thu mua: Ghi đợt giao, Đóng đơn…). */
   hanhDong?: ReactNode;
   /** Dải cảnh báo thêm dưới đầu ngăn (vd vượt hạn mức nợ NCC). */
   canhBao?: ReactNode;
@@ -114,8 +114,9 @@ export function NganDonMua({
   openYcmh?: (code: string) => void;
   credit?: SupplierCredit | null;
   viecDot?: ViecDot;
-  /** Kế toán: lập phiếu chi cho đúng một đợt (`null` = phiếu cọc khi chưa có đợt). */
-  onLapPhieuChi?: (dotId: number | null) => void;
+  /** Kế toán: nhảy sang Phiếu chi → "Mua hàng chờ chi" đúng đơn này. Ngăn đơn KHÔNG lập phiếu chi
+   *  (chủ 17/10/2026: Đơn mua hàng chỉ để duyệt, chi tiền ở màn Phiếu chi). Thiếu = không hiện link. */
+  onMoChoChi?: () => void;
   /** Gõ số hợp đồng ở cột phải + tải/xoá tệp hợp đồng. */
   suaDuoc: boolean;
   onDoi: (next: PurchaseRequestRow) => void;
@@ -246,7 +247,7 @@ export function NganDonMua({
             {tabDung === "mh" && <TabMatHang row={row} coHangVe={coHangVe} onMoLenh={onMoLenh} />}
             {tabDung === "dg" && <TabDotGiao row={row} viecDot={viecDot} />}
             {tabDung === "tt" && (
-              <TabThanhToan row={row} phieuChi={phieuChi} xemPhieuChi={xemPhieuChi} onLapPhieuChi={onLapPhieuChi} />
+              <TabThanhToan row={row} phieuChi={phieuChi} xemPhieuChi={xemPhieuChi} onMoChoChi={onMoChoChi} />
             )}
             {tabDung === "ct" && <TabChungTu row={row} suaDuoc={suaDuoc} onDoi={onDoi} onLoi={onLoi} />}
             {tabDung === "ls" && <TabLichSu row={row} />}
@@ -833,17 +834,27 @@ function TabThanhToan({
   row,
   phieuChi,
   xemPhieuChi,
-  onLapPhieuChi,
+  onMoChoChi,
 }: {
   row: PurchaseRequestRow;
   phieuChi: PaymentVoucherRow[] | null;
   xemPhieuChi: boolean;
-  onLapPhieuChi?: (dotId: number | null) => void;
+  onMoChoChi?: () => void;
 }) {
   const dots = [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no);
   const cuaDot = (id: number | null) => (phieuChi ?? []).filter((v) => v.delivery_id === id);
   const coc = cuaDot(null);
-  const lapCoc = onLapPhieuChi && row.tran_dat_coc > 0 && ["approved", "purchased", "partially_received", "received"].includes(row.status);
+  // Đơn đã duyệt còn cọc chưa chi hoặc còn đợt còn nợ ⇒ chỉ đường sang chỗ chi (cùng điều kiện với
+  // tab "Mua hàng chờ chi"; máy chủ còn kẹp cọc theo phần giá trị đơn chưa trả — ở đây chỉ là gợi ý).
+  const conPhaiChi =
+    ["approved", "purchased", "partially_received", "received"].includes(row.status) &&
+    (row.tran_dat_coc > 0 || row.deliveries.some((d) => d.con_no > 0));
+  const chiODau = onMoChoChi && conPhaiChi && (
+    <p className="mh-ghi">
+      Chi tiền cho đơn này ở{" "}
+      <button type="button" className="lds-lk" onClick={onMoChoChi}>Phiếu chi → Mua hàng chờ chi</button>.
+    </p>
+  );
   const DongPhieu = ({ v }: { v: PaymentVoucherRow }) => (
     <tr className="mh-con">
       <td style={{ paddingLeft: 28 }} title={v.content ?? undefined}>
@@ -859,16 +870,13 @@ function TabThanhToan({
       <td />
       <td className="n"><span className={v.status === "cancelled" ? "mh-gach" : undefined}>{so(v.amount_vnd)}</span></td>
       <td />
-      <td />
     </tr>
   );
   if (dots.length === 0 && coc.length === 0 && row.coc_da_chi <= 0) {
     return (
       <>
         <p className="mh-ghi" style={{ marginTop: 0 }}>Chưa có hàng về nên chưa phát sinh nợ.</p>
-        {lapCoc && (
-          <button type="button" className="mh-nut" style={{ marginTop: 8 }} onClick={() => onLapPhieuChi(null)}>Lập phiếu chi cọc</button>
-        )}
+        {chiODau}
       </>
     );
   }
@@ -885,7 +893,6 @@ function TabThanhToan({
             <col style={{ width: 110 }} />
             <col style={{ width: 110 }} />
             <col style={{ width: 110 }} />
-            <col style={{ width: onLapPhieuChi ? 116 : 8 }} />
           </colgroup>
           <thead>
             <tr>
@@ -898,7 +905,6 @@ function TabThanhToan({
               <th className="n">Giá trị</th>
               <th className="n">Đã chi</th>
               <th className="n">Còn nợ</th>
-              <th />
             </tr>
           </thead>
           <tbody>
@@ -913,11 +919,6 @@ function TabThanhToan({
                   <td className="n">{row.deposit_expected > 0 ? so(row.deposit_expected) : ""}</td>
                   <td className="n">{so(row.coc_da_chi)}</td>
                   <td className="n lds-mu" title="Cọc tự trừ vào các đợt giao, giao trước trừ trước">trừ dần</td>
-                  <td>
-                    {lapCoc && (
-                      <button type="button" className="mh-nut" onClick={() => onLapPhieuChi(null)}>Lập phiếu cọc</button>
-                    )}
-                  </td>
                 </tr>
                 {coc.map((v) => <DongPhieu key={v.id} v={v} />)}
               </>
@@ -937,11 +938,6 @@ function TabThanhToan({
                     {so(d.paid_amount + d.coc_bu)}
                   </td>
                   <td className="n">{d.con_no > 0 ? so(d.con_no) : <span className="mh-la">Đã trả</span>}</td>
-                  <td>
-                    {onLapPhieuChi && d.con_no > 0 && (
-                      <button type="button" className="mh-nut" onClick={() => onLapPhieuChi(d.id)}>Lập phiếu chi</button>
-                    )}
-                  </td>
                 </tr>
                 {cuaDot(d.id).map((v) => <DongPhieu key={v.id} v={v} />)}
               </Fragment>
@@ -949,10 +945,10 @@ function TabThanhToan({
           </tbody>
         </table>
       </div>
-      <p className="mh-ghi">
-        Mỗi phiếu chi tối đa bằng số còn nợ của đợt.
-        {!xemPhieuChi && " Bạn không có quyền xem màn Phiếu chi nên bảng không liệt kê từng phiếu; số Đã chi vẫn đúng."}
-      </p>
+      {chiODau}
+      {!xemPhieuChi && (
+        <p className="mh-ghi">Bạn không có quyền xem màn Phiếu chi nên bảng không liệt kê từng phiếu; số Đã chi vẫn đúng.</p>
+      )}
     </>
   );
 }

@@ -7242,6 +7242,22 @@ export interface GiaCongChoChi {
   chot_boi_ten: string | null;
 }
 
+/** Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi, docs/prd-mua-hang-cho-chi-o-phieu-chi.md): ĐƠN đã
+ *  duyệt còn cọc chưa chi hoặc còn đợt giao còn nợ. `don` là nguyên dòng đơn — form lập phiếu chi dùng
+ *  thẳng; từng đợt còn nợ đọc ở `don.deliveries[].con_no`. */
+export interface MuaHangChoChi {
+  don: PurchaseRequestRow;
+  /** Cọc khai lúc gửi duyệt còn chưa chi (không quá phần giá trị đơn còn chưa trả). */
+  coc_can_chi: number;
+  so_dot_no: number;
+  /** Tổng nợ các đợt còn nợ (đã trừ phần cọc bù vào đợt). */
+  no_dot: number;
+  tong_can_chi: number;
+  /** Hạn trả gần nhất trong các đợt còn nợ — `null` = chưa có đợt nào (chỉ còn cọc). */
+  han_gan_nhat: string | null;
+  qua_han: boolean;
+}
+
 export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
 export type GiaCongNoiVe = "xuong" | "kho" | "khach";
 
@@ -15861,6 +15877,10 @@ export const api = {
     },
   },
   accounting: {
+    /** Tab "Mua hàng chờ chi" của màn Phiếu chi — mỗi đơn một dòng (khoá `phieu_chi` read). */
+    muaHangChoChi(token: string, params: { q?: string; supplier_id?: number | null } = {}) {
+      return authed<MuaHangChoChi[]>(`/api/accounting/mua-hang-cho-chi${qs(params)}`, token);
+    },
     inbox(
       token: string,
       params: {

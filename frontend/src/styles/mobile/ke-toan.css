@@ -153,4 +153,40 @@
     flex-wrap: nowrap !important;
     flex-shrink: 0;
   }
+
+  /* ---- Phiếu chi → Mua hàng chờ chi (17/10/2026) -------------------------------------------
+     Thẻ đơn: ô mũi tên "›" (cột Mở) chiếm cả một hàng trống ở đáy thẻ — cả thẻ đã bấm được, bỏ.
+     Popup các khoản: lưới 4 cột [tên | ngày·hạn | còn | nút] bóp ngày giao/hạn gãy vụn, chip "Quá
+     hạn" còn mỗi cái chấm ⇒ ba tầng: tên + số còn / ngày·hạn / nút trải ngang. */
+  .lds-g.kt-mh td[aria-hidden="true"] {
+    display: none !important;
+  }
+  .kt-mh-khoan .kt-mh-khoan__dong {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ten so"
+      "mo mo"
+      "nut nut";
+    gap: 4px 12px;
+    padding: 12px 0;
+  }
+  .kt-mh-khoan__dong > .kt-mh-khoan__ten {
+    grid-area: ten;
+    font-size: 15px;
+  }
+  .kt-mh-khoan__dong > .kt-mh-khoan__so {
+    grid-area: so;
+    font-weight: 600;
+  }
+  .kt-mh-khoan__dong > .kt-mh-khoan__mo {
+    grid-area: mo;
+    font-size: 13px;
+  }
+  .kt-mh-khoan__dong > .kt-btn {
+    grid-area: nut;
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    margin-top: 6px;
+  }
 }

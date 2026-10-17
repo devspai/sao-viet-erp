@@ -1,11 +1,13 @@
 /** Nối dây màn Phiếu chi: URL ↔ lọc + kỳ (A.18), một lời gọi mỗi lượt tải, đường dẫn sâu mở kỳ Tất cả. */
 import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { khoangSo } from "../shared/kyKeToan";
 
 const vouchers = vi.fn();
 const choChi = vi.fn();
+const muaHangChoChi = vi.fn();
 
 vi.mock("../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
 vi.mock("../../../auth/permissions", async (goc) => ({
@@ -19,6 +21,7 @@ vi.mock("../../../api/client", async (goc) => ({
     accounting: {
       vouchers: (...a: unknown[]) => vouchers(...a),
       companyAccounts: vi.fn().mockResolvedValue([]),
+      muaHangChoChi: (...a: unknown[]) => muaHangChoChi(...a),
     },
     giaCongNgoai: { choChi: (...a: unknown[]) => choChi(...a) },
   },
@@ -33,6 +36,8 @@ beforeEach(() => {
   vouchers.mockReset();
   choChi.mockReset();
   choChi.mockResolvedValue([]);
+  muaHangChoChi.mockReset();
+  muaHangChoChi.mockResolvedValue([]);
   vouchers.mockImplementation(async () => traVe());
 });
 afterEach(() => window.history.replaceState(null, "", "/"));
@@ -115,5 +120,54 @@ describe("PaymentVouchersPage — nối dây", () => {
     );
     // Tất cả là kỳ mặc định của màn ⇒ URL bỏ khoá `ky`.
     await waitFor(() => expect(new URLSearchParams(window.location.search).has("ky")).toBe(false));
+  });
+
+  it("tab Mua hàng chờ chi: luôn có mục kèm số đơn; mỗi đơn một dòng, bấm dòng mở cọc + từng đợt kèm nút lập phiếu", async () => {
+    const u = userEvent.setup();
+    const dotNo = { id: 21, seq_no: 1, con_no: 880_000, delivery_date: "2026-10-01", due_date: "2026-10-31" };
+    const daTra = { id: 22, seq_no: 2, con_no: 0, delivery_date: "2026-10-05", due_date: "2026-11-04" };
+    muaHangChoChi.mockResolvedValue([
+      {
+        don: {
+          id: 9, code: "PMH26-0009", supplier_name: "Giấy Tân Mai", deposit_expected: 500_000, coc_da_chi: 100_000,
+          tran_dat_coc: 400_000, deliveries: [dotNo, daTra],
+        },
+        coc_can_chi: 400_000, so_dot_no: 1, no_dot: 880_000, tong_can_chi: 1_280_000,
+        han_gan_nhat: "2026-10-31", qua_han: false,
+      },
+    ]);
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=tat_ca");
+    render(<PaymentVouchersPage navigate={() => {}} />);
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    const muc = await within(dai).findByRole("button", { name: /Mua hàng chờ chi/ });
+    await waitFor(() => expect(muc).toHaveTextContent("1"));
+
+    await u.click(muc);
+    const dong = await screen.findByRole("row", { name: /PMH26-0009/ });
+    expect(dong).toHaveTextContent("1 đợt ·");
+    expect(screen.queryByRole("list", { name: /Các khoản cần chi/ })).toBeNull();
+
+    await u.click(dong);
+    const khoan = screen.getByRole("list", { name: "Các khoản cần chi của PMH26-0009" });
+    const cac = within(khoan).getAllByRole("listitem");
+    // Cọc + đúng một đợt còn nợ — đợt đã trả đủ không hiện.
+    expect(cac).toHaveLength(2);
+    expect(cac[0]).toHaveTextContent("Cọc");
+    expect(within(cac[0]).getByRole("button", { name: "Lập phiếu chi cọc" })).toBeInTheDocument();
+    expect(cac[1]).toHaveTextContent("Đợt 1");
+    expect(within(cac[1]).getByRole("button", { name: "Lập phiếu chi" })).toBeInTheDocument();
+  });
+
+  it("mở từ link của ngăn Đơn mua hàng: đứng ở tab Mua hàng chờ chi, đơn đó bung sẵn", async () => {
+    muaHangChoChi.mockResolvedValue([
+      {
+        don: { id: 9, code: "PMH26-0009", supplier_name: "Giấy Tân Mai", deposit_expected: 500_000, coc_da_chi: 0,
+          tran_dat_coc: 500_000, deliveries: [] },
+        coc_can_chi: 500_000, so_dot_no: 0, no_dot: 0, tong_can_chi: 500_000, han_gan_nhat: null, qua_han: false,
+      },
+    ]);
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=tat_ca");
+    render(<PaymentVouchersPage navigate={() => {}} focusChoChi="PMH26-0009" />);
+    expect(await screen.findByRole("list", { name: "Các khoản cần chi của PMH26-0009" })).toBeInTheDocument();
   });
 });
