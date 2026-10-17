@@ -41,6 +41,8 @@ from ..schemas.accounting import (
     CongNoKyRow,
     GiaCongChoChiDemOut,
     GiaCongChoChiOut,
+    DonHangChoThuOut,
+    TraLaiKhachChoChiOut,
     CancelSalesInvoiceIn,
     CancelPaymentReceiptIn,
     CancelPaymentVoucherIn,
@@ -75,6 +77,7 @@ from ..schemas.accounting import (
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.purchase import PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
+from ..services import ban_hang_cho_thu_chi
 from ..services.gia_cong_ngoai import cho_chi as gc_cho_chi
 from ..services.accounting_service import (
     AccountingBulkBlocked,
@@ -868,6 +871,10 @@ def create_sales_invoice(
         invoice_id=row.get("id"),
         invoice_number=row.get("invoice_number"),
     )
+    ban_hang_cho_thu_chi.bao_hang_cho(
+        svc.repo.db, svc.repo, actor_id=user.id, order_id=row.get("order_id"),
+        order_code=row.get("order_code"), hoa_don_moi=row.get("invoice_number"),
+    )
     return SalesInvoiceOut(**row)
 
 
@@ -890,6 +897,10 @@ def cancel_sales_invoice(
         event_type="sales_invoice_cancelled",
         invoice_id=row.get("id"),
         invoice_number=row.get("invoice_number"),
+    )
+    ban_hang_cho_thu_chi.bao_hang_cho(
+        svc.repo.db, svc.repo, actor_id=user.id, order_id=row.get("order_id"),
+        order_code=row.get("order_code"),
     )
     return SalesInvoiceOut(**row)
 
@@ -1113,6 +1124,29 @@ def gia_cong_cho_chi_dem(
     _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
 ):
     return {"so": gc_cho_chi.dem_cho_chi(db)}
+
+
+@router.get("/api/accounting/tra-lai-khach-cho-chi", response_model=list[TraLaiKhachChoChiOut])
+def tra_lai_khach_cho_chi(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+):
+    """Đơn hết chỗ ghi hoá đơn (ghi đủ / đã huỷ) mà tiền khách đưa còn dư — việc lập phiếu chi trả
+    lại khách (17/10/2026). Dòng tự rời khi phiếu chi trả lại đủ."""
+    return ban_hang_cho_thu_chi.tien_cho_tra_lai(svc.repo)
+
+
+@router.get("/api/accounting/don-hang-cho-thu", response_model=DonHangChoThuOut)
+def don_hang_cho_thu(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PT, "read"))],
+):
+    """Cọc đơn đã chốt chưa thu đủ + hoá đơn khách chưa trả hết (17/10/2026) — mục "Đơn hàng chờ
+    thu" của màn Phiếu thu. Dòng tự rời khi phiếu thu đủ."""
+    return {
+        "coc": ban_hang_cho_thu_chi.coc_cho_thu(svc),
+        "hoa_don": ban_hang_cho_thu_chi.hoa_don_cho_thu(svc),
+    }
 
 
 @router.get("/api/accounting/payment-vouchers/{voucher_id}", response_model=PaymentVoucherOut)

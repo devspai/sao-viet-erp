@@ -10,7 +10,8 @@
 //   có cột riêng sau Ký hiệu.
 // Cột: Số hoá đơn | Ký hiệu (tách cột 13/10/2026) | [Đơn bán khi xếp theo hạn] | Ngày | Hạn thu | Giá trị | Trừ cọc | Đã thu | Còn nợ | nút. Trừ cọc
 // (`deposit_offset_amount`) và Đã thu (`direct_received_amount`) là HAI cột — cọc không phải tiền thu
-// trong đợt này. Khách chưa đặt cho nợ thì Hạn thu là gạch mờ: cột thuộc tính đã nói "chưa đặt", không
+// trong đợt này. Cột "Trả lại ngoài đơn" (`hoan_khong_don`, 17/10/2026) chỉ hiện khi có hoá đơn được cộng nợ
+// lại tiền đã trả khách ngoài đơn: Giá trị + Trả lại ngoài đơn − Trừ cọc − Đã thu = Còn nợ. Khách chưa đặt cho nợ thì Hạn thu là gạch mờ: cột thuộc tính đã nói "chưa đặt", không
 // lặp chữ ở từng dòng. Dòng Cộng cuối bảng.
 //
 // Bề rộng: xem `rong` trong thân (đo font thật 08/10); Hoá đơn co giãn có chỗ tối thiểu; tổng tối thiểu 818px vừa cột
@@ -25,8 +26,9 @@ type Xep = "don" | "han";
 
 const CO_GIAN = 96;
 
-const cong = (ds: ReceivableItemRow[], k: "amount" | "deposit_offset_amount" | "direct_received_amount" | "remaining_amount") =>
-  ds.reduce((s, r) => s + r[k], 0);
+type CotTien = "amount" | "hoan_khong_don" | "deposit_offset_amount" | "direct_received_amount" | "remaining_amount";
+
+const cong = (ds: ReceivableItemRow[], k: CotTien) => ds.reduce((s, r) => s + (r[k] ?? 0), 0);
 
 function OHanThu({ row, homNay, khachChuaDatHan }: { row: ReceivableItemRow; homNay: string; khachChuaDatHan: boolean }) {
   if (row.due_date && !row.chua_dat_han) {
@@ -74,7 +76,8 @@ export function HoaDonConNoBlock({
   // 99 triệu), Giá trị / Đã thu 100 (đủ trăm triệu), Còn nợ 112. Lưới lds-g đệm ô 10px ⇒ mỗi cột +2px (nút
   // Thu giữ 64: ô nút đệm 8px). Số hoá đơn co giãn; Ký hiệu 7 ký tự ("1C26TSV") 92; mã đơn 96.
   const theoHan = xep === "han";
-  const rong: (number | null)[] = [null, 92, ...(theoHan ? [96] : []), 104, 154, 102, 94, 102, 114, ...(coThu ? [64] : [])];
+  const coHoan = items.some((r) => (r.hoan_khong_don ?? 0) > 0);
+  const rong: (number | null)[] = [null, 92, ...(theoHan ? [96] : []), 104, 154, 102, ...(coHoan ? [124] : []), 94, 102, 114, ...(coThu ? [64] : [])];
   // Ô nhãn của dòng nhóm / dòng Cộng trải hết các cột trước Giá trị: Số, Ký hiệu, [Đơn bán], Ngày, Hạn thu.
   const cotDau = theoHan ? 5 : 4;
   const toiThieu = rong.reduce<number>((t, w) => t + (w ?? CO_GIAN), 0);
@@ -90,6 +93,7 @@ export function HoaDonConNoBlock({
         <OHanThu row={row} homNay={homNay} khachChuaDatHan={khachChuaDatHan} />
       </td>
       <td className="n">{vietSo(row.amount)}</td>
+      {coHoan && <td className="n"><OTien so={row.hoan_khong_don ?? 0} /></td>}
       <td className="n"><OTien so={row.deposit_offset_amount} /></td>
       <td className="n"><OTien so={row.direct_received_amount} /></td>
       <td className="n"><OTien so={row.remaining_amount} /></td>
@@ -133,6 +137,7 @@ export function HoaDonConNoBlock({
             </span>
           </td>
           <td className="n">{vietSo(cong(g.ds, "amount"))}</td>
+          {coHoan && <td className="n"><OTien so={cong(g.ds, "hoan_khong_don")} /></td>}
           <td className="n"><OTien so={cong(g.ds, "deposit_offset_amount")} /></td>
           <td className="n"><OTien so={cong(g.ds, "direct_received_amount")} /></td>
           <td className="n"><OTien so={cong(g.ds, "remaining_amount")} /></td>
@@ -164,6 +169,7 @@ export function HoaDonConNoBlock({
               <th>Ngày</th>
               <th>Hạn thu</th>
               <th className="n">Giá trị</th>
+              {coHoan && <th className="n" title="Tiền đã trả lại khách ngoài đơn, cộng nợ lại vào hoá đơn hạn muộn nhất">Trả lại ngoài đơn</th>}
               <th className="n">Trừ cọc</th>
               <th className="n">Đã thu</th>
               <th className="n">Còn nợ</th>
@@ -175,6 +181,7 @@ export function HoaDonConNoBlock({
             <tr className="lds-cong">
               <td colSpan={cotDau}>{`Cộng ${vietSo(items.length)} hoá đơn`}</td>
               <td className="n">{vietSo(cong(items, "amount"))}</td>
+              {coHoan && <td className="n"><OTien so={cong(items, "hoan_khong_don")} /></td>}
               <td className="n"><OTien so={cong(items, "deposit_offset_amount")} /></td>
               <td className="n"><OTien so={cong(items, "direct_received_amount")} /></td>
               <td className="n"><OTien so={cong(items, "remaining_amount")} /></td>

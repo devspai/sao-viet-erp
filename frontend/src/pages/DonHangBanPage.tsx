@@ -476,13 +476,15 @@ function ODon({ cot, o, mocNgay }: { cot: string; o: OrderRow; mocNgay: "tao" | 
       );
     }
     case "coc": {
-      // Đơn huỷ: cọc còn giữ của khách là việc kế toán phải trả — nói thẳng ra, không "Đủ cọc".
+      // Đơn huỷ: tiền khách còn giữ (cọc + tiền hoá đơn đã huỷ, 17/10/2026) là việc kế toán phải trả —
+      // nói thẳng ra, không "Đủ cọc".
       if (o.status === "cancelled") {
-        const conGiu = o.deposit_received - o.deposit_refunded;
+        const daNhan = o.tien_khach_da_nhan ?? o.deposit_received;
+        const conGiu = o.tien_khach_con_giu ?? 0;
         if (conGiu > 0) {
-          return <td title={`Đã thu ${vnd(o.deposit_received)}`}><ChipTT mau="cam" vuong>Còn giữ {soVN(conGiu)}</ChipTT></td>;
+          return <td title={`Đã nhận ${vnd(daNhan)}`}><ChipTT mau="cam" vuong>Còn giữ {soVN(conGiu)}</ChipTT></td>;
         }
-        return <td>{o.deposit_received > 0 ? <span className="lds-mu3">Đã trả lại</span> : <span className="lds-mu3">Không cọc</span>}</td>;
+        return <td>{daNhan > 0 ? <span className="lds-mu3">Đã trả lại</span> : <span className="lds-mu3">Không cọc</span>}</td>;
       }
       if (!o.deposit_required) return <td>{o.status === "draft" ? mu : <span className="lds-mu3">Không cọc</span>}</td>;
       return o.deposit_ok ? (
@@ -575,9 +577,13 @@ function OrderDrawer({
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const canCreateInvoice = can("phieu_thu", "create");
   const canCancelInvoice = can("phieu_thu", "cancel");
-  // Đơn đã huỷ còn cọc: "Trả lại cọc" = lập phiếu chi trả lại tiền cho khách (12/10/2026).
+  // Đơn đã huỷ còn tiền khách: nút trả lại = lập phiếu chi trả lại tiền cho khách (12/10/2026). Từ
+  // 17/10/2026 tiền còn giữ gồm cả tiền đã thu của hoá đơn đã huỷ — số do máy chủ tính, cùng hàng
+  // "Chờ trả lại khách" của Phiếu chi.
   const [traCoc, setTraCoc] = useState(false);
-  const cocConGiu = order.deposit_received - order.deposit_refunded;
+  const cocConGiu = order.tien_khach_con_giu ?? 0;
+  const tienDaNhan = order.tien_khach_da_nhan ?? order.deposit_received;
+  const coTienHd = tienDaNhan > order.deposit_received;
   const canCancel = (order.status === "draft" && canUpdate) || (order.status === "ordered" && canApproveException);
 
   // `dungNapTruoc` chỉ ở lần nạp đầu của ngăn: lấy lại lời gọi đã bắn lúc bấm mở đơn.
@@ -891,15 +897,15 @@ function OrderDrawer({
                         <TomTat d={[
                           { nhan: "Lý do hủy", so: order.cancel_reason ?? "—" },
                           ...(order.cancel_fault ? [{ nhan: "Lỗi tại", so: order.cancel_fault === "khach" ? "Khách hàng" : "Xưởng in" }] : []),
-                          ...(order.deposit_received > 0 ? [
-                            { nhan: "Cọc đã nhận", so: soVN(order.deposit_received) },
+                          ...(tienDaNhan > 0 ? [
+                            { nhan: coTienHd ? "Tiền khách đã đưa" : "Cọc đã nhận", dien: coTienHd ? "cọc và hóa đơn đã hủy" : undefined, so: soVN(tienDaNhan) },
                             ...(order.deposit_refunded > 0 ? [{ nhan: "Đã trả lại", so: soVN(order.deposit_refunded) }] : []),
-                            { nhan: "Cọc còn giữ", so: soVN(cocConGiu), tong: true, tone: cocConGiu > 0 ? "chu" as const : undefined },
+                            { nhan: "Còn giữ", so: soVN(cocConGiu), tong: true, tone: cocConGiu > 0 ? "chu" as const : undefined },
                           ] : []),
                         ]} />
                         {cocConGiu > 0 && order.customer_id != null && can("phieu_chi", "create") && (
-                          <ChanKhung chu="Đơn đã hủy nhưng còn giữ cọc của khách.">
-                            <button type="button" className="btn" onClick={() => setTraCoc(true)}>Trả lại cọc</button>
+                          <ChanKhung chu={coTienHd ? "Đơn đã hủy nhưng còn giữ tiền của khách." : "Đơn đã hủy nhưng còn giữ cọc của khách."}>
+                            <button type="button" className="btn" onClick={() => setTraCoc(true)}>{coTienHd ? "Trả lại tiền khách" : "Trả lại cọc"}</button>
                           </ChanKhung>
                         )}
                       </>
@@ -1188,7 +1194,8 @@ function OrderDrawer({
           <TraLaiTienKhachModal
             khachId={order.customer_id}
             khachTen={order.customer_name ?? "Khách hàng"}
-            don={{ id: order.id, ma: order.order_no, daNhan: order.deposit_received, conLai: cocConGiu }}
+            don={{ id: order.id, ma: order.order_no, daNhan: tienDaNhan, conLai: cocConGiu,
+              ...(coTienHd ? { daTraLai: order.deposit_refunded } : {}) }}
             onClose={() => setTraCoc(false)}
             onDone={() => {
               setTraCoc(false);
@@ -1282,6 +1289,12 @@ function InvoicePanel({
   const truCoc = issued.reduce((sum, item) => sum + item.deposit_offset_amount, 0);
   const daTra = issued.reduce((sum, item) => sum + item.direct_received_amount, 0);
   const phieuThu = book?.phieu_thu ?? [];
+  // Tiền trả lại khách KHÔNG gắn đơn cộng nợ lại vào hoá đơn (17/10/2026) là khoản RIÊNG
+  // (`hoan_khong_don`): trừ cọc / đã trả giữ số thật của phiếu, tóm tắt thêm một dòng cộng.
+  const hoanNgoai = issued.reduce((sum, item) => sum + (item.hoan_khong_don ?? 0), 0);
+  const thuHdHuy = cancelTarget?.direct_received_amount ?? 0;
+  // Tiền của hoá đơn đã huỷ về quỹ của đơn như cọc ⇒ dòng trừ ghi cả hai loại phiếu (17/10/2026).
+  const phieuHdHuy = book?.phieu_thu_hd_huy ?? [];
   // Số phiếu thu mở phiếu bên Kế toán — cùng cách chặng Cọc.
   const linkPhieu = (code: string, docNo: string | null) => navigate ? (
     <button type="button" className="dhb__td-link" title="Mở phiếu thu này bên Kế toán"
@@ -1411,13 +1424,13 @@ function InvoicePanel({
               ? <span className="dhb__mono">{soVN(item.remaining_amount)}</span>
               : <span><ChipTT mau="la">Đã thu đủ</ChipTT></span>}
           {/* Vì sao còn nợ nhỏ hơn giá trị: phần trừ cọc và phần khách đã trả của chính hóa đơn này. */}
-          {!huy && item.deposit_offset_amount > 0 && <small>trừ cọc {soVN(item.deposit_offset_amount)}</small>}
+          {!huy && item.deposit_offset_amount > 0 && <small>{phieuHdHuy.length > 0 ? "trừ tiền đã thu" : "trừ cọc"} {soVN(item.deposit_offset_amount)}</small>}
           {!huy && item.direct_received_amount > 0 && <small>đã trả {soVN(item.direct_received_amount)}</small>}
+          {!huy && (item.hoan_khong_don ?? 0) > 0 && <small>cộng lại {soVN(item.hoan_khong_don ?? 0)} đã trả khách ngoài đơn</small>}
         </td>
         <td className="dhb__text-right dhb__g-nut">
-          {/* ĐÃ CÓ PHIẾU THU thì KHÔNG bày nút hủy (chủ 22/08/2026) — máy chủ vốn đã chặn.
-              Dùng `direct_received_amount`: cọc cấn trừ gắn với ĐƠN, không chặn hủy. */}
-          {!huy && canCancel && item.direct_received_amount <= 0 && (
+          {/* Khách đã trả vẫn hủy được (17/10/2026): tiền về quỹ của đơn, trừ vào hóa đơn ghi lại. */}
+          {!huy && canCancel && (
             <button type="button" className="dhb__td-link dhb__td-link--do" title="Hủy hóa đơn"
               onClick={() => { setCancelTarget(item); setCancelReason(""); setFormError(null); }}>
               Hủy
@@ -1444,14 +1457,24 @@ function InvoicePanel({
               tone: (book.invoiceable_amount ?? 0) > 0 ? "chu" : undefined },
             { nhan: "Đã ghi hóa đơn", dien: issued.length > 0 ? `${issued.length} hóa đơn` : undefined, so: soVN(book.invoiced_amount) },
             ...(truCoc > 0 ? [{
-              nhan: "Trừ cọc",
-              dien: <span className="dhb__g-cach">{order.deposits.map((d) => <span key={d.id}>{linkPhieu(d.code, d.doc_no)}</span>)}</span>,
+              nhan: phieuHdHuy.length > 0 ? "Trừ tiền đã thu" : "Trừ cọc",
+              dien: (
+                <span className="dhb__g-cach">
+                  {order.deposits.map((d) => <span key={d.id}>{linkPhieu(d.code, d.doc_no)}</span>)}
+                  {phieuHdHuy.map((p) => <span key={`h${p.id}`}>{linkPhieu(p.code, p.doc_no)}</span>)}
+                </span>
+              ),
               so: `−${soVN(truCoc)}`,
             }] : []),
             ...(daTra > 0 ? [{
               nhan: "Khách đã trả",
               dien: <span className="dhb__g-cach">{phieuThu.map((p) => <span key={p.id}>{linkPhieu(p.code, p.doc_no)}</span>)}</span>,
               so: `−${soVN(daTra)}`,
+            }] : []),
+            ...(hoanNgoai > 0 ? [{
+              nhan: "Đã trả lại khách ngoài đơn",
+              dien: "cộng nợ lại",
+              so: `+${soVN(hoanNgoai)}`,
             }] : []),
             { nhan: "Còn phải thu", dien: "trên các hóa đơn đã ghi", so: soVN(outstanding), tong: true,
               tone: outstanding > 0 ? "chu" : undefined },
@@ -1548,7 +1571,13 @@ function InvoicePanel({
             <form className="dhb__invoice-cancel-form" style={{ margin: "0 20px 12px" }} onSubmit={cancelInvoice}>
               <div>
                 <span>Hủy hóa đơn {cancelTarget.invoice_number}</span>
-                <small>Hóa đơn đã có phiếu thu sẽ không thể hủy. Hãy hủy phiếu thu liên quan trước.</small>
+                {thuHdHuy > 0 ? (
+                  <small>
+                    {`Khách đã trả ${soVN(thuHdHuy)} cho hóa đơn này. Phiếu thu giữ nguyên, số tiền được trừ vào hóa đơn ghi lại. Đơn không còn gì để ghi hóa đơn thì khoản này sang Phiếu chi, mục Chờ trả lại khách.`}
+                  </small>
+                ) : (
+                  <small>Hủy xong, lượt giao của hóa đơn này ghi lại được hóa đơn mới.</small>
+                )}
               </div>
               <textarea className="dhb__input" rows={2} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Lý do hủy *" />
               <div className="dhb__invoice-form-actions">

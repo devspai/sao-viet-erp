@@ -7836,8 +7836,10 @@ export interface ReceivableCustomerRow {
   sale_user_name?: string | null;
   thu_gan_nhat_ngay?: string | null;
   thu_gan_nhat_tien?: number;
-  /** Σ cọc còn giữ của các đơn ĐÃ HUỶ của khách — kế toán phải lập phiếu chi trả lại. */
-  coc_don_huy?: number;
+  /** Tiền khách đang để ở các đơn (17/10/2026) — không trừ vào hoá đơn đơn khác. `cho_tra_lai` =
+   *  phần phải trả lại ngay (đơn huỷ, hoặc đã ghi đủ hoá đơn mà vẫn dư). */
+  cho_tra_lai?: number;
+  tien_dang_de?: number;
 }
 
 export interface ReceivablesSummary {
@@ -7863,6 +7865,57 @@ export interface ReceivablesSummary {
   as_of: string;
 }
 
+/** Một dòng cọc chờ thu — đơn đã chốt, cọc chưa đủ (17/10/2026). */
+export interface CocChoThu {
+  order_id: number;
+  order_code: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  deposit_pct: number;
+  can_thu: number;
+  da_thu: number;
+  con_thieu: number;
+  ordered_at: string | null;
+}
+
+/** Một dòng hoá đơn chờ thu — còn nợ đã cân theo sổ 131, cùng số màn Công nợ phải thu. */
+export interface HoaDonChoThu {
+  invoice_id: number;
+  invoice_symbol: string;
+  invoice_number: string;
+  invoice_date: string;
+  due_date: string | null;
+  order_id: number;
+  order_code: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  amount: number;
+  direct_received_amount: number;
+  deposit_offset_amount: number;
+  /** Tiền đã trả lại khách ngoài đơn, cộng nợ lại vào hoá đơn này: amount + hoan − da_thu = con_no. */
+  hoan_khong_don?: number;
+  da_thu: number;
+  con_no: number;
+}
+
+export interface DonHangChoThu {
+  coc: CocChoThu[];
+  hoa_don: HoaDonChoThu[];
+}
+
+/** Một dòng "Chờ trả lại khách" — đơn hết chỗ ghi hoá đơn (ghi đủ / đã huỷ) mà tiền khách còn dư. */
+export interface TraLaiKhachChoChi {
+  order_id: number;
+  order_code: string;
+  don_huy: boolean;
+  customer_id: number | null;
+  customer_name: string | null;
+  /** Số các hoá đơn đã huỷ mà khách đã trả tiền — nguồn của khoản dư. */
+  hoa_don_huy: string[];
+  da_tra_lai: number;
+  con_lai: number;
+}
+
 export interface ReceivableItemRow {
   invoice_id: number;
   invoice_symbol: string | null;
@@ -7883,6 +7936,8 @@ export interface ReceivableItemRow {
   deposit_offset_amount: number;
   received_amount: number;
   remaining_amount: number;
+  /** Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026). */
+  hoan_khong_don?: number;
 }
 
 export interface ReceivableReceiptRow {
@@ -7931,6 +7986,8 @@ export interface SalesInvoiceRow {
   deposit_offset_amount: number;
   received_amount: number;
   remaining_amount: number;
+  /** Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026). */
+  hoan_khong_don?: number;
   created_by_user_id: number | null;
   created_by_name: string | null;
   created_at: string;
@@ -7971,6 +8028,8 @@ export interface SalesInvoiceListOut {
   luot_giao?: LuotGiaoHoaDon[];
   /** Phiếu thu ĐÃ THU gắn thẳng vào hoá đơn của đơn (không gồm cọc). */
   phieu_thu?: { id: number; code: string; doc_no: string | null; invoice_id: number; amount: number; receipt_date: string }[];
+  /** Phiếu thu của hoá đơn ĐÃ HUỶ — tiền về quỹ của đơn, trừ vào hoá đơn khác như cọc (17/10/2026). */
+  phieu_thu_hd_huy?: { id: number; code: string; doc_no: string | null; invoice_id: number; amount: number; receipt_date: string }[];
   items: SalesInvoiceRow[];
 }
 
@@ -7997,15 +8056,22 @@ export interface ReceivablesDetail {
   aging: AgingBucket[];
   received_in_period: number;
   as_of: string;
-  /** Đơn đã huỷ còn giữ cọc — mỗi đơn một nút "Trả lại cọc" gắn đúng đơn. */
-  coc_don_huy?: CocDonHuy[];
+  /** Tiền khách đang để ở từng đơn — đơn còn phải trả lại có nút trả lại gắn đúng đơn. */
+  tien_dang_de?: TienDangDe[];
 }
 
-export interface CocDonHuy {
+export interface TienDangDe {
   order_id: number;
   order_code: string;
+  /** Tiền khách đã đưa cho đơn: cọc + tiền đã thu của hoá đơn đã huỷ. */
   da_nhan: number;
+  da_tra_lai?: number;
+  da_tru?: number;
+  /** Còn để ở đơn, chưa trừ vào hoá đơn nào. */
+  dang_de: number;
+  /** Phần phải trả lại ngay; 0 = còn chờ trừ vào hoá đơn ghi sau. */
   con_lai: number;
+  tinh_trang: "don_huy" | "ghi_du" | "cho_tru" | string;
 }
 
 /** Dòng hàng ĐÃ GÁN nhà cung cấp — chỉ dùng cho đường tạo cả mẻ. */
@@ -9166,8 +9232,11 @@ export interface OrderRow {
   deposit_required: number;
   deposit_received: number;
   deposit_ok: boolean;
-  /** Đơn đã huỷ: tổng phiếu chi trả lại cọc còn hiệu lực. Cọc còn giữ = deposit_received − số này. */
+  /** Đơn đã huỷ: tổng phiếu chi trả lại tiền khách còn hiệu lực của đơn. */
   deposit_refunded: number;
+  /** Đơn đã huỷ: tiền khách đã đưa (cọc + tiền hoá đơn đã huỷ) và phần còn giữ chưa trả lại. */
+  tien_khach_da_nhan?: number;
+  tien_khach_con_giu?: number;
   delivery_committed_date: string | null;
   sale_user_id: number | null;
   sale_name: string | null;
@@ -16099,6 +16168,14 @@ export const api = {
         method: "POST",
         body: JSON.stringify(payload),
       });
+    },
+    /** Mục "Đơn hàng chờ thu" của màn Phiếu thu (17/10/2026): cọc chưa đủ + hoá đơn chưa trả hết. */
+    donHangChoThu(token: string): Promise<DonHangChoThu> {
+      return authed<DonHangChoThu>("/api/accounting/don-hang-cho-thu", token);
+    },
+    /** Mục "Chờ trả lại khách" của màn Phiếu chi (17/10/2026). */
+    traLaiKhachChoChi(token: string): Promise<TraLaiKhachChoChi[]> {
+      return authed<TraLaiKhachChoChi[]>("/api/accounting/tra-lai-khach-cho-chi", token);
     },
     salesInvoices(token: string, orderId: number): Promise<SalesInvoiceListOut> {
       return authed<SalesInvoiceListOut>(

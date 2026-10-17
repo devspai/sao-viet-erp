@@ -21,8 +21,9 @@ export { LOC_TRONG };
 /** Mốc kỳ của màn — mặc định Ngày tạo. */
 export const MOC_PT: [string, string][] = [["tao", "Ngày tạo"], ["thu", "Ngày thu"]];
 
-/** Thẻ lọc đầu bảng. "cho" (Chờ thu) chỉ hiện khi còn phiếu CŨ chờ thu (`the_loc.cho > 0`). */
-export type TheLocPT = "tat_ca" | "xong" | "thieu" | "cho" | "da_huy";
+/** Thẻ lọc đầu bảng. "cho" (Chờ thu) chỉ hiện khi còn phiếu CŨ chờ thu (`the_loc.cho > 0`). "dh" không
+ *  lọc phiếu — nó đổi bảng sang hàng "Đơn hàng chờ thu" (cọc + hoá đơn, 17/10/2026). */
+export type TheLocPT = "tat_ca" | "xong" | "thieu" | "cho" | "dh" | "da_huy";
 
 /** Bộ lọc ĐÃ ÁP. */
 export type LocPT = LocNangCao;
@@ -66,7 +67,7 @@ export function dangLoc(the: TheLocPT, loc: LocPT, tim: string): boolean {
 
 export type TrangThaiLocPT = { the: TheLocPT; tim: string; loc: LocPT };
 
-const THE_HOP_LE: TheLocPT[] = ["tat_ca", "xong", "thieu", "cho", "da_huy"];
+const THE_HOP_LE: TheLocPT[] = ["tat_ca", "xong", "thieu", "cho", "dh", "da_huy"];
 
 /** Trạng thái lọc → khoá URL (kỳ do `useKyKeToan` tự ghi). Giá trị mặc định ⇒ undefined. */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPT): Record<string, string | undefined> {

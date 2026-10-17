@@ -209,10 +209,15 @@ def _ap_du_cuoi_ky_qua_khu(muc: dict, it: dict | None, *, phai_tra: bool) -> Non
 
     331 (`phai_tra`) dư Có là còn nợ; 131 dư Nợ là còn nợ. Dư ≤ 0 (cọc/ứng trước vượt hàng — sổ
     cộng RÒNG theo đối tượng) hoặc `it=None` (không có số trong kỳ) ⇒ mọi ô còn nợ về 0: màn này
-    đếm nợ phải đi trả/đi đòi, không hiện số âm (chốt 05/10/2026)."""
+    đếm nợ phải đi trả/đi đòi, không hiện số âm (chốt 05/10/2026).
+
+    131 từ 17/10/2026: còn nợ = tổng tuổi nợ THEO ĐƠN của sổ, không phải dư Nợ — tiền khách đang để
+    ở đơn khác không trừ vào hoá đơn đơn này (cùng luật ảnh chụp hôm nay)."""
     du = 0
-    if it is not None:
-        du = (it["cuoi_co"] - it["cuoi_no"]) if phai_tra else (it["cuoi_no"] - it["cuoi_co"])
+    if it is not None and phai_tra:
+        du = it["cuoi_co"] - it["cuoi_no"]
+    elif it is not None:
+        du = sum(int(it["aging"][k]["amount"]) for k in AGING_KEYS)
     if du <= 0:
         muc.update(total_due=0, overdue_amount=0, no_han_amount=0, aging=_aging_rong())
         return
@@ -268,7 +273,7 @@ def _loc_the_cong_no(items: list[dict], filter_: str) -> list[dict]:
     if filter_ == "vuot_han_muc":
         return [m for m in items if m["vuot_han_muc"]]
     if filter_ == "tra_coc":
-        return [m for m in items if m.get("coc_don_huy", 0) > 0]
+        return [m for m in items if m.get("cho_tra_lai", 0) > 0]
     return items
 
 
@@ -353,11 +358,30 @@ def _order_total_with_vat(order: Order) -> int:
     return total_x100 // 100
 
 
+def quy_tien_don(repo: AccountingRepository, order_ids: list[int]) -> dict[int, int]:
+    """Quỹ tiền khách đã đưa cho từng đơn mà chưa gắn hoá đơn còn hiệu lực (17/10/2026):
+    cọc + tiền đã thu của hoá đơn ĐÃ HUỶ − đã trả lại khách. Quỹ này cấn FIFO vào hoá đơn của đơn."""
+    coc = repo.received_deposit_sums(order_ids)
+    huy = repo.thu_hoa_don_huy_theo_don(order_ids)
+    tra = repo.coc_da_tra_lai_nhieu(order_ids)
+    return {
+        oid: max(0, coc.get(oid, 0) + huy.get(oid, 0) - tra.get(oid, 0))
+        for oid in set(coc) | set(huy)
+    }
+
+
+def _tien_dang_de(repo: AccountingRepository, customer_id: int) -> list[dict]:
+    from .ban_hang_cho_thu_chi import tien_dang_de
+
+    return tien_dang_de(repo, customer_id)
+
+
 def receivable_rows(
     repo: AccountingRepository,
     *,
     customer_id: int | None = None,
     invoices: list[SalesInvoice] | None = None,
+    hoan: bool = True,
 ) -> list[dict]:
     """Một nguồn sự thật cho Công nợ phải thu và thẻ công nợ CRM.
 
@@ -368,6 +392,12 @@ def receivable_rows(
     `invoices` (tuỳ chọn) = danh sách người gọi đã nạp sẵn bằng ĐÚNG
     `list_sales_invoices(customer_id=customer_id, status=issued)` — màn Công nợ phải thu dùng chung
     với sổ 131 để khỏi nạp hoá đơn hai lần. Không truyền thì tự nạp như cũ.
+
+    Còn nợ đi THEO ĐƠN (17/10/2026): tiền của đơn nào chỉ trừ vào hoá đơn của đơn đó, không cân theo
+    dư 131 nữa. `hoan=True` cộng nợ lại tiền trả lại khách KHÔNG gắn đơn (`hoan_khong_don`, luật
+    `bao_cao_cong_no.phan_bo_hoan_khong_don`) thành khoản RIÊNG: Trừ cọc / Đã thu giữ số thật của
+    phiếu, Giá trị + `hoan_khong_don` − Trừ cọc − Đã thu = Còn nợ (17/10/2026). Tính quỹ tiền của đơn (`tien_cho_tra_lai`) gọi
+    `hoan=False` — tiền trả ngoài đơn không đụng quỹ của đơn nào.
     """
     if invoices is None:
         invoices = repo.list_sales_invoices(
@@ -379,7 +409,7 @@ def receivable_rows(
     invoice_ids = [row.id for row in invoices]
     direct_sums = repo.received_invoice_receipt_sums(invoice_ids)
     order_ids = sorted({row.order_id for row in invoices})
-    deposit_sums = repo.received_deposit_sums(order_ids)
+    deposit_sums = quy_tien_don(repo, order_ids)
     customers = repo.customers_by_ids(
         {row.customer_id for row in invoices if row.customer_id is not None}
     )
@@ -425,9 +455,35 @@ def receivable_rows(
                 "deposit_offset_amount": deposit_offset,
                 "received_amount": received,
                 "remaining_amount": max(0, amount - received),
+                "hoan_khong_don": 0,
             }
         )
+    if hoan:
+        _cong_hoan_khong_don(repo, rows)
     return rows
+
+
+def _cong_hoan_khong_don(repo: AccountingRepository, rows: list[dict]) -> None:
+    hoan = repo.hoan_khach_khong_don({r["customer_id"] for r in rows if r["customer_id"]})
+    if not hoan:
+        return
+    co_san = {r["invoice_id"] for r in rows}
+    du = repo.hoa_don_hieu_luc_cua_khach(hoan)
+    # Phân bổ cần MỌI hoá đơn của khách — người gọi có thể chỉ đưa hoá đơn của một đơn.
+    day_du = rows if all(i.id in co_san for i in du) else receivable_rows(repo, invoices=du, hoan=False)
+    khoan = [
+        {"id": r["invoice_id"], "doi_tuong_id": r["customer_id"], "han": r["due_date"],
+         "ngay": r["invoice_date"], "goc": r["amount"], "con_no": r["remaining_amount"],
+         "thua": max(0, r["direct_received_amount"] - r["amount"])}
+        for r in day_du if r["customer_id"] in hoan
+    ]
+    them = bao_cao_cong_no.phan_bo_hoan_khong_don(khoan, hoan)
+    for r in rows:
+        cong = them.get(r["invoice_id"], 0)
+        if not cong:
+            continue
+        r["hoan_khong_don"] = cong
+        r["remaining_amount"] += cong
 
 
 class AccountingService:
@@ -1628,32 +1684,6 @@ class AccountingService:
     def _receivable_rows(self, *, customer_id: int | None = None) -> list[dict]:
         return receivable_rows(self.repo, customer_id=customer_id)
 
-    def _can_dong_phai_thu_theo_so(
-        self, rows: list[dict], *, den_ngay: date, hoa_don_da_nap: list | None = None
-    ) -> None:
-        """Ghi đè còn nợ từng hoá đơn bằng số đã cân theo sổ 131 (`con_no_tung_hoa_don`), để còn nợ
-        và mốc hạn của màn Công nợ phải thu cộng lại ĐÚNG bằng dư Nợ của khách trên sổ (12/10/2026).
-
-        Phần chênh đi vào hai cột của dòng cho Giá trị − Trừ cọc − Đã thu vẫn ra Còn nợ: tiền thừa
-        cấn sang (cọc đơn khác, trả thừa hoá đơn khác) cộng vào Trừ cọc; tiền hoàn khách bớt Đã thu
-        trước rồi mới bớt Trừ cọc."""
-        con_no = bao_cao_cong_no.con_no_tung_hoa_don(
-            self.repo, den_ngay=den_ngay, hoa_don_da_nap=hoa_don_da_nap
-        )
-        for r in rows:
-            moi = con_no.get(r["invoice_id"])
-            if moi is None or moi == r["remaining_amount"]:
-                continue
-            lech = moi - r["remaining_amount"]
-            if lech < 0:
-                r["deposit_offset_amount"] += -lech
-            else:
-                bot = min(max(0, r["direct_received_amount"]), lech)
-                r["direct_received_amount"] -= bot
-                r["deposit_offset_amount"] = max(0, r["deposit_offset_amount"] - (lech - bot))
-            r["remaining_amount"] = moi
-            r["received_amount"] = max(0, r["amount"] - moi)
-
     def _sales_invoice_out(self, invoice: SalesInvoice, money_row: dict | None = None) -> dict:
         active = invoice.status == SALES_INVOICE_ISSUED
         direct = money_row["direct_received_amount"] if money_row else 0
@@ -1677,6 +1707,7 @@ class AccountingService:
             "deposit_offset_amount": deposit if active else 0,
             "received_amount": received if active else 0,
             "remaining_amount": remaining if active else 0,
+            "hoan_khong_don": (money_row or {}).get("hoan_khong_don", 0) if active else 0,
             "created_by_user_id": invoice.created_by_user_id,
             "created_by_name": self._user_name(invoice.created_by_user_id),
             "created_at": invoice.created_at,
@@ -1750,6 +1781,14 @@ class AccountingService:
                  "amount": int(p.amount_vnd), "receipt_date": p.receipt_date}
                 for p in self.repo.received_invoice_receipts(
                     [row.id for row in invoices if row.status == SALES_INVOICE_ISSUED])
+            ],
+            # Phiếu thu của hoá đơn ĐÃ HUỶ (17/10/2026): tiền về quỹ của đơn như cọc — khối Hoá đơn
+            # ghi chúng cạnh phiếu cọc ở dòng trừ.
+            "phieu_thu_hd_huy": [
+                {"id": p.id, "code": p.code, "doc_no": p.doc_no, "invoice_id": p.sales_invoice_id,
+                 "amount": int(p.amount_vnd), "receipt_date": p.receipt_date}
+                for p in self.repo.received_invoice_receipts(
+                    [row.id for row in invoices if row.status != SALES_INVOICE_ISSUED])
             ],
             "items": [
                 {**self._sales_invoice_out(row, money.get(row.id)),
@@ -1847,10 +1886,8 @@ class AccountingService:
             raise AccountingNotFound("Không tìm thấy hóa đơn bán.")
         if invoice.status == SALES_INVOICE_CANCELLED:
             raise AccountingConflict("Hóa đơn đã hủy rồi.")
-        if self.repo.sales_invoice_has_active_receipts(invoice.id):
-            raise AccountingConflict(
-                "Hóa đơn đã có phiếu thu gắn vào; hãy hủy phiếu thu trước."
-            )
+        # Khách đã trả vẫn hủy được (17/10/2026): phiếu thu giữ nguyên, tiền về quỹ của đơn
+        # (`quy_tien_don`) để trừ vào hóa đơn ghi lại; đơn hết chỗ ghi thì thành việc trả lại khách.
         cleaned = _text(reason, label="Lý do hủy", required=True, max_length=2000)
         invoice.status = SALES_INVOICE_CANCELLED
         invoice.cancel_reason = cleaned
@@ -1961,18 +1998,15 @@ class AccountingService:
         moc_ky = tu_ngay if co_ky else hom_nay - timedelta(days=31 * PAYABLES_PERIOD_MONTHS)
         # `den_ngay` ở tương lai ⇒ chặn về hôm nay (xem `payables_summary`).
         cuoi_ky = min(den_ngay, hom_nay) if co_ky else hom_nay
-        # Kỳ kết thúc hôm nay ⇒ còn nợ theo ẢNH CHỤP từng hoá đơn, nhưng từ 12/10/2026 đã cân theo dư
-        # Nợ 131 của khách (`_can_dong_phai_thu_theo_so`): tiền hoàn khách cộng nợ lại, tiền thừa (cọc
-        # đơn khác chưa có hoá đơn) trừ vào hoá đơn tới hạn sớm nhất — màn này và Báo cáo công nợ ra
-        # cùng một số. Kỳ đã qua dùng dư cuối kỳ của sổ (kẹp ≥ 0).
+        # Kỳ kết thúc hôm nay ⇒ còn nợ theo ẢNH CHỤP từng hoá đơn, THEO ĐƠN (17/10/2026, bỏ cân theo
+        # dư 131 của 12/10): tiền đang để ở đơn khác không trừ vào hoá đơn đơn này; tiền trả lại không
+        # gắn đơn cộng nợ lại (`receivable_rows`). Kỳ đã qua dùng tuổi nợ của sổ — cùng luật.
         so_chup = cuoi_ky >= hom_nay
         tim = (q or "").strip().lower()
         # Hoá đơn đã phát hành nạp MỘT lần: dựng dòng ảnh chụp (bên dưới) và sổ 131 (khối `if co_ky`)
         # dùng chung.
         hoa_don_ds = self.repo.list_sales_invoices(status=SALES_INVOICE_ISSUED)
         rows = receivable_rows(self.repo, invoices=hoa_don_ds)
-        if so_chup:
-            self._can_dong_phai_thu_theo_so(rows, den_ngay=hom_nay, hoa_don_da_nap=hoa_don_ds)
         thu_theo_khach: dict[int | None, int] = {}
         receipts = self._receipts_for_receivable_rows(
             rows, since=moc_ky, until=cuoi_ky if co_ky else None
@@ -2012,7 +2046,8 @@ class AccountingService:
                 "sale_user_name": None,
                 "thu_gan_nhat_ngay": None,
                 "thu_gan_nhat_tien": 0,
-                "coc_don_huy": 0,
+                "cho_tra_lai": 0,
+                "tien_dang_de": 0,
             }
 
         theo_khach: dict[int | None, dict] = {}
@@ -2061,19 +2096,25 @@ class AccountingService:
                 theo_khach[cid]["received_in_period"] += amount
 
         if not chi_tong:
-            # Cọc còn giữ của đơn ĐÃ HUỶ (13/10/2026): khách chỉ có đơn huỷ (không hoá đơn) vẫn lên
-            # danh sách để kế toán thấy mà lập phiếu chi trả lại. Không đụng số nợ.
-            coc_huy: dict[int, int] = {}
-            for d in self.repo.coc_don_huy_con_giu():
-                coc_huy[d["customer_id"]] = coc_huy.get(d["customer_id"], 0) + d["con_lai"]
-            thieu = set(coc_huy) - set(theo_khach)
+            # Tiền khách đang để ở các đơn (17/10/2026): công nợ đi theo đơn nên tiền này không trừ
+            # vào hoá đơn đơn khác — hiện riêng. Khách còn tiền PHẢI TRẢ LẠI (đơn huỷ / ghi đủ mà vẫn
+            # dư) mà không có hoá đơn vẫn lên danh sách để kế toán lập phiếu chi. Không đụng số nợ.
+            from .ban_hang_cho_thu_chi import tien_dang_de
+
+            de: dict[int, list[int]] = {}
+            for d in tien_dang_de(self.repo):
+                o = de.setdefault(d["customer_id"], [0, 0])
+                o[0] += d["dang_de"]
+                o[1] += d["con_lai"]
+            thieu = {cid for cid, (_, tra) in de.items() if tra > 0} - set(theo_khach)
             for cid, kh in self.repo.customers_by_ids(thieu).items():
                 theo_khach[cid] = _muc_moi(
                     cid, kh.name, int(kh.credit_limit or 0), kh.payment_term_days, kh.sale_user_id
                 )
-            for cid, so in coc_huy.items():
+            for cid, (dang, tra) in de.items():
                 if cid in theo_khach:
-                    theo_khach[cid]["coc_don_huy"] = so
+                    theo_khach[cid]["tien_dang_de"] = dang
+                    theo_khach[cid]["cho_tra_lai"] = tra
 
             # Lần thu gần nhất (cả lịch sử): hàng đầu tiên gặp của mỗi khách là mới nhất.
             for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no(
@@ -2105,7 +2146,7 @@ class AccountingService:
         def _co_so(i) -> bool:
             return (
                 i["total_due"] > 0 or i["received_in_period"] > 0 or i["ban_trong_ky"] > 0
-                or i["coc_don_huy"] > 0
+                or i["cho_tra_lai"] > 0
             )
 
         items = []
@@ -2142,8 +2183,8 @@ class AccountingService:
             items = [i for i in items if tim in (i["customer_name"] or "").lower()]
         elif co_ky and not ca_da_tra_het:
             # Có kỳ: khách đã thu hết (còn nợ = 0) ẩn khỏi danh sách, vẫn cộng vào tổng — trừ khách
-            # còn giữ cọc đơn huỷ (việc còn phải làm).
-            items = [i for i in items if i["total_due"] > 0 or i["coc_don_huy"] > 0]
+            # còn tiền phải trả lại (việc còn phải làm).
+            items = [i for i in items if i["total_due"] > 0 or i["cho_tra_lai"] > 0]
         items = _loc_nang_cao(
             items, no_tu=no_tu, no_den=no_den, han_tra=han_tra, han_muc=han_muc, moc=cuoi_ky
         )
@@ -2156,7 +2197,7 @@ class AccountingService:
             items = [i for i in items if i["aging"][aging_bucket]["amount"] > 0]
         # Số trên nhóm nút: đếm TRƯỚC `filter_` — cùng luật với phải trả.
         the_loc = _the_loc_cong_no(items)
-        the_loc["tra_coc"] = sum(1 for i in items if i["coc_don_huy"] > 0)
+        the_loc["tra_coc"] = sum(1 for i in items if i["cho_tra_lai"] > 0)
         items = _loc_the_cong_no(items, filter_)
         items = _sap_xep_cong_no(
             items, sap_xep, chieu, khoa_gan_nhat="thu_gan_nhat_ngay", khoa_ky="received_in_period"
@@ -2238,7 +2279,6 @@ class AccountingService:
         if customer is None:
             raise AccountingNotFound("Không tìm thấy khách hàng.")
         rows = self._receivable_rows(customer_id=customer_id)
-        self._can_dong_phai_thu_theo_so(rows, den_ngay=hom_nay)
         items = []
         for row in rows:
             con_no = row["remaining_amount"]
@@ -2270,6 +2310,7 @@ class AccountingService:
                     "deposit_offset_amount": row["deposit_offset_amount"],
                     "received_amount": row["received_amount"],
                     "remaining_amount": con_no,
+                    "hoan_khong_don": row.get("hoan_khong_don", 0),
                 }
             )
         ro_chi_tiet = _aging_rong()
@@ -2314,7 +2355,7 @@ class AccountingService:
             "aging": _aging_ra_danh_sach(ro_chi_tiet),
             "received_in_period": tong_da_thu,
             "as_of": hom_nay,
-            "coc_don_huy": self.repo.coc_don_huy_con_giu(customer_id),
+            "tien_dang_de": _tien_dang_de(self.repo, customer_id),
         }
 
     # --- payment receipts ---------------------------------------------------
@@ -2393,7 +2434,8 @@ class AccountingService:
             order_id=invoice.order_id, status=SALES_INVOICE_ISSUED
         )
         money = next(
-            (m for m in receivable_rows(self.repo, invoices=hoa_don_don) if m["invoice_id"] == iid),
+            (m for m in receivable_rows(self.repo, invoices=hoa_don_don, hoan=False)
+             if m["invoice_id"] == iid),
             None,
         )
         coc_can = int(money["deposit_offset_amount"]) if money else 0
@@ -3594,14 +3636,18 @@ class AccountingService:
             don = self.repo.get_sales_order(int(don_id))
             if don is None or don.customer_id != khach.id:
                 raise AccountingValidationError("Đơn trả lại cọc không phải đơn của khách này.")
-            if don.status != ORDER_CANCELLED:
+            # Trần = tiền khách còn phải trả lại của đơn (17/10/2026): đơn huỷ là cả quỹ còn giữ
+            # (cọc + tiền hoá đơn đã huỷ); đơn đang chạy chỉ phần dư khi đã hết chỗ ghi hoá đơn.
+            from .ban_hang_cho_thu_chi import tien_cho_tra_lai
+
+            con = next((r["con_lai"] for r in tien_cho_tra_lai(self.repo, [don.id])), 0)
+            if con <= 0 and don.status != ORDER_CANCELLED:
                 raise AccountingValidationError(
-                    f"Đơn {don.order_no} chưa huỷ — cọc của đơn đang chạy được trừ vào hoá đơn, "
+                    f"Đơn {don.order_no} chưa huỷ — tiền khách đã đưa còn được trừ vào hoá đơn, "
                     "không trả lại.")
-            con = self.repo.received_deposit_sum(don.id) - self.repo.coc_da_tra_lai(don.id)
             if prepared["amount_vnd"] > con:
                 raise AccountingValidationError(
-                    f"Số tiền vượt phần cọc còn lại của đơn {don.order_no} ({max(con, 0):,} đ).")
+                    f"Số tiền vượt phần tiền khách còn lại của đơn {don.order_no} ({max(con, 0):,} đ).")
         prepared["customer_id"] = khach.id
         prepared["order_id"] = don.id if don is not None else None
         prepared["source_code_snapshot"] = (don.order_no if don is not None else "Trả lại tiền khách")[:32]

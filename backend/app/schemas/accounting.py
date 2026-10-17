@@ -218,6 +218,56 @@ class GiaCongChoChiOut(BaseModel):
     chot_boi_ten: str | None = None
 
 
+class CocChoThuOut(BaseModel):
+    """Một dòng "cọc chờ thu" — đơn đã chốt, cọc chưa đủ (17/10/2026)."""
+    order_id: int
+    order_code: str
+    customer_id: int | None = None
+    customer_name: str | None = None
+    deposit_pct: float
+    can_thu: int
+    da_thu: int
+    con_thieu: int
+    ordered_at: datetime | None = None
+
+
+class HoaDonChoThuOut(BaseModel):
+    """Một dòng "hoá đơn chờ thu" — hoá đơn còn hiệu lực khách chưa trả hết."""
+    invoice_id: int
+    invoice_symbol: str
+    invoice_number: str
+    invoice_date: date
+    due_date: date | None = None
+    order_id: int
+    order_code: str
+    customer_id: int | None = None
+    customer_name: str | None = None
+    amount: int
+    direct_received_amount: int
+    deposit_offset_amount: int
+    hoan_khong_don: int = 0
+    da_thu: int
+    con_no: int
+
+
+class DonHangChoThuOut(BaseModel):
+    """Mục "Đơn hàng chờ thu" của màn Phiếu thu."""
+    coc: list[CocChoThuOut]
+    hoa_don: list[HoaDonChoThuOut]
+
+
+class TraLaiKhachChoChiOut(BaseModel):
+    """Một dòng "Chờ trả lại khách" của màn Phiếu chi — đơn hết chỗ ghi hoá đơn mà tiền khách còn dư."""
+    order_id: int
+    order_code: str
+    don_huy: bool
+    customer_id: int | None = None
+    customer_name: str | None = None
+    hoa_don_huy: list[str] = []
+    da_tra_lai: int
+    con_lai: int
+
+
 class GiaCongChoChiDemOut(BaseModel):
     so: int
 
@@ -483,6 +533,8 @@ class SalesInvoiceOut(BaseModel):
     deposit_offset_amount: int = 0
     received_amount: int = 0
     remaining_amount: int = 0
+    #: Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026).
+    hoan_khong_don: int = 0
     created_by_user_id: int | None = None
     created_by_name: str | None = None
     created_at: datetime
@@ -527,6 +579,7 @@ class SalesInvoiceListOut(BaseModel):
     invoiceable_amount: int = 0
     luot_giao: list[LuotGiaoHoaDonOut] = []
     phieu_thu: list[PhieuThuHoaDonOut] = []
+    phieu_thu_hd_huy: list[PhieuThuHoaDonOut] = []
     items: list[SalesInvoiceOut]
 
 
@@ -815,7 +868,10 @@ class ReceivableCustomerOut(BaseModel):
     thu_gan_nhat_ngay: date | None = None
     thu_gan_nhat_tien: int = 0
     #: Σ cọc còn giữ của các đơn ĐÃ HUỶ của khách — việc kế toán phải lập phiếu chi trả lại.
-    coc_don_huy: int = 0
+    #: Tiền khách đang để ở các đơn (17/10/2026) — không trừ vào hoá đơn đơn khác; `cho_tra_lai`
+    #: là phần phải trả lại ngay (đơn huỷ / đã ghi đủ hoá đơn mà vẫn dư). Nút nhóm `tra_coc` đếm số này.
+    cho_tra_lai: int = 0
+    tien_dang_de: int = 0
 
 
 class ReceivablesSummaryOut(BaseModel):
@@ -862,6 +918,8 @@ class ReceivableItemOut(BaseModel):
     deposit_offset_amount: int = 0
     received_amount: int = 0
     remaining_amount: int
+    #: Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026).
+    hoan_khong_don: int = 0
 
 
 class ReceivableReceiptOut(BaseModel):
@@ -882,13 +940,19 @@ class ReceivableReceiptOut(BaseModel):
     created_by_name: str | None = None
 
 
-class CocDonHuyOut(BaseModel):
-    """Một đơn ĐÃ HUỶ còn giữ cọc của khách — ngăn Công nợ phải thu lập phiếu trả lại theo đơn."""
+class TienDangDeOut(BaseModel):
+    """Một đơn còn đang để tiền khách (cọc + tiền hoá đơn đã huỷ − đã trả lại − đã trừ vào hoá
+    đơn, 17/10/2026) — khối "Tiền khách đang để" của ngăn Công nợ phải thu. `con_lai` > 0 thì
+    lập phiếu trả lại theo đơn; `tinh_trang`: don_huy / ghi_du / cho_tru."""
 
     order_id: int
     order_code: str
     da_nhan: int
+    da_tra_lai: int = 0
+    da_tru: int = 0
+    dang_de: int
     con_lai: int
+    tinh_trang: str
 
 
 class ReceivablesDetailOut(BaseModel):
@@ -915,8 +979,8 @@ class ReceivablesDetailOut(BaseModel):
     aging: list[AgingBucketOut] = Field(default_factory=list)
     received_in_period: int
     as_of: date
-    #: Đơn đã huỷ còn giữ cọc (13/10/2026) — mỗi đơn một nút "Trả lại cọc" gắn đúng đơn.
-    coc_don_huy: list[CocDonHuyOut] = Field(default_factory=list)
+    #: Tiền khách đang để ở từng đơn (17/10/2026) — đơn còn phải trả lại có nút "Trả lại" gắn đúng đơn.
+    tien_dang_de: list[TienDangDeOut] = Field(default_factory=list)
 
 
 # --- báo cáo tổng hợp công nợ theo kỳ (docs/prd-bao-cao-cong-no.md §5.1) ------------------

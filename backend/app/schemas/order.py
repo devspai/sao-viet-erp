@@ -178,6 +178,10 @@ class OrderRow(BaseModel):
     # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.
     # Lên dòng danh sách từ 13/10/2026 để cột Cọc của đơn huỷ nói "Còn giữ … / Đã trả lại".
     deposit_refunded: int = 0
+    # Đơn đã huỷ (17/10/2026): tiền khách đã đưa = cọc + tiền đã thu của hoá đơn đã huỷ; còn giữ =
+    # phần chưa trả lại — cùng số hàng "Chờ trả lại khách" của Phiếu chi. Đơn chưa huỷ để 0.
+    tien_khach_da_nhan: int = 0
+    tien_khach_con_giu: int = 0
     delivery_committed_date: date | None
     sale_user_id: int | None
     sale_name: str | None

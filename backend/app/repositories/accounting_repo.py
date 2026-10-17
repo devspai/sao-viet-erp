@@ -17,7 +17,9 @@ from ..models.accounting import (
     PAYMENT_VOUCHER_PAID,
     RECEIPT_SOURCE_ORDER,
     RECEIPT_SOURCE_PURCHASE,
+    SALES_INVOICE_CANCELLED,
     SALES_INVOICE_ISSUED,
+    VOUCHER_SOURCE_CUSTOMER_REFUND,
     VOUCHER_SOURCE_GIA_CONG,
     CompanyBankAccount,
     PaymentReceipt,
@@ -32,7 +34,7 @@ from ..models.muc_thu_chi import MUC_CO_DINH, NGUON_CO_DINH_CHI, NGUON_CO_DINH_T
 from .customer_repo import CustomerRepository
 from .loc_danh_sach import dk_khoang_ngay
 from ..models.payroll import SalaryAdvance
-from ..models.order import STATUS_CANCELLED as ORDER_CANCELLED, Order
+from ..models.order import Order
 from ..models.purchase import PurchaseRequest, PurchaseRequestSource, Supplier
 
 
@@ -972,16 +974,6 @@ class AccountingRepository:
         )
         return list(self.db.execute(stmt).scalars())
 
-    def sales_invoice_has_active_receipts(self, invoice_id: int) -> bool:
-        return bool(
-            self.db.execute(
-                select(func.count()).select_from(PaymentReceipt).where(
-                    PaymentReceipt.sales_invoice_id == invoice_id,
-                    PaymentReceipt.status != PAYMENT_RECEIPT_CANCELLED,
-                )
-            ).scalar_one()
-        )
-
     def list_receipts_for_receivables(
         self,
         *,
@@ -1065,33 +1057,103 @@ class AccountingRepository:
         )
         return {int(oid): int(s) for oid, s in self.db.execute(stmt)}
 
-    def coc_don_huy_con_giu(self, customer_id: int | None = None) -> list[dict]:
-        """Đơn ĐÃ HUỶ còn giữ cọc của khách — đã thu − đã trả lại > 0 (13/10/2026, việc kế toán
-        phải lập phiếu chi trả lại). Mỗi phần tử: `order_id`, `order_code`, `customer_id`,
-        `da_nhan`, `con_lai`. Hai câu cho cả tập; `customer_id` thu hẹp về một khách."""
+    def hoan_khach_khong_don(self, customer_ids=None) -> dict[int, int]:
+        """`{customer_id: Σ phiếu chi trả lại khách ĐÃ CHI không gắn đơn}` (17/10/2026) — tiền trả
+        ngoài đơn (vd. hàng lỗi) cộng nợ lại vào hoá đơn hạn muộn nhất của khách. `None` = mọi khách."""
         stmt = (
-            select(Order.id, Order.order_no, Order.customer_id,
-                   func.coalesce(func.sum(PaymentReceipt.amount), 0))
-            .join(PaymentReceipt, PaymentReceipt.order_id == Order.id)
+            select(PaymentVoucher.customer_id, func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0))
+            .where(PaymentVoucher.source_type == VOUCHER_SOURCE_CUSTOMER_REFUND,
+                   PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
+                   PaymentVoucher.order_id.is_(None),
+                   PaymentVoucher.customer_id.is_not(None))
+            .group_by(PaymentVoucher.customer_id)
+        )
+        if customer_ids is not None:
+            ids = sorted({int(i) for i in customer_ids if i})
+            if not ids:
+                return {}
+            stmt = stmt.where(PaymentVoucher.customer_id.in_(ids))
+        return {int(c): int(t) for c, t in self.db.execute(stmt) if int(t) > 0}
+
+    def hoa_don_hieu_luc_cua_khach(self, customer_ids) -> list[SalesInvoice]:
+        ids = sorted({int(i) for i in customer_ids if i})
+        if not ids:
+            return []
+        return list(self.db.scalars(self._sales_invoice_stmt().where(
+            SalesInvoice.customer_id.in_(ids), SalesInvoice.status == SALES_INVOICE_ISSUED)
+            .order_by(SalesInvoice.invoice_date, SalesInvoice.id)))
+
+    def thu_hoa_don_huy_theo_don(self, order_ids=None) -> dict[int, int]:
+        """`{order_id: Σ phiếu thu ĐÃ THU gắn hoá đơn ĐÃ HUỶ}` (17/10/2026). Hoá đơn huỷ khi khách đã
+        trả thì phiếu thu vẫn giữ (tiền đã vào quỹ); số tiền đó về chung quỹ tiền của đơn như cọc,
+        trừ vào hoá đơn ghi lại sau. `order_ids=None` = mọi đơn."""
+        stmt = (
+            select(SalesInvoice.order_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
+            .join(SalesInvoice, PaymentReceipt.sales_invoice_id == SalesInvoice.id)
             .where(
-                Order.status == ORDER_CANCELLED,
-                PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
+                SalesInvoice.status == SALES_INVOICE_CANCELLED,
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
             )
-            .group_by(Order.id, Order.order_no, Order.customer_id)
-            .order_by(Order.id)
+            .group_by(SalesInvoice.order_id)
         )
-        if customer_id is not None:
-            stmt = stmt.where(Order.customer_id == customer_id)
-        thu = list(self.db.execute(stmt))
-        tra = self.coc_da_tra_lai_nhieu([r[0] for r in thu])
-        out = []
-        for oid, ma, cid, s in thu:
-            con = int(s) - tra.get(int(oid), 0)
-            if con > 0 and cid is not None:
-                out.append({"order_id": int(oid), "order_code": ma, "customer_id": int(cid),
-                            "da_nhan": int(s), "con_lai": con})
-        return out
+        if order_ids is not None:
+            ids = sorted({int(i) for i in order_ids if i})
+            if not ids:
+                return {}
+            stmt = stmt.where(SalesInvoice.order_id.in_(ids))
+        return {int(oid): int(s) for oid, s in self.db.execute(stmt) if int(s) > 0}
+
+    # --- Hàng việc tiền của đơn bán (services/ban_hang_cho_thu_chi.py, 17/10/2026) ---
+    def don_chot_co_coc(self) -> list[Order]:
+        """Đơn ĐÃ CHỐT có % cọc — ứng viên hàng "cọc chờ thu"."""
+        from ..models.order import STATUS_ORDERED
+        return list(self.db.scalars(
+            select(Order).where(Order.status == STATUS_ORDERED, Order.deposit_pct > 0)
+            .order_by(Order.ordered_at, Order.id)))
+
+    def don_co_coc_da_thu(self) -> set[int]:
+        """Id mọi đơn có phiếu thu cọc ĐÃ THU."""
+        return {int(i) for i in self.db.scalars(
+            select(PaymentReceipt.order_id).where(
+                PaymentReceipt.order_id.is_not(None),
+                PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
+                PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED).distinct())}
+
+    def don_cua_khach_co_tien(self, customer_id: int) -> set[int]:
+        """Id mọi đơn của khách — `tien_dang_de` lọc tiếp theo quỹ tiền của đơn."""
+        return {int(i) for i in self.db.scalars(select(Order.id).where(Order.customer_id == customer_id))}
+
+    def don_theo_ids(self, order_ids) -> dict[int, Order]:
+        ids = sorted({int(i) for i in order_ids if i})
+        if not ids:
+            return {}
+        return {o.id: o for o in self.db.scalars(select(Order).where(Order.id.in_(ids)))}
+
+    def hoa_don_hieu_luc_cua_don(self, order_ids) -> list[SalesInvoice]:
+        ids = sorted({int(i) for i in order_ids if i})
+        if not ids:
+            return []
+        return list(self.db.scalars(self._sales_invoice_stmt().where(
+            SalesInvoice.order_id.in_(ids), SalesInvoice.status == SALES_INVOICE_ISSUED)
+            .order_by(SalesInvoice.invoice_date, SalesInvoice.id)))
+
+    def hoa_don_huy_da_thu(self, order_ids) -> dict[int, list[str]]:
+        """`{order_id: [số hoá đơn ĐÃ HUỶ mà khách đã trả tiền]}`."""
+        ids = sorted({int(i) for i in order_ids if i})
+        if not ids:
+            return {}
+        stmt = (
+            select(SalesInvoice.order_id, SalesInvoice.invoice_number)
+            .join(PaymentReceipt, PaymentReceipt.sales_invoice_id == SalesInvoice.id)
+            .where(SalesInvoice.order_id.in_(ids),
+                   SalesInvoice.status == SALES_INVOICE_CANCELLED,
+                   PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
+            .distinct().order_by(SalesInvoice.order_id, SalesInvoice.invoice_number)
+        )
+        ra: dict[int, list[str]] = {}
+        for oid, so in self.db.execute(stmt):
+            ra.setdefault(int(oid), []).append(so)
+        return ra
 
     def phieu_chi_hoan_khach(self) -> list[PaymentVoucher]:
         """Phiếu chi ĐÃ CHI có gắn khách (trả lại tiền cho khách, nguồn `customer_refund`) — vế Nợ

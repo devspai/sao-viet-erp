@@ -12,6 +12,7 @@ const goi = vi.hoisted(() => ({
   companyAccounts: vi.fn(),
   salesInvoices: vi.fn(),
   receiptAttachments: vi.fn(),
+  donHangChoThu: vi.fn(),
 }));
 
 vi.mock("../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
@@ -39,6 +40,8 @@ beforeEach(() => {
   goi.receipts.mockImplementation(async () => traVe());
   goi.companyAccounts.mockResolvedValue([]);
   goi.receiptAttachments.mockResolvedValue({ items: [] });
+  goi.donHangChoThu.mockReset();
+  goi.donHangChoThu.mockResolvedValue({ coc: [], hoa_don: [] });
   goi.salesInvoices.mockResolvedValue({ items: [{ id: 7, customer_id: 12, customer_name: "Công ty CP Thực phẩm An Phát" }] });
 });
 afterEach(() => window.history.replaceState(null, "", "/"));
@@ -121,5 +124,25 @@ describe("PaymentReceiptsPage — nối dây", () => {
       }),
     );
     expect(navigate).not.toHaveBeenCalledWith("don-hang-ban", expect.anything());
+  });
+
+  it("có cọc / hoá đơn chờ thu thì có mục Đơn hàng chờ thu; bấm vào thấy hai loại khoản kèm nút lập phiếu thu", async () => {
+    goi.donHangChoThu.mockResolvedValue({
+      coc: [{ order_id: 5, order_code: "DH005", customer_id: 3, customer_name: "Công ty An Phát", deposit_pct: 30,
+        can_thu: 300_000, da_thu: 0, con_thieu: 300_000, ordered_at: null }],
+      hoa_don: [{ invoice_id: 8, invoice_symbol: "1C26TSV", invoice_number: "56", invoice_date: "2026-10-13",
+        due_date: "2026-11-12", order_id: 7, order_code: "DH007", customer_id: 4, customer_name: "Katinat",
+        amount: 2_155_871, direct_received_amount: 0, deposit_offset_amount: 0, da_thu: 0, con_no: 2_155_871 }],
+    });
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-thu&ky=tat_ca");
+    render(<PaymentReceiptsPage navigate={vi.fn()} />);
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    const tab = await within(dai).findByRole("button", { name: /Đơn hàng chờ thu/ });
+    expect(tab).toHaveTextContent("2");
+    await userEvent.click(tab);
+    expect(await screen.findByRole("button", { name: "DH005" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "DH007" })).toBeInTheDocument();
+    expect(screen.getByText("HĐ 56")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Lập phiếu thu" }).length).toBeGreaterThanOrEqual(2);
   });
 });

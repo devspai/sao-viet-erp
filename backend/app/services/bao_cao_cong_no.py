@@ -458,37 +458,84 @@ def _nap_phai_tra(
 # dòng đó — tự viết vòng thứ hai là mở cửa cho hai con số cãi nhau.
 
 
-def _khoan_phai_thu(hoa_don, phieu):
+def phan_bo_hoan_khong_don(khoan: list[dict], hoan: dict) -> dict:
+    """Tiền trả lại khách KHÔNG gắn đơn (vd. hàng lỗi) cộng nợ lại vào hoá đơn của khách (17/10/2026):
+    khoản hạn MUỘN NHẤT trước, mỗi khoản tới đủ giá trị gốc; phần vượt hết sức chứa dồn vào khoản muộn
+    nhất. Đây là luật cũ của `_can_theo_so_du` cho tiền hoàn, nay áp riêng — tiền đang để ở đơn khác
+    KHÔNG còn cấn chéo sang hoá đơn của đơn này (chủ chốt 17/10/2026: tiền đơn nào trừ vào hoá đơn đơn
+    đó; tổng các khoản có thể lớn hơn dư Nợ 131 đúng bằng tiền khách đang để).
+
+    `khoan`: dict có `id`, `doi_tuong_id`, `han`, `ngay`, `goc`, `con_no`, tuỳ chọn `thua` (tiền thu
+    đích danh VƯỢT giá trị hoá đơn). `hoan`: `{doi_tuong_id: tiền}`. Phần thu vượt trừ vào tiền hoàn
+    trước: khách đã trả lại phần được cộng nợ thì không cộng lần nữa. Trả `{id: tiền cộng thêm}`.
+    Dùng chung cho ảnh chụp hôm nay (`receivable_rows`) và sổ theo kỳ."""
+    theo_dt: dict = {}
+    for k in khoan:
+        theo_dt.setdefault(k["doi_tuong_id"], []).append(k)
+    them: dict = {}
+    for dt, tien in hoan.items():
+        ds = sorted(theo_dt.get(dt, []),
+                    key=lambda k: (k["han"] is None, k["han"] or date.max, k["ngay"], k["id"]))
+        con = int(tien) - sum(k.get("thua", 0) for k in ds)
+        if not ds or con <= 0:
+            continue
+        for k in reversed(ds):
+            cong = min(max(0, k["goc"] - k["con_no"]), con)
+            if cong:
+                them[k["id"]] = them.get(k["id"], 0) + cong
+                con -= cong
+        if con:
+            them[ds[-1]["id"]] = them.get(ds[-1]["id"], 0) + con
+    return them
+
+
+def _khoan_phai_thu(hoa_don, phieu, hoan_khach=()) -> list[dict]:
     """Phần CÒN LẠI của từng hoá đơn bán tính tới `den_ngay` (phiếu đã nạp sẵn tới mốc đó).
 
     Phải tính lại ở đây, không mượn `remaining_amount` của `_receivable_rows` — số đó là "còn lại
     tính tới HÔM NAY", nên tiền khách trả SAU kỳ đã bị trừ mất và tuổi nợ của kỳ cũ hoá ra nhẹ đi.
-    Cách cấn trừ y hệt `receivable_rows`: thu ĐÍCH DANH hoá đơn trừ trước, cọc của đơn cấn FIFO
-    theo (ngày hoá đơn, id). Chép luật ở đây là có ý — bản gốc không nhận mốc ngày."""
+    Cách cấn trừ y hệt `receivable_rows`: thu ĐÍCH DANH hoá đơn trừ trước, quỹ tiền của đơn (cọc +
+    tiền hoá đơn đã huỷ − đã trả lại theo đơn) cấn FIFO theo (ngày hoá đơn, id), tiền trả lại không
+    gắn đơn cộng nợ lại (`phan_bo_hoan_khong_don`). Chép luật ở đây là có ý — bản gốc không nhận mốc
+    ngày. `hoan_khach` = phiếu chi trả lại khách đã nạp tới cùng mốc."""
     thu_dich_danh: dict[int, int] = {}
     coc_theo_don: dict[int, int] = {}
     for p in phieu:
         if p.source_type == RECEIPT_SOURCE_PURCHASE:
             continue
-        if p.sales_invoice_id is not None:
+        hd = p.sales_invoice if p.sales_invoice_id is not None else None
+        if hd is not None and hd.status != SALES_INVOICE_ISSUED:
+            # Hoá đơn đã huỷ: tiền khách đã trả về quỹ của đơn như cọc (`quy_tien_don`, 17/10/2026).
+            coc_theo_don[hd.order_id] = coc_theo_don.get(hd.order_id, 0) + int(p.amount_vnd)
+        elif p.sales_invoice_id is not None:
             thu_dich_danh[p.sales_invoice_id] = (
                 thu_dich_danh.get(p.sales_invoice_id, 0) + int(p.amount_vnd)
             )
         elif p.order_id is not None:
             coc_theo_don[p.order_id] = coc_theo_don.get(p.order_id, 0) + int(p.amount_vnd)
 
+    tra_theo_don: dict[int, int] = {}
+    hoan_rieng: dict[int, int] = {}
+    for v in hoan_khach:
+        if v.order_id is not None:
+            tra_theo_don[v.order_id] = tra_theo_don.get(v.order_id, 0) + int(v.amount_vnd)
+        elif v.customer_id is not None:
+            hoan_rieng[v.customer_id] = hoan_rieng.get(v.customer_id, 0) + int(v.amount_vnd)
+
     theo_don: dict[int, list] = {}
     for hd in hoa_don:
         theo_don.setdefault(hd.order_id, []).append(hd)
 
+    ra: list[dict] = []
     for don_id, ds in theo_don.items():
-        con_coc = coc_theo_don.get(don_id, 0)
+        con_coc = max(0, coc_theo_don.get(don_id, 0) - tra_theo_don.get(don_id, 0))
         for hd in sorted(ds, key=lambda x: (x.invoice_date, x.id)):
             tien = int(hd.amount_vnd)
             truc_tiep = min(tien, thu_dich_danh.get(hd.id, 0))
             bu_coc = min(con_coc, max(0, tien - truc_tiep))
             con_coc -= bu_coc
-            yield {
+            ra.append({
+                "id": hd.id,
                 "hoa_don_id": hd.id,
                 "doi_tuong_id": hd.customer_id,
                 "ten_lui": hd.customer_name_snapshot,
@@ -497,7 +544,12 @@ def _khoan_phai_thu(hoa_don, phieu):
                 "han": hd.due_date,
                 "goc": tien,
                 "con_no": max(0, tien - truc_tiep - bu_coc),
-            }
+                "thua": max(0, thu_dich_danh.get(hd.id, 0) - tien),
+            })
+    them = phan_bo_hoan_khong_don(ra, hoan_rieng)
+    for k in ra:
+        k["con_no"] += them.get(k["id"], 0)
+    return ra
 
 
 def _khoan_phai_tra(don, *, den_ngay: date):
@@ -593,28 +645,10 @@ def _ra_khoan_con_no(khoan, *, doi_tuong_id: int | None, den_ngay: date) -> dict
 
 def khoan_con_no_phai_thu(repo, *, doi_tuong_id: int | None, den_ngay: date) -> dict:
     """Các hoá đơn bán CÒN NỢ của một khách tại `den_ngay` — tab "Hoá đơn còn nợ"."""
-    hoa_don, phieu, khach_don, ma_khach, hoan_khach = _nap_phai_thu(repo, den_ngay=den_ngay)
-    chung_tu = _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach)
-    khoan = _can_theo_so_du(
-        list(_khoan_phai_thu(hoa_don, phieu)), _con_no_theo_doi_tuong(chung_tu, phai_tra=False)
-    )
+    hoa_don, phieu, _khach_don, _ma_khach, hoan_khach = _nap_phai_thu(repo, den_ngay=den_ngay)
+    # Theo ĐƠN, không cân theo dư 131 (17/10/2026) — xem `phan_bo_hoan_khong_don`.
+    khoan = _khoan_phai_thu(hoa_don, phieu, hoan_khach)
     return _ra_khoan_con_no(khoan, doi_tuong_id=doi_tuong_id, den_ngay=den_ngay)
-
-
-def con_no_tung_hoa_don(repo, *, den_ngay: date, hoa_don_da_nap: list | None = None) -> dict[int, int]:
-    """Còn nợ của TỪNG hoá đơn bán tại `den_ngay`, đã cân theo số dư 131 của khách (`_can_theo_so_du`).
-
-    Màn Công nợ phải thu (ảnh chụp hôm nay) dùng số này thay `remaining_amount` của `receivable_rows`
-    (12/10/2026): số kia bỏ qua tiền hoàn khách và tiền chưa cấn được vào hoá đơn nào, nên còn nợ
-    trên màn lệch sổ. Khoá = id hoá đơn; hoá đơn không có mặt (ngày sau mốc) thì người gọi giữ số cũ."""
-    hoa_don, phieu, khach_don, ma_khach, hoan_khach = _nap_phai_thu(
-        repo, den_ngay=den_ngay, hoa_don_da_nap=hoa_don_da_nap
-    )
-    chung_tu = _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach)
-    khoan = _can_theo_so_du(
-        list(_khoan_phai_thu(hoa_don, phieu)), _con_no_theo_doi_tuong(chung_tu, phai_tra=False)
-    )
-    return {k["hoa_don_id"]: k["con_no"] for k in khoan}
 
 
 def khoan_con_no_phai_tra(
@@ -842,14 +876,10 @@ def tong_hop_phai_thu(
     #
     # Cách cấn trừ y hệt `receivable_rows`: thu ĐÍCH DANH hoá đơn trừ trước, cọc của đơn cấn FIFO
     # theo (ngày hoá đơn, id). Chép luật ở đây là có ý — bản gốc không nhận mốc ngày.
-    # Tiền chưa cấn được vào hoá đơn nào và phiếu hoàn tiền khách được cân theo số dư của sổ
-    # (`_can_theo_so_du`), để sáu mốc hạn của một khách cộng lại đúng bằng còn nợ cuối kỳ.
-    khoan = (
-        _can_theo_so_du(
-            list(_khoan_phai_thu(hoa_don, phieu)), _con_no_theo_doi_tuong(chung_tu, phai_tra=False)
-        )
-        if tinh_tuoi else ()
-    )
+    # Từ 17/10/2026 tuổi nợ đi THEO ĐƠN (không cân theo dư 131): tiền khách đang để ở đơn khác không
+    # trừ vào hoá đơn của đơn này, nên sáu mốc hạn của một khách có thể cộng lớn hơn dư Nợ cuối kỳ
+    # đúng bằng phần tiền đó. Phiếu trả lại không gắn đơn vẫn cộng nợ lại (`phan_bo_hoan_khong_don`).
+    khoan = _khoan_phai_thu(hoa_don, phieu, hoan_khach) if tinh_tuoi else ()
     for k in khoan:
         _bo_ro(_muc(k["doi_tuong_id"], k["ten_lui"]), k["con_no"], k["han"], den_ngay)
 

@@ -8,6 +8,7 @@ import { cacViec, soChot } from "../shared/giaCong";
 
 export const COT_GIA_CONG: (CotLuoi & { w?: number; n?: boolean })[] = [
   { key: "nha", label: "Nhà gia công", coDinh: true, w: 260 },
+  { key: "nguon", label: "Nguồn", w: 150 },
   { key: "viec", label: "Việc", w: 260 },
   { key: "so_chot", label: "Số chốt", n: true, w: 130 },
   { key: "chot_boi", label: "Chốt bởi", w: 200 },
@@ -19,6 +20,8 @@ export function HangChoGiaCong({
   loi,
   onLap,
   luoi,
+  onMoNguon,
+  coMoNguon,
 }: {
   rows: GiaCongChoChi[] | null;
   loi: string | null;
@@ -26,6 +29,9 @@ export function HangChoGiaCong({
   onLap?: (row: GiaCongChoChi) => void;
   /** Cấu hình lưới của màn cha (nút "Cột") — có thì ẩn / đổi chỗ / ghim / kéo độ rộng được. */
   luoi?: CauHinhLuoi;
+  /** Mở nguồn của lần (lệnh SX / bài ghép). `coMoNguon` = dòng này mở được không (quyền + màn đích). */
+  onMoNguon?: (row: GiaCongChoChi) => void;
+  coMoNguon?: (row: GiaCongChoChi) => boolean;
 }) {
   const cot = luoi ? luoi.rongHien(luoi.xep(COT_GIA_CONG).filter((c) => !luoi.an.has(c.key))) : COT_GIA_CONG;
   return (
@@ -62,7 +68,7 @@ export function HangChoGiaCong({
             ) : (
               rows.map((r) => (
                 <tr key={r.gia_cong_ngoai_id}>
-                  {cot.map((c) => oGiaCong(c.key, r, onLap))}
+                  {cot.map((c) => oGiaCong(c.key, r, onLap, onMoNguon && coMoNguon?.(r) ? onMoNguon : undefined))}
                 </tr>
               ))
             )}
@@ -74,13 +80,25 @@ export function HangChoGiaCong({
 }
 
 /** Ô của một dòng theo khoá cột. */
-function oGiaCong(key: string, r: GiaCongChoChi, onLap?: (row: GiaCongChoChi) => void) {
+function oGiaCong(
+  key: string,
+  r: GiaCongChoChi,
+  onLap?: (row: GiaCongChoChi) => void,
+  onMoNguon?: (row: GiaCongChoChi) => void,
+) {
   switch (key) {
     case "nha":
       return (
-        <td key={key} title={`${r.nha_cung_cap_ten} ${r.nhan_nguon || r.lsx_ma}`}>
-          {r.nha_cung_cap_ten}{" "}
-          <span className="lds-mu">{r.nhan_nguon || r.lsx_ma}</span>
+        <td key={key} title={r.nha_cung_cap_ten}>{r.nha_cung_cap_ten}</td>
+      );
+    case "nguon":
+      return (
+        <td key={key}>
+          {onMoNguon ? (
+            <button type="button" className="lds-lk" onClick={() => onMoNguon(r)}>{r.nhan_nguon || r.lsx_ma}</button>
+          ) : (
+            r.nhan_nguon || r.lsx_ma
+          )}
         </td>
       );
     case "viec":

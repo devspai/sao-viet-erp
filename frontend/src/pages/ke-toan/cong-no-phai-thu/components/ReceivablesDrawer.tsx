@@ -37,7 +37,7 @@ import { TabSaoKe } from "../../shared/TabSaoKe";
 import { TraLaiTienKhachModal, type DonTraCoc } from "../../phieu-chi/modals/TraLaiTienKhachModal";
 import { PAID_PAGE } from "../shared/constants";
 import type { Bucket, TuoiDangLoc } from "../shared/types";
-import { CocDonHuyBlock } from "./CocDonHuyBlock";
+import { TienDangDeBlock } from "./TienDangDeBlock";
 import { HoaDonConNoBlock } from "./HoaDonConNoBlock";
 import { ThuTienHoaDon } from "./ThuTienHoaDon";
 
@@ -263,10 +263,10 @@ export function ReceivablesDrawer({
                 <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => setLoc(null)} />
               </div>
             )}
-            {(detail!.coc_don_huy?.length ?? 0) > 0 && (
-              <CocDonHuyBlock ds={detail!.coc_don_huy!} onMoDon={moDon}
+            {(detail!.tien_dang_de?.length ?? 0) > 0 && (
+              <TienDangDeBlock ds={detail!.tien_dang_de!} onMoDon={moDon}
                 onTraLai={quyen.traLai
-                  ? (d) => setMoTraLai({ don: { id: d.order_id, ma: d.order_code, daNhan: d.da_nhan, conLai: d.con_lai } })
+                  ? (d) => setMoTraLai({ don: { id: d.order_id, ma: d.order_code, daNhan: d.da_nhan, conLai: d.con_lai, daTraLai: d.da_tra_lai ?? 0 } })
                   : undefined} />
             )}
             <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} khachChuaDatHan={detail!.payment_term_days == null}
@@ -327,6 +327,7 @@ export function ReceivablesDrawer({
           khachId={customerId}
           khachTen={ten}
           don={moTraLai.don}
+          duongDan={moTraLai.don ? <>Công nợ phải thu &gt; {ten} &gt; {moTraLai.don.ma}</> : undefined}
           onClose={() => setMoTraLai(null)}
           onMoTaiKhoan={() => {
             onClose();

@@ -1,11 +1,12 @@
 /** Nối dây màn Phiếu chi: URL ↔ lọc + kỳ (A.18), một lời gọi mỗi lượt tải, đường dẫn sâu mở kỳ Tất cả. */
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { khoangSo } from "../shared/kyKeToan";
 
 const vouchers = vi.fn();
 const choChi = vi.fn();
+const traLai = vi.fn();
 
 vi.mock("../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
 vi.mock("../../../auth/permissions", async (goc) => ({
@@ -19,6 +20,7 @@ vi.mock("../../../api/client", async (goc) => ({
     accounting: {
       vouchers: (...a: unknown[]) => vouchers(...a),
       companyAccounts: vi.fn().mockResolvedValue([]),
+      traLaiKhachChoChi: (...a: unknown[]) => traLai(...a),
     },
     giaCongNgoai: { choChi: (...a: unknown[]) => choChi(...a) },
   },
@@ -33,6 +35,8 @@ beforeEach(() => {
   vouchers.mockReset();
   choChi.mockReset();
   choChi.mockResolvedValue([]);
+  traLai.mockReset();
+  traLai.mockResolvedValue([]);
   vouchers.mockImplementation(async () => traVe());
 });
 afterEach(() => window.history.replaceState(null, "", "/"));
@@ -115,5 +119,21 @@ describe("PaymentVouchersPage — nối dây", () => {
     );
     // Tất cả là kỳ mặc định của màn ⇒ URL bỏ khoá `ky`.
     await waitFor(() => expect(new URLSearchParams(window.location.search).has("ky")).toBe(false));
+  });
+
+  it("có tiền chờ trả lại khách thì dải tab có mục đó; bấm vào thấy đơn, lý do, số còn phải trả", async () => {
+    traLai.mockResolvedValue([{
+      order_id: 9, order_code: "DH009", don_huy: true, customer_id: 3, customer_name: "Công ty An Phát",
+      hoa_don_huy: ["12"], da_tra_lai: 0, con_lai: 1_000_000,
+    }]);
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=tat_ca");
+    render(<PaymentVouchersPage navigate={vi.fn()} />);
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    const tab = await within(dai).findByRole("button", { name: /Chờ trả lại khách/ });
+    await waitFor(() => expect(tab).toHaveTextContent("1"));
+    act(() => tab.click());
+    expect(await screen.findByRole("button", { name: "DH009" })).toBeInTheDocument();
+    expect(screen.getByText("Đơn đã hủy. Hóa đơn 12 đã hủy")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Lập phiếu chi" })).toHaveLength(2);
   });
 });

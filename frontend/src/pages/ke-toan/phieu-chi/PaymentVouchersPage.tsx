@@ -4,7 +4,7 @@
  *  Khuôn trang: đầu trang (tiêu đề + nút "Lập phiếu chi") → thẻ lọc (hàng lọc nhanh trạng thái có số;
  *  ô tìm, thanh lọc chung `ThanhLoc`: kỳ theo Ngày tạo / Ngày chi + điều kiện; nút Cột) → lưới kiểu
  *  bảng tính + dòng Cộng + chân phân trang. Bấm dòng mở ngăn chi tiết kiểu 3 bên phải. Mục "Gia công
- *  chờ chi" thay cả bảng (chỉ hiện khi có việc).
+ *  chờ chi" và "Chờ trả lại khách" thay cả bảng (chỉ hiện khi có việc).
  *  Mọi lọc chạy ở MÁY CHỦ; số trên hàng lọc nhanh (`the_loc`) tính theo kỳ + bộ lọc, KHÔNG theo mục đang chọn.
  *
  *  ⚠️ TIỀN THẬT: lập phiếu chi = tiền đã rời két, không sửa được — sai thì hủy (có lý do) rồi lập lại.
@@ -12,7 +12,9 @@
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApiError, api, type GiaCongChoChi, type PaymentVoucherRow } from "../../../api/client";
+import {
+  ApiError, api, type GiaCongChoChi, type PaymentVoucherRow, type TraLaiKhachChoChi,
+} from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
@@ -20,15 +22,17 @@ import { Button } from "../../../components/Button";
 import {
   ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MucLocNhanh,
 } from "../../../components/LuoiDs";
-import { VOUCHER_PAGE_LABEL } from "../../../constants/features";
+import { BAI_GHEP_ENABLED, VOUCHER_PAGE_LABEL } from "../../../constants/features";
 import { GoiYPhim } from "../shared/BangPhieu";
 import { soPhieuCong } from "../shared/PhieuGon";
 import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { COT_GIA_CONG, HangChoGiaCong } from "./components/HangChoGiaCong";
+import { COT_TRA_LAI, HangChoTraLai } from "./components/HangChoTraLai";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { COT_PHIEU_CHI, VouchersTable } from "./components/VouchersTable";
 import { LapPhieuChiGiaCongModal } from "./modals/LapPhieuChiGiaCongModal";
 import { StandaloneVoucherDialog } from "./modals/StandaloneVoucherDialog";
+import { TraLaiTienKhachModal } from "./modals/TraLaiTienKhachModal";
 import { PAGE_SIZE } from "./shared/list-constants";
 import {
   CAU_HINH_LOC_PC,
@@ -71,11 +75,17 @@ export function PaymentVouchersPage({
   const coXemTaiKhoan = can("tk_ngan_hang", "read");
   // Link mã yêu cầu mua nguồn trong ngăn — theo ô Xem của CHÍNH màn Yêu cầu mua hàng.
   const coXemYeuCau = can("yeu_cau_mua_hang", "read");
+  // Link nguồn của hai hàng chờ — theo ô Xem của chính màn đích.
+  const coXemDonBan = can("don_hang_ban", "read");
+  const coXemSx = can("san_xuat", "read");
 
   const [gc, setGc] = useState<GiaCongChoChi[] | null>(null);
   const [gcLoi, setGcLoi] = useState<string | null>(null);
   const [lapRoi, setLapRoi] = useState(false);
   const [lapGc, setLapGc] = useState<GiaCongChoChi | null>(null);
+  const [tl, setTl] = useState<TraLaiKhachChoChi[] | null>(null);
+  const [tlLoi, setTlLoi] = useState<string | null>(null);
+  const [lapTl, setLapTl] = useState<TraLaiKhachChoChi | null>(null);
 
   const taiGc = useCallback(() => {
     if (!token) return;
@@ -90,6 +100,23 @@ export function PaymentVouchersPage({
   useEffect(() => {
     taiGc();
   }, [taiGc]);
+  const taiTl = useCallback(() => {
+    if (!token) return;
+    api.accounting
+      .traLaiKhachChoChi(token)
+      .then((r) => {
+        setTl(r);
+        setTlLoi(null);
+      })
+      .catch((e: unknown) => setTlLoi(e instanceof ApiError ? e.message : "Không tải được danh sách chờ trả lại khách."));
+  }, [token]);
+  useEffect(() => {
+    taiTl();
+  }, [taiTl]);
+  const taiHangCho = useCallback(() => {
+    taiGc();
+    taiTl();
+  }, [taiGc, taiTl]);
 
   // Nối dây trang sổ (kỳ, thẻ, lọc, URL, tải + cùng kỳ, SSE, liên thông, ngăn): khuôn chung. Sự kiện
   // đẩy nạp lại thêm hàng gia công chờ chi.
@@ -102,12 +129,12 @@ export function PaymentVouchersPage({
     thamSoLoc,
     thamSoTai,
     goiDanhSach: (t, p) => api.accounting.vouchers(t, p),
-    theKhongBang: (t) => t === "gc",
+    theKhongBang: (t) => t === "gc" || t === "tl",
     chuLoi: "Không tải được danh sách phiếu chi.",
     coTrang: PAGE_SIZE,
     coXemTaiKhoan,
     mucDichTaiKhoan: "pay",
-    onSuKien: taiGc,
+    onSuKien: taiHangCho,
   };
   const sp = useTrangPhieu(cauHinh, token, eventTick, focusQuery);
   const moDonMua = coXemDonMua ? (code: string) => navigate("ke-toan-don-mua-hang", { focusRequestCode: code }) : undefined;
@@ -124,13 +151,16 @@ export function PaymentVouchersPage({
     ...(the !== "gc" && !gcLoi && (gc?.length ?? 0) === 0
       ? []
       : [{ key: "gc", label: "Gia công chờ chi", mau: "cam" as const, count: gc?.length }]),
+    ...(the !== "tl" && !tlLoi && (tl?.length ?? 0) === 0
+      ? []
+      : [{ key: "tl", label: "Chờ trả lại khách", mau: "cam" as const, count: tl?.length }]),
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
-  ], [soThe, gc, gcLoi, the]);
+  ], [soThe, gc, gcLoi, tl, tlLoi, the]);
   // Trạng thái trong nút Lọc = các tab có bảng ("Gia công chờ chi" thay cả bảng nên không vào).
   const dieuKien = useMemo(
     () => [
       dkTrangThaiPhieu({
-        muc: muc.filter((m) => m.key !== "gc").map((m) => ({ id: m.key, nhan: m.label })),
+        muc: muc.filter((m) => m.key !== "gc" && m.key !== "tl").map((m) => ({ id: m.key, nhan: m.label })),
         n: soThe, dang: the, dat: (id) => setThe(id as TheLocPC),
       }),
       ...dieuKienPhieu(CAU_HINH_LOC_PC, sp.taiKhoan, mucLoc),
@@ -141,6 +171,15 @@ export function PaymentVouchersPage({
   const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
   const luoi = useCauHinhLuoi(MAN);
   const luoiGc = useCauHinhLuoi(`${MAN}:gia-cong`);
+  const luoiTl = useCauHinhLuoi(`${MAN}:tra-lai`);
+  const moDon = coXemDonBan ? (id: number) => navigate("don-hang-ban", { openOrderId: id }) : undefined;
+  const moNguonGc = (r: GiaCongChoChi) => {
+    if (r.bai_ghep_id != null) {
+      if (BAI_GHEP_ENABLED) navigate("bai-ghep-2", { openBaiGhepId: r.bai_ghep_id });
+    } else if (r.lsx_id != null) navigate("ke-hoach-sx", { openLsxId: r.lsx_id });
+  };
+  const coMoNguonGc = (r: GiaCongChoChi) =>
+    coXemSx && (r.bai_ghep_id != null ? BAI_GHEP_ENABLED : r.lsx_id != null);
   const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU_CHI).filter((c) => !luoi.an.has(c.key)));
 
   return (
@@ -164,6 +203,10 @@ export function PaymentVouchersPage({
           <div className="lds-loc__thanh tl-thanh">
             <ChonCot cot={COT_GIA_CONG} {...luoiGc.chonCot} />
           </div>
+        ) : the === "tl" ? (
+          <div className="lds-loc__thanh tl-thanh">
+            <ChonCot cot={COT_TRA_LAI} {...luoiTl.chonCot} />
+          </div>
         ) : (
           <div className="lds-loc__thanh tl-thanh" role="search">
             <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nhận, lý do, mã đơn"
@@ -175,7 +218,10 @@ export function PaymentVouchersPage({
       </section>
 
       {the === "gc" ? (
-        <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} luoi={luoiGc} />
+        <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} luoi={luoiGc}
+          onMoNguon={moNguonGc} coMoNguon={coMoNguonGc} />
+      ) : the === "tl" ? (
+        <HangChoTraLai rows={tl} loi={tlLoi} onLap={coLap ? setLapTl : undefined} onMoDon={moDon} luoi={luoiTl} />
       ) : (
         <>
           <VouchersTable
@@ -238,6 +284,22 @@ export function PaymentVouchersPage({
             setMo(saved);
             load();
             taiGc();
+          }}
+        />
+      )}
+      {lapTl && lapTl.customer_id != null && (
+        <TraLaiTienKhachModal
+          khachId={lapTl.customer_id}
+          khachTen={lapTl.customer_name ?? ""}
+          don={{ id: lapTl.order_id, ma: lapTl.order_code, daNhan: 0, conLai: lapTl.con_lai, daTraLai: lapTl.da_tra_lai }}
+          duongDan={<>Phiếu chi &gt; Chờ trả lại khách &gt; {lapTl.order_code}</>}
+          onClose={() => setLapTl(null)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onDone={(saved) => {
+            setLapTl(null);
+            setMo(saved);
+            load();
+            taiTl();
           }}
         />
       )}

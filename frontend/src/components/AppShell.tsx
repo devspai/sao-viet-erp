@@ -1440,7 +1440,8 @@ export function AppShell() {
         return (
           <PaymentVouchersPage
             navigate={navigate}
-            eventTick={tickCua("mua_ke_toan")}
+            // `ban_hang`: huỷ đơn / huỷ hoá đơn đổi hàng "Chờ trả lại khách".
+            eventTick={tickCua("mua_ke_toan", "ban_hang")}
             focusQuery={navParams?.focusVoucherQuery ?? null}
           />
         );
