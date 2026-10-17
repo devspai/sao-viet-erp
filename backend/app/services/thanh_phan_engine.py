@@ -862,8 +862,9 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     if con < 1:
         con = max(_i(tp.get("so_con"), 1), 1)   # fallback: nhập tay
 
-    # --- Số mảnh xả (② lên ①): cắt tờ giấy CHẠY MÁY (kho_may) từ giấy nguyên, KHÔNG dùng vùng in ---
-    xa = _fit(kho_ng_d, kho_ng_r, kho_may_d, kho_may_r) if (kho_ng_d > 0 and kho_ng_r > 0) else 1
+    # --- Số mảnh xả (② lên ①): cắt TỜ IN (kho_in) từ giấy nguyên (16/10/2026) — khớp lệnh sản xuất,
+    # nơi thợ xả đúng khổ tờ in. Khổ máy chỉ còn dùng để cảnh báo tờ in vượt máy.
+    xa = _fit(kho_ng_d, kho_ng_r, kho_in_d, kho_in_r) if (kho_ng_d > 0 and kho_ng_r > 0) else 1
     xa = max(xa, 1)
 
     # --- Số tờ CẦN in (net) — tính TRƯỚC để tra bù hao THEO SỐ TỜ (không phải số lượng) ---
@@ -1080,7 +1081,12 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
             formula = "don_gia_giay * to_nguyen"
 
     eval_ctx = dict(ctx_vars)
-    eval_ctx["don_gia_giay"] = _don_gia_co_so(don_gia_giay, don_vi)
+    # Hệ số quy về giá MỘT tờ (hoặc một kg với giấy bán theo cân) do tầng service tra bằng cặp
+    # đơn vị đã khai (`he_so_gia_giay`) — khai đ/ram thì 1/500. Vắng (gọi thẳng engine) thì lùi về
+    # luật cứng cũ chỉ biết tấn → kg.
+    he_so = tp.get("don_gia_giay_he_so")
+    eval_ctx["don_gia_giay"] = (don_gia_giay * float(he_so) if he_so is not None
+                                else _don_gia_co_so(don_gia_giay, don_vi))
 
     try:
         gia_giay = safe_eval(formula, eval_ctx)

@@ -41,6 +41,31 @@ class DanhMucNapSan:
     ct_gia_may: dict[int, dict[int, str]] = field(default_factory=dict)
     cong_doan: dict[int, CongDoan] = field(default_factory=dict)
     vat_tu: dict[int, VatTuInAn] = field(default_factory=dict)
+    # Đơn vị + cặp quy đổi (`don_vi_map` / `cap_map`) — để quy đơn giá giấy khai theo ram/tấn/...
+    # về giá một tờ (một kg). Chỉ nạp khi phiếu có giấy.
+    dvs: dict[str, dict] = field(default_factory=dict)
+    cap: dict[str, dict[str, float]] = field(default_factory=dict)
+
+
+def he_so_gia_giay(ma: str | None, nap: DanhMucNapSan) -> float | None:
+    """Hệ số nhân đơn giá giấy khai theo `ma` ra giá MỘT TỜ (16/10/2026): đ/ram × 1/500.
+
+    Giấy bán theo cân không về tờ được ⇒ về kg (đ/tấn × 1/1.000), công thức cân của engine đếm
+    kg. `to`/`kg` = 1. Không có đường quy đổi (hoặc chưa khai đơn vị) ⇒ None — engine lùi về luật
+    cũ, không bịa hệ số."""
+    from .quy_doi_service import duong_di, he_so_duong
+
+    if not ma:
+        return None
+    ma = ma.strip().lower()
+    for goc in ("to", "kg"):
+        if ma == goc:
+            return 1.0
+        duong = duong_di(ma, goc, nap.cap)
+        if duong:
+            hs = he_so_duong(duong, nap.cap)
+            return 1.0 / hs if hs > 0 else None
+    return None
 
 
 def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
@@ -53,6 +78,12 @@ def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
     if giay_ids:
         nap.giay = {g.id: g for g in db.execute(
             select(GiayNguyen).where(GiayNguyen.id.in_(giay_ids))).scalars()}
+        from ..repositories.don_vi_do_repo import DonViDoRepository
+        from .quy_doi_service import cap_map, don_vi_map
+
+        repo = DonViDoRepository(db)
+        nap.dvs = don_vi_map(repo.all_rows())
+        nap.cap = cap_map(repo.cap_rows())
     if may_ids:
         nap.may = {m.id: m for m in db.execute(
             select(MayThietBi).where(MayThietBi.id.in_(may_ids))).scalars()}
@@ -197,6 +228,7 @@ def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> di
             d["cong_thuc_gia"] = giay.cong_thuc_gia   # G1: bơm công thức cấu hình từ danh mục Giấy
             d["don_gia_giay"] = _f(giay.don_gia)      # chốt cứng: đơn giá/kg theo danh mục
             d["don_gia_don_vi"] = giay.don_vi_gia
+            d["don_gia_giay_he_so"] = he_so_gia_giay(giay.don_vi_gia, nap)
 
     # Khổ giấy nguyên ①: nhập tay ở phiếu (kho_nguyen_dai/rong). Áp cả khi khách cấp giấy.
     if _f(d.get("kho_nguyen_dai")):

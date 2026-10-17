@@ -90,7 +90,6 @@
   .mh-tiep__luu { flex-wrap: wrap; }
   .mh-tiep__luu .mh-nut { flex: 1; justify-content: center; }
 }
-}
 /* Cọc đã duyệt: ổ khoá nhỏ cạnh số, rê chuột ra người duyệt. */
 .mh-khoa { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; color: var(--ash-2); font-size: 12px; }
 /* Hạn từng đợt dưới dòng Hạn trả ở cột phải ngăn. */
