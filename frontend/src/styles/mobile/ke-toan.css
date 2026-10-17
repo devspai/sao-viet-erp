@@ -153,4 +153,55 @@
     flex-wrap: nowrap !important;
     flex-shrink: 0;
   }
+
+  /* ---- Phiếu chi → Mua hàng chờ chi (17/10/2026) -------------------------------------------
+     Thẻ đơn: ô mũi tên "›" (cột Mở) chiếm cả một hàng trống ở đáy thẻ — cả thẻ đã bấm được, bỏ.
+     Popup: dải tóm tắt 4 ô ⇒ lưới 2×2; đầu mỗi khoản [tên | số còn | nút] ⇒ tên + số còn một hàng,
+     nút trải ngang hàng dưới (ngón tay bấm được); bảng vật tư bớt đệm cho vừa 5 cột. */
+  .lds-g.kt-mh td[aria-hidden="true"] {
+    display: none !important;
+  }
+  .kt-mh-tom.kt-mh-tom {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kt-mh-tom > div:nth-child(2n) {
+    border-right: 0;
+  }
+  .kt-mh-tom > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--rule-hair);
+  }
+  .kt-mh-k .kt-mh-k__dau {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "ten so"
+      "nut nut";
+    gap: 8px 12px;
+  }
+  .kt-mh-k__dau > .kt-mh-k__ten {
+    grid-area: ten;
+  }
+  .kt-mh-k__dau > .kt-mh-k__so {
+    grid-area: so;
+    align-self: start;
+  }
+  .kt-mh-k__dau > .kt-btn {
+    grid-area: nut;
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .kt-mh-bang th,
+  .kt-mh-bang td {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  /* Bảng vật tư thành thẻ (lớp thẻ chung) ⇒ `caption` mất chỗ đứng của bảng, bị bóp gãy từng chữ. */
+  .kt-mh-bang > caption {
+    display: block;
+    width: auto;
+    white-space: nowrap;
+  }
+  .kt-mh-k__tien {
+    justify-content: flex-start;
+  }
 }

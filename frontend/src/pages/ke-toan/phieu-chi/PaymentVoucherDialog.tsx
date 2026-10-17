@@ -38,13 +38,14 @@ export function PaymentVoucherDialog({
   purchase,
   voucher = null,
   dotId = null,
+  coc = false,
   onClose,
   onSaved,
   onMoTaiKhoan,
 }: PaymentVoucherDialogProps & { onMoTaiKhoan?: () => void }) {
   const { token } = useAuth();
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() =>
-    initialForm(purchase, voucher, dotId),
+    initialForm(purchase, voucher, dotId, coc),
   );
   const goc = useRef<string | null>(null);
   const [companyAccounts, setCompanyAccounts] = useState<

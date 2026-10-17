@@ -73,7 +73,7 @@ from ..schemas.accounting import (
     TaiKhoanThongKeOut,
 )
 from ..schemas.loc_danh_sach import LuaChonLoc
-from ..schemas.purchase import PurchaseRequestListOut
+from ..schemas.purchase import MuaHangChoChiOut, PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
 from ..services.gia_cong_ngoai import cho_chi as gc_cho_chi
 from ..services.accounting_service import (
@@ -1113,6 +1113,19 @@ def gia_cong_cho_chi_dem(
     _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
 ):
     return {"so": gc_cho_chi.dem_cho_chi(db)}
+
+
+@router.get("/api/accounting/mua-hang-cho-chi", response_model=list[MuaHangChoChiOut])
+def mua_hang_cho_chi(
+    purchases: Annotated[PurchaseService, Depends(get_purchase_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+    q: str | None = Query(default=None),
+    supplier_id: int | None = Query(default=None),
+):
+    """Tab "Mua hàng chờ chi" của màn Phiếu chi (docs/prd-mua-hang-cho-chi-o-phieu-chi.md): đơn đã
+    duyệt còn cọc chưa chi hoặc còn đợt giao còn nợ — mỗi đơn một dòng. Lập phiếu vẫn đi
+    `POST /api/accounting/payment-vouchers` như cũ."""
+    return purchases.hang_cho_chi(q=q, supplier_id=supplier_id)
 
 
 @router.get("/api/accounting/payment-vouchers/{voucher_id}", response_model=PaymentVoucherOut)

@@ -20,8 +20,9 @@ export { LOC_TRONG, soDieuKien };
 /** Mốc kỳ của màn — mặc định Ngày tạo. */
 export const MOC_PC: [string, string][] = [["tao", "Ngày tạo"], ["chi", "Ngày chi"]];
 
-/** Thẻ lọc đầu bảng. "gc" không lọc phiếu — nó đổi bảng sang hàng chờ gia công. */
-export type TheLocPC = "tat_ca" | "xong" | "thieu" | "gc" | "da_huy";
+/** Thẻ lọc đầu bảng. "gc" / "mh" không lọc phiếu — chúng đổi bảng sang hàng chờ gia công / hàng đơn
+ *  mua chờ chi (việc CHƯA lập phiếu). */
+export type TheLocPC = "tat_ca" | "xong" | "thieu" | "gc" | "mh" | "da_huy";
 
 /** Bộ lọc ĐÃ ÁP — khuôn chung của hai sổ phiếu (`shared/locPhieu.ts`). */
 export type LocPC = LocNangCao;
@@ -60,7 +61,7 @@ export function dangLoc(the: TheLocPC, loc: LocPC, tim: string): boolean {
 /** Trạng thái lọc của màn — thứ ghi lên URL cùng với kỳ (kỳ do `useKyKeToan` tự ghi). */
 export type TrangThaiLocPC = { the: TheLocPC; tim: string; loc: LocPC };
 
-const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "thieu", "gc", "da_huy"];
+const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "thieu", "gc", "mh", "da_huy"];
 
 /** Trạng thái lọc → khoá URL. Giá trị mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPC): Record<string, string | undefined> {

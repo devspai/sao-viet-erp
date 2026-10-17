@@ -1,6 +1,7 @@
 // Màn ĐƠN MUA HÀNG (Kế toán) — shell (tách từ pages/AccountingPurchaseInboxPage.tsx).
-// Giữ ở đây: state + `load()` + effects + `approve()`/`reject()` +
-// `closeDetailThen()` + `actions()` (closure trên quyền & busy, drawer nhận làm prop).
+// Giữ ở đây: state + `load()` + effects + `approve()`/`reject()`. Từ 17/10/2026 màn này CHỈ DUYỆT —
+// lập phiếu chi theo đơn mua dời hẳn sang Phiếu chi → "Mua hàng chờ chi" (docs/prd-mua-hang-cho-chi-o-
+// phieu-chi.md); ngăn đơn chỉ còn link chỉ sang đó.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
@@ -12,9 +13,7 @@ import {
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
-import { PaymentVoucherDialog } from "../phieu-chi/PaymentVoucherDialog";
 import { InboxDrawer } from "./components/InboxDrawer";
-import { InboxRowActions } from "./components/InboxRowActions";
 import { BangDonMua, COT_DON } from "../../mua-hang/don-mua-chung/BangDonMua";
 import { ChonCotBang, useCotBang } from "../../mua-hang/luoi-mua-hang";
 import { useMoLenh } from "../../mua-hang/mua-cho/OMuaCho";
@@ -72,11 +71,8 @@ export function AccountingPurchaseInboxPage({
   // quyền cũng về đây). Lần dời trước sửa máy chủ mà QUÊN dòng này ⇒ quản trị tick ô mới, giao
   // diện vẫn hỏi ô cũ, nút không hiện — "cấp quyền rồi mà không thấy nút".
   const canApprove = can("ke_toan", "approve");
-  // LẬP PHIẾU CHI là việc của kế toán — quyền khác hẳn quyền duyệt. Kế toán không có quyền duyệt
-  // vẫn thấy đủ danh sách và trạng thái, chỉ không thấy nút Duyệt.
-  // Nút "Lập phiếu chi" ⇒ quyền LẬP trên màn Phiếu chi. Trước đây hỏi `ke_toan:approve` —
-  // cùng một ô với "gán chứng từ" và "lập phiếu thu", bật một cái là mở cả ba.
-  const canCreateVoucher = can("phieu_chi", "create");
+  // Link "Phiếu chi → Mua hàng chờ chi" ở tab Thanh toán ⇒ cần ô Xem của chính màn Phiếu chi.
+  const coXemPhieuChi = can("phieu_chi", "read");
   // Mã YCMH chỉ bấm được khi có ô Xem của màn đó — không thì bấm vào là ăn màn chặn.
   const openYcmh = can("yeu_cau_mua_hang", "read")
     ? (code: string) => navigate("yeu-cau-mua-hang", { focusRequestCode: code })
@@ -112,11 +108,6 @@ export function AccountingPurchaseInboxPage({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /** `dotId` = lập phiếu cho đúng một đợt giao (bấm từ tab Thanh toán của ngăn đơn). */
-  const [voucherMode, setVoucherMode] = useState<null | {
-    purchase: PurchaseRequestRow;
-    dotId?: number | null;
-  }>(null);
 
   const load = useCallback(() => {
     if (!token) return;
@@ -227,12 +218,6 @@ export function AccountingPurchaseInboxPage({
     setSize(n);
     setPage(1);
   };
-  /** Đóng popup rồi mới mở form — không chồng hai lớp cửa sổ. */
-  function closeDetailThen(action: () => void) {
-    setSelectedId(null);
-    action();
-  }
-
   /** DUYỆT đơn mua — một bước riêng, không kèm lập phiếu chi.
    *
    * Gọi thẳng API của Thu mua (`/purchase-requests/{id}/approve`) chứ không đẻ endpoint kế toán
@@ -265,21 +250,6 @@ export function AccountingPurchaseInboxPage({
     } catch (err) {
       return err instanceof ApiError ? err.message : "Không từ chối được đơn mua hàng.";
     }
-  }
-
-  function actions(row: PurchaseRequestRow, compact = false) {
-    // Gọi THẲNG hàm component (không qua JSX `<InboxRowActions .../>`) để `null` mà
-    // InboxRowActions trả về (không còn thao tác nào khả dụng) truyền được ra ngoài —
-    // JSX luôn tạo ra một element object có giá trị "truthy", nên bọc qua JSX sẽ làm
-    // `actions(selected)` không bao giờ falsy dù bên trong render null. InboxRowActions
-    // không dùng Hook nào nên gọi trực tiếp là an toàn.
-    return InboxRowActions({
-      row,
-      compact,
-      canCreateVoucher,
-      closeDetailThen,
-      setVoucherMode,
-    });
   }
 
   return (
@@ -362,7 +332,6 @@ export function AccountingPurchaseInboxPage({
           credit={credit}
           openYcmh={openYcmh}
           onMoLenh={moLenh}
-          actions={actions}
           tiepTheo={
             canApprove && selected.status === "pending_approval" ? (
               <DaiDuyet
@@ -374,25 +343,13 @@ export function AccountingPurchaseInboxPage({
               />
             ) : undefined
           }
-          onLapPhieuChi={
-            canCreateVoucher
-              ? (dotId) => closeDetailThen(() => setVoucherMode({ purchase: selected, dotId }))
+          onMoChoChi={
+            coXemPhieuChi
+              ? () => navigate("ke-toan-phieu-chi", { focusChoChiCode: selected.code })
               : undefined
           }
           onDoi={(next) => setRows((cu) => cu.map((r) => (r.id === next.id ? next : r)))}
           onLoi={setError}
-        />
-      )}
-
-      {voucherMode && (
-        <PaymentVoucherDialog
-          purchase={voucherMode.purchase}
-          dotId={voucherMode.dotId ?? null}
-          onClose={() => setVoucherMode(null)}
-          onSaved={() => {
-            setVoucherMode(null);
-            load();
-          }}
         />
       )}
 

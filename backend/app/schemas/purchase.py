@@ -630,6 +630,10 @@ class PurchaseDeliveryLineOut(BaseModel):
     quantity_tinh_tien: float = 0
     #: Phần DƯ, giá 0đ. `quantity_tinh_tien + quantity_du == quantity`.
     quantity_du: float = 0
+    #: Đơn giá chốt trên dòng đơn (chưa CK/VAT) và thành tiền phần tính tiền của dòng (đã CK/VAT) —
+    #: đúng số `phan_bo_du_dot` cộng vào giá trị đợt.
+    don_gia: int = 0
+    thanh_tien: int = 0
     #: KHỔ THỰC NHẬN (giấy tờ): khổ lưu ở đợt, hoặc khổ đặt khi đợt không ghi. 0 · 0 với hàng khác.
     kho_rong: int = 0
     kho_dai: int = 0
@@ -813,6 +817,23 @@ class PurchaseRequestListOut(BaseModel):
     # Số đơn theo nhóm TIỀN (chua_tra | mot_phan | qua_han | da_tra) — cùng bộ lọc, trước khi lọc
     # nhóm Hàng lẫn nhóm Tiền. Đơn chưa phát sinh nợ không vào nhóm nào.
     dem_theo_tien: dict[str, int] | None = None
+
+
+class MuaHangChoChiOut(BaseModel):
+    """Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi): ĐƠN + khoản còn phải chi của đơn đó.
+    `don` là nguyên dòng đơn như hộp Đơn mua hàng — form lập phiếu chi dùng thẳng, các đợt còn nợ
+    đọc ở `don.deliveries[].con_no`."""
+
+    don: PurchaseRequestOut
+    # Cọc khai lúc gửi duyệt còn chưa chi (không quá phần giá trị đơn còn chưa trả).
+    coc_can_chi: int
+    # Số đợt giao còn nợ và tổng nợ của chúng (đã trừ phần cọc bù vào đợt).
+    so_dot_no: int
+    no_dot: int
+    tong_can_chi: int
+    # Hạn trả gần nhất trong các đợt còn nợ; None = chưa có đợt nào (chỉ còn cọc).
+    han_gan_nhat: date | None = None
+    qua_han: bool = False
 
 
 class PurchaseNotifySummaryOut(BaseModel):
