@@ -10,6 +10,7 @@ import type { MuaHangChoChi } from "../../../../api/client";
 import { DetailModal } from "../../../../components/DetailModal";
 import { CuonLuoi, rongLuoi, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
 import { ngay, tien, vietSo } from "../../shared/dinhDang";
+import { tenDonVi, useNapTenDonVi } from "../../../tenDonVi";
 import { isoToday } from "../shared/helpers";
 
 export const COT_MUA_HANG: (CotLuoi & { w?: number; n?: boolean })[] = [
@@ -158,7 +159,7 @@ function oDon(key: string, r: MuaHangChoChi) {
     case "dot":
       return (
         <td key={key} className={r.so_dot_no > 0 ? "n" : "n lds-mu3"}>
-          {r.so_dot_no > 0 ? <><span className="lds-mu">{r.so_dot_no} đợt ·</span> {tien(r.no_dot)}</> : "—"}
+          {r.so_dot_no > 0 ? <><span className="lds-mu">{r.so_dot_no} đợt</span>{" "}{tien(r.no_dot)}</> : "—"}
         </td>
       );
     case "tong":
@@ -192,8 +193,25 @@ function CacKhoan({
   onLap?: (row: MuaHangChoChi, khoan: KhoanChi) => void;
   onMoDon?: (code: string) => void;
 }) {
+  useNapTenDonVi();
   const homNay = isoToday();
   const don = r.don;
+  // Thành tiền máy chủ trả là SAU CK/VAT ⇒ phải hiện % CK/VAT, không thì SL × đơn giá không khớp.
+  // Cột chỉ mọc khi có dòng mang CK/VAT.
+  const dongDon = new Map(don.lines.map((l) => [l.id, l]));
+  const coCk = don.lines.some((l) => l.discount_percent > 0);
+  const coVat = don.lines.some((l) => l.vat_percent > 0);
+  const pt = (x: number | undefined) => (x ? `${vietSo(x)}%` : "—");
+  const dauBang = (sl: string) => (
+    <tr>
+      <th>Vật tư</th><th className="n">{sl}</th><th>ĐVT</th><th className="n">Đơn giá</th>
+      {coCk && <th className="n">CK</th>}
+      {coVat && <th className="n">VAT</th>}
+      <th className="n">Thành tiền</th>
+    </tr>
+  );
+  const kho = (l: { kho_rong: number; kho_dai: number }) =>
+    l.kho_rong > 0 && <>{" "}<span className="lds-mu">{l.kho_rong}×{l.kho_dai}</span></>;
   const dots = don.deliveries
     .filter((d) => d.con_no > 0)
     .sort((a, b) => a.delivery_date.localeCompare(b.delivery_date) || a.seq_no - b.seq_no);
@@ -213,7 +231,8 @@ function CacKhoan({
               <div className="kt-mh-k__ten">
                 <b>Cọc</b>
                 <span className="kt-mh-k__mo">
-                  đã khai {tien(don.deposit_expected)} · đã chi {tien(don.coc_da_chi)}
+                  <span>đã khai {tien(don.deposit_expected)}</span>
+                  <span>đã chi {tien(don.coc_da_chi)}</span>
                 </span>
               </div>
               <span className="kt-mh-k__so">còn {tien(r.coc_can_chi)}</span>
@@ -227,15 +246,17 @@ function CacKhoan({
             <table className="kt-mh-bang">
               <caption>Hàng đã đặt</caption>
               <thead>
-                <tr><th>Vật tư</th><th className="n">SL đặt</th><th>ĐVT</th><th className="n">Đơn giá</th><th className="n">Thành tiền</th></tr>
+                {dauBang("SL đặt")}
               </thead>
               <tbody>
                 {don.lines.map((l) => (
                   <tr key={l.id}>
-                    <td>{l.item_name}{l.kho_rong > 0 && <span className="lds-mu"> · {l.kho_rong}×{l.kho_dai}</span>}</td>
+                    <td>{l.item_name}{kho(l)}</td>
                     <td className="n">{vietSo(l.quantity)}</td>
-                    <td>{l.unit}</td>
+                    <td>{tenDonVi(l.unit) ?? l.unit}</td>
                     <td className="n">{tien(l.expected_unit_price)}</td>
+                    {coCk && <td className="n">{pt(l.discount_percent)}</td>}
+                    {coVat && <td className="n">{pt(l.vat_percent)}</td>}
                     <td className="n">{tien(l.line_total)}</td>
                   </tr>
                 ))}
@@ -251,12 +272,16 @@ function CacKhoan({
                 <div className="kt-mh-k__ten">
                   <b>Đợt {d.seq_no}</b>
                   <span className="kt-mh-k__mo">
-                    giao {ngay(d.delivery_date)} · hạn {d.due_date ? ngay(d.due_date) : "chưa có"}
-                    {quaHan && <>{" "}<span className="lds-chip lds-chip--do">Quá hạn</span></>}
-                    {" · "}
-                    {d.invoice_number
-                      ? `HĐ ${d.invoice_symbol ? `${d.invoice_symbol} ` : ""}${d.invoice_number}${d.invoice_date ? ` ngày ${ngay(d.invoice_date)}` : ""}`
-                      : "chưa có hoá đơn"}
+                    <span>giao {ngay(d.delivery_date)}</span>
+                    <span>
+                      hạn {d.due_date ? ngay(d.due_date) : "chưa có"}
+                      {quaHan && <>{" "}<span className="lds-chip lds-chip--do">Quá hạn</span></>}
+                    </span>
+                    <span>
+                      {d.invoice_number
+                        ? `HĐ ${d.invoice_symbol ? `${d.invoice_symbol} ` : ""}${d.invoice_number}${d.invoice_date ? ` ngày ${ngay(d.invoice_date)}` : ""}`
+                        : "chưa có hoá đơn"}
+                    </span>
                   </span>
                 </div>
                 <span className="kt-mh-k__so">còn nợ {tien(d.con_no)}</span>
@@ -269,25 +294,30 @@ function CacKhoan({
               <table className="kt-mh-bang">
                 <caption>Hàng về đợt {d.seq_no}</caption>
                 <thead>
-                  <tr><th>Vật tư</th><th className="n">SL nhận</th><th>ĐVT</th><th className="n">Đơn giá</th><th className="n">Thành tiền</th></tr>
+                  {dauBang("SL nhận")}
                 </thead>
                 <tbody>
-                  {d.lines.map((l) => (
+                  {d.lines.map((l) => {
+                    const goc = dongDon.get(l.purchase_request_line_id);
+                    return (
                     <tr key={l.id}>
                       <td>
                         {l.item_name}
-                        {l.kho_rong > 0 && <span className="lds-mu"> · {l.kho_rong}×{l.kho_dai}</span>}
+                        {kho(l)}
                       </td>
                       <td className="n">
                         {vietSo(l.quantity)}
                         {/* Phần dư 0đ phải lộ ra — NCC thật ra có tính tiền phần đó thì bắt được lúc đối chiếu. */}
                         {l.quantity_du > 0 && <span className="lds-mu" title="Phần giao vượt số đặt, không tính tiền"> (dư {vietSo(l.quantity_du)})</span>}
                       </td>
-                      <td>{l.unit}</td>
+                      <td>{tenDonVi(l.unit) ?? l.unit}</td>
                       <td className="n">{tien(l.don_gia)}</td>
+                      {coCk && <td className="n">{pt(goc?.discount_percent)}</td>}
+                      {coVat && <td className="n">{pt(goc?.vat_percent)}</td>}
                       <td className="n">{tien(l.thanh_tien)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               <dl className="kt-mh-k__tien">

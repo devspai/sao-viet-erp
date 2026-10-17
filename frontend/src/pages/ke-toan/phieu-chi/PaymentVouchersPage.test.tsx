@@ -145,11 +145,11 @@ describe("PaymentVouchersPage — nối dây", () => {
   it("tab Mua hàng chờ chi: luôn có mục kèm số đơn; mỗi đơn một dòng, bấm dòng mở cọc + từng đợt kèm nút lập phiếu", async () => {
     const u = userEvent.setup();
     const dongDot = {
-      id: 31, item_name: "Giấy Duplex", unit: "tờ", quantity: 400, quantity_du: 0, kho_rong: 790, kho_dai: 1090,
-      don_gia: 2_200, thanh_tien: 880_000,
+      id: 31, purchase_request_line_id: 41, item_name: "Giấy Duplex", unit: "tờ", quantity: 400, quantity_du: 0,
+      kho_rong: 790, kho_dai: 1090, don_gia: 2_000, thanh_tien: 864_000,
     };
     const dotNo = {
-      id: 21, seq_no: 1, con_no: 880_000, amount: 880_000, paid_amount: 0, coc_bu: 0,
+      id: 21, seq_no: 1, con_no: 864_000, amount: 864_000, paid_amount: 0, coc_bu: 0,
       delivery_date: "2026-10-01", due_date: "2026-10-31", invoice_number: null, lines: [dongDot],
     };
     const daTra = { id: 22, seq_no: 2, con_no: 0, delivery_date: "2026-10-05", due_date: "2026-11-04", lines: [] };
@@ -157,12 +157,12 @@ describe("PaymentVouchersPage — nối dây", () => {
       {
         don: {
           id: 9, code: "PMH26-0009", supplier_name: "Giấy Tân Mai", deposit_expected: 500_000, coc_da_chi: 100_000,
-          tran_dat_coc: 400_000, deliveries: [dotNo, daTra], total_estimate: 2_200_000, gia_tri_da_giao: 880_000,
+          tran_dat_coc: 400_000, deliveries: [dotNo, daTra], total_estimate: 2_200_000, gia_tri_da_giao: 864_000,
           net_paid: 100_000,
           lines: [{ id: 41, item_name: "Giấy Duplex", unit: "tờ", quantity: 1000, kho_rong: 790, kho_dai: 1090,
-            expected_unit_price: 2_200, line_total: 2_200_000 }],
+            expected_unit_price: 2_000, discount_percent: 0, vat_percent: 8, line_total: 2_160_000 }],
         },
-        coc_can_chi: 400_000, so_dot_no: 1, no_dot: 880_000, tong_can_chi: 1_280_000,
+        coc_can_chi: 400_000, so_dot_no: 1, no_dot: 864_000, tong_can_chi: 1_264_000,
         han_gan_nhat: "2026-10-31", qua_han: false,
       },
     ]);
@@ -174,7 +174,7 @@ describe("PaymentVouchersPage — nối dây", () => {
 
     await u.click(muc);
     const dong = await screen.findByRole("row", { name: /PMH26-0009/ });
-    expect(dong).toHaveTextContent("1 đợt ·");
+    expect(dong).toHaveTextContent("1 đợt 864.000");
     expect(screen.queryByRole("list", { name: /Các khoản cần chi/ })).toBeNull();
 
     await u.click(dong);
@@ -186,13 +186,17 @@ describe("PaymentVouchersPage — nối dây", () => {
     expect(within(cac[0]).getByRole("button", { name: "Lập phiếu chi cọc" })).toBeInTheDocument();
     expect(cac[1]).toHaveTextContent("Đợt 1");
     expect(within(cac[1]).getByRole("button", { name: "Lập phiếu chi" })).toBeInTheDocument();
-    // Đợt kể đủ vật tư về trong đợt — tên, khổ, số nhận, đơn giá, thành tiền.
+    // Đợt kể đủ vật tư về trong đợt — tên, khổ, số nhận, đơn giá, VAT, thành tiền (đã VAT). Có cột VAT
+    // thì SL × đơn giá khác thành tiền mới đọc ra được; không dòng nào có CK thì không mọc cột CK.
     const hang = within(cac[1]).getByRole("row", { name: /Giấy Duplex/ });
     expect(hang).toHaveTextContent("790×1090");
     expect(hang).toHaveTextContent("400");
-    expect(hang).toHaveTextContent("880.000");
+    expect(hang).toHaveTextContent("8%");
+    expect(hang).toHaveTextContent("864.000");
+    expect(within(cac[1]).getByRole("columnheader", { name: "VAT" })).toBeInTheDocument();
+    expect(within(cac[1]).queryByRole("columnheader", { name: "CK" })).toBeNull();
     // Cọc kể hàng đã đặt của cả đơn.
-    expect(within(cac[0]).getByRole("row", { name: /Giấy Duplex/ })).toHaveTextContent("2.200.000");
+    expect(within(cac[0]).getByRole("row", { name: /Giấy Duplex/ })).toHaveTextContent("2.160.000");
   });
 
   it("mở từ link của ngăn Đơn mua hàng: đứng ở tab Mua hàng chờ chi, đơn đó bung sẵn", async () => {

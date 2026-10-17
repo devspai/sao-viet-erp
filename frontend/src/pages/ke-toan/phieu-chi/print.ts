@@ -9,7 +9,7 @@ export function dongPhuPhieuChi(
     PaymentVoucherRow,
     | "voucher_type" | "source_type" | "payment_stage" | "company_account_number" | "company_bank_name"
     | "beneficiary_account_number" | "beneficiary_bank_name" | "invoice_number" | "bank_reference"
-  > & Pick<Partial<PaymentVoucherRow>, "muc_thu_chi_ten">,
+  > & Pick<Partial<PaymentVoucherRow>, "muc_thu_chi_ten" | "delivery_seq_no">,
 ): TT200Line[] {
   const isBank = row.voucher_type === "bank_transfer";
   return [
@@ -21,8 +21,15 @@ export function dongPhuPhieuChi(
         ? [{ label: "Nguồn chi", value: SOURCE_LABELS[row.source_type] ?? row.source_type }]
         : []),
     // Chỉ phiếu theo đơn mua mới có đợt thanh toán; phiếu rời, gia công, tạm ứng in "Khác" là thừa.
+    // Phiếu trả tiền một đợt giao in số đợt: mọi phiếu trả đợt đều mang stage "final", in nhãn stage
+    // thì phiếu Đợt 1 ghi "thanh toán cuối" trong khi Đợt 2 còn nợ.
     ...(row.source_type === "purchase_request"
-      ? [{ label: "Đợt thanh toán", value: STAGE_LABELS[row.payment_stage] }]
+      ? [{
+          label: "Đợt thanh toán",
+          value: row.payment_stage !== "advance" && row.delivery_seq_no
+            ? `Đợt ${row.delivery_seq_no}`
+            : STAGE_LABELS[row.payment_stage],
+        }]
       : []),
     ...(isBank
       ? [
