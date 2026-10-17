@@ -844,11 +844,12 @@ function TabThanhToan({
   const dots = [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no);
   const cuaDot = (id: number | null) => (phieuChi ?? []).filter((v) => v.delivery_id === id);
   const coc = cuaDot(null);
-  // Đơn đã duyệt còn cọc chưa chi hoặc còn đợt còn nợ ⇒ chỉ đường sang chỗ chi (cùng điều kiện với
-  // tab "Mua hàng chờ chi"; máy chủ còn kẹp cọc theo phần giá trị đơn chưa trả — ở đây chỉ là gợi ý).
+  // Đơn đã duyệt còn đợt còn nợ, hoặc còn cọc chưa chi cho PHẦN HÀNG CHƯA VỀ ⇒ chỉ đường sang chỗ chi
+  // (cùng luật `khoan_cho_chi` của tab "Mua hàng chờ chi").
+  const noDot = row.deliveries.reduce((t, d) => t + Math.max(0, d.con_no), 0);
+  const cocTreo = Math.min(row.tran_dat_coc, Math.max(0, row.total_estimate - row.net_paid - noDot));
   const conPhaiChi =
-    ["approved", "purchased", "partially_received", "received"].includes(row.status) &&
-    (row.tran_dat_coc > 0 || row.deliveries.some((d) => d.con_no > 0));
+    ["approved", "purchased", "partially_received", "received"].includes(row.status) && (noDot > 0 || cocTreo > 0);
   const chiODau = onMoChoChi && conPhaiChi && (
     <p className="mh-ghi">
       Chi tiền cho đơn này ở{" "}

@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { MuaHangChoChi } from "../../../../api/client";
 import { DetailModal } from "../../../../components/DetailModal";
 import { CuonLuoi, rongLuoi, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
-import { ngay, tien } from "../../shared/dinhDang";
+import { ngay, tien, vietSo } from "../../shared/dinhDang";
 import { isoToday } from "../shared/helpers";
 
 export const COT_MUA_HANG: (CotLuoi & { w?: number; n?: boolean })[] = [
@@ -128,7 +128,7 @@ export function HangChoMuaHang({
           title={dangXem.don.code}
           subtitle={dangXem.don.supplier_name ?? undefined}
           badge={dangXem.qua_han ? <span className="lds-chip lds-chip--do">Quá hạn</span> : undefined}
-          width={640}
+          width={820}
           onClose={() => setXemId(null)}
         >
           <CacKhoan
@@ -181,7 +181,8 @@ function oDon(key: string, r: MuaHangChoChi) {
   }
 }
 
-/** Các khoản của một đơn: cọc (nếu còn) rồi từng đợt còn nợ, mỗi khoản một nút lập phiếu. */
+/** Popup của một đơn: tóm tắt tiền cả đơn, rồi cọc (nếu còn — kèm hàng đã đặt) và từng đợt còn nợ (kèm
+ *  vật tư về trong đợt, đơn giá, thành tiền, đã chi, cọc trừ). Mỗi khoản một nút lập phiếu. */
 function CacKhoan({
   r,
   onLap,
@@ -192,51 +193,120 @@ function CacKhoan({
   onMoDon?: (code: string) => void;
 }) {
   const homNay = isoToday();
-  const dots = r.don.deliveries
+  const don = r.don;
+  const dots = don.deliveries
     .filter((d) => d.con_no > 0)
     .sort((a, b) => a.delivery_date.localeCompare(b.delivery_date) || a.seq_no - b.seq_no);
   return (
-    <div className="kt-mh-khoan" role="list" aria-label={`Các khoản cần chi của ${r.don.code}`}>
-      {r.coc_can_chi > 0 && (
-        <div className="kt-mh-khoan__dong" role="listitem">
-          <span className="kt-mh-khoan__ten">Cọc</span>
-          <span className="kt-mh-khoan__mo">
-            đã khai {tien(r.don.deposit_expected)} · đã chi {tien(r.don.coc_da_chi)}
-          </span>
-          <span className="kt-mh-khoan__so">còn {tien(r.coc_can_chi)}</span>
-          {onLap && (
-            <button type="button" className="kt-btn kt-btn--nho" onClick={() => onLap(r, { coc: true })}>
-              Lập phiếu chi cọc
-            </button>
-          )}
+    <div className="kt-mh-khoan">
+      {/* Bức tranh cả đơn trước, rồi mới tới từng khoản — biết đơn bao nhiêu, về bao nhiêu, trả bao nhiêu. */}
+      <dl className="kt-mh-tom">
+        <div><dt>Giá trị đơn</dt><dd>{tien(don.total_estimate)}</dd></div>
+        <div><dt>Hàng đã về</dt><dd>{tien(don.gia_tri_da_giao)}</dd></div>
+        <div><dt>Đã chi</dt><dd>{tien(don.net_paid)}</dd></div>
+        <div className="kt-mh-tom__can"><dt>Cần chi</dt><dd>{tien(r.tong_can_chi)}</dd></div>
+      </dl>
+      <div role="list" aria-label={`Các khoản cần chi của ${don.code}`} className="kt-mh-khoan__ds">
+        {r.coc_can_chi > 0 && (
+          <section className="kt-mh-k" role="listitem" aria-label="Cọc">
+            <header className="kt-mh-k__dau">
+              <div className="kt-mh-k__ten">
+                <b>Cọc</b>
+                <span className="kt-mh-k__mo">
+                  đã khai {tien(don.deposit_expected)} · đã chi {tien(don.coc_da_chi)}
+                </span>
+              </div>
+              <span className="kt-mh-k__so">còn {tien(r.coc_can_chi)}</span>
+              {onLap && (
+                <button type="button" className="kt-btn kt-btn--nho" onClick={() => onLap(r, { coc: true })}>
+                  Lập phiếu chi cọc
+                </button>
+              )}
+            </header>
+            {/* Cọc là tiền của CẢ đơn ⇒ kể hàng đã đặt. */}
+            <table className="kt-mh-bang">
+              <caption>Hàng đã đặt</caption>
+              <thead>
+                <tr><th>Vật tư</th><th className="n">SL đặt</th><th>ĐVT</th><th className="n">Đơn giá</th><th className="n">Thành tiền</th></tr>
+              </thead>
+              <tbody>
+                {don.lines.map((l) => (
+                  <tr key={l.id}>
+                    <td>{l.item_name}{l.kho_rong > 0 && <span className="lds-mu"> · {l.kho_rong}×{l.kho_dai}</span>}</td>
+                    <td className="n">{vietSo(l.quantity)}</td>
+                    <td>{l.unit}</td>
+                    <td className="n">{tien(l.expected_unit_price)}</td>
+                    <td className="n">{tien(l.line_total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+        {dots.map((d) => {
+          const quaHan = d.due_date != null && d.due_date < homNay;
+          return (
+            <section key={d.id} className="kt-mh-k" role="listitem" aria-label={`Đợt ${d.seq_no}`}>
+              <header className="kt-mh-k__dau">
+                <div className="kt-mh-k__ten">
+                  <b>Đợt {d.seq_no}</b>
+                  <span className="kt-mh-k__mo">
+                    giao {ngay(d.delivery_date)} · hạn {d.due_date ? ngay(d.due_date) : "chưa có"}
+                    {quaHan && <>{" "}<span className="lds-chip lds-chip--do">Quá hạn</span></>}
+                    {" · "}
+                    {d.invoice_number
+                      ? `HĐ ${d.invoice_symbol ? `${d.invoice_symbol} ` : ""}${d.invoice_number}${d.invoice_date ? ` ngày ${ngay(d.invoice_date)}` : ""}`
+                      : "chưa có hoá đơn"}
+                  </span>
+                </div>
+                <span className="kt-mh-k__so">còn nợ {tien(d.con_no)}</span>
+                {onLap && (
+                  <button type="button" className="kt-btn kt-btn--nho" onClick={() => onLap(r, { coc: false, dotId: d.id })}>
+                    Lập phiếu chi
+                  </button>
+                )}
+              </header>
+              <table className="kt-mh-bang">
+                <caption>Hàng về đợt {d.seq_no}</caption>
+                <thead>
+                  <tr><th>Vật tư</th><th className="n">SL nhận</th><th>ĐVT</th><th className="n">Đơn giá</th><th className="n">Thành tiền</th></tr>
+                </thead>
+                <tbody>
+                  {d.lines.map((l) => (
+                    <tr key={l.id}>
+                      <td>
+                        {l.item_name}
+                        {l.kho_rong > 0 && <span className="lds-mu"> · {l.kho_rong}×{l.kho_dai}</span>}
+                      </td>
+                      <td className="n">
+                        {vietSo(l.quantity)}
+                        {/* Phần dư 0đ phải lộ ra — NCC thật ra có tính tiền phần đó thì bắt được lúc đối chiếu. */}
+                        {l.quantity_du > 0 && <span className="lds-mu" title="Phần giao vượt số đặt, không tính tiền"> (dư {vietSo(l.quantity_du)})</span>}
+                      </td>
+                      <td>{l.unit}</td>
+                      <td className="n">{tien(l.don_gia)}</td>
+                      <td className="n">{tien(l.thanh_tien)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <dl className="kt-mh-k__tien">
+                <div><dt>Giá trị đợt</dt><dd>{tien(d.amount)}</dd></div>
+                <div><dt>Đã chi</dt><dd>{tien(d.paid_amount)}</dd></div>
+                {d.coc_bu > 0 && <div><dt>Cọc trừ</dt><dd>{tien(d.coc_bu)}</dd></div>}
+                <div className="kt-mh-k__con"><dt>Còn nợ</dt><dd>{tien(d.con_no)}</dd></div>
+              </dl>
+            </section>
+          );
+        })}
+      </div>
+      {onMoDon && (
+        <div className="kt-mh-khoan__chan">
+          <button type="button" className="lds-lk kt-mh-khoan__xem" onClick={() => onMoDon(don.code)}>
+            Xem đơn đầy đủ <ExternalLink size={12} aria-hidden="true" />
+          </button>
         </div>
       )}
-      {dots.map((d) => {
-        const quaHan = d.due_date != null && d.due_date < homNay;
-        return (
-          <div key={d.id} className="kt-mh-khoan__dong" role="listitem">
-            <span className="kt-mh-khoan__ten">Đợt {d.seq_no}</span>
-            <span className="kt-mh-khoan__mo">
-              giao {ngay(d.delivery_date)} · hạn {d.due_date ? ngay(d.due_date) : "chưa có"}
-              {quaHan && <>{" "}<span className="lds-chip lds-chip--do">Quá hạn</span></>}
-            </span>
-            <span className="kt-mh-khoan__so">còn nợ {tien(d.con_no)}</span>
-            {onLap && (
-              <button type="button" className="kt-btn kt-btn--nho" onClick={() => onLap(r, { coc: false, dotId: d.id })}>
-                Lập phiếu chi
-              </button>
-            )}
-          </div>
-        );
-      })}
-      <div className="kt-mh-khoan__chan">
-        <span>Tổng cần chi <b>{tien(r.tong_can_chi)}</b></span>
-        {onMoDon && (
-          <button type="button" className="lds-lk kt-mh-khoan__xem" onClick={() => onMoDon(r.don.code)}>
-            Xem đơn <ExternalLink size={12} aria-hidden="true" />
-          </button>
-        )}
-      </div>
     </div>
   );
 }

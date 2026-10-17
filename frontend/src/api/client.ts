@@ -8285,6 +8285,10 @@ export interface PurchaseDeliveryLineRow {
    *  PHẢI hiện ra chứ đừng chỉ hiện tổng: hệ không biết phần dư có thật là hàng tặng hay không,
    *  nên phải để người đọc bắt được ca NCC thực ra CÓ tính tiền phần dư. */
   quantity_du: number;
+  /** Đơn giá chốt trên dòng đơn (chưa CK/VAT). */
+  don_gia: number;
+  /** Thành tiền phần TÍNH TIỀN của dòng (đã CK/VAT) — đúng số máy chủ cộng vào `amount` của đợt. */
+  thanh_tien: number;
   /** KHỔ THỰC NHẬN (giấy tờ): khổ ghi ở đợt, không ghi thì khổ đặt. 0 · 0 với hàng khác. */
   kho_rong: number;
   kho_dai: number;

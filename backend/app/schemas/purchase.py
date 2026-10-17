@@ -630,6 +630,10 @@ class PurchaseDeliveryLineOut(BaseModel):
     quantity_tinh_tien: float = 0
     #: Phần DƯ, giá 0đ. `quantity_tinh_tien + quantity_du == quantity`.
     quantity_du: float = 0
+    #: Đơn giá chốt trên dòng đơn (chưa CK/VAT) và thành tiền phần tính tiền của dòng (đã CK/VAT) —
+    #: đúng số `phan_bo_du_dot` cộng vào giá trị đợt.
+    don_gia: int = 0
+    thanh_tien: int = 0
     #: KHỔ THỰC NHẬN (giấy tờ): khổ lưu ở đợt, hoặc khổ đặt khi đợt không ghi. 0 · 0 với hàng khác.
     kho_rong: int = 0
     kho_dai: int = 0

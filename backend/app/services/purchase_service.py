@@ -321,7 +321,7 @@ def phan_bo_du_dot(row) -> dict[int, dict]:
     không tính tiền". Vì vậy con số dư phải được PHƠI RA ở giao diện (đợt giao + dòng đơn), để ca
     NCC thực sự có tính tiền phần dư bị bắt lúc đối chiếu hoá đơn, chứ không im lặng ghi thiếu nợ.
 
-    Trả `{delivery_id: {"amount": int, "lines": {delivery_line_id: {"tinh_tien", "du"}}}}`.
+    Trả `{delivery_id: {"amount": int, "lines": {delivery_line_id: {"tinh_tien", "du", "thanh_tien"}}}}`.
     """
     line_by_id = {line.id: line for line in row.lines}
     dots = sorted(
@@ -338,14 +338,14 @@ def phan_bo_du_dot(row) -> dict[int, dict]:
             if line is None:
                 # Dòng đợt trỏ tới dòng đặt đã bị xoá (dữ liệu lỗi): bỏ qua tiền, thà thiếu một
                 # dòng còn hơn nổ cả màn công nợ. Vẫn khai báo để giao diện không mất dòng.
-                chi_tiet[dl.id] = {"tinh_tien": 0.0, "du": nhan}
+                chi_tiet[dl.id] = {"tinh_tien": 0.0, "du": nhan, "thanh_tien": 0}
                 continue
             dat = float(line.quantity)
             truoc = luy_ke.get(line.id, 0.0)
             sau = truoc + nhan
             luy_ke[line.id] = sau
             tinh_tien = max(0.0, min(sau, dat) - min(truoc, dat))
-            chi_tiet[dl.id] = {"tinh_tien": tinh_tien, "du": max(0.0, nhan - tinh_tien)}
+            chi_tiet[dl.id] = {"tinh_tien": tinh_tien, "du": max(0.0, nhan - tinh_tien), "thanh_tien": 0}
             if tinh_tien <= 0:
                 continue
             _, _, _, thanh_tien = _purchase_line_amounts(
@@ -354,6 +354,9 @@ def phan_bo_du_dot(row) -> dict[int, dict]:
                 discount_percent=float(line.discount_percent or 0),
                 vat_percent=float(line.vat_percent or 0),
             )
+            # Thành tiền TỪNG dòng (popup "Mua hàng chờ chi" kể vật tư của đợt) — đúng số đã cộng
+            # vào `amount`, để giao diện khỏi tự nhân lại rồi lệch đồng lẻ.
+            chi_tiet[dl.id]["thanh_tien"] = thanh_tien
             tien += thanh_tien
         out[d.id] = {"amount": tien, "lines": chi_tiet}
     return out
@@ -683,8 +686,10 @@ def khoan_cho_chi(row, hom_nay: date) -> dict | None:
     (docs/prd-mua-hang-cho-chi-o-phieu-chi.md §3). None = đơn không có gì để chi (chưa duyệt / đã
     huỷ / không cọc mà cũng chưa có đợt giao còn nợ).
 
-    - `coc_can_chi`: cọc khai lúc gửi duyệt còn chưa chi (`tran_dat_coc`), nhưng không quá phần
-      giá trị đơn còn chưa trả — đơn đã trả đủ cả đơn bằng các đợt thì cọc không còn treo nữa.
+    - `coc_can_chi`: cọc khai lúc gửi duyệt còn chưa chi (`tran_dat_coc`), nhưng chỉ treo cho PHẦN
+      HÀNG CHƯA VỀ = giá trị đơn − đã chi − nợ các đợt. Hàng về tới đâu thì nợ đợt thay chỗ cọc tới
+      đó (cọc chi ra cũng tự trừ vào đợt giao trước) — cộng cả cọc lẫn nợ đợt là đếm đôi: đơn
+      1.000.000 về đủ mà ghi "cần chi 1.010.000" (bắt được lúc thử popup 17/10/2026).
     - Đợt giao: các đợt `con_no > 0` theo `phan_bo_tien_dot` (đã trừ phần cọc bù vào đợt), kèm hạn
       trả đã chốt của đợt (`han_tra_dot`). Đợt vào ngay khi ghi, không đợi tới hạn (chủ 17/10/2026).
 
@@ -692,7 +697,6 @@ def khoan_cho_chi(row, hom_nay: date) -> dict | None:
     if row.status not in (PR_APPROVED, PR_PURCHASED, PR_PARTIALLY_RECEIVED, PR_RECEIVED):
         return None
     money = purchase_money(row)
-    coc = min(money["tran_dat_coc"], max(0, money["total"] - money["net_paid"]))
     phan_bo, _coc, _coc_du = phan_bo_tien_dot(row)
     no_dot = 0
     so_dot = 0
@@ -705,6 +709,7 @@ def khoan_cho_chi(row, hom_nay: date) -> dict | None:
         han = han_tra_dot(m["delivery"], row.supplier)
         if han is not None and (han_gan is None or han < han_gan):
             han_gan = han
+    coc = min(money["tran_dat_coc"], max(0, money["total"] - money["net_paid"] - no_dot))
     if coc <= 0 and so_dot == 0:
         return None
     return {
@@ -4244,6 +4249,15 @@ class PurchaseService:
                         ),
                         "quantity_du": float(
                             chia_dot.get(d.id, {}).get("lines", {}).get(dl.id, {}).get("du", 0.0)
+                        ),
+                        # Đơn giá chốt trên đơn + thành tiền phần tính tiền (gồm CK/VAT) của dòng.
+                        "don_gia": (
+                            int(line_by_id[dl.purchase_request_line_id].expected_unit_price or 0)
+                            if dl.purchase_request_line_id in line_by_id
+                            else 0
+                        ),
+                        "thanh_tien": int(
+                            chia_dot.get(d.id, {}).get("lines", {}).get(dl.id, {}).get("thanh_tien", 0)
                         ),
                         **self._kho_nhan_ra(dl, line_by_id.get(dl.purchase_request_line_id)),
                         "note": dl.note,
